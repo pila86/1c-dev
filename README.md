@@ -8,8 +8,23 @@ Agent-independent toolchain и API-слой для AI-native разработк�
 
 - [M1: acceptance criteria и workflow](docs/milestones/m1-catalog-via-agent.md)
 - [Roadmap](docs/roadmap.md)
-- [Issues (M1)](https://github.com/pila86/1c-dev/milestone/1)
+- [Milestone M1 на GitHub](https://github.com/pila86/1c-dev/milestone/1)
 - [PRD v0.1](1c-dev-runtime-PRD-v0.1.md)
+
+### Issues M1
+
+| # | Задача |
+|---|--------|
+| [#1](https://github.com/pila86/1c-dev/issues/1) | ADR и каркас monorepo |
+| [#2](https://github.com/pila86/1c-dev/issues/2) | Project manifest и project API |
+| [#3](https://github.com/pila86/1c-dev/issues/3) | Doctor: discovery окружения |
+| [#4](https://github.com/pila86/1c-dev/issues/4) | Project init: пустая configuration |
+| [#5](https://github.com/pila86/1c-dev/issues/5) | Metadata IR v0 + metadata.create |
+| [#6](https://github.com/pila86/1c-dev/issues/6) | MCP server: agent-facing tools |
+| [#7](https://github.com/pila86/1c-dev/issues/7) | Platform adapter: ibcmd build |
+| [#8](https://github.com/pila86/1c-dev/issues/8) | Acceptance test M1 |
+| [#9](https://github.com/pila86/1c-dev/issues/9) | Check: platform check |
+| [#10](https://github.com/pila86/1c-dev/issues/10) | README и developer onboarding |
 
 ## Быстрый старт (после реализации M1)
 

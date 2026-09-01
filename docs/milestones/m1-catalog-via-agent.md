@@ -80,3 +80,18 @@ AI-агент через MCP создаёт конфигурацию 1С с од
 - [GitHub milestone M1](https://github.com/pila86/1c-dev/milestone/1)
 - [Roadmap](../roadmap.md)
 - [PRD §47](../../1c-dev-runtime-PRD-v0.1.md)
+
+## Issues
+
+| # | Задача | Depends on |
+|---|--------|------------|
+| [#1](https://github.com/pila86/1c-dev/issues/1) | ADR и карkас monorepo | — |
+| [#2](https://github.com/pila86/1c-dev/issues/2) | Project manifest и project API | #1 |
+| [#3](https://github.com/pila86/1c-dev/issues/3) | Doctor: discovery окружения | #2 |
+| [#4](https://github.com/pila86/1c-dev/issues/4) | Project init: пустая configuration | #2, #3 |
+| [#5](https://github.com/pila86/1c-dev/issues/5) | Metadata IR v0 + metadata.create | #4 |
+| [#7](https://github.com/pila86/1c-dev/issues/7) | Platform adapter: ibcmd build | #3, #4 |
+| [#9](https://github.com/pila86/1c-dev/issues/9) | Check: platform check | #7 |
+| [#6](https://github.com/pila86/1c-dev/issues/6) | MCP server: agent-facing tools | #4, #5, #7, #9 |
+| [#8](https://github.com/pila86/1c-dev/issues/8) | Acceptance test M1 | #6 |
+| [#10](https://github.com/pila86/1c-dev/issues/10) | README и developer onboarding | #3, #6 |
