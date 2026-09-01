@@ -85,7 +85,7 @@ AI-агент через MCP создаёт конфигурацию 1С с од
 
 | # | Задача | Depends on |
 |---|--------|------------|
-| [#1](https://github.com/pila86/1c-dev/issues/1) | ADR и карkас monorepo | — |
+| [#1](https://github.com/pila86/1c-dev/issues/1) | ADR и каркас monorepo | — |
 | [#2](https://github.com/pila86/1c-dev/issues/2) | Project manifest и project API | #1 |
 | [#3](https://github.com/pila86/1c-dev/issues/3) | Doctor: discovery окружения | #2 |
 | [#4](https://github.com/pila86/1c-dev/issues/4) | Project init: пустая configuration | #2, #3 |

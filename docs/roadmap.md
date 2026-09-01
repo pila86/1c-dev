@@ -5,7 +5,7 @@
 **M1: catalog via agent** — агент через MCP создаёт конфигурацию с одним справочником.
 
 → [Acceptance criteria](milestones/m1-catalog-via-agent.md)  
-→ [GitHub milestone](https://github.com/pila86/1c-dev/milestone/1)
+→ [GitHub milestone](https://github.com/pila86/1c-dev/milestone/1) · [Issues #1–#10](https://github.com/pila86/1c-dev/issues?q=milestone%3A%22M1%3A+catalog+via+agent%22)
 
 ## Этапы
 
