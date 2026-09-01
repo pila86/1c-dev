@@ -43,7 +43,7 @@
 ### Python — против / ограничения
 
 - Нет single-binary из коробки — **но это не blocker:** отсутствие нативного single-binary следует рассматривать как отдельный вопрос distribution/packaging (`pipx`, `uv tool`, PyInstaller), а не как фундаментальный недостаток языка для M1.
-- Зависимость от версии Python на машине пользователя (миtigation: Poetry/uv, pin Python 3.11+)
+- Зависимость от версии Python на машине пользователя (mitigation: Poetry/uv, pin Python 3.11+)
 
 ### Go / Rust — за
 
