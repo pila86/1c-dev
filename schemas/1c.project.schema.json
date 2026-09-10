@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pila86/1c-dev/schemas/1c.project.schema.json",
+  "title": "1c.project.yaml",
+  "description": "Манифест проекта 1c-dev (PRD §8, ADR-004).",
+  "type": "object",
+  "required": ["schema", "project", "platform", "source", "runtime"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "1",
+      "description": "Версия schema манифеста."
+    },
+    "project": {
+      "type": "object",
+      "required": ["name", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "configuration",
+            "extension",
+            "external-data-processor",
+            "external-report"
+          ]
+        }
+      }
+    },
+    "platform": {
+      "type": "object",
+      "required": ["version"],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Версия платформы 1С (например 8.3.27)."
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["format", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": ["xml", "edt"]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "required": ["type", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["file"],
+          "description": "Тип runtime. server — позже."
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "description": "Опционально; глубокая валидация отложена (forward-compat)."
+    },
+    "tests": {
+      "type": "object",
+      "description": "Опционально; глубокая валидация отложена (forward-compat)."
+    },
+    "tools": {
+      "type": "object",
+      "description": "Опционально; глубокая валидация отложена (forward-compat)."
+    }
+  }
+}

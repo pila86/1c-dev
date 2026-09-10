@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
-from enum import Enum
 
 import typer
 
+from cli.output import OutputFormat
+from cli.project import app as project_app
 from core.version import __version__
 
 app = typer.Typer(
@@ -15,11 +16,7 @@ app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
 )
-
-
-class OutputFormat(str, Enum):
-    text = "text"
-    json = "json"
+app.add_typer(project_app, name="project")
 
 
 def _version_payload() -> dict[str, str]:
