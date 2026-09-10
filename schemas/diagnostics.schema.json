@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pila86/1c-dev/schemas/diagnostics.schema.json",
+  "title": "1c-dev Diagnostic",
+  "description": "Единая модель диагностики runtime (PRD §36, ADR-003).",
+  "type": "object",
+  "required": ["severity", "message"],
+  "additionalProperties": false,
+  "properties": {
+    "severity": {
+      "type": "string",
+      "enum": ["error", "warning", "info", "hint"]
+    },
+    "code": {
+      "type": "string",
+      "description": "Машиночитаемый код ошибки (например 1CXXXX)."
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1
+    },
+    "file": {
+      "type": "string",
+      "description": "Путь к файлу относительно корня проекта."
+    },
+    "object": {
+      "type": "string",
+      "description": "Метаданные-объект (например Catalog.Products)."
+    },
+    "module": {
+      "type": "string",
+      "description": "Модуль объекта (например Module, ObjectModule)."
+    },
+    "line": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "column": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "source": {
+      "type": "string",
+      "description": "Источник диагностики (platform, bsl-ls, runtime, …)."
+    },
+    "documentationLink": {
+      "type": "string",
+      "format": "uri"
+    },
+    "relatedObject": {
+      "type": "string"
+    },
+    "suggestion": {
+      "type": "string"
+    },
+    "fix": {
+      "type": "string"
+    }
+  }
+}

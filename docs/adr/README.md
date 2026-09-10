@@ -12,7 +12,9 @@
 
 | ADR | Статус | Тема |
 |-----|--------|------|
-| [001](001-language-core-cli.md) | Proposed | Язык core/CLI (Go / Rust / Python) |
+| [001](001-language-core-cli.md) | Accepted | Язык core/CLI: Python 3.11+ + Poetry |
+| [002](002-monorepo-layout.md) | Accepted | Layout monorepo |
+| [003](003-diagnostics-exit-codes.md) | Accepted | Diagnostics model + exit codes |
 
 ## Когда писать ADR
 

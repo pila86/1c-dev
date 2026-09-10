@@ -9,7 +9,7 @@ AI-агент через MCP создаёт конфигурацию 1С с од
 - Платформа 1С 8.3.x (локально)
 - `ibcmd` в PATH
 - Linux или Windows
-- Runtime-зависимости — по [ADR-001](../adr/001-language-core-cli.md) (Python 3.11+ / Go / Rust — что будет выбрано)
+- Runtime-зависимости — Python 3.11+ и Poetry ([ADR-001](../adr/001-language-core-cli.md))
 
 ## Agent workflow
 
