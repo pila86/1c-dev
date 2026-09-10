@@ -2,6 +2,21 @@
 
 Agent-independent toolchain и API-слой для AI-native разработки на платформе 1С.
 
+## Стек
+
+- **Язык:** Python 3.11+ ([ADR-001](docs/adr/001-language-core-cli.md))
+- **Зависимости:** Poetry
+- **CLI:** Typer (`1c-dev`)
+
+## Локальный запуск
+
+```bash
+poetry install
+poetry run 1c-dev --version
+poetry run 1c-dev --output json --version
+poetry run pytest
+```
+
 ## Текущий фокус
 
 **Milestone M1: catalog via agent** — агент создаёт конфигурацию с одним справочником через MCP без ручного Конфигуратора.
@@ -29,17 +44,10 @@ Agent-independent toolchain и API-слой для AI-native разработк�
 ## Быстрый старт (после реализации M1)
 
 ```bash
-# Установка runtime (зависит от ADR-001: Python / Go / Rust)
-# ...
-
-# Создание проекта
-1c-dev init --type configuration
-
-# Проверка окружения
-1c-dev doctor
-
-# MCP для агента
-1c-dev mcp
+poetry install
+poetry run 1c-dev init --type configuration
+poetry run 1c-dev doctor
+poetry run 1c-dev mcp
 ```
 
 ## Документация

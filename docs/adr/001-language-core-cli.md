@@ -1,7 +1,8 @@
 # ADR-001: Язык реализации core/CLI
 
-**Статус:** Proposed  
-**Дата:** 2026-09-01
+**Статус:** Accepted  
+**Дата:** 2026-09-01  
+**Принято:** 2026-09-10
 
 ## Контекст
 
@@ -24,7 +25,7 @@
 | Subprocess / orchestration CLI | ++ | ++ | ++ |
 | Cross-platform | ++ | ++ | + |
 | MCP SDK и экосистема | + | + | ++ |
-| Скорость vibe-coding / итераций | + | + | ++ |
+| Скорость vibe-coding / итераций | + | − | ++ |
 | Типизация / refactor safety | + | ++ | + (type hints + mypy) |
 | Java-инструменты (MDClasses) | subprocess | subprocess | subprocess |
 | Холодный старт CLI | ++ | ++ | + |
@@ -38,12 +39,12 @@
 - **Низкий порог входа для контрибьюторов:** разработчикам, знакомым с Python, проще подключаться к проекту, чем осваивать новый для них Go/Rust stack.
 - Быстрый прототип M1
 - Subprocess-native модель (ibcmd, 1cv8 — основной паттерн runtime)
-- Poetry/uv для воспроизводимого окружения
+- Poetry для воспроизводимого окружения
 
 ### Python — против / ограничения
 
-- Нет single-binary из коробки — **но это не blocker:** отсутствие нативного single-binary следует рассматривать как отдельный вопрос distribution/packaging (`pipx`, `uv tool`, PyInstaller), а не как фундаментальный недостаток языка для M1.
-- Зависимость от версии Python на машине пользователя (mitigation: Poetry/uv, pin Python 3.11+)
+- Нет single-binary из коробки — **не blocker для M1:** distribution/packaging (`pipx`, `uv tool`, PyInstaller) отложено.
+- Зависимость от версии Python на машине пользователя (mitigation: Poetry, pin Python 3.11+)
 
 ### Go / Rust — за
 
@@ -57,32 +58,31 @@
 
 ## Решение
 
-**TBD** — окончательный выбор не зафиксирован.
+**Принято: Python 3.11+ с менеджером зависимостей Poetry.**
 
-Процесс принятия (Issue #1):
+CLI — Typer; entrypoint — `1c-dev`.
 
-1. **PoC:** сравнить Python и Go на реальном сценарии M1 (минимальный CLI + subprocess + JSON output). Rust — опционально, если PoC не выявит явного лидера.
-2. Зафиксировать решение в этом ADR с таблицей «принято / отвергнуто / отложено».
-3. Если выбран Python — зафиксировать менеджер зависимостей (Poetry vs uv) в этом ADR или ADR-001b.
-4. Если выбран Python — отдельно спланировать packaging (не блокер для M1).
+Обоснование: скорость итераций M1, зрелый MCP SDK, соответствие orchestration-характеру runtime, владение стеком автором. Отдельный PoC Go/Rust для выбора языка не требуется — критерии и trade-off уже достаточны для M1.
 
 ## Альтернативы
 
 | Вариант | Вердикт |
 |---------|---------|
-| Go | TBD |
-| Rust | TBD |
-| Python | TBD |
+| Python 3.11+ + Poetry | Принято |
+| Go | Отложено (single-binary / packaging — при необходимости после M1) |
+| Rust | Отвергнуто для M1 (высокий порог входа без выигрыша для orchestration) |
+| Packaging (`pipx` / `uv tool` / PyInstaller) | Отложено (не блокер M1) |
 
 ## Последствия
 
-После принятия — scaffold monorepo под выбранный язык (см. Issue #1).
-
-## Conclusion
-
-На текущем этапе **Python выглядит сильным кандидатом** благодаря скорости разработки, соответствию характеру задачи (orchestration, не compute-heavy) и AI-friendly nature кодовой базы. Окончательный выбор предлагается сделать **после небольшого PoC**, сравнив Python и Go на реальном сценарии M1.
+- Scaffold monorepo и CI — под Python/Poetry (см. ADR-002, Issue #1).
+- MCP (#6) — через официальный Python SDK (`mcp` / FastMCP).
+- Тесты — `pytest` в окружении Poetry.
+- Distribution как single-binary — отдельное решение позже.
 
 ## Связанные решения
 
 - Issue #1 (ADR и каркас monorepo)
+- ADR-002: layout monorepo
+- ADR-003: diagnostics model + exit codes
 - Будущий ADR-007: MCP architecture

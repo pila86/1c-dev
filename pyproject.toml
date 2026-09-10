@@ -1,0 +1,43 @@
+[tool.poetry]
+name = "1c-dev"
+version = "0.1.0"
+description = "Agent-independent toolchain and API layer for AI-native 1C development"
+authors = ["pila86"]
+readme = "README.md"
+packages = [
+    { include = "cli" },
+    { include = "core" },
+    { include = "adapters" },
+    { include = "mcp" },
+]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+typer = "^0.16.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.0"
+ruff = "^0.11.0"
+mypy = "^1.15.0"
+
+[tool.poetry.scripts]
+1c-dev = "cli.main:run"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["cli", "core", "adapters", "mcp"]
