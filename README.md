@@ -12,10 +12,13 @@ Agent-independent toolchain и API-слой для AI-native разработк�
 
 ```bash
 poetry install
+./scripts/fetch-xml-gen.sh   # один раз: xml-gen для metadata.create (JDK 17+)
 poetry run 1c-dev --version
 poetry run 1c-dev --output json --version
 poetry run pytest
 ```
+
+На Windows: `pwsh scripts/fetch-xml-gen.ps1`.
 
 ## Текущий фокус
 

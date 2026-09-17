@@ -31,10 +31,25 @@ refs #2
 
 Значимые решения фиксируются в [docs/adr/](docs/adr/) по шаблону [000-template.md](docs/adr/000-template.md).
 
+## Toolchain: xml-gen
+
+Для `1c-dev metadata create` нужен jar xml-gen (ADR-007). Один раз:
+
+```bash
+# Linux / macOS
+./scripts/fetch-xml-gen.sh
+
+# Windows
+pwsh scripts/fetch-xml-gen.ps1
+```
+
+Требуется JDK 17+. Override пути: `ONEC_XMLGEN_JAR`.
+
 ## Тесты
 
 - Unit-тесты — для каждого PR с логикой.
 - Integration-тесты M1 — требуют установленной платформы 1С; при отсутствии — skip с явным сообщением.
+- Integration metadata — требуют jar xml-gen (после `fetch-xml-gen`); иначе skip.
 
 ## Issues vs документация
 

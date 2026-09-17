@@ -45,6 +45,10 @@ def _text_report(result: DoctorResult) -> list[str]:
         tool_line(ibcmd),
         "1cv8:",
         tool_line(onecv8),
+        "java:",
+        tool_line(result.tools["java"]),
+        "xml-gen:",
+        tool_line(result.tools["xml-gen"]),
         "",
         "Capabilities:",
     ]
