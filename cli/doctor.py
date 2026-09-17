@@ -7,16 +7,9 @@ from typing import Any
 
 import typer
 
-from cli.output import OutputFormat
+from cli.output import OutputFormat, OutputOption, resolve_output
 from core.doctor import DoctorResult, run_doctor
 from core.exit_codes import ENV_UNAVAILABLE, SUCCESS
-
-
-def _output_format(ctx: typer.Context) -> OutputFormat:
-    raw = ctx.obj.get("output", OutputFormat.text) if ctx.obj else OutputFormat.text
-    if isinstance(raw, OutputFormat):
-        return raw
-    return OutputFormat(str(raw))
 
 
 def _mark(ok: bool) -> str:
@@ -77,11 +70,14 @@ def _text_report(result: DoctorResult) -> list[str]:
     return lines
 
 
-def doctor_command(ctx: typer.Context) -> None:
+def doctor_command(
+    ctx: typer.Context,
+    output: OutputOption = None,
+) -> None:
     """Диагностика окружения: платформа, ibcmd, 1cv8, capability gaps."""
     result = run_doctor()
-    output = _output_format(ctx)
-    if output is OutputFormat.json:
+    fmt = resolve_output(ctx, output)
+    if fmt is OutputFormat.json:
         typer.echo(json.dumps(result.to_payload(), ensure_ascii=False, indent=2))
     else:
         for line in _text_report(result):
