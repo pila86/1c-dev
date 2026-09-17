@@ -17,6 +17,7 @@
 | [003](003-diagnostics-exit-codes.md) | Accepted | Diagnostics model + exit codes |
 | [004](004-project-manifest.md) | Accepted | Project manifest `1c.project.yaml` |
 | [005](005-environment-discovery.md) | Accepted | Environment discovery (`doctor`) |
+| [006](006-project-init.md) | Accepted | Project init (bootstrap configuration) |
 
 ## Когда писать ADR
 

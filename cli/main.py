@@ -7,6 +7,7 @@ import json
 import typer
 
 from cli.doctor import doctor_command
+from cli.init import init_command
 from cli.output import OutputFormat
 from cli.project import app as project_app
 from core.version import __version__
@@ -19,6 +20,7 @@ app = typer.Typer(
 )
 app.add_typer(project_app, name="project")
 app.command("doctor")(doctor_command)
+app.command("init")(init_command)
 
 
 def _version_payload() -> dict[str, str]:

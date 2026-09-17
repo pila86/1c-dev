@@ -8,6 +8,7 @@ from typing import Any
 
 import typer
 
+from cli.init import init_command
 from cli.output import OutputFormat
 from core.exit_codes import PROJECT_ERROR, SUCCESS
 from core.project import detect_project, validate_project
@@ -19,6 +20,8 @@ app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
 )
+
+app.command("init")(init_command)
 
 
 def _output_format(ctx: typer.Context) -> OutputFormat:
