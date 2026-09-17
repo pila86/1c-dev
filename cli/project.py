@@ -9,7 +9,7 @@ from typing import Any
 import typer
 
 from cli.init import init_command
-from cli.output import OutputFormat
+from cli.output import OutputFormat, OutputOption, resolve_output
 from core.exit_codes import PROJECT_ERROR, SUCCESS
 from core.project import detect_project, validate_project
 from core.project.result import ProjectResult
@@ -22,13 +22,6 @@ app = typer.Typer(
 )
 
 app.command("init")(init_command)
-
-
-def _output_format(ctx: typer.Context) -> OutputFormat:
-    raw = ctx.obj.get("output", OutputFormat.text) if ctx.obj else OutputFormat.text
-    if isinstance(raw, OutputFormat):
-        return raw
-    return OutputFormat(str(raw))
 
 
 def _emit(payload: dict[str, Any], output: OutputFormat, *, text_lines: list[str]) -> None:
@@ -100,29 +93,38 @@ def _info_text(result: ProjectResult) -> list[str]:
 
 
 @app.command("detect")
-def project_detect(ctx: typer.Context) -> None:
+def project_detect(
+    ctx: typer.Context,
+    output: OutputOption = None,
+) -> None:
     """Найти 1c.project.yaml от текущего каталога вверх."""
     result = detect_project(Path.cwd())
     payload = result.to_payload(include_manifest=False)
-    _emit(payload, _output_format(ctx), text_lines=_detect_text(result))
+    _emit(payload, resolve_output(ctx, output), text_lines=_detect_text(result))
     _exit_for(result)
 
 
 @app.command("validate")
-def project_validate(ctx: typer.Context) -> None:
+def project_validate(
+    ctx: typer.Context,
+    output: OutputOption = None,
+) -> None:
     """Проверить манифест по JSON Schema."""
     result = validate_project(Path.cwd())
     payload = result.to_payload(include_manifest=False)
     if result.status == "ok":
         payload["valid"] = True
-    _emit(payload, _output_format(ctx), text_lines=_validate_text(result))
+    _emit(payload, resolve_output(ctx, output), text_lines=_validate_text(result))
     _exit_for(result)
 
 
 @app.command("info")
-def project_info(ctx: typer.Context) -> None:
+def project_info(
+    ctx: typer.Context,
+    output: OutputOption = None,
+) -> None:
     """Показать содержимое валидного манифеста."""
     result = validate_project(Path.cwd())
     payload = result.to_payload(include_manifest=True)
-    _emit(payload, _output_format(ctx), text_lines=_info_text(result))
+    _emit(payload, resolve_output(ctx, output), text_lines=_info_text(result))
     _exit_for(result)

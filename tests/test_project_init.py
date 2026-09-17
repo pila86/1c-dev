@@ -97,7 +97,7 @@ def test_cli_init_json_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.chdir(tmp_path)
     result = runner.invoke(
         app,
-        ["--output", "json", "init", "--type", "configuration", "--name", "Demo"],
+        ["init", "--type", "configuration", "--name", "Demo", "--output", "json"],
     )
     assert result.exit_code == SUCCESS, result.stdout
     payload = json.loads(result.stdout)

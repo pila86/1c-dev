@@ -8,17 +8,10 @@ from typing import Any
 
 import typer
 
-from cli.output import OutputFormat
+from cli.output import OutputFormat, OutputOption, resolve_output
 from core.exit_codes import PROJECT_ERROR, SUCCESS
 from core.project import init_project
 from core.project.result import ProjectResult
-
-
-def _output_format(ctx: typer.Context) -> OutputFormat:
-    raw = ctx.obj.get("output", OutputFormat.text) if ctx.obj else OutputFormat.text
-    if isinstance(raw, OutputFormat):
-        return raw
-    return OutputFormat(str(raw))
 
 
 def _emit(payload: dict[str, Any], output: OutputFormat, *, text_lines: list[str]) -> None:
@@ -77,6 +70,7 @@ def init_command(
         "--force",
         help="Перезаписать существующий манифест и шаблоны.",
     ),
+    output: OutputOption = None,
 ) -> None:
     """Создать пустой проект конфигурации (bootstrap)."""
     result = init_project(
@@ -86,6 +80,6 @@ def init_command(
         force=force,
     )
     payload = result.to_payload(include_manifest=False)
-    _emit(payload, _output_format(ctx), text_lines=_init_text(result))
+    _emit(payload, resolve_output(ctx, output), text_lines=_init_text(result))
     code = SUCCESS if result.status == "ok" else PROJECT_ERROR
     raise typer.Exit(code=code)
