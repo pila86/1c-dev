@@ -116,31 +116,33 @@ def create_metadata(
             ],
         )
 
-    java = resolve_java()
-    jar = resolve_jar()
-    if not java.found or not jar.found:
-        missing: list[str] = []
-        if not java.found:
-            missing.append("Java 17+")
-        if not jar.found:
-            missing.append("xml-gen")
-        return MetadataResult(
-            status="error",
-            object=catalog.qualified_name,
-            root=root,
-            source_path=source_dir,
-            diagnostics=[
-                error(
-                    f"Недоступно: {', '.join(missing)}",
-                    code="1CM006",
-                    source="metadata",
-                    suggestion=(
-                        f"Соберите xml-gen: {fetch_script_suggestion()} "
-                        "(нужен JDK 17+; или задайте ONEC_XMLGEN_JAR)."
-                    ),
-                )
-            ],
-        )
+    # Injectable compile_fn skips real toolchain (unit tests).
+    if compile_fn is None:
+        java = resolve_java()
+        jar = resolve_jar()
+        if not java.found or not jar.found:
+            missing: list[str] = []
+            if not java.found:
+                missing.append("Java 17+")
+            if not jar.found:
+                missing.append("xml-gen")
+            return MetadataResult(
+                status="error",
+                object=catalog.qualified_name,
+                root=root,
+                source_path=source_dir,
+                diagnostics=[
+                    error(
+                        f"Недоступно: {', '.join(missing)}",
+                        code="1CM006",
+                        source="metadata",
+                        suggestion=(
+                            f"Соберите xml-gen: {fetch_script_suggestion()} "
+                            "(нужен JDK 17+; или задайте ONEC_XMLGEN_JAR)."
+                        ),
+                    )
+                ],
+            )
 
     dsl = ir_to_xmlgen_dsl(catalog.to_dict())
     runner: CompileFn = compile_fn if compile_fn is not None else compile_metadata

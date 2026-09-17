@@ -93,8 +93,27 @@ def test_run_doctor_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     result = run_doctor(search_roots=[tmp_path])
     assert result.status == "ok"
     assert result.capabilities["build"]["available"] is True
-    assert result.gaps == []
+    assert result.capabilities["check"]["available"] is True
+    # metadata.create may be unavailable without java/xml-gen; platform ok ≠ no gaps
+    assert not any(g["capability"] in {"build", "check"} for g in result.gaps)
     assert not any(d.get("code") == "1CD002" for d in result.diagnostics)
+
+
+def test_run_doctor_metadata_create_gap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_path(monkeypatch)
+    monkeypatch.delenv("JAVA_HOME", raising=False)
+    monkeypatch.delenv("ONEC_XMLGEN_JAR", raising=False)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "empty-cache"))
+    _make_install(tmp_path, "8.3.27.1549")
+    result = run_doctor(search_roots=[tmp_path])
+    assert result.status == "ok"
+    assert result.capabilities["metadata.create"]["available"] is False
+    gap = next(g for g in result.gaps if g["capability"] == "metadata.create")
+    assert "java" in gap["missing"] or "xml-gen" in gap["missing"]
+    codes = {d.get("code") for d in result.diagnostics}
+    assert "1CD004" in codes or "1CD005" in codes
 
 
 def test_run_doctor_missing_ibcmd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
