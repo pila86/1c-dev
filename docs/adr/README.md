@@ -16,6 +16,7 @@
 | [002](002-monorepo-layout.md) | Accepted | Layout monorepo |
 | [003](003-diagnostics-exit-codes.md) | Accepted | Diagnostics model + exit codes |
 | [004](004-project-manifest.md) | Accepted | Project manifest `1c.project.yaml` |
+| [005](005-environment-discovery.md) | Accepted | Environment discovery (`doctor`) |
 
 ## Когда писать ADR
 

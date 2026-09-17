@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pila86/1c-dev/schemas/doctor.schema.json",
+  "title": "1c-dev Doctor Report",
+  "description": "Отчёт `1c-dev doctor` (ADR-005, PRD §37 M1 scope).",
+  "type": "object",
+  "required": [
+    "status",
+    "platform",
+    "tools",
+    "capabilities",
+    "gaps",
+    "diagnostics"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["ok", "error"]
+    },
+    "platform": {
+      "type": "object",
+      "required": ["found"],
+      "additionalProperties": false,
+      "properties": {
+        "found": { "type": "boolean" },
+        "version": { "type": ["string", "null"] },
+        "path": { "type": ["string", "null"] }
+      }
+    },
+    "tools": {
+      "type": "object",
+      "required": ["ibcmd", "1cv8"],
+      "additionalProperties": false,
+      "properties": {
+        "ibcmd": { "$ref": "#/$defs/tool" },
+        "1cv8": { "$ref": "#/$defs/tool" }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/capability" },
+      "properties": {
+        "build": { "$ref": "#/$defs/capability" },
+        "check": { "$ref": "#/$defs/capability" }
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/gap" }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": { "$ref": "diagnostics.schema.json" }
+    }
+  },
+  "$defs": {
+    "tool": {
+      "type": "object",
+      "required": ["found"],
+      "additionalProperties": false,
+      "properties": {
+        "found": { "type": "boolean" },
+        "path": { "type": ["string", "null"] }
+      }
+    },
+    "capability": {
+      "type": "object",
+      "required": ["available", "requires"],
+      "additionalProperties": false,
+      "properties": {
+        "available": { "type": "boolean" },
+        "requires": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "gap": {
+      "type": "object",
+      "required": ["capability", "missing", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "capability": { "type": "string" },
+        "missing": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "reason": { "type": "string" },
+        "suggestion": { "type": "string" }
+      }
+    }
+  }
+}

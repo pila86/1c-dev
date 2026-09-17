@@ -31,6 +31,7 @@ def error(
     code: str | None = None,
     file: str | None = None,
     source: str = "runtime",
+    suggestion: str | None = None,
 ) -> Diagnostic:
     """Создать diagnostic с severity=error."""
     diag: Diagnostic = {
@@ -42,4 +43,29 @@ def error(
         diag["code"] = code
     if file is not None:
         diag["file"] = file
+    if suggestion is not None:
+        diag["suggestion"] = suggestion
+    return diag
+
+
+def warning(
+    message: str,
+    *,
+    code: str | None = None,
+    file: str | None = None,
+    source: str = "runtime",
+    suggestion: str | None = None,
+) -> Diagnostic:
+    """Создать diagnostic с severity=warning."""
+    diag: Diagnostic = {
+        "severity": "warning",
+        "message": message,
+        "source": source,
+    }
+    if code is not None:
+        diag["code"] = code
+    if file is not None:
+        diag["file"] = file
+    if suggestion is not None:
+        diag["suggestion"] = suggestion
     return diag
