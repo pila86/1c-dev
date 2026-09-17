@@ -8,6 +8,7 @@ import typer
 
 from cli.doctor import doctor_command
 from cli.init import init_command
+from cli.metadata import app as metadata_app
 from cli.output import OutputFormat
 from cli.project import app as project_app
 from core.version import __version__
@@ -19,6 +20,7 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(project_app, name="project")
+app.add_typer(metadata_app, name="metadata")
 app.command("doctor")(doctor_command)
 app.command("init")(init_command)
 
