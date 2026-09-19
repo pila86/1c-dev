@@ -12,11 +12,13 @@
 | Milestone | Цель | Статус |
 |-----------|------|--------|
 | **M1** | Init → metadata.create(Catalog) → build → check через MCP | In progress |
-| M2 | Metadata read-only: list / get / find | Planned |
-| M3 | EDT adapter — один API на XML и EDT | Planned |
+| M2 | Metadata API: list/get/find + update + create (Document, registers, …) | Planned |
+| M3 | Source formats: EDT adapter + import из `.cf` → один API на XML/EDT | Planned |
 | M4 | Tests (YAxUnit), docs index, BSL integration | Planned |
 | M5 | Debug (DAP), semantic diff, verify | Planned |
 | M6 | Remote runtime, Docker, lockfile | Planned |
+
+Документы этапов: [M1](milestones/m1-catalog-via-agent.md) · [M2](milestones/m2-metadata-api.md) · [M3](milestones/m3-source-formats.md)
 
 ## Принципы (из PRD)
 

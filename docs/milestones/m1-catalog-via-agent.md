@@ -39,8 +39,8 @@ AI-агент через MCP создаёт конфигурацию 1С с од
 
 ## Out of scope M1
 
-- EDT adapter
-- `metadata.list` / `metadata.get` / `metadata.find` (→ M2)
+- EDT adapter, `source.convert`, import из `.cf` (→ [M3](m3-source-formats.md))
+- `metadata.list` / `get` / `find`, `metadata.update`, create кроме `Catalog` (→ [M2](m2-metadata-api.md))
 - YAxUnit / Vanessa
 - Documentation index / docs.search
 - Semantic diff / verify
@@ -79,6 +79,7 @@ AI-агент через MCP создаёт конфигурацию 1С с од
 
 - [GitHub milestone M1](https://github.com/pila86/1c-dev/milestone/1)
 - [Roadmap](../roadmap.md)
+- [M2](m2-metadata-api.md) · [M3](m3-source-formats.md)
 - [PRD §47](../../1c-dev-runtime-PRD-v0.1.md)
 
 ## Issues
