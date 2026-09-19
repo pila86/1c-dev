@@ -50,8 +50,8 @@ metadata.get(Catalog.Products)
 
 | Тип | Приоритет | Заметки |
 |-----|-----------|---------|
-| `Catalog` | уже M1 | расширить типы атрибутов при необходимости (Boolean, Date, ref) |
-| `Document` | must | реквизиты; табличные части — желательно в M2 |
+| `Catalog` | уже M1 | расширить типы атрибутов при необходимости (Boolean, Date, ref); ТЧ — та же модель IR, что у Document |
+| `Document` | must | реквизиты; табличные части — желательно в M2 (общая конструкция IR с Catalog) |
 | `Enum` | should | простые перечисления |
 | `InformationRegister` | should | измерения / ресурсы (упрощённый IR) |
 | `AccumulationRegister` | should | упрощённый IR |
@@ -143,19 +143,23 @@ Qualified names: `Document.Sales`, `InformationRegister.Prices`, …
 
 ## Links
 
+- [GitHub milestone M2](https://github.com/pila86/1c-dev/milestone/2)
 - [Roadmap](../roadmap.md)
 - [M1](m1-catalog-via-agent.md)
 - [M3](m3-source-formats.md)
 - [ADR-007](../adr/007-metadata-ir.md) (IR v0; в M2 — расширение)
 - [PRD §16–§18](../../1c-dev-runtime-PRD-v0.1.md), [§47](../../1c-dev-runtime-PRD-v0.1.md)
 
-## Suggested work packages
+## Issues
 
-| Тема | Depends on |
-|------|------------|
-| Reader / IR projection (list, get, find) | M1 source layout |
-| ADR: IR v1 (Document, registers, update semantics) | reader shape |
-| `metadata.update` + xml-gen (или выбранный write-path) | IR v1, get |
-| `metadata.create` Document (+ tabular sections) | IR v1 |
-| `metadata.create` Enum / InformationRegister / AccumulationRegister | Document path |
-| MCP tools + acceptance tests | CLI green |
+| # | Задача | Depends on |
+|---|--------|------------|
+| [#20](https://github.com/pila86/1c-dev/issues/20) | ADR: Metadata IR v1 | — |
+| [#21](https://github.com/pila86/1c-dev/issues/21) | Reader: `metadata.list` / `get` / `find` (CLI + core) | #20 |
+| [#22](https://github.com/pila86/1c-dev/issues/22) | `metadata.update` — реквизиты в существующих объектах | #20, #21 |
+| [#23](https://github.com/pila86/1c-dev/issues/23) | `metadata.create` Document (+ tabular sections) | #20 |
+| [#24](https://github.com/pila86/1c-dev/issues/24) | `metadata.create` Enum / InformationRegister / AccumulationRegister | #23 |
+| [#25](https://github.com/pila86/1c-dev/issues/25) | Doctor: capability поддерживаемых write-типов | #23, #24 |
+| [#26](https://github.com/pila86/1c-dev/issues/26) | MCP tools: list / get / find / update + expanded create | #21, #22, #23 |
+| [#27](https://github.com/pila86/1c-dev/issues/27) | Acceptance tests M2 | #26 |
+| [#28](https://github.com/pila86/1c-dev/issues/28) | stretch: `metadata.create` CommonModule | #23 |

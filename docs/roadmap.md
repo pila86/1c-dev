@@ -5,7 +5,7 @@
 **M2: metadata API** — list/get/find, update, create (Document, registers, …).
 
 → [Acceptance criteria](milestones/m2-metadata-api.md)  
-→ [GitHub milestone](https://github.com/pila86/1c-dev/milestones)
+→ [GitHub milestone M2](https://github.com/pila86/1c-dev/milestone/2)
 
 ## Этапы
 
