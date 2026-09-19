@@ -26,23 +26,30 @@ metadata.find
 - Результат — Metadata IR / structured JSON, не сырой XML
 - Prefer MDClasses / существующие readers (G7), не парсить XML ad hoc в core
 
-### B. `metadata.update` — реквизиты в существующих объектах
+### B. `metadata.update` — ops над реквизитами существующих объектов
 
 ```bash
-1c-dev metadata update Catalog.Products --attr "Price:Number:15.2:Цена"
-# MCP: metadata.update
+1c-dev metadata update Catalog.Products \
+  --op add-attribute --value "Price:Number(15,2)"
+1c-dev metadata update Catalog.Products \
+  --op modify-attribute --value "Price: synonym=Цена"
+1c-dev metadata update Catalog.Products \
+  --op remove-attribute --value "Price"
+# сахар IR: --attr "Price:Number:15.2:Цена" → add + modify synonym
+# MCP: metadata.update (operations[])
 ```
 
 Типичный agent flow:
 
 ```text
 metadata.get(Catalog.Products)
-  → metadata.update(... attributes+=[...])
+  → metadata.update(ops=[add-attribute / modify-attribute / …])
   → build / check
 ```
 
-- Добавление реквизитов (и синонимов/простых свойств) к уже существующему объекту
-- Конфликт имён (реквизит уже есть) → structured diagnostic, source не меняется
+- Явные ops: `add-attribute`, `modify-attribute`, `remove-attribute` (Catalog в #22)
+- Дубль add / modify|remove несуществующего → `ok` + `warning`, source не менялся
+- Объект не найден → error diagnostic, source intact
 - Без публичного `source.write`
 
 ### C. `metadata.create` — типы шире Catalog (IR v1)
@@ -79,7 +86,7 @@ metadata.get(Catalog.Products)
 - Удаляет артефакты объекта из `source.path` и регистрацию в `Configuration.xml`
 - Объект не найден → structured diagnostic, source не меняется
 - Без cascade по ссылкам (битые `Ref` допустимы до graph / M5)
-- Удаление вложенных элементов (атрибуты, ТЧ, …) — open design в issue delete, не must M2
+- Удаление атрибутов — через `metadata.update` `remove-attribute`; nested ТЧ / values / … — later, не must `metadata.delete`
 
 ## Agent workflows
 
@@ -89,7 +96,7 @@ metadata.get(Catalog.Products)
 
 ```
 1. metadata.get(Catalog.Products)
-2. metadata.update(Catalog.Products, attributes+=[Price])
+2. metadata.update(Catalog.Products, ops=[add-attribute Price])
 3. build
 4. check
 ```
@@ -126,9 +133,9 @@ metadata.get(Catalog.Products)
 
 ### Update
 
-- [ ] `metadata.update` добавляет реквизит(ы) в существующий `Catalog` (и в типы из C, по мере поддержки)
-- [ ] Повторное добавление того же имени → ошибка с diagnostic, source не повреждён
-- [ ] После update `metadata.get` отражает изменения; `build` / `check` проходят
+- [ ] `metadata.update` выполняет `add-attribute` / `modify-attribute` / `remove-attribute` на существующем `Catalog` (и в типы из C, по мере поддержки)
+- [ ] Повторное добавление того же имени → `ok` + warning diagnostic, source не повреждён
+- [ ] После успешного update `metadata.get` / поле `ir` отражают изменения; `build` / `check` проходят
 
 ### Create beyond Catalog
 
@@ -153,7 +160,7 @@ metadata.get(Catalog.Products)
 
 - EDT / `source.convert` / import `.cf` (→ [M3](m3-source-formats.md))
 - `references` / `dependencies` / `impact` (→ later / M5 graph)
-- Nested delete (атрибуты / ТЧ / values / dimensions) — open design в issue delete
+- Nested delete ТЧ / values / dimensions (атрибуты — `update` `remove-attribute`)
 - Публичный `source.write` как замена Metadata API
 - Полное покрытие всех видов метаданных платформы
 - Расширения (`project.type: extension`) и изменение объектов базовой конфигурации через extension
@@ -168,7 +175,11 @@ metadata.get(Catalog.Products)
 
 # Update
 1c-dev metadata update Catalog.Products \
-  --attr "Price:Number:15.2:Цена" --output json
+  --op add-attribute --value "Price:Number(15,2)" --output json
+1c-dev metadata update Catalog.Products \
+  --attr "Discount:Number:10.2:Скидка" --output json
+1c-dev metadata update Catalog.Products \
+  --op remove-attribute --value "Discount" --output json
 
 # Create Document
 1c-dev metadata create Document.Sales \

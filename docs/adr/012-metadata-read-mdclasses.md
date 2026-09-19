@@ -53,7 +53,7 @@ Issue #21 требует `metadata.list` / `get` / `find` без платфор�
 
 - Onboarding: `./scripts/fetch-md-reader.sh` (или `.ps1`) один раз.
 - Update pin MDClasses — смена версии в `tools/md-reader` + пересборка скриптом.
-- `metadata.update` (#22) может опираться на `get` для проверки; write остаётся xml-gen.
+- `metadata.update` (#22) после записи вызывает `get` для заполнения `ir` в результате и agent flow; **не** для pre-check дублей (политика no-op → warning у xml-gen). Write остаётся xml-gen.
 
 ## Связанные решения
 
