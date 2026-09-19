@@ -327,11 +327,23 @@ def test_update_with_real_xmlgen(tmp_path: Path) -> None:
     text = products.read_text(encoding="utf-8-sig")
     assert "Цена" in text
 
+    # Number(15,2) → Number(10,0): явная смена type= (не только synonym)
+    retyped = update_metadata(
+        target,
+        "Catalog.Products",
+        [EditOp("modify-attribute", "Price: type=Number(10,0)")],
+    )
+    assert retyped.status == "ok", retyped.diagnostics
+    text = products.read_text(encoding="utf-8-sig")
+    assert "<v8:Digits>10</v8:Digits>" in text
+    assert "<v8:FractionDigits>0</v8:FractionDigits>" in text
+    assert "<v8:Digits>15</v8:Digits>" not in text
+
     checksum = hashlib.sha256(products.read_bytes()).hexdigest()
     dup = update_metadata(
         target,
         "Catalog.Products",
-        [EditOp("add-attribute", "Price:Number(15,2)")],
+        [EditOp("add-attribute", "Price:Number(10,0)")],
     )
     assert dup.status == "ok", dup.diagnostics
     assert any(d.get("severity") == "warning" for d in dup.diagnostics)
@@ -343,13 +355,17 @@ def test_update_with_real_xmlgen(tmp_path: Path) -> None:
         got = get_metadata(target, "Catalog.Products")
         assert got.status == "ok", got.diagnostics
         assert got.ir is not None
-        names = {
-            a.get("name")
+        attrs = {
+            a.get("name"): a
             for a in (got.ir.get("attributes") or [])
             if isinstance(a, dict)
         }
-        assert "Price" in names
-        assert "Article" in names
+        assert "Price" in attrs
+        assert "Article" in attrs
+        price = attrs["Price"]
+        assert price.get("type") == "Number"
+        assert price.get("precision") == 10
+        assert price.get("scale") == 0
 
     removed = update_metadata(
         target,
