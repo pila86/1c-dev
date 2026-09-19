@@ -9,6 +9,13 @@ from adapters.source.xmlgen.constants import (
     XMLGEN_JAR_ENV,
     XMLGEN_REPO,
 )
+from adapters.source.xmlgen.edit import (
+    ALLOWED_OPS,
+    EditOp,
+    EditResult,
+    edit_metadata,
+    edit_op_from_dict,
+)
 from adapters.source.xmlgen.resolve import (
     ToolResolve,
     default_jar_path,
@@ -19,14 +26,19 @@ from adapters.source.xmlgen.resolve import (
 )
 
 __all__ = [
+    "ALLOWED_OPS",
     "MIN_JAVA_MAJOR",
     "XMLGEN_COMMIT",
     "XMLGEN_JAR_ENV",
     "XMLGEN_REPO",
+    "EditOp",
+    "EditResult",
     "ToolResolve",
     "XmlGenError",
     "compile_metadata",
     "default_jar_path",
+    "edit_metadata",
+    "edit_op_from_dict",
     "fetch_script_suggestion",
     "ir_to_xmlgen_dsl",
     "resolve_java",
