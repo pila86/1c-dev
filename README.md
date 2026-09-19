@@ -2,6 +2,12 @@
 
 Agent-independent toolchain и API-слой для AI-native разработки на платформе 1С.
 
+## Prerequisites
+
+- Python 3.11+ и [Poetry](https://python-poetry.org/)
+- JDK 17+ — для `metadata.create` (jar xml-gen)
+- Платформа 1С 8.3.x и `ibcmd` в PATH — для `build` / `check` и integration-тестов
+
 ## Стек
 
 - **Язык:** Python 3.11+ ([ADR-001](docs/adr/001-language-core-cli.md))
@@ -16,6 +22,7 @@ poetry install
 poetry run 1c-dev --version
 poetry run 1c-dev --help
 poetry run pytest
+poetry run pytest -m integration   # E2E с platform/xml-gen; иначе skip
 ```
 
 На Windows: `pwsh scripts/fetch-xml-gen.ps1`.
@@ -68,27 +75,12 @@ Tools M1: `project.get`, `project.init`, `metadata.create`, `build`, `check` ([A
 
 ## Текущий фокус
 
-**Milestone M1: catalog via agent** — агент создаёт конфигурацию с одним справочником через MCP без ручного Конфигуратора.
+**Milestone M2: metadata API** — list/get/find, update, create для Document и других типов.
 
-- [M1: acceptance criteria и workflow](docs/milestones/m1-catalog-via-agent.md)
+- [M2: acceptance criteria](docs/milestones/m2-metadata-api.md)
+- [M1 (Done)](docs/milestones/m1-catalog-via-agent.md)
 - [Roadmap](docs/roadmap.md)
-- [Milestone M1 на GitHub](https://github.com/pila86/1c-dev/milestone/1)
 - [PRD v0.1](1c-dev-runtime-PRD-v0.1.md)
-
-### Issues M1
-
-| # | Задача |
-|---|--------|
-| [#1](https://github.com/pila86/1c-dev/issues/1) | ADR и каркас monorepo |
-| [#2](https://github.com/pila86/1c-dev/issues/2) | Project manifest и project API |
-| [#3](https://github.com/pila86/1c-dev/issues/3) | Doctor: discovery окружения |
-| [#4](https://github.com/pila86/1c-dev/issues/4) | Project init: пустая configuration |
-| [#5](https://github.com/pila86/1c-dev/issues/5) | Metadata IR v0 + metadata.create |
-| [#6](https://github.com/pila86/1c-dev/issues/6) | MCP server: agent-facing tools |
-| [#7](https://github.com/pila86/1c-dev/issues/7) | Platform adapter: ibcmd build |
-| [#8](https://github.com/pila86/1c-dev/issues/8) | Acceptance test M1 |
-| [#9](https://github.com/pila86/1c-dev/issues/9) | Check: platform check |
-| [#10](https://github.com/pila86/1c-dev/issues/10) | README и developer onboarding |
 
 ## Быстрый старт
 

@@ -2,7 +2,7 @@
 
 ## Workflow
 
-1. Выбери issue из [milestone M1](https://github.com/pila86/1c-dev/milestone/1) (или другого актуального milestone).
+1. Выбери issue из актуального [milestone](https://github.com/pila86/1c-dev/milestones) (см. [roadmap](docs/roadmap.md)).
 2. Создай ветку: `feature/123-short-description` или `fix/123-short-description`.
 3. Реализуй изменения; в коммитах указывай `refs #123`.
 4. Открой Pull Request с описанием и ссылкой на issue.
@@ -47,9 +47,14 @@ pwsh scripts/fetch-xml-gen.ps1
 
 ## Тесты
 
-- Unit-тесты — для каждого PR с логикой.
-- Integration-тесты M1 — требуют установленной платформы 1С; при отсутствии — skip с явным сообщением.
-- Integration metadata — требуют jar xml-gen (после `fetch-xml-gen`); иначе skip.
+- Unit-тесты — для каждого PR с логикой: `poetry run pytest`.
+- Integration-тесты (маркер `integration`) — platform 1С / `ibcmd` и jar xml-gen; без них — skip с явным сообщением:
+
+```bash
+poetry run pytest -m integration
+```
+
+Перед коммитом: `poetry run ruff check .`, `poetry run mypy`, `poetry run pytest`.
 
 ## Issues vs документация
 
