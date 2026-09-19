@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pila86/1c-dev/schemas/check.schema.json",
+  "title": "1c-dev Check Result",
+  "description": "Результат `1c-dev check` (ADR-009, PRD §24).",
+  "type": "object",
+  "required": ["status"],
+  "additionalProperties": false,
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["ok", "failed"]
+    },
+    "duration": {
+      "type": "number",
+      "minimum": 0
+    },
+    "root": {
+      "type": "string"
+    },
+    "runtimePath": {
+      "type": "string",
+      "description": "Путь к file IB относительно корня проекта."
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": { "$ref": "diagnostics.schema.json" }
+    }
+  }
+}

@@ -7,7 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from adapters.platform_ibcmd.constants import CODE_IBCMD_FAILED
+from adapters.platform_ibcmd.constants import CODE_CHECK_FAILED, CODE_IBCMD_FAILED
 from adapters.platform_ibcmd.parse import diagnostics_from_output
 from core.diagnostics import Diagnostic
 
@@ -147,17 +147,44 @@ def save_cf(
     return _require_ok(runner(argv), step="save")
 
 
-def _require_ok(result: IbcmdRunResult, *, step: str) -> IbcmdRunResult:
+def check_config(
+    ibcmd: Path,
+    *,
+    db_path: Path,
+    data_path: Path,
+    run: RunFn | None = None,
+) -> IbcmdRunResult:
+    """Run platform config check on an existing file infobase (ADR-009)."""
+    runner = run or default_run
+    argv = [
+        str(ibcmd),
+        "infobase",
+        "config",
+        "check",
+        *_db_args(db_path, data_path),
+    ]
+    return _require_ok(runner(argv), step="check", code=CODE_CHECK_FAILED)
+
+
+def _require_ok(
+    result: IbcmdRunResult,
+    *,
+    step: str,
+    code: str | None = None,
+) -> IbcmdRunResult:
     if result.returncode == 0:
         return result
+    diag_code = code if code is not None else CODE_IBCMD_FAILED
     diags = diagnostics_from_output(
         step=step,
         returncode=result.returncode,
         stdout=result.stdout,
         stderr=result.stderr,
+        code=diag_code,
     )
     raise IbcmdError(
         diags[0]["message"] if diags else f"ibcmd {step} failed",
+        code=diag_code,
         diagnostics=diags,
         step=step,
     )

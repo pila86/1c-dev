@@ -1,4 +1,4 @@
-"""Ibcmd platform adapter: build XML configuration into file IB (ADR-008)."""
+"""Ibcmd platform adapter: build and check XML configuration (ADR-008, ADR-009)."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from adapters.platform_ibcmd.client import (
     IbcmdError,
     RunFn,
     apply_config,
+    check_config,
     create_infobase,
     import_xml,
     save_cf,
@@ -18,6 +19,7 @@ __all__ = [
     "IbcmdError",
     "RunFn",
     "build_with_ibcmd",
+    "check_config",
     "infobase_exists",
 ]
 

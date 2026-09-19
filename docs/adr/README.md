@@ -20,6 +20,7 @@
 | [006](006-project-init.md) | Accepted | Project init (bootstrap configuration) |
 | [007](007-metadata-ir.md) | Accepted | Metadata IR v0 + write-backend xml-gen |
 | [008](008-ibcmd-build.md) | Accepted | Platform adapter: ibcmd build |
+| [009](009-ibcmd-check.md) | Accepted | Platform adapter: ibcmd check |
 
 ## Когда писать ADR
 

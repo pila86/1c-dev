@@ -7,6 +7,7 @@ import json
 import typer
 
 from cli.build import build_command
+from cli.check import check_command
 from cli.doctor import doctor_command
 from cli.init import init_command
 from cli.metadata import app as metadata_app
@@ -25,6 +26,7 @@ app.add_typer(metadata_app, name="metadata")
 app.command("doctor")(doctor_command)
 app.command("init")(init_command)
 app.command("build")(build_command)
+app.command("check")(check_command)
 
 
 def _version_payload() -> dict[str, str]:
