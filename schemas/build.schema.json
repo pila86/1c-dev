@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pila86/1c-dev/schemas/build.schema.json",
+  "title": "1c-dev Build Result",
+  "description": "Результат `1c-dev build` (ADR-008, PRD §23).",
+  "type": "object",
+  "required": ["status"],
+  "additionalProperties": false,
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["ok", "failed"]
+    },
+    "duration": {
+      "type": "number",
+      "minimum": 0
+    },
+    "root": {
+      "type": "string"
+    },
+    "runtimePath": {
+      "type": "string",
+      "description": "Путь к file IB относительно корня проекта."
+    },
+    "artifact": {
+      "type": "string",
+      "description": "Относительный путь к артефакту (.cf), если запрошен."
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["create", "import", "apply", "save"]
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": { "$ref": "diagnostics.schema.json" }
+    }
+  }
+}

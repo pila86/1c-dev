@@ -1,5 +1,5 @@
-# Build
-build/
+# Build (артефакты проекта в корне; не путать с core/build/)
+/build/
 .runtime/
 .cache/
 
