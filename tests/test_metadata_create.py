@@ -28,8 +28,9 @@ runner = CliRunner()
 
 def test_parse_qualified_name() -> None:
     assert parse_qualified_name("Catalog.Products") == ("Catalog", "Products")
+    assert parse_qualified_name("Document.Sales") == ("Document", "Sales")
     with pytest.raises(IrError) as exc:
-        parse_qualified_name("Document.Sales")
+        parse_qualified_name("Report.Sales")
     assert exc.value.code == "1CM002"
 
 

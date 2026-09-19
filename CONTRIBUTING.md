@@ -45,10 +45,24 @@ pwsh scripts/fetch-xml-gen.ps1
 
 Требуется JDK 17+. Override пути: `ONEC_XMLGEN_JAR`.
 
+## Toolchain: md-reader
+
+Для `1c-dev metadata list|get|find` нужен jar md-reader поверх MDClasses (ADR-012). Один раз:
+
+```bash
+# Linux / macOS
+./scripts/fetch-md-reader.sh
+
+# Windows
+pwsh scripts/fetch-md-reader.ps1
+```
+
+Требуется JDK 17+. Override пути: `ONEC_MDREADER_JAR`.
+
 ## Тесты
 
 - Unit-тесты — для каждого PR с логикой: `poetry run pytest`.
-- Integration-тесты (маркер `integration`) — platform 1С / `ibcmd` и jar xml-gen; без них — skip с явным сообщением:
+- Integration-тесты (маркер `integration`) — platform 1С / `ibcmd`, jar xml-gen / md-reader; без них — skip с явным сообщением:
 
 ```bash
 poetry run pytest -m integration

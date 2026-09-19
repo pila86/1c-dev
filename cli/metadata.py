@@ -16,6 +16,9 @@ from core.metadata import (
     catalog_from_json,
     catalog_from_parts,
     create_metadata,
+    find_metadata,
+    get_metadata,
+    list_metadata,
     load_json_input,
 )
 
@@ -35,17 +38,21 @@ def _emit(payload: dict[str, Any], output: OutputFormat, *, text_lines: list[str
             typer.echo(line)
 
 
+def _error_text(result: MetadataResult) -> list[str]:
+    lines = ["status: error"]
+    for diag in result.diagnostics:
+        code = diag.get("code", "")
+        prefix = f"[{code}] " if code else ""
+        lines.append(f"error: {prefix}{diag.get('message', '')}")
+        suggestion = diag.get("suggestion")
+        if suggestion:
+            lines.append(f"  → {suggestion}")
+    return lines
+
+
 def _create_text(result: MetadataResult) -> list[str]:
     if result.status != "ok":
-        lines = ["status: error"]
-        for diag in result.diagnostics:
-            code = diag.get("code", "")
-            prefix = f"[{code}] " if code else ""
-            lines.append(f"error: {prefix}{diag.get('message', '')}")
-            suggestion = diag.get("suggestion")
-            if suggestion:
-                lines.append(f"  → {suggestion}")
-        return lines
+        return _error_text(result)
     lines = ["status: ok"]
     if result.object:
         lines.append(f"object: {result.object}")
@@ -58,6 +65,31 @@ def _create_text(result: MetadataResult) -> list[str]:
     return lines
 
 
+def _list_text(result: MetadataResult) -> list[str]:
+    if result.status != "ok":
+        return _error_text(result)
+    lines = ["status: ok", f"count: {len(result.objects)}"]
+    for obj in result.objects:
+        qname = obj.get("qname", "")
+        synonym = obj.get("synonym")
+        if synonym:
+            lines.append(f"  {qname} — {synonym}")
+        else:
+            lines.append(f"  {qname}")
+    return lines
+
+
+def _get_text(result: MetadataResult) -> list[str]:
+    if result.status != "ok":
+        return _error_text(result)
+    lines = ["status: ok"]
+    if result.object:
+        lines.append(f"object: {result.object}")
+    if result.ir:
+        lines.append(json.dumps(result.ir, ensure_ascii=False, indent=2))
+    return lines
+
+
 def _exit_for(result: MetadataResult) -> None:
     if result.status == "ok":
         raise typer.Exit(code=SUCCESS)
@@ -65,6 +97,50 @@ def _exit_for(result: MetadataResult) -> None:
     if "1CM006" in codes:
         raise typer.Exit(code=ENV_UNAVAILABLE)
     raise typer.Exit(code=PROJECT_ERROR)
+
+
+@app.command("list")
+def list_command(
+    ctx: typer.Context,
+    output: OutputOption = None,
+) -> None:
+    """Список объектов метаданных (IR summaries)."""
+    fmt = resolve_output(ctx, output)
+    result = list_metadata(Path.cwd())
+    _emit(result.to_payload(), fmt, text_lines=_list_text(result))
+    _exit_for(result)
+
+
+@app.command("get")
+def get_command(
+    ctx: typer.Context,
+    qualified_name: str = typer.Argument(
+        ...,
+        help="Qualified name, например Catalog.Products.",
+    ),
+    output: OutputOption = None,
+) -> None:
+    """Получить IR объекта по QualifiedName."""
+    fmt = resolve_output(ctx, output)
+    result = get_metadata(Path.cwd(), qualified_name)
+    _emit(result.to_payload(), fmt, text_lines=_get_text(result))
+    _exit_for(result)
+
+
+@app.command("find")
+def find_command(
+    ctx: typer.Context,
+    query: str = typer.Argument(
+        ...,
+        help="Подстрока имени или синонима.",
+    ),
+    output: OutputOption = None,
+) -> None:
+    """Поиск объектов по имени / синониму."""
+    fmt = resolve_output(ctx, output)
+    result = find_metadata(Path.cwd(), query)
+    _emit(result.to_payload(), fmt, text_lines=_list_text(result))
+    _exit_for(result)
 
 
 @app.command("create")

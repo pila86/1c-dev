@@ -13,7 +13,7 @@ Status = Literal["ok", "error"]
 
 @dataclass
 class MetadataResult:
-    """Structured result for metadata.create."""
+    """Structured result for metadata create / list / get / find."""
 
     status: Status
     diagnostics: list[Diagnostic] = field(default_factory=list)
@@ -21,6 +21,8 @@ class MetadataResult:
     root: Path | None = None
     source_path: Path | None = None
     created: list[str] = field(default_factory=list)
+    objects: list[dict[str, Any]] = field(default_factory=list)
+    ir: dict[str, Any] | None = None
 
     def to_payload(self) -> dict[str, Any]:
         payload: dict[str, Any] = {"status": self.status}
@@ -32,6 +34,10 @@ class MetadataResult:
             payload["sourcePath"] = str(self.source_path)
         if self.created:
             payload["created"] = list(self.created)
+        if self.objects:
+            payload["objects"] = list(self.objects)
+        if self.ir is not None:
+            payload["ir"] = self.ir
         if self.diagnostics:
             payload["diagnostics"] = list(self.diagnostics)
         return payload
