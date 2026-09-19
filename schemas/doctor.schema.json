@@ -30,13 +30,14 @@
     },
     "tools": {
       "type": "object",
-      "required": ["ibcmd", "1cv8", "java", "xml-gen"],
+      "required": ["ibcmd", "1cv8", "java", "xml-gen", "md-reader"],
       "additionalProperties": false,
       "properties": {
         "ibcmd": { "$ref": "#/$defs/tool" },
         "1cv8": { "$ref": "#/$defs/tool" },
         "java": { "$ref": "#/$defs/tool" },
-        "xml-gen": { "$ref": "#/$defs/tool" }
+        "xml-gen": { "$ref": "#/$defs/tool" },
+        "md-reader": { "$ref": "#/$defs/tool" }
       }
     },
     "capabilities": {
@@ -45,7 +46,8 @@
       "properties": {
         "build": { "$ref": "#/$defs/capability" },
         "check": { "$ref": "#/$defs/capability" },
-        "metadata.create": { "$ref": "#/$defs/capability" }
+        "metadata.create": { "$ref": "#/$defs/capability" },
+        "metadata.read": { "$ref": "#/$defs/capability" }
       }
     },
     "gaps": {
