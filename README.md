@@ -14,11 +14,35 @@ Agent-independent toolchain и API-слой для AI-native разработк�
 poetry install
 ./scripts/fetch-xml-gen.sh   # один раз: xml-gen для metadata.create (JDK 17+)
 poetry run 1c-dev --version
-poetry run 1c-dev --output json --version
+poetry run 1c-dev --help
 poetry run pytest
 ```
 
 На Windows: `pwsh scripts/fetch-xml-gen.ps1`.
+
+## CLI
+
+Глобально: `--output text|json`, `--version`. Справка по любой команде: `1c-dev <cmd> --help`.
+
+| Команда | Назначение |
+|---------|------------|
+| `1c-dev doctor` | Проверка окружения (платформа, `ibcmd`) |
+| `1c-dev init --type configuration` | Bootstrap пустого проекта |
+| `1c-dev project detect\|validate\|info` | Манифест `1c.project.yaml` (`project init` = алиас `init`) |
+| `1c-dev metadata create <QualifiedName>` | Создать объект метаданных в XML (M1: Catalog) |
+| `1c-dev build [--artifact cf]` | Загрузить XML в file IB через `ibcmd` |
+
+Примеры:
+
+```bash
+poetry run 1c-dev init --type configuration --output json
+poetry run 1c-dev doctor --output json
+poetry run 1c-dev metadata create Catalog.Products --synonym "Товары" --attr "Article:String:50:Артикул"
+poetry run 1c-dev build --output json
+poetry run 1c-dev build --artifact cf --output json
+```
+
+Ещё не реализовано: `1c-dev check` (#9), `1c-dev mcp` (#6).
 
 ## Текущий фокус
 
@@ -44,13 +68,15 @@ poetry run pytest
 | [#9](https://github.com/pila86/1c-dev/issues/9) | Check: platform check |
 | [#10](https://github.com/pila86/1c-dev/issues/10) | README и developer onboarding |
 
-## Быстрый старт (после реализации M1)
+## Быстрый старт
 
 ```bash
 poetry install
+./scripts/fetch-xml-gen.sh
 poetry run 1c-dev init --type configuration
 poetry run 1c-dev doctor
-poetry run 1c-dev mcp
+poetry run 1c-dev metadata create Catalog.Products --synonym "Товары"
+poetry run 1c-dev build
 ```
 
 ## Документация

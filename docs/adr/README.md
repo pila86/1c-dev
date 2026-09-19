@@ -19,6 +19,7 @@
 | [005](005-environment-discovery.md) | Accepted | Environment discovery (`doctor`) |
 | [006](006-project-init.md) | Accepted | Project init (bootstrap configuration) |
 | [007](007-metadata-ir.md) | Accepted | Metadata IR v0 + write-backend xml-gen |
+| [008](008-ibcmd-build.md) | Accepted | Platform adapter: ibcmd build |
 
 ## Когда писать ADR
 
