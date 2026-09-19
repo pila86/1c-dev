@@ -2,7 +2,7 @@
 
 ## Текущий фокус: M2
 
-**M2: metadata API** — list/get/find, update, create (Document, registers, …).
+**M2: metadata API** — list/get/find, update, create (Document, registers, …), delete.
 
 → [Acceptance criteria](milestones/m2-metadata-api.md)  
 → [GitHub milestone M2](https://github.com/pila86/1c-dev/milestone/2)
@@ -12,7 +12,7 @@
 | Milestone | Цель | Статус |
 |-----------|------|--------|
 | **M1** | Init → metadata.create(Catalog) → build → check через MCP | Done |
-| **M2** | Metadata API: list/get/find + update + create (Document, registers, …) | In progress |
+| **M2** | Metadata API: list/get/find + update + create (Document, registers, …) + delete | In progress |
 | M3 | Source formats: EDT adapter + import из `.cf` → один API на XML/EDT | Planned |
 | M4 | Tests (YAxUnit), docs index, BSL integration | Planned |
 | M5 | Debug (DAP), semantic diff, verify | Planned |

@@ -70,5 +70,6 @@ Bake-off 2026-09-17 (сценарий: `Catalog.Products`, synonym «Товар�
 ## Связанные решения
 
 - ADR-002, ADR-003, ADR-006
+- [ADR-011](011-metadata-ir-v1.md) — модель IR для M2+ (v1); этот ADR остаётся про IR v0 и write-backend xml-gen
 - Issue #5
 - PRD §16–§17, §69.5

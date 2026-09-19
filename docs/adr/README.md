@@ -22,6 +22,7 @@
 | [008](008-ibcmd-build.md) | Accepted | Platform adapter: ibcmd build |
 | [009](009-ibcmd-check.md) | Accepted | Platform adapter: ibcmd check |
 | [010](010-mcp-architecture.md) | Accepted | MCP architecture (M1 stdio + tools) |
+| [011](011-metadata-ir-v1.md) | Accepted | Metadata IR v1 (M2 contract) |
 
 ## Когда писать ADR
 
