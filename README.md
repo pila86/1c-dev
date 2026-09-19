@@ -32,6 +32,7 @@ poetry run pytest
 | `1c-dev metadata create <QualifiedName>` | Создать объект метаданных в XML (M1: Catalog) |
 | `1c-dev build [--artifact cf]` | Загрузить XML в file IB через `ibcmd` |
 | `1c-dev check [--platform]` | Платформенная проверка конфигурации (`ibcmd config check`) |
+| `1c-dev mcp` | MCP server (stdio) для AI-агентов |
 
 Примеры:
 
@@ -42,9 +43,28 @@ poetry run 1c-dev metadata create Catalog.Products --synonym "Товары" --at
 poetry run 1c-dev build --output json
 poetry run 1c-dev build --artifact cf --output json
 poetry run 1c-dev check --output json
+poetry run 1c-dev mcp
 ```
 
-Ещё не реализовано: `1c-dev mcp` (#6).
+### MCP (Cursor)
+
+Tools M1: `project.get`, `project.init`, `metadata.create`, `build`, `check` ([ADR-010](docs/adr/010-mcp-architecture.md)).
+
+Пример `mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "1c-dev": {
+      "command": "poetry",
+      "args": ["run", "1c-dev", "mcp"],
+      "cwd": "<workspace>"
+    }
+  }
+}
+```
+
+`cwd` должен указывать на корень workspace (или каталог 1С-проекта).
 
 ## Текущий фокус
 

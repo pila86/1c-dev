@@ -10,3 +10,6 @@
 8. Build and run relevant tests before declaring a task complete.
 9. Prefer debugger for reproducible runtime failures.
 10. Review semantic diff before completion.
+11. For project init, metadata create, build, and check prefer 1c-dev MCP tools
+    (`project.init`, `metadata.create`, `build`, `check`) — do not use shell or
+    Designer/Configurator for these steps.

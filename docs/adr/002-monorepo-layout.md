@@ -17,7 +17,7 @@ PRD §61 предлагает полный monorepo (`cli/`, `core/`, `adapters/
 ├── cli/                 # Typer entrypoint (`1c-dev`)
 ├── core/                # version, exit codes, diagnostics types
 ├── adapters/            # stubs; реализации — по мере issues (#3, #7, …)
-├── mcp/                 # stub под Issue #6
+├── mcp_server/          # MCP stdio server (Issue #6 / ADR-010; ранее stub `mcp/`)
 ├── schemas/             # JSON Schema (diagnostics, позже project)
 ├── tests/
 ├── .github/workflows/
@@ -27,7 +27,7 @@ PRD §61 предлагает полный monorepo (`cli/`, `core/`, `adapters/
     └── roadmap.md
 ```
 
-Poetry `packages` включают `cli`, `core`, `adapters`, `mcp`. Script entrypoint: `1c-dev = "cli.main:app"`.
+Poetry `packages` включают `cli`, `core`, `adapters`, `mcp_server`. Script entrypoint: `1c-dev = "cli.main:run"`.
 
 Каталоги из PRD §61, не нужные в M1 scaffold (`services/`, `skills/`, `templates/`, `benchmarks/`), создаются по мере появления соответствующих issues.
 

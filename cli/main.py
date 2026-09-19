@@ -10,6 +10,7 @@ from cli.build import build_command
 from cli.check import check_command
 from cli.doctor import doctor_command
 from cli.init import init_command
+from cli.mcp_cmd import mcp_command
 from cli.metadata import app as metadata_app
 from cli.output import OutputFormat
 from cli.project import app as project_app
@@ -27,6 +28,7 @@ app.command("doctor")(doctor_command)
 app.command("init")(init_command)
 app.command("build")(build_command)
 app.command("check")(check_command)
+app.command("mcp")(mcp_command)
 
 
 def _version_payload() -> dict[str, str]:
