@@ -28,14 +28,14 @@ AI-агент через MCP создаёт конфигурацию 1С с од
 
 ## Acceptance criteria
 
-- [ ] `1c-dev init --type configuration` создаёт валидный проект
-- [ ] `1c-dev doctor` показывает платформу и ibcmd (✓ или понятные ✗)
-- [ ] `metadata.create` создаёт справочник в `src/` (XML)
-- [ ] `1c-dev build` успешно собирает конфигурацию
-- [ ] `1c-dev check` проходит без ошибок
-- [ ] MCP tools покрывают весь flow (без shell.exec)
-- [ ] Integration test M1 зелёный (или skip с сообщением, если нет platform)
-- [ ] Результат — одна конфигурация с одним справочником
+- [x] `1c-dev init --type configuration` создаёт валидный проект
+- [x] `1c-dev doctor` показывает платформу и ibcmd (✓ или понятные ✗)
+- [x] `metadata.create` создаёт справочник в `src/` (XML)
+- [x] `1c-dev build` успешно собирает конфигурацию
+- [x] `1c-dev check` проходит без ошибок
+- [x] MCP tools покрывают весь flow (без shell.exec)
+- [x] Integration test M1 зелёный (или skip с сообщением, если нет platform) — `poetry run pytest -m integration`
+- [x] Результат — одна конфигурация с одним справочником
 
 ## Out of scope M1
 

@@ -1,18 +1,18 @@
 # Roadmap
 
-## Текущий фокус: M1
+## Текущий фокус: M2
 
-**M1: catalog via agent** — агент через MCP создаёт конфигурацию с одним справочником.
+**M2: metadata API** — list/get/find, update, create (Document, registers, …).
 
-→ [Acceptance criteria](milestones/m1-catalog-via-agent.md)  
-→ [GitHub milestone](https://github.com/pila86/1c-dev/milestone/1) · [Issues #1–#10](https://github.com/pila86/1c-dev/issues?q=milestone%3A%22M1%3A+catalog+via+agent%22)
+→ [Acceptance criteria](milestones/m2-metadata-api.md)  
+→ [GitHub milestone](https://github.com/pila86/1c-dev/milestones)
 
 ## Этапы
 
 | Milestone | Цель | Статус |
 |-----------|------|--------|
-| **M1** | Init → metadata.create(Catalog) → build → check через MCP | In progress |
-| M2 | Metadata API: list/get/find + update + create (Document, registers, …) | Planned |
+| **M1** | Init → metadata.create(Catalog) → build → check через MCP | Done |
+| **M2** | Metadata API: list/get/find + update + create (Document, registers, …) | In progress |
 | M3 | Source formats: EDT adapter + import из `.cf` → один API на XML/EDT | Planned |
 | M4 | Tests (YAxUnit), docs index, BSL integration | Planned |
 | M5 | Debug (DAP), semantic diff, verify | Planned |
