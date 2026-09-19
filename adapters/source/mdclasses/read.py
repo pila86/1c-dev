@@ -42,7 +42,7 @@ def run_md_reader(
     java_r = java if java is not None else resolve_java()
     if not java_r.found or java_r.path is None:
         raise MdReaderError(
-            f"Java {17}+ не найдена (нужна для md-reader / MDClasses)",
+            f"Java {21}+ не найдена (нужна для md-reader / MDClasses)",
             code="1CM006",
         )
     if not jar_r.found or jar_r.path is None:

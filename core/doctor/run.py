@@ -30,7 +30,10 @@ _IBCMD_HINT = (
 _ONECV8_HINT = (
     "Опционально для M1: добавьте 1cv8 в PATH, если нужен конфигуратор/толстый клиент."
 )
-_JAVA_HINT = "Установите JDK 17+ и добавьте java в PATH (или задайте JAVA_HOME)."
+_JAVA_HINT = (
+    "Установите JDK 17+ (xml-gen) / JDK 21+ (md-reader) "
+    "и добавьте java в PATH (или задайте JAVA_HOME)."
+)
 
 
 def _tool_payload(found: bool, path: Path | None) -> dict[str, Any]:
@@ -100,7 +103,7 @@ def run_doctor(*, search_roots: list[Path] | None = None) -> DoctorResult:
     if not java.found:
         diagnostics.append(
             warning(
-                "Java 17+ не найдена (нужна для metadata.create / metadata.read)",
+                "Java 17+ не найдена (metadata.create); для metadata.read нужен JDK 21+",
                 code="1CD004",
                 source="doctor",
                 suggestion=_JAVA_HINT,

@@ -8,7 +8,8 @@ version = '0.1.0'
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        // MDClasses 0.20.0 is compiled for JVM 21+
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
@@ -18,7 +19,10 @@ repositories {
 
 dependencies {
     // Pin: MDClasses 0.20.0 (ADR-012). Fat jar installs to user cache via fetch-md-reader.
+    // MDClasses publishes transitive deps only on runtimeElements (not apiElements),
+    // so bsl-common-library must be declared explicitly for compile.
     implementation 'io.github.1c-syntax:mdclasses:0.20.0'
+    implementation 'io.github.1c-syntax:bsl-common-library:0.12.1'
     implementation 'com.google.code.gson:gson:2.11.0'
     runtimeOnly 'org.slf4j:slf4j-nop:2.0.16'
 }

@@ -6,8 +6,16 @@ import os
 import sys
 from pathlib import Path
 
-from adapters.source.mdclasses.constants import MDREADER_JAR_ENV, MDREADER_PIN
-from adapters.source.xmlgen.resolve import ToolResolve, resolve_java, tools_cache_dir
+from adapters.source.mdclasses.constants import (
+    MDREADER_JAR_ENV,
+    MDREADER_PIN,
+    MIN_JAVA_MAJOR,
+)
+from adapters.source.xmlgen.resolve import (
+    ToolResolve,
+    tools_cache_dir,
+)
+from adapters.source.xmlgen.resolve import resolve_java as _resolve_java
 
 __all__ = [
     "ToolResolve",
@@ -18,6 +26,11 @@ __all__ = [
     "resolve_java",
     "tools_cache_dir",
 ]
+
+
+def resolve_java(*, env: dict[str, str] | None = None) -> ToolResolve:
+    """Find Java >= MDClasses/md-reader requirement (JDK 21+)."""
+    return _resolve_java(env=env, min_major=MIN_JAVA_MAJOR)
 
 
 def default_jar_path() -> Path:

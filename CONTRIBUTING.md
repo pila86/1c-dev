@@ -57,7 +57,7 @@ pwsh scripts/fetch-xml-gen.ps1
 pwsh scripts/fetch-md-reader.ps1
 ```
 
-Требуется JDK 17+. Override пути: `ONEC_MDREADER_JAR`.
+Требуется JDK 21+ (MDClasses 0.20.0). Override пути: `ONEC_MDREADER_JAR`.
 
 ## Тесты
 

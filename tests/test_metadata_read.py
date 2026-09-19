@@ -172,7 +172,7 @@ def test_read_with_real_md_reader(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     jar = resolve_jar()
     if not java.found or not jar.found:
         pytest.skip(
-            "md-reader jar / Java 17+ недоступны (запустите scripts/fetch-md-reader.sh)"
+            "md-reader jar / Java 21+ недоступны (запустите scripts/fetch-md-reader.sh)"
         )
 
     target = tmp_path / "shop"

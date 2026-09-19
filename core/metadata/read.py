@@ -112,7 +112,7 @@ def _run_read(
         if exc.code == "1CM006":
             diag_kw["suggestion"] = (
                 f"Соберите md-reader: {fetch_script_suggestion()} "
-                "(нужен JDK 17+; или задайте ONEC_MDREADER_JAR)."
+                "(нужен JDK 21+; или задайте ONEC_MDREADER_JAR)."
             )
         return MetadataResult(
             status="error",

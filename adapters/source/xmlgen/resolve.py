@@ -86,7 +86,22 @@ def _java_candidates(*, env: dict[str, str] | None = None) -> list[Path]:
     which = shutil.which("java", path=environ.get("PATH"))
     if which:
         candidates.append(Path(which))
-    return candidates
+    # When PATH still points at an older JDK, probe common Linux install roots.
+    if sys.platform != "win32":
+        jvm_root = Path("/usr/lib/jvm")
+        if jvm_root.is_dir():
+            for pattern in ("java-21*", "java-1.21*", "temurin-21*", "zulu-21*"):
+                for home in sorted(jvm_root.glob(pattern), reverse=True):
+                    candidates.append(home / "bin" / "java")
+    # Deduplicate while preserving order
+    seen: set[Path] = set()
+    unique: list[Path] = []
+    for path in candidates:
+        if path in seen:
+            continue
+        seen.add(path)
+        unique.append(path)
+    return unique
 
 
 def _parse_java_major(output: str) -> tuple[int | None, str | None]:
@@ -103,8 +118,13 @@ def _parse_java_major(output: str) -> tuple[int | None, str | None]:
     return None, None
 
 
-def resolve_java(*, env: dict[str, str] | None = None) -> ToolResolve:
-    """Find Java >= MIN_JAVA_MAJOR."""
+def resolve_java(
+    *,
+    env: dict[str, str] | None = None,
+    min_major: int | None = None,
+) -> ToolResolve:
+    """Find Java >= min_major (default: xml-gen MIN_JAVA_MAJOR)."""
+    required = MIN_JAVA_MAJOR if min_major is None else min_major
     for candidate in _java_candidates(env=env):
         if not candidate.is_file() and shutil.which(str(candidate)) is None:
             # Path from JAVA_HOME may not exist
@@ -123,7 +143,7 @@ def resolve_java(*, env: dict[str, str] | None = None) -> ToolResolve:
         major, line = _parse_java_major(text)
         if major is None:
             continue
-        if major < MIN_JAVA_MAJOR:
+        if major < required:
             continue
         return ToolResolve(found=True, path=candidate.resolve(), version=str(major))
     return ToolResolve(found=False)

@@ -31,7 +31,7 @@ Issue #21 требует `metadata.list` / `get` / `find` без платфор�
 - Скрипты: `scripts/fetch-md-reader.sh`, `scripts/fetch-md-reader.ps1` собирают jar и кладут в cache
 - Cache: `~/.cache/1c-dev/tools/md-reader.jar` (Windows: `%LOCALAPPDATA%\1c-dev\tools\`)
 - Override: `ONEC_MDREADER_JAR`
-- Требуется JDK 17+ и Gradle 8+ (зависимости — Maven Central при сборке)
+- Требуется JDK **21+** (MDClasses 0.20.0) и Gradle 8+ (зависимости — Maven Central при сборке)
 
 Нет jar/JDK → diagnostic `1CM006`, exit `ENV_UNAVAILABLE`. Doctor: tool `md-reader`, capability `metadata.read`.
 

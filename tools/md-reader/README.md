@@ -10,7 +10,7 @@ Thin Java CLI over [MDClasses](https://github.com/1c-syntax/mdclasses) → Metad
 # Windows: pwsh scripts/fetch-md-reader.ps1
 ```
 
-Override: `ONEC_MDREADER_JAR`. Нужны JDK 17+ и Gradle 8+ (Maven Central для зависимостей).
+Override: `ONEC_MDREADER_JAR`. Нужны JDK 21+ (MDClasses 0.20.0) и Gradle 8+ (Maven Central для зависимостей).
 
 ```bash
 java -jar ~/.cache/1c-dev/tools/md-reader.jar list <sourceDir>

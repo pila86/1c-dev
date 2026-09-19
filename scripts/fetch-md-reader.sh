@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Build md-reader jar into the local 1c-dev tools cache (ADR-012).
+# Requires: JDK 21+ (MDClasses 0.20.0), Gradle 8+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -15,25 +16,45 @@ fi
 PINNED_JAR="${CACHE_DIR}/md-reader-${PIN}.jar"
 STABLE_JAR="${CACHE_DIR}/md-reader.jar"
 
-if [[ -n "${JAVA_HOME:-}" ]]; then
-  JAVA_BIN="${JAVA_HOME}/bin/java"
-else
-  JAVA_BIN="$(command -v java || true)"
-fi
-if [[ -z "${JAVA_BIN}" || ! -x "${JAVA_BIN}" ]]; then
-  echo "ERROR: Java 17+ required (set JAVA_HOME or add java to PATH)" >&2
-  exit 1
-fi
+pick_java() {
+  local candidates=()
+  if [[ -n "${JAVA_HOME:-}" ]]; then
+    candidates+=("${JAVA_HOME}/bin/java")
+  fi
+  if command -v java >/dev/null 2>&1; then
+    candidates+=("$(command -v java)")
+  fi
+  # Common Linux JDK 21 installs when PATH still points at older java
+  for home in \
+    /usr/lib/jvm/java-21-openjdk-amd64 \
+    /usr/lib/jvm/java-1.21.0-openjdk-amd64 \
+    /usr/lib/jvm/temurin-21-jdk-amd64 \
+    /usr/lib/jvm/zulu-21*
+  do
+    if [[ -x "${home}/bin/java" ]]; then
+      candidates+=("${home}/bin/java")
+    fi
+  done
 
-MAJOR="$("${JAVA_BIN}" -version 2>&1 | sed -n 's/.*version "\([0-9]*\).*/\1/p' | head -1)"
-if [[ -z "${MAJOR}" ]]; then
-  echo "ERROR: cannot parse java -version" >&2
+  local bin major
+  for bin in "${candidates[@]}"; do
+    [[ -x "${bin}" ]] || continue
+    major="$("${bin}" -version 2>&1 | sed -n 's/.*version "\([0-9]*\).*/\1/p' | head -1)"
+    [[ -n "${major}" ]] || continue
+    if [[ "${major}" -ge 21 ]]; then
+      echo "${bin}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+JAVA_BIN="$(pick_java || true)"
+if [[ -z "${JAVA_BIN}" ]]; then
+  echo "ERROR: Java 21+ required for md-reader / MDClasses (set JAVA_HOME or install JDK 21)" >&2
   exit 1
 fi
-if [[ "${MAJOR}" -lt 17 ]]; then
-  echo "ERROR: Java 17+ required (found major ${MAJOR})" >&2
-  exit 1
-fi
+export JAVA_HOME="$(cd "$(dirname "${JAVA_BIN}")/.." && pwd)"
 
 mkdir -p "${CACHE_DIR}"
 if [[ -f "${PINNED_JAR}" ]]; then
@@ -59,7 +80,7 @@ if [[ -z "${GRADLE_BIN}" ]]; then
   exit 1
 fi
 
-echo "Building md-reader (${PIN})..."
+echo "Building md-reader (${PIN}) with Java ${JAVA_HOME}..."
 (
   cd "${SRC}"
   "${GRADLE_BIN}" fatJar --no-daemon -q
