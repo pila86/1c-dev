@@ -1,4 +1,4 @@
-"""Map ibcmd stdout/stderr to Diagnostics (ADR-008, PRD §52)."""
+"""Map ibcmd stdout/stderr to Diagnostics (ADR-008 / ADR-009, PRD §52)."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ def diagnostics_from_output(
     returncode: int,
     stdout: str,
     stderr: str,
+    code: str = CODE_IBCMD_FAILED,
 ) -> list[Diagnostic]:
     """Build diagnostics for a failed (or noisy) ibcmd invocation."""
     detail = (stderr or stdout or "").strip()
@@ -25,7 +26,7 @@ def diagnostics_from_output(
     return [
         error(
             message,
-            code=CODE_IBCMD_FAILED,
+            code=code,
             source="platform",
         )
     ]

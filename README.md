@@ -31,6 +31,7 @@ poetry run pytest
 | `1c-dev project detect\|validate\|info` | Манифест `1c.project.yaml` (`project init` = алиас `init`) |
 | `1c-dev metadata create <QualifiedName>` | Создать объект метаданных в XML (M1: Catalog) |
 | `1c-dev build [--artifact cf]` | Загрузить XML в file IB через `ibcmd` |
+| `1c-dev check [--platform]` | Платформенная проверка конфигурации (`ibcmd config check`) |
 
 Примеры:
 
@@ -40,9 +41,10 @@ poetry run 1c-dev doctor --output json
 poetry run 1c-dev metadata create Catalog.Products --synonym "Товары" --attr "Article:String:50:Артикул"
 poetry run 1c-dev build --output json
 poetry run 1c-dev build --artifact cf --output json
+poetry run 1c-dev check --output json
 ```
 
-Ещё не реализовано: `1c-dev check` (#9), `1c-dev mcp` (#6).
+Ещё не реализовано: `1c-dev mcp` (#6).
 
 ## Текущий фокус
 
@@ -77,6 +79,7 @@ poetry run 1c-dev init --type configuration
 poetry run 1c-dev doctor
 poetry run 1c-dev metadata create Catalog.Products --synonym "Товары"
 poetry run 1c-dev build
+poetry run 1c-dev check
 ```
 
 ## Документация
