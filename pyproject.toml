@@ -8,7 +8,7 @@ packages = [
     { include = "cli" },
     { include = "core" },
     { include = "adapters" },
-    { include = "mcp" },
+    { include = "mcp_server" },
 ]
 include = [
     { path = "templates", format = ["sdist", "wheel"] },
@@ -20,6 +20,7 @@ python = "^3.11"
 typer = "^0.16.0"
 pyyaml = "^6.0.3"
 jsonschema = "^4.26.0"
+mcp = ">=1.9.0,<2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.0"
@@ -51,4 +52,4 @@ select = ["E", "F", "I", "UP"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
-packages = ["cli", "core", "adapters", "mcp"]
+packages = ["cli", "core", "adapters", "mcp_server"]
