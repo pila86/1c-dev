@@ -10,8 +10,8 @@ import typer
 
 from adapters.platform_ibcmd.constants import (
     CODE_CHECK_FAILED,
-    CODE_CHECK_IBCMD_MISSING,
     CODE_CHECK_IB_MISSING,
+    CODE_CHECK_IBCMD_MISSING,
     CODE_CHECK_PROJECT,
 )
 from cli.output import OutputFormat, OutputOption, resolve_output

@@ -11,8 +11,8 @@ from adapters.platform import DiscoveryResult, discover_environment
 from adapters.platform_ibcmd import IbcmdError, RunFn, check_config, infobase_exists
 from adapters.platform_ibcmd.constants import (
     CODE_CHECK_FAILED,
-    CODE_CHECK_IBCMD_MISSING,
     CODE_CHECK_IB_MISSING,
+    CODE_CHECK_IBCMD_MISSING,
     CODE_CHECK_PROJECT,
     IBCMD_DATA_REL,
 )

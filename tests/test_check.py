@@ -14,8 +14,8 @@ from adapters.platform.discovery import DiscoveryResult, PlatformInfo, ToolInfo
 from adapters.platform_ibcmd.client import IbcmdRunResult
 from adapters.platform_ibcmd.constants import (
     CODE_CHECK_FAILED,
-    CODE_CHECK_IBCMD_MISSING,
     CODE_CHECK_IB_MISSING,
+    CODE_CHECK_IBCMD_MISSING,
     CODE_CHECK_PROJECT,
     IB_MARKER,
 )
