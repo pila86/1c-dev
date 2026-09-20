@@ -1,4 +1,4 @@
-"""metadata.update orchestration (ADR-011 / #22 / #35)."""
+"""metadata.update orchestration (ADR-011 / #22 / #35 / #39 / #40)."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ from core.metadata.delete import object_xml_path
 from core.metadata.ir import (
     UPDATE_OBJECT_TYPES,
     Attribute,
+    EnumValue,
     IrError,
     TabularSection,
     parse_qualified_name,
@@ -31,6 +32,26 @@ from core.project.load import load_manifest
 
 EditFn = Callable[[Path, list[EditOp]], EditResult]
 GetFn = Callable[..., MetadataResult]
+
+# Public sugar op (not in xml-gen ALLOWED_OPS) → remapped to modify-property.
+_SET_FLAG_OP = "set-flag"
+
+# IR / CLI flag name → Designer XML property name.
+_FLAG_TO_PROPERTY: dict[str, str] = {
+    "server": "Server",
+    "client": "ClientManagedApplication",
+    "clientmanagedapplication": "ClientManagedApplication",
+    "clientordinaryapplication": "ClientOrdinaryApplication",
+    "servercall": "ServerCall",
+    "externalconnection": "ExternalConnection",
+    "privileged": "Privileged",
+    "global": "Global",
+    "returnvaluesreuse": "ReturnValuesReuse",
+}
+
+_RETURN_VALUES_REUSE: frozenset[str] = frozenset(
+    {"DontUse", "DuringRequest", "DuringSession"}
+)
 
 
 def attr_to_xmlgen_shorthand(attr: Attribute) -> str:
@@ -93,6 +114,169 @@ def ops_from_ts_attr(ts_name: str, attr: Attribute) -> list[EditOp]:
     return [EditOp(op="add-ts-attribute", value=f"{ts_name}.{shorthand}")]
 
 
+def ops_from_enum_value(value: EnumValue) -> list[EditOp]:
+    """Expand EnumValue into add-enumValue (+ optional modify synonym)."""
+    ops = [EditOp(op="add-enumValue", value=value.name)]
+    if value.synonym:
+        ops.append(
+            EditOp(
+                op="modify-enumValue",
+                value=f"{value.name}: synonym={value.synonym}",
+            )
+        )
+    return ops
+
+
+def ops_from_dimension(attr: Attribute) -> list[EditOp]:
+    """Expand IR Attribute into add-dimension (+ optional modify synonym)."""
+    ops = [EditOp(op="add-dimension", value=attr_to_xmlgen_shorthand(attr))]
+    if attr.synonym:
+        ops.append(
+            EditOp(
+                op="modify-dimension",
+                value=f"{attr.name}: synonym={attr.synonym}",
+            )
+        )
+    return ops
+
+
+def ops_from_resource(attr: Attribute) -> list[EditOp]:
+    """Expand IR Attribute into add-resource (+ optional modify synonym)."""
+    ops = [EditOp(op="add-resource", value=attr_to_xmlgen_shorthand(attr))]
+    if attr.synonym:
+        ops.append(
+            EditOp(
+                op="modify-resource",
+                value=f"{attr.name}: synonym={attr.synonym}",
+            )
+        )
+    return ops
+
+
+def ops_from_set_flag(value: str) -> list[EditOp]:
+    """
+    Expand set-flag sugar ``name=value`` into modify-property.
+
+    Accepts IR/CLI names (server, client, …) or Designer names (Server, …).
+    """
+    raw = value.strip()
+    if not raw or "=" not in raw:
+        raise IrError(
+            "set-flag ожидает значение вида name=value "
+            "(например server=true или ReturnValuesReuse=DuringRequest)",
+            code="1CM002",
+        )
+    name_part, val_part = raw.split("=", 1)
+    flag_name = name_part.strip()
+    flag_value = val_part.strip()
+    if not flag_name or not flag_value:
+        raise IrError(
+            "set-flag ожидает значение вида name=value",
+            code="1CM002",
+        )
+    prop = _resolve_flag_property(flag_name)
+    normalized = _normalize_flag_value(prop, flag_value)
+    return [EditOp(op="modify-property", value=f"{prop}={normalized}")]
+
+
+def ops_from_common_module_flags(
+    *,
+    server: bool | None = None,
+    client: bool | None = None,
+    client_managed_application: bool | None = None,
+    client_ordinary_application: bool | None = None,
+    server_call: bool | None = None,
+    external_connection: bool | None = None,
+    privileged: bool | None = None,
+    global_: bool | None = None,
+    return_values_reuse: str | None = None,
+) -> list[EditOp]:
+    """Build modify-property ops from CLI CommonModule flag options."""
+    managed = client_managed_application
+    if client is not None:
+        managed = client if managed is None else managed
+
+    pairs: list[tuple[str, bool | None]] = [
+        ("Server", server),
+        ("ClientManagedApplication", managed),
+        ("ClientOrdinaryApplication", client_ordinary_application),
+        ("ServerCall", server_call),
+        ("ExternalConnection", external_connection),
+        ("Privileged", privileged),
+        ("Global", global_),
+    ]
+    ops: list[EditOp] = []
+    for prop, val in pairs:
+        if val is not None:
+            ops.append(
+                EditOp(
+                    op="modify-property",
+                    value=f"{prop}={'true' if val else 'false'}",
+                )
+            )
+    if return_values_reuse is not None:
+        reuse = return_values_reuse.strip()
+        if reuse not in _RETURN_VALUES_REUSE:
+            raise IrError(
+                "returnValuesReuse должен быть одним из: "
+                + ", ".join(sorted(_RETURN_VALUES_REUSE)),
+                code="1CM002",
+            )
+        ops.append(
+            EditOp(
+                op="modify-property",
+                value=f"ReturnValuesReuse={reuse}",
+            )
+        )
+    return ops
+
+
+def normalize_edit_ops(operations: list[EditOp]) -> list[EditOp]:
+    """Remap public sugar ops (set-flag) to xml-gen wire ops."""
+    result: list[EditOp] = []
+    for op in operations:
+        if op.op == _SET_FLAG_OP:
+            result.extend(ops_from_set_flag(op.value))
+        else:
+            result.append(op)
+    return result
+
+
+def _resolve_flag_property(name: str) -> str:
+    key = name.strip()
+    lower = key.lower().replace("_", "")
+    if lower in _FLAG_TO_PROPERTY:
+        return _FLAG_TO_PROPERTY[lower]
+    # Already Designer-cased property name.
+    known = {v.lower(): v for v in _FLAG_TO_PROPERTY.values()}
+    if lower in known:
+        return known[lower]
+    raise IrError(
+        f"Неизвестный флаг CommonModule: {name!r}",
+        code="1CM002",
+    )
+
+
+def _normalize_flag_value(prop: str, value: str) -> str:
+    if prop == "ReturnValuesReuse":
+        if value not in _RETURN_VALUES_REUSE:
+            raise IrError(
+                "returnValuesReuse должен быть одним из: "
+                + ", ".join(sorted(_RETURN_VALUES_REUSE)),
+                code="1CM002",
+            )
+        return value
+    lower = value.lower()
+    if lower in {"true", "1", "yes"}:
+        return "true"
+    if lower in {"false", "0", "no"}:
+        return "false"
+    raise IrError(
+        f"Флаг {prop} ожидает true/false, получено: {value!r}",
+        code="1CM002",
+    )
+
+
 def update_metadata(
     start: Path | None,
     qualified_name: str,
@@ -102,7 +286,7 @@ def update_metadata(
     get_fn: GetFn | None = None,
 ) -> MetadataResult:
     """
-    Apply sequential meta-edit ops to an existing Catalog or Document.
+    Apply sequential meta-edit ops to an existing metadata object.
 
     edit_fn / get_fn: injectable for unit tests.
     """
@@ -116,6 +300,17 @@ def update_metadata(
                     code="1CM002",
                     source="metadata",
                 )
+            ],
+        )
+
+    try:
+        wire_ops = normalize_edit_ops(operations)
+    except IrError as exc:
+        return MetadataResult(
+            status="error",
+            object=qualified_name,
+            diagnostics=[
+                error(exc.message, code=exc.code, source="metadata"),
             ],
         )
 
@@ -264,7 +459,7 @@ def update_metadata(
 
     runner: EditFn = edit_fn if edit_fn is not None else _default_edit
     try:
-        edit_result = runner(object_xml, operations)
+        edit_result = runner(object_xml, wire_ops)
     except XmlGenError as exc:
         diag_kw: dict[str, Any] = {
             "code": exc.code,

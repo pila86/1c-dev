@@ -28,6 +28,16 @@ ALLOWED_OPS: frozenset[str] = frozenset(
         "remove-ts",
         "add-ts-attribute",
         "remove-ts-attribute",
+        "add-enumValue",
+        "modify-enumValue",
+        "remove-enumValue",
+        "add-dimension",
+        "modify-dimension",
+        "remove-dimension",
+        "add-resource",
+        "modify-resource",
+        "remove-resource",
+        "modify-property",
     }
 )
 

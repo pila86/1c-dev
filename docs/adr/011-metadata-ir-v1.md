@@ -73,7 +73,7 @@ JSON-пример атрибута-ссылки:
 - **Catalog / Document:** `attributes[]`, `tabularSections[]?`
 - **Enum:** `values[]` = `{name, synonym?}` (без `attributes` / ТЧ)
 - **InformationRegister / AccumulationRegister** (упрощённо): `dimensions[]`, `resources[]` — элементы той же формы, что Attribute (включая `Ref`). Периодичность / вид регистра и пр. — out of scope M2.
-- **CommonModule** (stretch create #28): контекстные флаги; без `attributes` / ТЧ / values / dimensions / resources. Тело BSL при create — пустой `Module.bsl` (запись процедур — later). Изменение флагов существующего модуля — `metadata.update` [#40](https://github.com/pila86/1c-dev/issues/40) (не путать с #39 Enum/регистры).
+- **CommonModule** (stretch create #28): контекстные флаги; без `attributes` / ТЧ / values / dimensions / resources. Тело BSL при create — пустой `Module.bsl` (запись процедур — later). Изменение флагов существующего модуля — `metadata.update` через `set-flag` → `modify-property` ([#40](https://github.com/pila86/1c-dev/issues/40)).
 
 Пример Enum:
 
@@ -137,12 +137,17 @@ JSON-пример атрибута-ссылки:
 
 - Цель: существующий объект по QName.
 - Модель операций (как у xml-gen `meta edit`), не «только add»:
-  - `add-attribute` / `modify-attribute` / `remove-attribute` (и аналоги для ТЧ / dimensions / … по мере поддержки write).
-- Scope write #22: **Catalog** + три attribute-ops; Document / ТЧ / регистры — позже тем же контрактом.
+  - `add-attribute` / `modify-attribute` / `remove-attribute`
+  - `add-ts` / `modify-ts` / `remove-ts` / `add-ts-attribute` / `remove-ts-attribute`
+  - `add-enumValue` / `modify-enumValue` / `remove-enumValue` (#39)
+  - `add-dimension` / `modify-dimension` / `remove-dimension` (#39)
+  - `add-resource` / `modify-resource` / `remove-resource` (#39)
+  - `modify-property` для флагов `CommonModule` (#40); публичный сахар `set-flag` (IR/CLI имена `server=true`, …) ремапится в core в `modify-property` с Designer-именами (`Server=true`). Тело `Module.bsl` не меняется.
+- Типы update: `Catalog`, `Document`, `Enum`, `InformationRegister`, `AccumulationRegister`, `CommonModule`.
 - No-op backend (дубль add, modify/remove несуществующего) → `status=ok`, diagnostic `severity=warning`, source не менялся; CLI exit = SUCCESS.
 - Объект / файл не найден → `status=error`, diagnostic (например `1CM008`), source intact.
 - Пустой список операций → `status=error`.
-- Удаление **атрибута** — через `update` + `remove-attribute`, не через `metadata.delete`.
+- Удаление **атрибута** / values / dimensions / resources — через `update` + `remove-*`, не через `metadata.delete`.
 - Без публичного `source.write`.
 
 ### Семантика `metadata.delete`
@@ -152,7 +157,7 @@ JSON-пример атрибута-ссылки:
 - Объект не найден → structured diagnostic, source не меняется.
 - Без cascade по ссылкам (битые `Ref` после delete допустимы до graph / M6).
 - После delete: `metadata.get` → not found; `list` не содержит объект.
-- Nested delete атрибутов — через `metadata.update` (`remove-attribute`); удаление ТЧ / values / dimensions / resources как отдельные ops — later, не must `metadata.delete`.
+- Nested delete атрибутов / values / dimensions / resources — через `metadata.update` (`remove-*`), не must `metadata.delete`.
 
 ### Write-backend
 
@@ -165,9 +170,8 @@ JSON-пример атрибута-ссылки:
 - Публичный `source.write`
 - Полное покрытие видов метаданных платформы
 - Расширения (`project.type: extension`)
-- `metadata.update` флагов `CommonModule` (later; [#40](https://github.com/pila86/1c-dev/issues/40), follow-up к #28)
 - Запись тела BSL / процедур модуля (узкий write later)
-- Nested delete ТЧ / values / dimensions / resources (атрибуты — через `update` `remove-attribute`)
+- Nested delete через `metadata.delete` (атрибуты / ТЧ / values / dimensions / resources — через `update`)
 
 ## Альтернативы
 
