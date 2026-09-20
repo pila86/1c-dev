@@ -13,7 +13,7 @@ Status = Literal["ok", "error"]
 
 @dataclass
 class MetadataResult:
-    """Structured result for metadata create / update / list / get / find."""
+    """Structured result for metadata create / update / delete / list / get / find."""
 
     status: Status
     diagnostics: list[Diagnostic] = field(default_factory=list)
@@ -22,6 +22,7 @@ class MetadataResult:
     source_path: Path | None = None
     created: list[str] = field(default_factory=list)
     updated: list[str] = field(default_factory=list)
+    deleted: list[str] = field(default_factory=list)
     objects: list[dict[str, Any]] = field(default_factory=list)
     ir: dict[str, Any] | None = None
 
@@ -37,6 +38,8 @@ class MetadataResult:
             payload["created"] = list(self.created)
         if self.updated:
             payload["updated"] = list(self.updated)
+        if self.deleted:
+            payload["deleted"] = list(self.deleted)
         if self.objects:
             payload["objects"] = list(self.objects)
         if self.ir is not None:

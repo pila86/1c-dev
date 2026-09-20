@@ -17,6 +17,7 @@ from core.metadata import (
     catalog_from_json,
     catalog_from_parts,
     create_metadata,
+    delete_metadata,
     find_metadata,
     get_metadata,
     list_metadata,
@@ -84,6 +85,21 @@ def _update_text(result: MetadataResult) -> list[str]:
     for diag in result.diagnostics:
         if diag.get("severity") == "warning":
             lines.append(f"warning: {diag.get('message', '')}")
+    return lines
+
+
+def _delete_text(result: MetadataResult) -> list[str]:
+    if result.status != "ok":
+        return _error_text(result)
+    lines = ["status: ok"]
+    if result.object:
+        lines.append(f"object: {result.object}")
+    if result.root:
+        lines.append(f"root: {result.root}")
+    if result.deleted:
+        lines.append("deleted:")
+        for item in result.deleted:
+            lines.append(f"  - {item}")
     return lines
 
 
@@ -292,6 +308,22 @@ def update_command(
 
     result = update_metadata(Path.cwd(), qualified_name, operations)
     _emit(result.to_payload(), fmt, text_lines=_update_text(result))
+    _exit_for(result)
+
+
+@app.command("delete")
+def delete_command(
+    ctx: typer.Context,
+    qualified_name: str = typer.Argument(
+        ...,
+        help="Qualified name, например Catalog.Products.",
+    ),
+    output: OutputOption = None,
+) -> None:
+    """Удалить объект метаданных из source (xml-gen meta remove)."""
+    fmt = resolve_output(ctx, output)
+    result = delete_metadata(Path.cwd(), qualified_name)
+    _emit(result.to_payload(), fmt, text_lines=_delete_text(result))
     _exit_for(result)
 
 

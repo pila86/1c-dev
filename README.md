@@ -43,6 +43,7 @@ poetry run pytest -m integration   # E2E с platform/xml-gen/md-reader; инач
 | `1c-dev metadata find <query>` | Поиск по имени / синониму |
 | `1c-dev metadata create <QualifiedName>` | Создать объект в XML (M1: Catalog) |
 | `1c-dev metadata update <QualifiedName>` | Ops над реквизитами Catalog (`add` / `modify` / `remove-attribute`) |
+| `1c-dev metadata delete <QualifiedName>` | Удалить объект из source + `Configuration.xml` |
 | `1c-dev build [--artifact cf]` | Загрузить XML в file IB через `ibcmd` |
 | `1c-dev check [--platform]` | Платформенная проверка конфигурации (`ibcmd config check`) |
 | `1c-dev mcp` | MCP server (stdio) для AI-агентов |
@@ -56,6 +57,7 @@ poetry run 1c-dev metadata create Catalog.Products --synonym "Товары" --at
 poetry run 1c-dev metadata update Catalog.Products --op add-attribute --value "Price:Number(15,2)"
 poetry run 1c-dev metadata update Catalog.Products --op modify-attribute --value "Price: synonym=Цена, type=Number(10,2)"
 poetry run 1c-dev metadata update Catalog.Products --attr "Code:String:20:Код"
+poetry run 1c-dev metadata delete Catalog.Products --output json
 poetry run 1c-dev metadata list --output json
 poetry run 1c-dev metadata get Catalog.Products --output json
 poetry run 1c-dev metadata find Товар --output json
@@ -67,7 +69,7 @@ poetry run 1c-dev mcp
 
 ### MCP (Cursor)
 
-Tools M1: `project.get`, `project.init`, `metadata.create`, `build`, `check` ([ADR-010](docs/adr/010-mcp-architecture.md)).
+Tools: `project.get`, `project.init`, `metadata.create`, `metadata.delete`, `build`, `check` ([ADR-010](docs/adr/010-mcp-architecture.md)).
 
 Пример `mcp.json`:
 
