@@ -332,7 +332,7 @@ def create_command(
     ctx: typer.Context,
     qualified_name: str = typer.Argument(
         ...,
-        help="Qualified name, например Catalog.Products.",
+        help="Qualified name, например Catalog.Products или Document.Sales.",
     ),
     synonym: str | None = typer.Option(
         None,
@@ -342,7 +342,17 @@ def create_command(
     attr: list[str] | None = typer.Option(
         None,
         "--attr",
-        help="Реквизит Name:Type[:LengthOrPrecision][:Synonym], можно повторять.",
+        help="Реквизит Name:Type[:Qual][:Synonym], можно повторять.",
+    ),
+    ts: list[str] | None = typer.Option(
+        None,
+        "--ts",
+        help="Табличная часть Name[:Synonym], можно повторять.",
+    ),
+    ts_attr: list[str] | None = typer.Option(
+        None,
+        "--ts-attr",
+        help="Реквизит ТЧ: TSName.Name:Type[:Qual][:Synonym], можно повторять.",
     ),
     from_json: str | None = typer.Option(
         None,
@@ -351,7 +361,7 @@ def create_command(
     ),
     output: OutputOption = None,
 ) -> None:
-    """Создать объект метаданных (M1: Catalog) через xml-gen."""
+    """Создать объект метаданных (Catalog / Document) через xml-gen."""
     fmt = resolve_output(ctx, output)
     try:
         if from_json is not None:
@@ -366,11 +376,33 @@ def create_command(
             catalog = catalog_from_json(data, qualified_name=qualified_name)
             if synonym and not catalog.synonym:
                 catalog.synonym = synonym
+            if ts or ts_attr:
+                extra = catalog_from_parts(
+                    qualified_name=qualified_name,
+                    ts_specs=list(ts or []),
+                    ts_attr_specs=list(ts_attr or []),
+                )
+                # merge CLI TS into JSON-built object
+                by_name = {s.name: s for s in catalog.tabular_sections}
+                for section in extra.tabular_sections:
+                    existing_ts = by_name.get(section.name)
+                    if existing_ts is None:
+                        catalog.tabular_sections.append(section)
+                        by_name[section.name] = section
+                    else:
+                        if section.synonym and not existing_ts.synonym:
+                            existing_ts.synonym = section.synonym
+                        existing_names = {a.name for a in existing_ts.attributes}
+                        for a in section.attributes:
+                            if a.name not in existing_names:
+                                existing_ts.attributes.append(a)
         else:
             catalog = catalog_from_parts(
                 qualified_name=qualified_name,
                 synonym=synonym,
                 attr_specs=list(attr or []),
+                ts_specs=list(ts or []),
+                ts_attr_specs=list(ts_attr or []),
             )
     except IrError as exc:
         result = _ir_error_result(exc)

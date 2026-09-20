@@ -1,4 +1,4 @@
-"""Run xml-gen meta compile (ADR-007)."""
+"""Run xml-gen meta compile (ADR-007 / #23)."""
 
 from __future__ import annotations
 
@@ -10,6 +10,12 @@ from typing import Any
 
 from adapters.source.xmlgen.resolve import ToolResolve, resolve_jar, resolve_java
 
+# Designer folder names for create-supported types.
+_TYPE_DIRS: dict[str, str] = {
+    "Catalog": "Catalogs",
+    "Document": "Documents",
+}
+
 
 class XmlGenError(Exception):
     """xml-gen subprocess or environment failure."""
@@ -20,28 +26,55 @@ class XmlGenError(Exception):
         self.message = message
 
 
+def attr_ir_to_xmlgen_type(attr: dict[str, Any]) -> str:
+    """Map one IR attribute dict to xml-gen type shorthand (String(10), CatalogRef.X, …)."""
+    atype = str(attr.get("type", "String"))
+    if atype == "String":
+        length = int(attr.get("length") or 10)
+        return f"String({length})"
+    if atype == "Number":
+        precision = int(attr.get("precision") or 15)
+        scale = int(attr.get("scale") or 2)
+        return f"Number({precision},{scale})"
+    if atype == "Boolean":
+        return "Boolean"
+    if atype == "Date":
+        return "Date"
+    if atype == "Ref":
+        reference = str(attr.get("reference") or "")
+        if "." not in reference:
+            raise XmlGenError(
+                f"Ref-атрибут {attr.get('name')!r} без reference QName",
+                code="1CM004",
+            )
+        type_part, name_part = reference.split(".", 1)
+        return f"{type_part}Ref.{name_part}"
+    # Already xml-gen-shaped (e.g. String(50) from tests / passthrough)
+    return atype
+
+
+def _attr_to_xmlgen_entry(attr: dict[str, Any]) -> dict[str, Any]:
+    name = str(attr["name"])
+    entry: dict[str, Any] = {"name": name, "type": attr_ir_to_xmlgen_type(attr)}
+    synonym = attr.get("synonym")
+    if synonym:
+        entry["synonym"] = str(synonym)
+    return entry
+
+
 def ir_to_xmlgen_dsl(ir: dict[str, Any]) -> dict[str, Any]:
-    """Map our IR dict to xml-gen meta compile JSON DSL."""
-    attrs_out: list[dict[str, Any] | str] = []
-    for attr in ir.get("attributes") or []:
-        if not isinstance(attr, dict):
-            continue
-        name = str(attr["name"])
-        atype = str(attr.get("type", "String"))
-        synonym = attr.get("synonym")
-        if atype == "String":
-            length = int(attr.get("length") or 10)
-            type_spec = f"String({length})"
-        elif atype == "Number":
-            precision = int(attr.get("precision") or 15)
-            scale = int(attr.get("scale") or 2)
-            type_spec = f"Number({precision},{scale})"
-        else:
-            type_spec = atype
-        entry: dict[str, Any] = {"name": name, "type": type_spec}
-        if synonym:
-            entry["synonym"] = str(synonym)
-        attrs_out.append(entry)
+    """
+    Map our IR dict to xml-gen meta compile JSON DSL.
+
+    Tabular sections: IR uses an array of {name, synonym?, attributes[]};
+    xml-gen expects a map ``{TSName: [attr, …]}`` (synonym applied later via
+    ``meta edit --op modify-ts``).
+    """
+    attrs_out = [
+        _attr_to_xmlgen_entry(attr)
+        for attr in (ir.get("attributes") or [])
+        if isinstance(attr, dict)
+    ]
 
     dsl: dict[str, Any] = {
         "type": ir["type"],
@@ -51,6 +84,40 @@ def ir_to_xmlgen_dsl(ir: dict[str, Any]) -> dict[str, Any]:
         dsl["synonym"] = ir["synonym"]
     if attrs_out:
         dsl["attributes"] = attrs_out
+
+    ts_raw = ir.get("tabularSections")
+    if isinstance(ts_raw, dict):
+        # Already xml-gen map form (or mixed); normalize attribute entries.
+        ts_map: dict[str, list[dict[str, Any]]] = {}
+        for ts_name, body in ts_raw.items():
+            if isinstance(body, list):
+                items = body
+            elif isinstance(body, dict):
+                items = list(body.get("attributes") or [])
+            else:
+                continue
+            normalized: list[dict[str, Any]] = []
+            for item in items:
+                if isinstance(item, dict):
+                    normalized.append(_attr_to_xmlgen_entry(item))
+                elif isinstance(item, str):
+                    normalized.append({"name": item, "type": "String(10)"})
+            ts_map[str(ts_name)] = normalized
+        if ts_map:
+            dsl["tabularSections"] = ts_map
+    elif isinstance(ts_raw, list) and ts_raw:
+        ts_map = {}
+        for section in ts_raw:
+            if not isinstance(section, dict):
+                continue
+            ts_name = str(section["name"])
+            ts_map[ts_name] = [
+                _attr_to_xmlgen_entry(attr)
+                for attr in (section.get("attributes") or [])
+                if isinstance(attr, dict)
+            ]
+        dsl["tabularSections"] = ts_map
+
     return dsl
 
 
@@ -112,12 +179,14 @@ def compile_metadata(
 
     after = _snapshot(source_dir)
     created = sorted(after - before)
-    # Always report main catalog file if present
+    # Always report main object file if present
     name = str(dsl.get("name", ""))
-    if name:
-        catalog = source_dir / "Catalogs" / f"{name}.xml"
-        if catalog.is_file():
-            rel = catalog.relative_to(source_dir).as_posix()
+    obj_type = str(dsl.get("type", ""))
+    folder = _TYPE_DIRS.get(obj_type)
+    if name and folder:
+        object_xml = source_dir / folder / f"{name}.xml"
+        if object_xml.is_file():
+            rel = object_xml.relative_to(source_dir).as_posix()
             if rel not in created:
                 created.append(rel)
     return created

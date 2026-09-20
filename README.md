@@ -41,7 +41,7 @@ poetry run pytest -m integration   # E2E с platform/xml-gen/md-reader; инач
 | `1c-dev metadata list` | Список объектов (IR summaries) |
 | `1c-dev metadata get <QualifiedName>` | IR объекта по QName |
 | `1c-dev metadata find <query>` | Поиск по имени / синониму |
-| `1c-dev metadata create <QualifiedName>` | Создать объект в XML (M1: Catalog) |
+| `1c-dev metadata create <QualifiedName>` | Создать объект в XML (`Catalog` / `Document`, ТЧ) |
 | `1c-dev metadata update <QualifiedName>` | Ops над реквизитами Catalog (`add` / `modify` / `remove-attribute`) |
 | `1c-dev metadata delete <QualifiedName>` | Удалить объект из source + `Configuration.xml` |
 | `1c-dev build [--artifact cf]` | Загрузить XML в file IB через `ibcmd` |
@@ -54,6 +54,9 @@ poetry run pytest -m integration   # E2E с platform/xml-gen/md-reader; инач
 poetry run 1c-dev init --type configuration --output json
 poetry run 1c-dev doctor --output json
 poetry run 1c-dev metadata create Catalog.Products --synonym "Товары" --attr "Article:String:50:Артикул"
+poetry run 1c-dev metadata create Document.Sales --synonym "Продажи" \
+  --attr "Comment:String:100:Комментарий" \
+  --ts "Products:Товары" --ts-attr "Products.Qty:Number:15.3:Количество"
 poetry run 1c-dev metadata update Catalog.Products --op add-attribute --value "Price:Number(15,2)"
 poetry run 1c-dev metadata update Catalog.Products --op modify-attribute --value "Price: synonym=Цена, type=Number(10,2)"
 poetry run 1c-dev metadata update Catalog.Products --attr "Code:String:20:Код"

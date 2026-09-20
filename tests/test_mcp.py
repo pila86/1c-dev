@@ -90,7 +90,7 @@ def test_project_get_and_init(tmp_path: Path) -> None:
 def test_metadata_create_ir_error() -> None:
     payload = _call(
         "metadata.create",
-        {"qualified_name": "Document.Foo", "path": "/tmp"},
+        {"qualified_name": "Enum.Foo", "path": "/tmp"},
     )
     assert payload["status"] == "error"
     assert any(d.get("code") == "1CM002" for d in payload["diagnostics"])

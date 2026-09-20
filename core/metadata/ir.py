@@ -97,6 +97,10 @@ class EnumValue:
         return data
 
 
+# Object types writable via metadata.create in #23 (Enum/registers → #24).
+CREATE_OBJECT_TYPES: frozenset[str] = frozenset({"Catalog", "Document"})
+
+
 @dataclass
 class CatalogObject:
     name: str
@@ -107,7 +111,7 @@ class CatalogObject:
 
     @property
     def qualified_name(self) -> str:
-        return f"Catalog.{self.name}"
+        return f"{self.type}.{self.name}"
 
     def to_dict(self) -> dict[str, Any]:
         data: dict[str, Any] = {
@@ -216,27 +220,62 @@ def parse_attr_spec(spec: str) -> Attribute:
     )
 
 
+def parse_ts_attr_spec(spec: str) -> tuple[str, Attribute]:
+    """Parse CLI --ts-attr: TabularSection.Name:Type[:Qual][:Synonym]."""
+    raw = spec.strip()
+    if "." not in raw:
+        raise IrError(
+            f"Ожидается --ts-attr вида TSName.AttrSpec, получено: {spec!r}",
+            code="1CM004",
+        )
+    ts_name, attr_spec = raw.split(".", 1)
+    ts_clean = _check_name(ts_name, what="табличной части")
+    if not attr_spec.strip():
+        raise IrError(f"В --ts-attr отсутствует спецификация реквизита: {spec!r}")
+    return ts_clean, parse_attr_spec(attr_spec)
+
+
+def parse_ts_spec(spec: str) -> TabularSection:
+    """Parse CLI --ts: Name[:Synonym]."""
+    raw = spec.strip()
+    if not raw:
+        raise IrError("Пустой --ts")
+    if ":" in raw:
+        name_part, synonym_part = raw.split(":", 1)
+        synonym = synonym_part.strip() or None
+    else:
+        name_part, synonym = raw, None
+    return TabularSection(name=_check_name(name_part, what="табличной части"), synonym=synonym)
+
+
 def catalog_from_parts(
     *,
     qualified_name: str,
     synonym: str | None = None,
     attr_specs: list[str] | None = None,
+    ts_specs: list[str] | None = None,
+    ts_attr_specs: list[str] | None = None,
 ) -> CatalogObject:
-    """Build Catalog IR from CLI pieces (M1 create: String/Number only)."""
+    """Build Catalog/Document IR from CLI pieces (ADR-011 / #23)."""
     obj_type, name = parse_qualified_name(qualified_name)
-    if obj_type != "Catalog":
+    if obj_type not in CREATE_OBJECT_TYPES:
         raise IrError(
-            f"M1 create поддерживает только Catalog.<Name>, получено: {qualified_name!r}",
+            f"metadata.create поддерживает только "
+            f"{', '.join(sorted(CREATE_OBJECT_TYPES))}.<Name>, получено: {qualified_name!r}",
             code="1CM002",
         )
     attrs = [parse_attr_spec(s) for s in (attr_specs or [])]
-    for attr in attrs:
-        if attr.type not in ("String", "Number"):
-            raise IrError(
-                f"M1 create поддерживает только String/Number, получено: {attr.type!r}",
-                code="1CM002",
-            )
-    return CatalogObject(name=name, synonym=synonym, attributes=attrs)
+    sections = _tabular_sections_from_cli(
+        ts_specs=list(ts_specs or []),
+        ts_attr_specs=list(ts_attr_specs or []),
+    )
+    return CatalogObject(
+        name=name,
+        synonym=synonym,
+        attributes=attrs,
+        tabular_sections=sections,
+        type=obj_type,
+    )
 
 
 def catalog_from_json(
@@ -244,30 +283,37 @@ def catalog_from_json(
     *,
     qualified_name: str | None = None,
 ) -> CatalogObject:
-    """Build Catalog IR from JSON body (PRD §17 style)."""
-    type_raw = data.get("type", "Catalog")
+    """Build Catalog/Document IR from JSON body (ADR-011)."""
     name_raw = data.get("name")
+    obj_type: ObjectType
+    name: str
     if qualified_name:
         q_type, q_name = parse_qualified_name(qualified_name)
-        if q_type != "Catalog":
+        if q_type not in CREATE_OBJECT_TYPES:
             raise IrError(
-                f"M1 create поддерживает только Catalog.<Name>, получено: {qualified_name!r}",
+                f"metadata.create поддерживает только "
+                f"{', '.join(sorted(CREATE_OBJECT_TYPES))}.<Name>, "
+                f"получено: {qualified_name!r}",
                 code="1CM002",
             )
         if name_raw and str(name_raw) != q_name:
             raise IrError("name в JSON не совпадает с QualifiedName")
-        if type_raw and str(type_raw) != q_type:
+        type_raw = data.get("type")
+        if type_raw is not None and str(type_raw) != q_type:
             raise IrError("type в JSON не совпадает с QualifiedName", code="1CM002")
         obj_type, name = q_type, q_name
     else:
-        if type_raw != "Catalog":
+        type_raw = data.get("type", "Catalog")
+        if type_raw not in CREATE_OBJECT_TYPES:
             raise IrError(
-                f"M1 поддерживает только Catalog, получено: {type_raw!r}",
+                f"metadata.create поддерживает только "
+                f"{', '.join(sorted(CREATE_OBJECT_TYPES))}, получено: {type_raw!r}",
                 code="1CM002",
             )
         if not name_raw:
             raise IrError("В JSON отсутствует name")
-        obj_type, name = "Catalog", _check_name(str(name_raw), what="объекта")
+        obj_type = type_raw  # validated against CREATE_OBJECT_TYPES
+        name = _check_name(str(name_raw), what="объекта")
 
     synonym = data.get("synonym")
     synonym_s = str(synonym) if synonym else None
@@ -279,7 +325,95 @@ def catalog_from_json(
         if not isinstance(item, dict):
             raise IrError("Элемент attributes должен быть объектом или строкой")
         attrs.append(_attribute_from_dict(item))
-    return CatalogObject(name=name, synonym=synonym_s, attributes=attrs, type=obj_type)
+    sections = _tabular_sections_from_json(data.get("tabularSections"))
+    return CatalogObject(
+        name=name,
+        synonym=synonym_s,
+        attributes=attrs,
+        tabular_sections=sections,
+        type=obj_type,
+    )
+
+
+def _tabular_sections_from_cli(
+    *,
+    ts_specs: list[str],
+    ts_attr_specs: list[str],
+) -> list[TabularSection]:
+    by_name: dict[str, TabularSection] = {}
+    for spec in ts_specs:
+        section = parse_ts_spec(spec)
+        if section.name in by_name:
+            raise IrError(f"Дублирующаяся табличная часть: {section.name!r}")
+        by_name[section.name] = section
+    for spec in ts_attr_specs:
+        ts_name, attr = parse_ts_attr_spec(spec)
+        existing = by_name.get(ts_name)
+        if existing is None:
+            existing = TabularSection(name=ts_name)
+            by_name[ts_name] = existing
+        if any(a.name == attr.name for a in existing.attributes):
+            raise IrError(
+                f"Дублирующийся реквизит {attr.name!r} в табличной части {ts_name!r}"
+            )
+        existing.attributes.append(attr)
+    return list(by_name.values())
+
+
+def _tabular_sections_from_json(raw: Any) -> list[TabularSection]:
+    if raw is None:
+        return []
+    if isinstance(raw, dict):
+        # xml-gen-native map form: {TSName: [attrs...] | {synonym?, attributes}}
+        sections: list[TabularSection] = []
+        for name_raw, body in raw.items():
+            name = _check_name(str(name_raw), what="табличной части")
+            synonym: str | None = None
+            attr_items: list[Any]
+            if isinstance(body, list):
+                attr_items = body
+            elif isinstance(body, dict):
+                syn = body.get("synonym")
+                synonym = str(syn) if syn else None
+                attr_items = list(body.get("attributes") or [])
+            else:
+                raise IrError(
+                    f"tabularSections[{name!r}] должен быть массивом или объектом"
+                )
+            attrs = _attributes_from_json_list(attr_items)
+            sections.append(
+                TabularSection(name=name, synonym=synonym, attributes=attrs)
+            )
+        return sections
+    if not isinstance(raw, list):
+        raise IrError("tabularSections должен быть массивом или объектом")
+    sections = []
+    for item in raw:
+        if not isinstance(item, dict):
+            raise IrError("Элемент tabularSections должен быть объектом")
+        name = _check_name(str(item.get("name", "")), what="табличной части")
+        syn = item.get("synonym")
+        attrs = _attributes_from_json_list(item.get("attributes") or [])
+        sections.append(
+            TabularSection(
+                name=name,
+                synonym=str(syn) if syn else None,
+                attributes=attrs,
+            )
+        )
+    return sections
+
+
+def _attributes_from_json_list(items: list[Any]) -> list[Attribute]:
+    attrs: list[Attribute] = []
+    for item in items:
+        if isinstance(item, str):
+            attrs.append(parse_attr_spec(item))
+            continue
+        if not isinstance(item, dict):
+            raise IrError("Элемент attributes должен быть объектом или строкой")
+        attrs.append(_attribute_from_dict(item))
+    return attrs
 
 
 def _attribute_from_dict(item: dict[str, Any]) -> Attribute:

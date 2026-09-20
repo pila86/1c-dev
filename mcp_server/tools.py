@@ -61,8 +61,10 @@ def register_tools(server: FastMCP) -> None:
     @server.tool(
         name="metadata.create",
         description=(
-            "Create a metadata object in XML source (M1: Catalog only). "
-            "Pass qualified_name like Catalog.Products and optional structured attributes."
+            "Create a metadata object in XML source (Catalog or Document). "
+            "Pass qualified_name like Catalog.Products or Document.Sales, "
+            "optional attributes, and optional tabular_sections "
+            "[{name, synonym?, attributes[]}]."
             + _NO_SHELL
         ),
     )
@@ -70,12 +72,18 @@ def register_tools(server: FastMCP) -> None:
         qualified_name: str,
         synonym: str | None = None,
         attributes: list[dict[str, Any]] | None = None,
+        tabular_sections: list[dict[str, Any]] | None = None,
         path: str | None = None,
     ) -> dict[str, Any]:
         try:
-            data: dict[str, Any] = {"type": "Catalog", "attributes": list(attributes or [])}
+            data: dict[str, Any] = {
+                "attributes": list(attributes or []),
+            }
             if synonym:
                 data["synonym"] = synonym
+            if tabular_sections:
+                data["tabularSections"] = list(tabular_sections)
+            # type/name come from qualified_name (validated inside catalog_from_json)
             catalog = catalog_from_json(data, qualified_name=qualified_name)
             if synonym and not catalog.synonym:
                 catalog.synonym = synonym
