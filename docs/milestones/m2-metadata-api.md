@@ -209,6 +209,7 @@ metadata.get(Catalog.Products)
 | [#20](https://github.com/pila86/1c-dev/issues/20) | ADR: Metadata IR v1 | — |
 | [#21](https://github.com/pila86/1c-dev/issues/21) | Reader: `metadata.list` / `get` / `find` (CLI + core) | #20 |
 | [#22](https://github.com/pila86/1c-dev/issues/22) | `metadata.update` — реквизиты в существующих объектах | #20, #21 |
+| [#35](https://github.com/pila86/1c-dev/issues/35) | `metadata.update` — ops для табличных частей (Catalog / Document) | #22, #23 |
 | [#29](https://github.com/pila86/1c-dev/issues/29) | `metadata.delete` — удаление объектов из source | #21, #22 |
 | [#23](https://github.com/pila86/1c-dev/issues/23) | `metadata.create` Document (+ tabular sections) | #20 |
 | [#24](https://github.com/pila86/1c-dev/issues/24) | `metadata.create` Enum / InformationRegister / AccumulationRegister | #23 |
