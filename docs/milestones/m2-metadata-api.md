@@ -47,7 +47,7 @@ metadata.get(Catalog.Products)
   → build / check
 ```
 
-- Явные ops: `add-attribute`, `modify-attribute`, `remove-attribute` (Catalog в #22)
+- Явные ops: `add-attribute`, `modify-attribute`, `remove-attribute` (Catalog в #22; Document / ТЧ — #35; Enum values / dimensions / resources регистров — #39)
 - Дубль add / modify|remove несуществующего → `ok` + `warning`, source не менялся
 - Объект не найден → error diagnostic, source intact
 - Без публичного `source.write`
@@ -133,7 +133,8 @@ metadata.get(Catalog.Products)
 
 ### Update
 
-- [ ] `metadata.update` выполняет `add-attribute` / `modify-attribute` / `remove-attribute` на существующем `Catalog` (и в типы из C, по мере поддержки)
+- [ ] `metadata.update` выполняет `add-attribute` / `modify-attribute` / `remove-attribute` на существующем `Catalog` (и Document / ТЧ — #35)
+- [ ] `metadata.update` ops для `Enum` (values) и регистров (dimensions / resources) — #39 (should)
 - [ ] Повторное добавление того же имени → `ok` + warning diagnostic, source не повреждён
 - [ ] После успешного update `metadata.get` / поле `ir` отражают изменения; `build` / `check` проходят
 
@@ -161,7 +162,7 @@ metadata.get(Catalog.Products)
 - Import `.cf`, user install, `setup`, BSL LS MCP, docs/context (→ [M3](m3-product-adopt.md))
 - EDT / `source.convert` (→ [M4](m4-source-formats.md))
 - `references` / `dependencies` / `impact` (→ later / M6 graph)
-- Nested delete ТЧ / values / dimensions (атрибуты — `update` `remove-attribute`)
+- Nested delete ТЧ / values / dimensions через `metadata.delete` (атрибуты / ТЧ / values / dimensions / resources — через `metadata.update`; Enum/регистры — #39)
 - Публичный `source.write` как замена Metadata API
 - Полное покрытие всех видов метаданных платформы
 - Расширения (`project.type: extension`) и изменение объектов базовой конфигурации через extension
@@ -212,6 +213,7 @@ metadata.get(Catalog.Products)
 | [#21](https://github.com/pila86/1c-dev/issues/21) | Reader: `metadata.list` / `get` / `find` (CLI + core) | #20 |
 | [#22](https://github.com/pila86/1c-dev/issues/22) | `metadata.update` — реквизиты в существующих объектах | #20, #21 |
 | [#35](https://github.com/pila86/1c-dev/issues/35) | `metadata.update` — ops для табличных частей (Catalog / Document) | #22, #23 |
+| [#39](https://github.com/pila86/1c-dev/issues/39) | `metadata.update` — ops для Enum и регистров (should) | #22, #24 |
 | [#29](https://github.com/pila86/1c-dev/issues/29) | `metadata.delete` — удаление объектов из source | #21, #22 |
 | [#23](https://github.com/pila86/1c-dev/issues/23) | `metadata.create` Document (+ tabular sections) | #20 |
 | [#24](https://github.com/pila86/1c-dev/issues/24) | `metadata.create` Enum / InformationRegister / AccumulationRegister | #23 |
