@@ -18,7 +18,7 @@ from adapters.source.xmlgen import (
 from core.diagnostics import error, warning
 from core.metadata.delete import object_xml_path
 from core.metadata.ir import (
-    CREATE_OBJECT_TYPES,
+    UPDATE_OBJECT_TYPES,
     Attribute,
     IrError,
     TabularSection,
@@ -130,14 +130,14 @@ def update_metadata(
             ],
         )
 
-    if obj_type not in CREATE_OBJECT_TYPES:
+    if obj_type not in UPDATE_OBJECT_TYPES:
         return MetadataResult(
             status="error",
             object=qualified_name,
             diagnostics=[
                 error(
                     f"metadata.update поддерживает только "
-                    f"{', '.join(sorted(CREATE_OBJECT_TYPES))}.*, "
+                    f"{', '.join(sorted(UPDATE_OBJECT_TYPES))}.*, "
                     f"получено: {qualified_name!r}",
                     code="1CM002",
                     source="metadata",

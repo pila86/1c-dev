@@ -136,6 +136,74 @@ def test_document_from_parts_cli() -> None:
     assert doc.tabular_sections[0].attributes[0].name == "Qty"
 
 
+def test_enum_from_parts_and_json() -> None:
+    enum = catalog_from_parts(
+        qualified_name="Enum.OrderStatuses",
+        synonym="СтатусыЗаказа",
+        value_specs=["New:Новый", "Done:Выполнен"],
+    )
+    assert enum.qualified_name == "Enum.OrderStatuses"
+    assert len(enum.values) == 2
+    assert enum.values[0].synonym == "Новый"
+    dsl = ir_to_xmlgen_dsl(enum.to_dict())
+    assert dsl["type"] == "Enum"
+    assert dsl["values"] == [
+        {"name": "New", "synonym": "Новый"},
+        {"name": "Done", "synonym": "Выполнен"},
+    ]
+    assert "attributes" not in dsl
+
+    from_json = catalog_from_json(
+        {
+            "type": "Enum",
+            "name": "OrderStatuses",
+            "values": [{"name": "New", "synonym": "Новый"}],
+        }
+    )
+    assert from_json.values[0].name == "New"
+
+    with pytest.raises(IrError) as exc:
+        catalog_from_parts(
+            qualified_name="Enum.Bad",
+            attr_specs=["X:String:10"],
+        )
+    assert exc.value.code == "1CM004"
+
+
+def test_register_from_parts_and_json() -> None:
+    info = catalog_from_parts(
+        qualified_name="InformationRegister.Prices",
+        dimension_specs=["Product:Ref:Catalog.Products"],
+        resource_specs=["Price:Number:15.2:Цена"],
+    )
+    assert info.type == "InformationRegister"
+    dsl = ir_to_xmlgen_dsl(info.to_dict())
+    assert dsl["dimensions"][0]["type"] == "CatalogRef.Products"
+    assert dsl["resources"][0]["type"] == "Number(15,2)"
+    assert dsl["resources"][0]["synonym"] == "Цена"
+
+    accum = catalog_from_json(
+        {
+            "type": "AccumulationRegister",
+            "name": "Stock",
+            "dimensions": [
+                {"name": "Product", "type": "Ref", "reference": "Catalog.Products"}
+            ],
+            "resources": [{"name": "Qty", "type": "Number", "precision": 15, "scale": 3}],
+        }
+    )
+    assert accum.qualified_name == "AccumulationRegister.Stock"
+    accum_dsl = ir_to_xmlgen_dsl(accum.to_dict())
+    assert accum_dsl["resources"][0]["type"] == "Number(15,3)"
+
+    with pytest.raises(IrError) as exc:
+        catalog_from_parts(
+            qualified_name="InformationRegister.Bad",
+            value_specs=["X"],
+        )
+    assert exc.value.code == "1CM004"
+
+
 def test_create_metadata_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
@@ -213,6 +281,84 @@ def test_create_document_mock(tmp_path: Path) -> None:
     assert result.object == "Document.Sales"
     assert any("Documents/Sales.xml" in p for p in result.created)
     assert followups == [("modify-ts", "Products: synonym=Товары")]
+
+
+def test_create_enum_mock(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+
+    def fake_compile(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "Enum"
+        assert dsl["values"][0]["name"] == "New"
+        enums = source_dir / "Enums"
+        enums.mkdir(parents=True)
+        (enums / "OrderStatuses.xml").write_text("<Enum/>", encoding="utf-8")
+        cfg = source_dir / "Configuration.xml"
+        text = cfg.read_text(encoding="utf-8-sig")
+        text = text.replace(
+            "<Language>Русский</Language>",
+            "<Language>Русский</Language>\r\n\t\t\t<Enum>OrderStatuses</Enum>",
+        )
+        cfg.write_text(text, encoding="utf-8-sig", newline="")
+        return ["Enums/OrderStatuses.xml", "Configuration.xml"]
+
+    enum = catalog_from_parts(
+        qualified_name="Enum.OrderStatuses",
+        synonym="Статусы",
+        value_specs=["New:Новый", "Done:Выполнен"],
+    )
+    result = create_metadata(target, enum, compile_fn=fake_compile)
+    assert result.status == "ok"
+    assert result.object == "Enum.OrderStatuses"
+    assert any("Enums/OrderStatuses.xml" in p for p in result.created)
+
+
+def test_create_registers_mock(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+
+    seen: list[str] = []
+
+    def fake_compile(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        seen.append(dsl["type"])
+        folder = {
+            "InformationRegister": "InformationRegisters",
+            "AccumulationRegister": "AccumulationRegisters",
+        }[dsl["type"]]
+        name = dsl["name"]
+        path = source_dir / folder
+        path.mkdir(parents=True)
+        (path / f"{name}.xml").write_text(f"<{dsl['type']}/>", encoding="utf-8")
+        assert dsl["dimensions"][0]["name"] == "Product"
+        assert dsl["resources"][0]["name"] in ("Price", "Qty")
+        cfg = source_dir / "Configuration.xml"
+        text = cfg.read_text(encoding="utf-8-sig")
+        tag = dsl["type"]
+        text = text.replace(
+            "<Language>Русский</Language>",
+            f"<Language>Русский</Language>\r\n\t\t\t<{tag}>{name}</{tag}>",
+        )
+        cfg.write_text(text, encoding="utf-8-sig", newline="")
+        return [f"{folder}/{name}.xml", "Configuration.xml"]
+
+    info = catalog_from_parts(
+        qualified_name="InformationRegister.Prices",
+        dimension_specs=["Product:Ref:Catalog.Products"],
+        resource_specs=["Price:Number:15.2:Цена"],
+    )
+    r1 = create_metadata(target, info, compile_fn=fake_compile)
+    assert r1.status == "ok", r1.diagnostics
+
+    accum = catalog_from_parts(
+        qualified_name="AccumulationRegister.Stock",
+        dimension_specs=["Product:Ref:Catalog.Products"],
+        resource_specs=["Qty:Number:15.3"],
+    )
+    r2 = create_metadata(target, accum, compile_fn=fake_compile)
+    assert r2.status == "ok", r2.diagnostics
+    assert seen == ["InformationRegister", "AccumulationRegister"]
 
 
 def test_create_duplicate(tmp_path: Path) -> None:
@@ -349,6 +495,75 @@ def test_cli_create_document_mock(
     assert payload["object"] == "Document.Sales"
 
 
+def test_cli_create_enum_and_register_mock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    def fake_compile(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        if dsl["type"] == "Enum":
+            folder = source_dir / "Enums"
+            folder.mkdir(parents=True)
+            (folder / f"{dsl['name']}.xml").write_text("<Enum/>", encoding="utf-8")
+            return [f"Enums/{dsl['name']}.xml"]
+        folder = source_dir / "InformationRegisters"
+        folder.mkdir(parents=True)
+        (folder / f"{dsl['name']}.xml").write_text("<IR/>", encoding="utf-8")
+        assert dsl["dimensions"][0]["type"] == "CatalogRef.Products"
+        return [f"InformationRegisters/{dsl['name']}.xml"]
+
+    from adapters.source.xmlgen.resolve import ToolResolve
+
+    monkeypatch.setattr("core.metadata.create.compile_metadata", fake_compile)
+    monkeypatch.setattr(
+        "core.metadata.create.resolve_java",
+        lambda: ToolResolve(found=True, path=Path("/usr/bin/java"), version="21"),
+    )
+    monkeypatch.setattr(
+        "core.metadata.create.resolve_jar",
+        lambda: ToolResolve(found=True, path=tmp_path / "xml-gen.jar"),
+    )
+    monkeypatch.chdir(target)
+
+    enum_result = runner.invoke(
+        app,
+        [
+            "metadata",
+            "create",
+            "Enum.OrderStatuses",
+            "--synonym",
+            "Статусы",
+            "--value",
+            "New:Новый",
+            "--value",
+            "Done:Выполнен",
+            "--output",
+            "json",
+        ],
+    )
+    assert enum_result.exit_code == SUCCESS, enum_result.output
+    assert json.loads(enum_result.output)["object"] == "Enum.OrderStatuses"
+
+    reg_result = runner.invoke(
+        app,
+        [
+            "metadata",
+            "create",
+            "InformationRegister.Prices",
+            "--dimension",
+            "Product:Ref:Catalog.Products",
+            "--resource",
+            "Price:Number:15.2:Цена",
+            "--output",
+            "json",
+        ],
+    )
+    assert reg_result.exit_code == SUCCESS, reg_result.output
+    assert json.loads(reg_result.output)["object"] == "InformationRegister.Prices"
+
+
 def test_cli_bad_type(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     target = tmp_path / "shop"
     target.mkdir()
@@ -356,7 +571,7 @@ def test_cli_bad_type(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(target)
     result = runner.invoke(
         app,
-        ["metadata", "create", "Enum.Statuses", "--output", "json"],
+        ["metadata", "create", "CommonModule.Utils", "--output", "json"],
     )
     assert result.exit_code == PROJECT_ERROR
     payload = json.loads(result.output)
@@ -434,3 +649,72 @@ def test_create_document_with_real_xmlgen(tmp_path: Path) -> None:
     assert "Товары" in text  # TS synonym via modify-ts
     cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
     assert "<Document>Sales</Document>" in cfg
+
+
+@pytest.mark.integration
+def test_create_enum_and_registers_with_real_xmlgen(tmp_path: Path) -> None:
+    jar = resolve_jar()
+    java = resolve_java()
+    if not jar.found or not java.found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    cat = create_metadata(
+        target,
+        catalog_from_parts(qualified_name="Catalog.Products", synonym="Товары"),
+    )
+    assert cat.status == "ok", cat.diagnostics
+
+    enum = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Enum.OrderStatuses",
+            synonym="СтатусыЗаказа",
+            value_specs=["New:Новый", "Done:Выполнен"],
+        ),
+    )
+    assert enum.status == "ok", enum.diagnostics
+    enum_xml = target / "src" / "cf" / "Enums" / "OrderStatuses.xml"
+    assert enum_xml.is_file()
+    enum_text = enum_xml.read_text(encoding="utf-8-sig")
+    assert "New" in enum_text
+    assert "Done" in enum_text
+
+    info = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="InformationRegister.Prices",
+            dimension_specs=["Product:Ref:Catalog.Products"],
+            resource_specs=["Price:Number:15.2:Цена"],
+        ),
+    )
+    assert info.status == "ok", info.diagnostics
+    prices = target / "src" / "cf" / "InformationRegisters" / "Prices.xml"
+    assert prices.is_file()
+    prices_text = prices.read_text(encoding="utf-8-sig")
+    assert "Product" in prices_text
+    assert "Price" in prices_text
+
+    accum = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="AccumulationRegister.Stock",
+            dimension_specs=["Product:Ref:Catalog.Products"],
+            resource_specs=["Qty:Number:15.3"],
+        ),
+    )
+    assert accum.status == "ok", accum.diagnostics
+    stock = target / "src" / "cf" / "AccumulationRegisters" / "Stock.xml"
+    assert stock.is_file()
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<Enum>OrderStatuses</Enum>" in cfg
+    assert "<InformationRegister>Prices</InformationRegister>" in cfg
+    assert "<AccumulationRegister>Stock</AccumulationRegister>" in cfg
+
+    from core.project import validate_project
+
+    assert validate_project(target).status == "ok"

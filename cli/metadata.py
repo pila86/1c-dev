@@ -361,7 +361,10 @@ def create_command(
     ctx: typer.Context,
     qualified_name: str = typer.Argument(
         ...,
-        help="Qualified name, например Catalog.Products или Document.Sales.",
+        help=(
+            "Qualified name, например Catalog.Products, Document.Sales, "
+            "Enum.Statuses, InformationRegister.Prices."
+        ),
     ),
     synonym: str | None = typer.Option(
         None,
@@ -383,6 +386,21 @@ def create_command(
         "--ts-attr",
         help="Реквизит ТЧ: TSName.Name:Type[:Qual][:Synonym], можно повторять.",
     ),
+    value: list[str] | None = typer.Option(
+        None,
+        "--value",
+        help="Значение перечисления Name[:Synonym], можно повторять (Enum).",
+    ),
+    dimension: list[str] | None = typer.Option(
+        None,
+        "--dimension",
+        help="Измерение Name:Type[:Qual][:Synonym] (регистры).",
+    ),
+    resource: list[str] | None = typer.Option(
+        None,
+        "--resource",
+        help="Ресурс Name:Type[:Qual][:Synonym] (регистры).",
+    ),
     from_json: str | None = typer.Option(
         None,
         "--from-json",
@@ -390,7 +408,7 @@ def create_command(
     ),
     output: OutputOption = None,
 ) -> None:
-    """Создать объект метаданных (Catalog / Document) через xml-gen."""
+    """Создать объект метаданных (Catalog / Document / Enum / регистры) через xml-gen."""
     fmt = resolve_output(ctx, output)
     try:
         if from_json is not None:
@@ -398,10 +416,21 @@ def create_command(
             if synonym and "synonym" not in data:
                 data["synonym"] = synonym
             if attr:
-                # merge CLI attrs into JSON list
                 existing = list(data.get("attributes") or [])
                 existing.extend(attr)
                 data["attributes"] = existing
+            if value:
+                existing_v = list(data.get("values") or [])
+                existing_v.extend(value)
+                data["values"] = existing_v
+            if dimension:
+                existing_d = list(data.get("dimensions") or [])
+                existing_d.extend(dimension)
+                data["dimensions"] = existing_d
+            if resource:
+                existing_r = list(data.get("resources") or [])
+                existing_r.extend(resource)
+                data["resources"] = existing_r
             catalog = catalog_from_json(data, qualified_name=qualified_name)
             if synonym and not catalog.synonym:
                 catalog.synonym = synonym
@@ -432,6 +461,9 @@ def create_command(
                 attr_specs=list(attr or []),
                 ts_specs=list(ts or []),
                 ts_attr_specs=list(ts_attr or []),
+                value_specs=list(value or []),
+                dimension_specs=list(dimension or []),
+                resource_specs=list(resource or []),
             )
     except IrError as exc:
         result = _ir_error_result(exc)

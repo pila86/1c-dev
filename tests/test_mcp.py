@@ -90,10 +90,42 @@ def test_project_get_and_init(tmp_path: Path) -> None:
 def test_metadata_create_ir_error() -> None:
     payload = _call(
         "metadata.create",
-        {"qualified_name": "Enum.Foo", "path": "/tmp"},
+        {"qualified_name": "CommonModule.Utils", "path": "/tmp"},
     )
     assert payload["status"] == "error"
     assert any(d.get("code") == "1CM002" for d in payload["diagnostics"])
+
+
+def test_metadata_create_enum_mocked(tmp_path: Path, monkeypatch: Any) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+
+    def fake_create(start: Path, catalog: Any, **kwargs: Any) -> MetadataResult:
+        assert catalog.qualified_name == "Enum.OrderStatuses"
+        assert len(catalog.values) == 2
+        assert catalog.values[0].name == "New"
+        return MetadataResult(
+            status="ok",
+            object="Enum.OrderStatuses",
+            root=start,
+            created=["src/cf/Enums/OrderStatuses.xml"],
+        )
+
+    monkeypatch.setattr("mcp_server.tools.create_metadata", fake_create)
+    payload = _call(
+        "metadata.create",
+        {
+            "path": str(target),
+            "qualified_name": "Enum.OrderStatuses",
+            "synonym": "Статусы",
+            "values": [
+                {"name": "New", "synonym": "Новый"},
+                {"name": "Done", "synonym": "Выполнен"},
+            ],
+        },
+    )
+    assert payload["status"] == "ok"
+    assert payload["object"] == "Enum.OrderStatuses"
 
 
 def test_metadata_create_mocked(tmp_path: Path, monkeypatch: Any) -> None:

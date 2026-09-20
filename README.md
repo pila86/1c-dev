@@ -41,8 +41,8 @@ poetry run pytest -m integration   # E2E с platform/xml-gen/md-reader; инач
 | `1c-dev metadata list` | Список объектов (IR summaries) |
 | `1c-dev metadata get <QualifiedName>` | IR объекта по QName |
 | `1c-dev metadata find <query>` | Поиск по имени / синониму |
-| `1c-dev metadata create <QualifiedName>` | Создать объект в XML (`Catalog` / `Document`, ТЧ) |
-| `1c-dev metadata update <QualifiedName>` | Ops над реквизитами Catalog (`add` / `modify` / `remove-attribute`) |
+| `1c-dev metadata create <QualifiedName>` | Создать объект в XML (`Catalog` / `Document` / `Enum` / регистры) |
+| `1c-dev metadata update <QualifiedName>` | Ops над реквизитами / ТЧ Catalog и Document |
 | `1c-dev metadata delete <QualifiedName>` | Удалить объект из source + `Configuration.xml` |
 | `1c-dev build [--artifact cf]` | Загрузить XML в file IB через `ibcmd` |
 | `1c-dev check [--platform]` | Платформенная проверка конфигурации (`ibcmd config check`) |
@@ -57,6 +57,11 @@ poetry run 1c-dev metadata create Catalog.Products --synonym "Товары" --at
 poetry run 1c-dev metadata create Document.Sales --synonym "Продажи" \
   --attr "Comment:String:100:Комментарий" \
   --ts "Products:Товары" --ts-attr "Products.Qty:Number:15.3:Количество"
+poetry run 1c-dev metadata create Enum.OrderStatuses --synonym "Статусы" \
+  --value "New:Новый" --value "Done:Выполнен"
+poetry run 1c-dev metadata create InformationRegister.Prices \
+  --dimension "Product:Ref:Catalog.Products" \
+  --resource "Price:Number:15.2:Цена"
 poetry run 1c-dev metadata update Catalog.Products --op add-attribute --value "Price:Number(15,2)"
 poetry run 1c-dev metadata update Catalog.Products --op modify-attribute --value "Price: synonym=Цена, type=Number(10,2)"
 poetry run 1c-dev metadata update Catalog.Products --attr "Code:String:20:Код"
