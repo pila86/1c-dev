@@ -1,4 +1,4 @@
-"""M1 MCP tools: thin wrappers over core API (ADR-010)."""
+"""MCP tools: thin wrappers over core API (ADR-010 / #29)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,13 @@ from mcp.server.fastmcp import FastMCP
 
 from core.build import run_build
 from core.check import run_check
-from core.metadata import IrError, MetadataResult, catalog_from_json, create_metadata
+from core.metadata import (
+    IrError,
+    MetadataResult,
+    catalog_from_json,
+    create_metadata,
+    delete_metadata,
+)
 from core.project import init_project, validate_project
 from mcp_server._path import resolve_path
 
@@ -18,7 +24,7 @@ _NO_SHELL = (
 
 
 def register_tools(server: FastMCP) -> None:
-    """Register M1 agent-facing tools on the given FastMCP server."""
+    """Register agent-facing tools on the given FastMCP server."""
 
     @server.tool(
         name="project.get",
@@ -86,6 +92,22 @@ def register_tools(server: FastMCP) -> None:
                 ],
             ).to_payload()
         result = create_metadata(resolve_path(path), catalog)
+        return result.to_payload()
+
+    @server.tool(
+        name="metadata.delete",
+        description=(
+            "Delete a whole metadata object from XML source by qualified name "
+            "(e.g. Catalog.Products). Removes object artifacts and Configuration.xml "
+            "registration. Does not cascade references."
+            + _NO_SHELL
+        ),
+    )
+    def metadata_delete(
+        qualified_name: str,
+        path: str | None = None,
+    ) -> dict[str, Any]:
+        result = delete_metadata(resolve_path(path), qualified_name)
         return result.to_payload()
 
     @server.tool(

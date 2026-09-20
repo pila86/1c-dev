@@ -22,6 +22,7 @@ EXPECTED_TOOLS = {
     "project.get",
     "project.init",
     "metadata.create",
+    "metadata.delete",
     "build",
     "check",
 }
@@ -126,6 +127,30 @@ def test_metadata_create_mocked(tmp_path: Path, monkeypatch: Any) -> None:
     )
     assert payload["status"] == "ok"
     assert payload["object"] == "Catalog.Products"
+
+
+def test_metadata_delete_mocked(tmp_path: Path, monkeypatch: Any) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+
+    def fake_delete(start: Path, qualified_name: str, **kwargs: Any) -> MetadataResult:
+        assert start == target.resolve()
+        assert qualified_name == "Catalog.Products"
+        return MetadataResult(
+            status="ok",
+            object="Catalog.Products",
+            root=start,
+            deleted=["src/cf/Catalogs/Products.xml"],
+        )
+
+    monkeypatch.setattr("mcp_server.tools.delete_metadata", fake_delete)
+    payload = _call(
+        "metadata.delete",
+        {"path": str(target), "qualified_name": "Catalog.Products"},
+    )
+    assert payload["status"] == "ok"
+    assert payload["object"] == "Catalog.Products"
+    assert payload["deleted"] == ["src/cf/Catalogs/Products.xml"]
 
 
 def test_build_and_check_mocked(tmp_path: Path, monkeypatch: Any) -> None:

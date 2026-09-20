@@ -1,8 +1,9 @@
-"""Metadata IR and API (ADR-007 create, ADR-011 update, ADR-012 read)."""
+"""Metadata IR and API (ADR-007 create, ADR-011 update/delete, ADR-012 read)."""
 
 from __future__ import annotations
 
 from core.metadata.create import create_metadata
+from core.metadata.delete import delete_metadata
 from core.metadata.ir import (
     M2_OBJECT_TYPES,
     Attribute,
@@ -35,6 +36,7 @@ __all__ = [
     "catalog_from_json",
     "catalog_from_parts",
     "create_metadata",
+    "delete_metadata",
     "find_metadata",
     "get_metadata",
     "list_metadata",

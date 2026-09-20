@@ -13,6 +13,7 @@ CAPABILITY_REQUIREMENTS: dict[str, list[str]] = {
     "check": ["ibcmd"],
     "metadata.create": ["java", "xml-gen"],
     "metadata.update": ["java", "xml-gen"],
+    "metadata.delete": ["java", "xml-gen"],
     "metadata.read": ["java", "md-reader"],
 }
 

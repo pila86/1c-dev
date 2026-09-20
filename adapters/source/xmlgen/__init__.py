@@ -16,6 +16,7 @@ from adapters.source.xmlgen.edit import (
     edit_metadata,
     edit_op_from_dict,
 )
+from adapters.source.xmlgen.remove import remove_metadata
 from adapters.source.xmlgen.resolve import (
     ToolResolve,
     default_jar_path,
@@ -41,6 +42,7 @@ __all__ = [
     "edit_op_from_dict",
     "fetch_script_suggestion",
     "ir_to_xmlgen_dsl",
+    "remove_metadata",
     "resolve_java",
     "resolve_jar",
     "tools_cache_dir",
