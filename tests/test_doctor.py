@@ -14,6 +14,11 @@ from adapters.platform.discovery import discover_environment, version_from_path
 from cli.main import app
 from core.doctor import run_doctor
 from core.exit_codes import ENV_UNAVAILABLE, SUCCESS
+from core.metadata.ir import (
+    CREATE_OBJECT_TYPES,
+    M2_OBJECT_TYPES,
+    UPDATE_OBJECT_TYPES,
+)
 
 runner = CliRunner()
 SCHEMA_PATH = Path(__file__).resolve().parents[1] / "schemas" / "doctor.schema.json"
@@ -97,6 +102,26 @@ def test_run_doctor_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # metadata.create may be unavailable without java/xml-gen; platform ok ≠ no gaps
     assert not any(g["capability"] in {"build", "check"} for g in result.gaps)
     assert not any(d.get("code") == "1CD002" for d in result.diagnostics)
+
+
+def test_run_doctor_supported_write_types(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_path(monkeypatch)
+    _make_install(tmp_path, "8.3.27.1549")
+    result = run_doctor(search_roots=[tmp_path])
+    payload = result.to_payload()
+    create = payload["capabilities"]["metadata.create"]
+    update = payload["capabilities"]["metadata.update"]
+    delete = payload["capabilities"]["metadata.delete"]
+    assert create["supportedTypes"] == sorted(CREATE_OBJECT_TYPES)
+    assert update["supportedTypes"] == sorted(UPDATE_OBJECT_TYPES)
+    assert delete["supportedTypes"] == sorted(M2_OBJECT_TYPES)
+    assert "supportedTypes" not in payload["capabilities"]["build"]
+    assert "supportedTypes" not in payload["capabilities"]["check"]
+    assert "supportedTypes" not in payload["capabilities"]["metadata.read"]
+    # Types are advertised even when tools are missing (available may be false).
+    assert "supportedTypes" in result.capabilities["metadata.create"]
 
 
 def test_run_doctor_metadata_create_gap(
@@ -195,3 +220,7 @@ def test_cli_doctor_text_ok(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
     assert "1C Dev Runtime" in result.stdout
     assert "8.3.27.1549" in result.stdout
     assert "build: available" in result.stdout
+    assert "metadata.create:" in result.stdout
+    assert "types: AccumulationRegister, Catalog, Document, Enum, InformationRegister" in (
+        result.stdout
+    )

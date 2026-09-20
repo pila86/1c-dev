@@ -1,11 +1,16 @@
-"""Capability matrix for doctor (ADR-005, ADR-007, ADR-012)."""
+"""Capability matrix for doctor (ADR-005, ADR-007, ADR-012, #25)."""
 
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 from adapters.source.mdclasses.resolve import fetch_script_suggestion as mdreader_suggest
 from adapters.source.xmlgen.resolve import fetch_script_suggestion as xmlgen_suggest
+from core.metadata.ir import (
+    CREATE_OBJECT_TYPES,
+    M2_OBJECT_TYPES,
+    UPDATE_OBJECT_TYPES,
+)
 
 # Capability → required tool names (keys in tools map).
 CAPABILITY_REQUIREMENTS: dict[str, list[str]] = {
@@ -15,6 +20,13 @@ CAPABILITY_REQUIREMENTS: dict[str, list[str]] = {
     "metadata.update": ["java", "xml-gen"],
     "metadata.delete": ["java", "xml-gen"],
     "metadata.read": ["java", "md-reader"],
+}
+
+# Write capabilities → supported Metadata IR object types (ADR-011 / #25).
+_SUPPORTED_TYPES: dict[str, frozenset[str]] = {
+    "metadata.create": CREATE_OBJECT_TYPES,
+    "metadata.update": UPDATE_OBJECT_TYPES,
+    "metadata.delete": M2_OBJECT_TYPES,
 }
 
 _TOOL_HINTS: dict[str, str] = {
@@ -31,6 +43,7 @@ _TOOL_HINTS: dict[str, str] = {
 class CapabilityStatus(TypedDict):
     available: bool
     requires: list[str]
+    supportedTypes: NotRequired[list[str]]
 
 
 class CapabilityGap(TypedDict, total=False):
@@ -50,7 +63,14 @@ def resolve_capabilities(
     for name, requires in CAPABILITY_REQUIREMENTS.items():
         missing = [t for t in requires if not tools_found.get(t, False)]
         available = not missing
-        capabilities[name] = {"available": available, "requires": list(requires)}
+        status: CapabilityStatus = {
+            "available": available,
+            "requires": list(requires),
+        }
+        types = _SUPPORTED_TYPES.get(name)
+        if types is not None:
+            status["supportedTypes"] = sorted(types)
+        capabilities[name] = status
         if missing:
             first = missing[0]
             raw = _TOOL_HINTS.get(first, f"Требуется: {', '.join(missing)}")

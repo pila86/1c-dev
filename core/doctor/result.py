@@ -24,14 +24,20 @@ class DoctorResult:
 
     def to_payload(self) -> dict[str, Any]:
         """Machine-readable payload for CLI/MCP."""
+        caps: dict[str, Any] = {}
+        for name, cap in self.capabilities.items():
+            entry: dict[str, Any] = {
+                "available": cap["available"],
+                "requires": list(cap["requires"]),
+            }
+            if "supportedTypes" in cap:
+                entry["supportedTypes"] = list(cap["supportedTypes"])
+            caps[name] = entry
         payload: dict[str, Any] = {
             "status": self.status,
             "platform": self.platform,
             "tools": self.tools,
-            "capabilities": {
-                name: {"available": cap["available"], "requires": list(cap["requires"])}
-                for name, cap in self.capabilities.items()
-            },
+            "capabilities": caps,
             "gaps": [dict(g) for g in self.gaps],
             "diagnostics": list(self.diagnostics),
         }
