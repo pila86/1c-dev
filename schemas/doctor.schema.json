@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/pila86/1c-dev/schemas/doctor.schema.json",
   "title": "1c-dev Doctor Report",
-  "description": "Отчёт `1c-dev doctor` (ADR-005, PRD §37 M1 scope).",
+  "description": "Отчёт `1c-dev doctor` (ADR-005, PRD §37; write supportedTypes — #25).",
   "type": "object",
   "required": [
     "status",
@@ -80,6 +80,11 @@
         "requires": {
           "type": "array",
           "items": { "type": "string" }
+        },
+        "supportedTypes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
         }
       }
     },

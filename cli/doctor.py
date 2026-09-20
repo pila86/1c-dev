@@ -58,6 +58,9 @@ def _text_report(result: DoctorResult) -> list[str]:
         else:
             missing = ", ".join(cap["requires"])
             lines.append(f"  {name}: unavailable (нужен {missing}) {_mark(False)}")
+        types = cap.get("supportedTypes")
+        if types:
+            lines.append(f"    types: {', '.join(types)}")
 
     if result.diagnostics:
         lines.append("")

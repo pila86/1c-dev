@@ -159,7 +159,7 @@ JSON-пример атрибута-ссылки:
 
 - Reader (#21) отдаёт IR v1; create/update (#22–#24) и delete принимают/соблюдают этот контракт.
 - CLI и MCP используют один `core.metadata` API.
-- Doctor capabilities по write-типам — отдельный issue (#25).
+- Doctor write-capabilities (`metadata.create` / `update` / `delete`) несут `supportedTypes` из констант IR (#25).
 - Реализация кода IR/delete — в follow-up issues, не в #20.
 
 ## Связанные решения

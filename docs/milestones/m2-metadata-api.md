@@ -153,7 +153,7 @@ metadata.get(Catalog.Products)
 ### Общее
 
 - [ ] IR v1 задокументирован ([ADR-011](../adr/011-metadata-ir-v1.md))
-- [ ] Doctor capability отражает поддерживаемые write-типы
+- [x] Doctor capability отражает поддерживаемые write-типы
 - [ ] CLI и MCP используют один `core.metadata` API
 
 ## Out of scope M2
