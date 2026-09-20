@@ -11,7 +11,6 @@ from adapters.source.xmlgen.constants import (
 )
 from adapters.source.xmlgen.edit import (
     ALLOWED_OPS,
-    CREATE_FOLLOWUP_OPS,
     EditOp,
     EditResult,
     edit_metadata,
@@ -29,7 +28,6 @@ from adapters.source.xmlgen.resolve import (
 
 __all__ = [
     "ALLOWED_OPS",
-    "CREATE_FOLLOWUP_OPS",
     "MIN_JAVA_MAJOR",
     "XMLGEN_COMMIT",
     "XMLGEN_JAR_ENV",

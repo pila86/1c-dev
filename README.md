@@ -60,6 +60,8 @@ poetry run 1c-dev metadata create Document.Sales --synonym "Продажи" \
 poetry run 1c-dev metadata update Catalog.Products --op add-attribute --value "Price:Number(15,2)"
 poetry run 1c-dev metadata update Catalog.Products --op modify-attribute --value "Price: synonym=Цена, type=Number(10,2)"
 poetry run 1c-dev metadata update Catalog.Products --attr "Code:String:20:Код"
+poetry run 1c-dev metadata update Document.Sales --ts "Products:Товары" \
+  --ts-attr "Products.Qty:Number:15.3:Количество"
 poetry run 1c-dev metadata delete Catalog.Products --output json
 poetry run 1c-dev metadata list --output json
 poetry run 1c-dev metadata get Catalog.Products --output json

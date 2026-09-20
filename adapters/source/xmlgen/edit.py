@@ -23,11 +23,13 @@ ALLOWED_OPS: frozenset[str] = frozenset(
         "add-attribute",
         "modify-attribute",
         "remove-attribute",
+        "add-ts",
+        "modify-ts",
+        "remove-ts",
+        "add-ts-attribute",
+        "remove-ts-attribute",
     }
 )
-
-# Extra ops used by metadata.create for tabular-section synonyms (#23).
-CREATE_FOLLOWUP_OPS: frozenset[str] = frozenset({"modify-ts"})
 
 
 @dataclass(frozen=True)
@@ -55,13 +57,11 @@ def edit_metadata(
     *,
     jar: ToolResolve | None = None,
     java: ToolResolve | None = None,
-    allowed_ops: frozenset[str] | None = None,
 ) -> EditResult:
     """
     Invoke `xml-gen meta edit <object.xml> --op … --value …` sequentially.
 
     Does not use ``--batch`` (MlText synonym bug in pinned xml-gen).
-    allowed_ops: override the default attribute-ops allowlist (e.g. create follow-up).
     """
     if not operations:
         raise XmlGenError("Пустой список операций meta edit", code="1CM002")
@@ -86,12 +86,11 @@ def edit_metadata(
             code="1CM008",
         )
 
-    permitted = ALLOWED_OPS if allowed_ops is None else allowed_ops
     aggregate = EditResult()
     changed: list[str] = []
 
     for op in operations:
-        if op.op not in permitted:
+        if op.op not in ALLOWED_OPS:
             raise XmlGenError(
                 f"Неподдерживаемая операция meta edit: {op.op!r}",
                 code="1CM002",

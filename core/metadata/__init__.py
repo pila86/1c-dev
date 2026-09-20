@@ -24,7 +24,13 @@ from core.metadata.ir import (
 )
 from core.metadata.read import find_metadata, get_metadata, list_metadata
 from core.metadata.result import MetadataResult
-from core.metadata.update import attr_to_xmlgen_shorthand, ops_from_attr, update_metadata
+from core.metadata.update import (
+    attr_to_xmlgen_shorthand,
+    ops_from_attr,
+    ops_from_ts,
+    ops_from_ts_attr,
+    update_metadata,
+)
 
 __all__ = [
     "CREATE_OBJECT_TYPES",
@@ -46,6 +52,8 @@ __all__ = [
     "list_metadata",
     "load_json_input",
     "ops_from_attr",
+    "ops_from_ts",
+    "ops_from_ts_attr",
     "parse_attr_spec",
     "parse_qualified_name",
     "parse_ts_attr_spec",
