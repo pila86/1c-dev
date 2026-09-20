@@ -363,7 +363,7 @@ def create_command(
         ...,
         help=(
             "Qualified name, например Catalog.Products, Document.Sales, "
-            "Enum.Statuses, InformationRegister.Prices."
+            "Enum.Statuses, InformationRegister.Prices, CommonModule.SalesServer."
         ),
     ),
     synonym: str | None = typer.Option(
@@ -401,6 +401,46 @@ def create_command(
         "--resource",
         help="Ресурс Name:Type[:Qual][:Synonym] (регистры).",
     ),
+    server: bool | None = typer.Option(
+        None,
+        "--server/--no-server",
+        help="Флаг Server (CommonModule).",
+    ),
+    client: bool | None = typer.Option(
+        None,
+        "--client/--no-client",
+        help="Сахар: ClientManagedApplication (CommonModule).",
+    ),
+    client_ordinary: bool | None = typer.Option(
+        None,
+        "--client-ordinary/--no-client-ordinary",
+        help="Флаг ClientOrdinaryApplication (CommonModule).",
+    ),
+    server_call: bool | None = typer.Option(
+        None,
+        "--server-call/--no-server-call",
+        help="Флаг ServerCall (CommonModule).",
+    ),
+    external_connection: bool | None = typer.Option(
+        None,
+        "--external-connection/--no-external-connection",
+        help="Флаг ExternalConnection (CommonModule).",
+    ),
+    privileged: bool | None = typer.Option(
+        None,
+        "--privileged/--no-privileged",
+        help="Флаг Privileged (CommonModule).",
+    ),
+    global_flag: bool | None = typer.Option(
+        None,
+        "--global/--no-global",
+        help="Флаг Global (CommonModule).",
+    ),
+    return_values_reuse: str | None = typer.Option(
+        None,
+        "--return-values-reuse",
+        help="DontUse | DuringRequest | DuringSession (CommonModule).",
+    ),
     from_json: str | None = typer.Option(
         None,
         "--from-json",
@@ -408,7 +448,7 @@ def create_command(
     ),
     output: OutputOption = None,
 ) -> None:
-    """Создать объект метаданных (Catalog / Document / Enum / регистры) через xml-gen."""
+    """Создать объект метаданных (Catalog / Document / Enum / регистры / CommonModule)."""
     fmt = resolve_output(ctx, output)
     try:
         if from_json is not None:
@@ -431,6 +471,17 @@ def create_command(
                 existing_r = list(data.get("resources") or [])
                 existing_r.extend(resource)
                 data["resources"] = existing_r
+            _merge_common_module_cli_flags(
+                data,
+                server=server,
+                client=client,
+                client_ordinary=client_ordinary,
+                server_call=server_call,
+                external_connection=external_connection,
+                privileged=privileged,
+                global_flag=global_flag,
+                return_values_reuse=return_values_reuse,
+            )
             catalog = catalog_from_json(data, qualified_name=qualified_name)
             if synonym and not catalog.synonym:
                 catalog.synonym = synonym
@@ -464,6 +515,14 @@ def create_command(
                 value_specs=list(value or []),
                 dimension_specs=list(dimension or []),
                 resource_specs=list(resource or []),
+                server=server,
+                client=client,
+                client_ordinary_application=client_ordinary,
+                server_call=server_call,
+                external_connection=external_connection,
+                privileged=privileged,
+                global_=global_flag,
+                return_values_reuse=return_values_reuse,
             )
     except IrError as exc:
         result = _ir_error_result(exc)
@@ -489,3 +548,32 @@ def create_command(
     result = create_metadata(Path.cwd(), catalog)
     _emit(result.to_payload(), fmt, text_lines=_create_text(result))
     _exit_for(result)
+
+
+def _merge_common_module_cli_flags(
+    data: dict[str, Any],
+    *,
+    server: bool | None,
+    client: bool | None,
+    client_ordinary: bool | None,
+    server_call: bool | None,
+    external_connection: bool | None,
+    privileged: bool | None,
+    global_flag: bool | None,
+    return_values_reuse: str | None,
+) -> None:
+    """Fill CommonModule JSON keys from CLI when absent in --from-json body."""
+    mapping: list[tuple[str, bool | None]] = [
+        ("server", server),
+        ("client", client),
+        ("clientOrdinaryApplication", client_ordinary),
+        ("serverCall", server_call),
+        ("externalConnection", external_connection),
+        ("privileged", privileged),
+        ("global", global_flag),
+    ]
+    for key, value in mapping:
+        if value is not None and key not in data:
+            data[key] = value
+    if return_values_reuse is not None and "returnValuesReuse" not in data:
+        data["returnValuesReuse"] = return_values_reuse

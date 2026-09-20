@@ -29,7 +29,7 @@ Format-independent JSON (пример каркаса):
 - `metadata.list` возвращает минимум `{type, name, qname}` (+ `synonym` при наличии).
 - `metadata.get` возвращает полный IR объекта.
 
-Поддерживаемые `type` в M2: `Catalog`, `Document`, `Enum`, `InformationRegister`, `AccumulationRegister`.
+Поддерживаемые `type` в M2: `Catalog`, `Document`, `Enum`, `InformationRegister`, `AccumulationRegister`, `CommonModule` (stretch create, #28).
 
 ### Атрибуты
 
@@ -73,6 +73,7 @@ JSON-пример атрибута-ссылки:
 - **Catalog / Document:** `attributes[]`, `tabularSections[]?`
 - **Enum:** `values[]` = `{name, synonym?}` (без `attributes` / ТЧ)
 - **InformationRegister / AccumulationRegister** (упрощённо): `dimensions[]`, `resources[]` — элементы той же формы, что Attribute (включая `Ref`). Периодичность / вид регистра и пр. — out of scope M2.
+- **CommonModule** (stretch create #28): контекстные флаги; без `attributes` / ТЧ / values / dimensions / resources. Тело BSL при create — пустой `Module.bsl` (запись процедур — later). Изменение флагов существующего модуля — `metadata.update` [#40](https://github.com/pila86/1c-dev/issues/40) (не путать с #39 Enum/регистры).
 
 Пример Enum:
 
@@ -112,6 +113,26 @@ JSON-пример атрибута-ссылки:
 }
 ```
 
+Пример CommonModule:
+
+```json
+{
+  "type": "CommonModule",
+  "name": "SalesServer",
+  "synonym": "ПродажиСервер",
+  "server": true,
+  "serverCall": false,
+  "clientManagedApplication": false,
+  "clientOrdinaryApplication": false,
+  "externalConnection": false,
+  "privileged": false,
+  "global": false,
+  "returnValuesReuse": "DontUse"
+}
+```
+
+В create DSL в xml-gen уходят **только явно заданные** флаги. Сахар JSON/CLI: `client` → `clientManagedApplication`. Допустимые `returnValuesReuse`: `DontUse`, `DuringRequest`, `DuringSession`.
+
 ### Семантика `metadata.update`
 
 - Цель: существующий объект по QName.
@@ -144,7 +165,8 @@ JSON-пример атрибута-ссылки:
 - Публичный `source.write`
 - Полное покрытие видов метаданных платформы
 - Расширения (`project.type: extension`)
-- `CommonModule` (stretch)
+- `metadata.update` флагов `CommonModule` (later; [#40](https://github.com/pila86/1c-dev/issues/40), follow-up к #28)
+- Запись тела BSL / процедур модуля (узкий write later)
 - Nested delete ТЧ / values / dimensions / resources (атрибуты — через `update` `remove-attribute`)
 
 ## Альтернативы

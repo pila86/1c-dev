@@ -221,6 +221,8 @@ def test_cli_doctor_text_ok(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
     assert "8.3.27.1549" in result.stdout
     assert "build: available" in result.stdout
     assert "metadata.create:" in result.stdout
-    assert "types: AccumulationRegister, Catalog, Document, Enum, InformationRegister" in (
-        result.stdout
+    expected_types = (
+        "types: AccumulationRegister, Catalog, CommonModule, "
+        "Document, Enum, InformationRegister"
     )
+    assert expected_types in result.stdout

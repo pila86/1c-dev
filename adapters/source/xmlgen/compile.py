@@ -17,7 +17,19 @@ _TYPE_DIRS: dict[str, str] = {
     "Enum": "Enums",
     "InformationRegister": "InformationRegisters",
     "AccumulationRegister": "AccumulationRegisters",
+    "CommonModule": "CommonModules",
 }
+
+_COMMON_MODULE_DSL_KEYS: tuple[str, ...] = (
+    "server",
+    "clientManagedApplication",
+    "clientOrdinaryApplication",
+    "serverCall",
+    "externalConnection",
+    "privileged",
+    "global",
+    "returnValuesReuse",
+)
 
 
 class XmlGenError(Exception):
@@ -75,19 +87,26 @@ def ir_to_xmlgen_dsl(ir: dict[str, Any]) -> dict[str, Any]:
 
     Enum: ``values`` → xml-gen ``values`` (``{name, synonym?}``).
     Registers: ``dimensions`` / ``resources`` → same attr entry shape as attributes.
+    CommonModule: context flags (``server``, ``serverCall``, …) passed through.
     """
-    attrs_out = [
-        _attr_to_xmlgen_entry(attr)
-        for attr in (ir.get("attributes") or [])
-        if isinstance(attr, dict)
-    ]
-
     dsl: dict[str, Any] = {
         "type": ir["type"],
         "name": ir["name"],
     }
     if ir.get("synonym"):
         dsl["synonym"] = ir["synonym"]
+
+    if ir.get("type") == "CommonModule":
+        for key in _COMMON_MODULE_DSL_KEYS:
+            if key in ir and ir[key] is not None:
+                dsl[key] = ir[key]
+        return dsl
+
+    attrs_out = [
+        _attr_to_xmlgen_entry(attr)
+        for attr in (ir.get("attributes") or [])
+        if isinstance(attr, dict)
+    ]
     if attrs_out:
         dsl["attributes"] = attrs_out
 

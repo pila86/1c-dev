@@ -63,11 +63,17 @@ def register_tools(server: FastMCP) -> None:
         description=(
             "Create a metadata object in XML source. "
             "Types: Catalog, Document, Enum, InformationRegister, "
-            "AccumulationRegister. Pass qualified_name (e.g. Catalog.Products, "
-            "Enum.Statuses, InformationRegister.Prices); optional synonym; "
+            "AccumulationRegister, CommonModule. Pass qualified_name "
+            "(e.g. Catalog.Products, Enum.Statuses, CommonModule.SalesServer); "
+            "optional synonym; "
             "for Catalog/Document: attributes and tabular_sections; "
             "for Enum: values [{name, synonym?}]; "
-            "for registers: dimensions and resources (same shape as attributes)."
+            "for registers: dimensions and resources (same shape as attributes); "
+            "for CommonModule: optional flags server, client "
+            "(→ clientManagedApplication), client_ordinary_application, "
+            "server_call, external_connection, privileged, global, "
+            "return_values_reuse (DontUse|DuringRequest|DuringSession). "
+            "BSL body is not written (empty Module.bsl)."
             + _NO_SHELL
         ),
     )
@@ -79,6 +85,14 @@ def register_tools(server: FastMCP) -> None:
         values: list[dict[str, Any]] | None = None,
         dimensions: list[dict[str, Any]] | None = None,
         resources: list[dict[str, Any]] | None = None,
+        server: bool | None = None,
+        client: bool | None = None,
+        client_ordinary_application: bool | None = None,
+        server_call: bool | None = None,
+        external_connection: bool | None = None,
+        privileged: bool | None = None,
+        global_: bool | None = None,
+        return_values_reuse: str | None = None,
         path: str | None = None,
     ) -> dict[str, Any]:
         try:
@@ -95,6 +109,22 @@ def register_tools(server: FastMCP) -> None:
                 data["dimensions"] = list(dimensions)
             if resources:
                 data["resources"] = list(resources)
+            if server is not None:
+                data["server"] = server
+            if client is not None:
+                data["client"] = client
+            if client_ordinary_application is not None:
+                data["clientOrdinaryApplication"] = client_ordinary_application
+            if server_call is not None:
+                data["serverCall"] = server_call
+            if external_connection is not None:
+                data["externalConnection"] = external_connection
+            if privileged is not None:
+                data["privileged"] = privileged
+            if global_ is not None:
+                data["global"] = global_
+            if return_values_reuse is not None:
+                data["returnValuesReuse"] = return_values_reuse
             # type/name come from qualified_name (validated inside catalog_from_json)
             catalog = catalog_from_json(data, qualified_name=qualified_name)
             if synonym and not catalog.synonym:

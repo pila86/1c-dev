@@ -63,7 +63,7 @@ metadata.get(Catalog.Products)
 | `Enum` | should | простые перечисления |
 | `InformationRegister` | should | измерения / ресурсы (упрощённый IR) |
 | `AccumulationRegister` | should | упрощённый IR |
-| `CommonModule` | stretch | модуль + флаги; тело BSL может остаться через узкий write позже |
+| `CommonModule` | stretch | create + флаги (#28); тело BSL later; update флагов — [#40](https://github.com/pila86/1c-dev/issues/40) |
 | Charts / BusinessProcess / … | out | → later |
 
 Qualified names: `Document.Sales`, `InformationRegister.Prices`, …
@@ -221,3 +221,4 @@ metadata.get(Catalog.Products)
 | [#26](https://github.com/pila86/1c-dev/issues/26) | MCP tools: list / get / find / update / delete + expanded create | #21, #22, #23, #29 |
 | [#27](https://github.com/pila86/1c-dev/issues/27) | Acceptance tests M2 | #26 |
 | [#28](https://github.com/pila86/1c-dev/issues/28) | stretch: `metadata.create` CommonModule | #23 |
+| [#40](https://github.com/pila86/1c-dev/issues/40) | `metadata.update` — флаги CommonModule (stretch) | #28 |
