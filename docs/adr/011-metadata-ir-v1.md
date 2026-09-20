@@ -129,7 +129,7 @@ JSON-пример атрибута-ссылки:
 - Цель M2 must: **целый объект** по QName.
 - Удаляет артефакты объекта из `source.path` и регистрацию в `Configuration.xml`.
 - Объект не найден → structured diagnostic, source не меняется.
-- Без cascade по ссылкам (битые `Ref` после delete допустимы до graph / M5).
+- Без cascade по ссылкам (битые `Ref` после delete допустимы до graph / M6).
 - После delete: `metadata.get` → not found; `list` не содержит объект.
 - Nested delete атрибутов — через `metadata.update` (`remove-attribute`); удаление ТЧ / values / dimensions / resources как отдельные ops — later, не must `metadata.delete`.
 
@@ -139,8 +139,8 @@ JSON-пример атрибута-ссылки:
 
 ### Out of scope M2
 
-- EDT / `source.convert` / import `.cf` (→ M3)
-- Graph API: `references` / `dependencies` / `impact` (→ M5)
+- Import `.cf` / install / docs (→ M3); EDT / `source.convert` (→ M4)
+- Graph API: `references` / `dependencies` / `impact` (→ M6)
 - Публичный `source.write`
 - Полное покрытие видов метаданных платформы
 - Расширения (`project.type: extension`)

@@ -22,7 +22,7 @@ metadata.get
 metadata.find
 ```
 
-- Источник — project source (XML в M2; EDT — после M3)
+- Источник — project source (XML в M2; EDT — после M4)
 - Результат — Metadata IR / structured JSON, не сырой XML
 - Prefer MDClasses / существующие readers (G7), не парсить XML ad hoc в core
 
@@ -85,7 +85,7 @@ metadata.get(Catalog.Products)
 
 - Удаляет артефакты объекта из `source.path` и регистрацию в `Configuration.xml`
 - Объект не найден → structured diagnostic, source не меняется
-- Без cascade по ссылкам (битые `Ref` допустимы до graph / M5)
+- Без cascade по ссылкам (битые `Ref` допустимы до graph / M6)
 - Удаление атрибутов — через `metadata.update` `remove-attribute`; nested ТЧ / values / … — later, не must `metadata.delete`
 
 ## Agent workflows
@@ -158,13 +158,14 @@ metadata.get(Catalog.Products)
 
 ## Out of scope M2
 
-- EDT / `source.convert` / import `.cf` (→ [M3](m3-source-formats.md))
-- `references` / `dependencies` / `impact` (→ later / M5 graph)
+- Import `.cf`, user install, `setup`, BSL LS MCP, docs/context (→ [M3](m3-product-adopt.md))
+- EDT / `source.convert` (→ [M4](m4-source-formats.md))
+- `references` / `dependencies` / `impact` (→ later / M6 graph)
 - Nested delete ТЧ / values / dimensions (атрибуты — `update` `remove-attribute`)
 - Публичный `source.write` как замена Metadata API
 - Полное покрытие всех видов метаданных платформы
 - Расширения (`project.type: extension`) и изменение объектов базовой конфигурации через extension
-- YAxUnit / docs / DAP (→ M4 / M5)
+- YAxUnit / DAP (→ M5 / M6)
 
 ## Manual verification
 
@@ -197,7 +198,8 @@ metadata.get(Catalog.Products)
 - [GitHub milestone M2](https://github.com/pila86/1c-dev/milestone/2)
 - [Roadmap](../roadmap.md)
 - [M1](m1-catalog-via-agent.md)
-- [M3](m3-source-formats.md)
+- [M3](m3-product-adopt.md)
+- [M4](m4-source-formats.md)
 - [ADR-007](../adr/007-metadata-ir.md) (IR v0 + xml-gen)
 - [ADR-011](../adr/011-metadata-ir-v1.md) (IR v1)
 - [PRD §16–§18](../../1c-dev-runtime-PRD-v0.1.md), [§47](../../1c-dev-runtime-PRD-v0.1.md)

@@ -101,7 +101,10 @@ Tools: `project.get`, `project.init`, `metadata.create`, `metadata.delete`, `bui
 
 **Milestone M2: metadata API** — list/get/find, update, create для Document и других типов.
 
+Следующий этап после M2 — **M3 Product adopt**: import `.cf`, установка CLI в PATH, `setup` для IDE/агентов, BSL LS MCP и docs/context (bsl-context).
+
 - [M2: acceptance criteria](docs/milestones/m2-metadata-api.md)
+- [M3 Product adopt](docs/milestones/m3-product-adopt.md)
 - [M1 (Done)](docs/milestones/m1-catalog-via-agent.md)
 - [Roadmap](docs/roadmap.md)
 - [PRD v0.1](1c-dev-runtime-PRD-v0.1.md)
