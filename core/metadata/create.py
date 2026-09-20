@@ -1,4 +1,4 @@
-"""metadata.create orchestration (ADR-007)."""
+"""metadata.create orchestration (ADR-007 / #23)."""
 
 from __future__ import annotations
 
@@ -7,21 +7,26 @@ from pathlib import Path
 from typing import Any
 
 from adapters.source.xmlgen import (
+    CREATE_FOLLOWUP_OPS,
+    EditOp,
     XmlGenError,
     compile_metadata,
+    edit_metadata,
     fetch_script_suggestion,
     ir_to_xmlgen_dsl,
     resolve_jar,
     resolve_java,
 )
 from core.diagnostics import error
-from core.metadata.ir import CatalogObject
+from core.metadata.delete import object_xml_path
+from core.metadata.ir import CREATE_OBJECT_TYPES, CatalogObject
 from core.metadata.result import MetadataResult
 from core.project.detect import detect_manifest
 from core.project.load import load_manifest
 from core.project.validate import validate_project
 
 CompileFn = Callable[[Path, dict[str, Any]], list[str]]
+FollowupFn = Callable[[Path, list[EditOp]], None]
 
 
 def create_metadata(
@@ -29,12 +34,29 @@ def create_metadata(
     catalog: CatalogObject,
     *,
     compile_fn: CompileFn | None = None,
+    followup_fn: FollowupFn | None = None,
 ) -> MetadataResult:
     """
-    Create Catalog via xml-gen write-path.
+    Create Catalog or Document via xml-gen write-path (ADR-011 / #23).
 
     compile_fn: optional injectable (source_dir, dsl) -> list[str] for tests.
+    followup_fn: optional injectable for tabular-section synonym edits.
     """
+    if catalog.type not in CREATE_OBJECT_TYPES:
+        return MetadataResult(
+            status="error",
+            object=catalog.qualified_name,
+            diagnostics=[
+                error(
+                    f"metadata.create поддерживает только "
+                    f"{', '.join(sorted(CREATE_OBJECT_TYPES))}, "
+                    f"получено: {catalog.type!r}",
+                    code="1CM002",
+                    source="metadata",
+                )
+            ],
+        )
+
     start_path = (start or Path.cwd()).resolve()
     manifest_path = detect_manifest(start_path)
     if manifest_path is None:
@@ -76,7 +98,7 @@ def create_metadata(
             root=root,
             diagnostics=[
                 error(
-                    f"source.format={fmt!r}: M1 поддерживает только xml",
+                    f"source.format={fmt!r}: metadata.create поддерживает только xml",
                     code="1CM005",
                     file=str(manifest_path),
                     source="metadata",
@@ -99,8 +121,12 @@ def create_metadata(
             ],
         )
 
-    catalog_file = source_dir / "Catalogs" / f"{catalog.name}.xml"
-    if catalog_file.is_file():
+    object_file = object_xml_path(source_dir, catalog.type, catalog.name)
+    if object_file.is_file():
+        try:
+            file_rel = object_file.relative_to(root).as_posix()
+        except ValueError:
+            file_rel = str(object_file)
         return MetadataResult(
             status="error",
             object=catalog.qualified_name,
@@ -110,7 +136,7 @@ def create_metadata(
                 error(
                     f"Объект уже существует: {catalog.qualified_name}",
                     code="1CM003",
-                    file=str(catalog_file.relative_to(root)),
+                    file=file_rel,
                     source="metadata",
                 )
             ],
@@ -148,6 +174,11 @@ def create_metadata(
     runner: CompileFn = compile_fn if compile_fn is not None else compile_metadata
     try:
         created_rels = runner(source_dir, dsl)
+        _apply_tabular_synonyms(
+            object_file,
+            catalog,
+            followup_fn=followup_fn,
+        )
     except XmlGenError as exc:
         diag_kw: dict[str, Any] = {
             "code": exc.code,
@@ -189,3 +220,28 @@ def create_metadata(
         source_path=source_dir,
         created=created,
     )
+
+
+def _apply_tabular_synonyms(
+    object_file: Path,
+    catalog: CatalogObject,
+    *,
+    followup_fn: FollowupFn | None,
+) -> None:
+    """Apply TS synonyms via meta edit modify-ts (xml-gen compile map has no synonym)."""
+    ops = [
+        EditOp(op="modify-ts", value=f"{section.name}: synonym={section.synonym}")
+        for section in catalog.tabular_sections
+        if section.synonym
+    ]
+    if not ops:
+        return
+    if followup_fn is not None:
+        followup_fn(object_file, ops)
+        return
+    if not object_file.is_file():
+        raise XmlGenError(
+            f"Файл объекта не найден после compile: {object_file}",
+            code="1CM007",
+        )
+    edit_metadata(object_file, ops, allowed_ops=CREATE_FOLLOWUP_OPS)

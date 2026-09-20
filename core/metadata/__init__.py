@@ -5,6 +5,7 @@ from __future__ import annotations
 from core.metadata.create import create_metadata
 from core.metadata.delete import delete_metadata
 from core.metadata.ir import (
+    CREATE_OBJECT_TYPES,
     M2_OBJECT_TYPES,
     Attribute,
     CatalogObject,
@@ -17,6 +18,8 @@ from core.metadata.ir import (
     load_json_input,
     parse_attr_spec,
     parse_qualified_name,
+    parse_ts_attr_spec,
+    parse_ts_spec,
     summary_from_dict,
 )
 from core.metadata.read import find_metadata, get_metadata, list_metadata
@@ -24,6 +27,7 @@ from core.metadata.result import MetadataResult
 from core.metadata.update import attr_to_xmlgen_shorthand, ops_from_attr, update_metadata
 
 __all__ = [
+    "CREATE_OBJECT_TYPES",
     "M2_OBJECT_TYPES",
     "Attribute",
     "CatalogObject",
@@ -44,6 +48,8 @@ __all__ = [
     "ops_from_attr",
     "parse_attr_spec",
     "parse_qualified_name",
+    "parse_ts_attr_spec",
+    "parse_ts_spec",
     "summary_from_dict",
     "update_metadata",
 ]
