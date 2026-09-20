@@ -28,6 +28,7 @@ _TYPE_DIRS: dict[str, str] = {
     "Enum": "Enums",
     "InformationRegister": "InformationRegisters",
     "AccumulationRegister": "AccumulationRegisters",
+    "CommonModule": "CommonModules",
 }
 
 

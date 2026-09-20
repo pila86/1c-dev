@@ -15,9 +15,11 @@ ObjectType = Literal[
     "Enum",
     "InformationRegister",
     "AccumulationRegister",
+    "CommonModule",
 ]
+ReturnValuesReuse = Literal["DontUse", "DuringRequest", "DuringSession"]
 
-# Types accepted in QualifiedName for read/update paths (M2).
+# Types accepted in QualifiedName for read/update/delete paths (M2).
 M2_OBJECT_TYPES: frozenset[str] = frozenset(
     {
         "Catalog",
@@ -25,7 +27,23 @@ M2_OBJECT_TYPES: frozenset[str] = frozenset(
         "Enum",
         "InformationRegister",
         "AccumulationRegister",
+        "CommonModule",
     }
+)
+
+_RETURN_VALUES_REUSE: frozenset[str] = frozenset(
+    {"DontUse", "DuringRequest", "DuringSession"}
+)
+
+# IR / xml-gen boolean flag keys for CommonModule (camelCase in JSON DSL).
+_COMMON_MODULE_BOOL_FLAGS: tuple[tuple[str, str], ...] = (
+    ("server", "server"),
+    ("client_managed_application", "clientManagedApplication"),
+    ("client_ordinary_application", "clientOrdinaryApplication"),
+    ("server_call", "serverCall"),
+    ("external_connection", "externalConnection"),
+    ("privileged", "privileged"),
+    ("global_", "global"),
 )
 
 _NAME_RE = re.compile(r"^[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]*$")
@@ -97,7 +115,7 @@ class EnumValue:
         return data
 
 
-# Object types writable via metadata.create (ADR-011 / #23 / #24).
+# Object types writable via metadata.create (ADR-011 / #23 / #24 / #28).
 CREATE_OBJECT_TYPES: frozenset[str] = frozenset(
     {
         "Catalog",
@@ -105,6 +123,7 @@ CREATE_OBJECT_TYPES: frozenset[str] = frozenset(
         "Enum",
         "InformationRegister",
         "AccumulationRegister",
+        "CommonModule",
     }
 )
 
@@ -126,6 +145,15 @@ class CatalogObject:
     dimensions: list[Attribute] = field(default_factory=list)
     resources: list[Attribute] = field(default_factory=list)
     type: ObjectType = "Catalog"
+    # CommonModule context flags (None = omit from DSL; xml-gen defaults apply).
+    server: bool | None = None
+    client_managed_application: bool | None = None
+    client_ordinary_application: bool | None = None
+    server_call: bool | None = None
+    external_connection: bool | None = None
+    privileged: bool | None = None
+    global_: bool | None = None
+    return_values_reuse: ReturnValuesReuse | None = None
 
     @property
     def qualified_name(self) -> str:
@@ -144,6 +172,14 @@ class CatalogObject:
         if self.type in _REGISTER_TYPES:
             data["dimensions"] = [a.to_dict() for a in self.dimensions]
             data["resources"] = [a.to_dict() for a in self.resources]
+            return data
+        if self.type == "CommonModule":
+            for attr_name, json_key in _COMMON_MODULE_BOOL_FLAGS:
+                value = getattr(self, attr_name)
+                if value is not None:
+                    data[json_key] = value
+            if self.return_values_reuse is not None:
+                data["returnValuesReuse"] = self.return_values_reuse
             return data
         data["attributes"] = [a.to_dict() for a in self.attributes]
         if self.tabular_sections:
@@ -296,8 +332,17 @@ def catalog_from_parts(
     value_specs: list[str] | None = None,
     dimension_specs: list[str] | None = None,
     resource_specs: list[str] | None = None,
+    server: bool | None = None,
+    client: bool | None = None,
+    client_managed_application: bool | None = None,
+    client_ordinary_application: bool | None = None,
+    server_call: bool | None = None,
+    external_connection: bool | None = None,
+    privileged: bool | None = None,
+    global_: bool | None = None,
+    return_values_reuse: str | None = None,
 ) -> CatalogObject:
-    """Build create IR from CLI pieces (ADR-011 / #23 / #24)."""
+    """Build create IR from CLI pieces (ADR-011 / #23 / #24 / #28)."""
     obj_type, name = parse_qualified_name(qualified_name)
     if obj_type not in CREATE_OBJECT_TYPES:
         raise IrError(
@@ -313,6 +358,17 @@ def catalog_from_parts(
     values = [parse_enum_value_spec(s) for s in (value_specs or [])]
     dimensions = [parse_attr_spec(s) for s in (dimension_specs or [])]
     resources = [parse_attr_spec(s) for s in (resource_specs or [])]
+    flags = _common_module_flags_from_parts(
+        server=server,
+        client=client,
+        client_managed_application=client_managed_application,
+        client_ordinary_application=client_ordinary_application,
+        server_call=server_call,
+        external_connection=external_connection,
+        privileged=privileged,
+        global_=global_,
+        return_values_reuse=return_values_reuse,
+    )
     obj = CatalogObject(
         name=name,
         synonym=synonym,
@@ -322,6 +378,7 @@ def catalog_from_parts(
         dimensions=dimensions,
         resources=resources,
         type=obj_type,
+        **flags,
     )
     _validate_create_shape(obj)
     return obj
@@ -332,7 +389,7 @@ def catalog_from_json(
     *,
     qualified_name: str | None = None,
 ) -> CatalogObject:
-    """Build create IR from JSON body (ADR-011 / #24)."""
+    """Build create IR from JSON body (ADR-011 / #24 / #28)."""
     name_raw = data.get("name")
     obj_type: ObjectType
     name: str
@@ -371,6 +428,7 @@ def catalog_from_json(
     values = _enum_values_from_json(data.get("values"))
     dimensions = _attributes_from_json_list(list(data.get("dimensions") or []))
     resources = _attributes_from_json_list(list(data.get("resources") or []))
+    flags = _common_module_flags_from_json(data)
     obj = CatalogObject(
         name=name,
         synonym=synonym_s,
@@ -380,9 +438,96 @@ def catalog_from_json(
         dimensions=dimensions,
         resources=resources,
         type=obj_type,
+        **flags,
     )
     _validate_create_shape(obj)
     return obj
+
+
+def _optional_bool(value: Any, *, field: str) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    raise IrError(f"{field} должен быть boolean", code="1CM004")
+
+
+def _common_module_flags_from_parts(
+    *,
+    server: bool | None = None,
+    client: bool | None = None,
+    client_managed_application: bool | None = None,
+    client_ordinary_application: bool | None = None,
+    server_call: bool | None = None,
+    external_connection: bool | None = None,
+    privileged: bool | None = None,
+    global_: bool | None = None,
+    return_values_reuse: str | None = None,
+) -> dict[str, Any]:
+    """Normalize CLI flag kwargs into CatalogObject CommonModule fields."""
+    cma = client_managed_application
+    if client is not None:
+        if cma is not None and cma != client:
+            raise IrError(
+                "Конфликт: client и clientManagedApplication заданы по-разному",
+                code="1CM004",
+            )
+        cma = client
+    reuse = _parse_return_values_reuse(return_values_reuse)
+    return {
+        "server": server,
+        "client_managed_application": cma,
+        "client_ordinary_application": client_ordinary_application,
+        "server_call": server_call,
+        "external_connection": external_connection,
+        "privileged": privileged,
+        "global_": global_,
+        "return_values_reuse": reuse,
+    }
+
+
+def _common_module_flags_from_json(data: dict[str, Any]) -> dict[str, Any]:
+    """Parse CommonModule flags from JSON IR (incl. client sugar)."""
+    client_sugar = data.get("client")
+    cma_raw = data.get("clientManagedApplication")
+    client_b = _optional_bool(client_sugar, field="client")
+    cma_b = _optional_bool(cma_raw, field="clientManagedApplication")
+    if client_b is not None and cma_b is not None and client_b != cma_b:
+        raise IrError(
+            "Конфликт: client и clientManagedApplication заданы по-разному",
+            code="1CM004",
+        )
+    reuse_raw = data.get("returnValuesReuse")
+    reuse_s = str(reuse_raw) if reuse_raw is not None else None
+    return {
+        "server": _optional_bool(data.get("server"), field="server"),
+        "client_managed_application": cma_b if cma_b is not None else client_b,
+        "client_ordinary_application": _optional_bool(
+            data.get("clientOrdinaryApplication"),
+            field="clientOrdinaryApplication",
+        ),
+        "server_call": _optional_bool(data.get("serverCall"), field="serverCall"),
+        "external_connection": _optional_bool(
+            data.get("externalConnection"),
+            field="externalConnection",
+        ),
+        "privileged": _optional_bool(data.get("privileged"), field="privileged"),
+        "global_": _optional_bool(data.get("global"), field="global"),
+        "return_values_reuse": _parse_return_values_reuse(reuse_s),
+    }
+
+
+def _parse_return_values_reuse(raw: str | None) -> ReturnValuesReuse | None:
+    if raw is None:
+        return None
+    cleaned = raw.strip()
+    if cleaned not in _RETURN_VALUES_REUSE:
+        raise IrError(
+            "returnValuesReuse должен быть одним из: "
+            f"{', '.join(sorted(_RETURN_VALUES_REUSE))}, получено: {raw!r}",
+            code="1CM004",
+        )
+    return cleaned  # type: ignore[return-value]
 
 
 def _validate_create_shape(obj: CatalogObject) -> None:
@@ -394,6 +539,7 @@ def _validate_create_shape(obj: CatalogObject) -> None:
                 "dimensions / resources",
                 code="1CM004",
             )
+        _reject_common_module_flags(obj, type_name="Enum")
         return
     if obj.type in _REGISTER_TYPES:
         if obj.attributes or obj.tabular_sections or obj.values:
@@ -401,11 +547,47 @@ def _validate_create_shape(obj: CatalogObject) -> None:
                 f"{obj.type} не поддерживает attributes / tabularSections / values",
                 code="1CM004",
             )
+        _reject_common_module_flags(obj, type_name=obj.type)
+        return
+    if obj.type == "CommonModule":
+        if (
+            obj.attributes
+            or obj.tabular_sections
+            or obj.values
+            or obj.dimensions
+            or obj.resources
+        ):
+            raise IrError(
+                "CommonModule не поддерживает attributes / tabularSections / "
+                "values / dimensions / resources",
+                code="1CM004",
+            )
+        if (
+            obj.return_values_reuse is not None
+            and obj.return_values_reuse not in _RETURN_VALUES_REUSE
+        ):
+            raise IrError(
+                f"Некорректный returnValuesReuse: {obj.return_values_reuse!r}",
+                code="1CM004",
+            )
         return
     # Catalog / Document
     if obj.values or obj.dimensions or obj.resources:
         raise IrError(
             f"{obj.type} не поддерживает values / dimensions / resources",
+            code="1CM004",
+        )
+    _reject_common_module_flags(obj, type_name=obj.type)
+
+
+def _reject_common_module_flags(obj: CatalogObject, *, type_name: str) -> None:
+    if any(
+        getattr(obj, attr) is not None
+        for attr, _ in _COMMON_MODULE_BOOL_FLAGS
+    ) or obj.return_values_reuse is not None:
+        raise IrError(
+            f"{type_name} не поддерживает флаги CommonModule "
+            "(server / client / … / returnValuesReuse)",
             code="1CM004",
         )
 

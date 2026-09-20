@@ -39,7 +39,7 @@ def create_metadata(
     Create metadata object via xml-gen write-path (ADR-011 / #23 / #24).
 
     Supported types: Catalog, Document, Enum, InformationRegister,
-    AccumulationRegister.
+    AccumulationRegister, CommonModule.
 
     compile_fn: optional injectable (source_dir, dsl) -> list[str] for tests.
     followup_fn: optional injectable for tabular-section synonym edits.

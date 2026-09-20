@@ -204,6 +204,62 @@ def test_register_from_parts_and_json() -> None:
     assert exc.value.code == "1CM004"
 
 
+def test_common_module_from_parts_and_json() -> None:
+    mod = catalog_from_parts(
+        qualified_name="CommonModule.SalesServer",
+        synonym="ПродажиСервер",
+        server=True,
+        server_call=True,
+    )
+    assert mod.qualified_name == "CommonModule.SalesServer"
+    assert mod.server is True
+    assert mod.server_call is True
+    dsl = ir_to_xmlgen_dsl(mod.to_dict())
+    assert dsl == {
+        "type": "CommonModule",
+        "name": "SalesServer",
+        "synonym": "ПродажиСервер",
+        "server": True,
+        "serverCall": True,
+    }
+    assert "attributes" not in dsl
+
+    from_json = catalog_from_json(
+        {
+            "type": "CommonModule",
+            "name": "Utils",
+            "client": True,
+            "privileged": True,
+            "returnValuesReuse": "DuringRequest",
+        }
+    )
+    assert from_json.client_managed_application is True
+    assert from_json.privileged is True
+    assert from_json.return_values_reuse == "DuringRequest"
+    sugar_dsl = ir_to_xmlgen_dsl(from_json.to_dict())
+    assert sugar_dsl["clientManagedApplication"] is True
+    assert sugar_dsl["returnValuesReuse"] == "DuringRequest"
+    assert "client" not in sugar_dsl
+
+    with pytest.raises(IrError) as conflict:
+        catalog_from_json(
+            {
+                "type": "CommonModule",
+                "name": "Bad",
+                "client": True,
+                "clientManagedApplication": False,
+            }
+        )
+    assert conflict.value.code == "1CM004"
+
+    with pytest.raises(IrError) as shape:
+        catalog_from_parts(
+            qualified_name="CommonModule.Bad",
+            attr_specs=["X:String:10"],
+        )
+    assert shape.value.code == "1CM004"
+
+
 def test_create_metadata_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
@@ -359,6 +415,47 @@ def test_create_registers_mock(tmp_path: Path) -> None:
     r2 = create_metadata(target, accum, compile_fn=fake_compile)
     assert r2.status == "ok", r2.diagnostics
     assert seen == ["InformationRegister", "AccumulationRegister"]
+
+
+def test_create_common_module_mock(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+
+    def fake_compile(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "CommonModule"
+        assert dsl["name"] == "SalesServer"
+        assert dsl["server"] is True
+        assert dsl.get("clientManagedApplication") is None
+        mods = source_dir / "CommonModules"
+        mods.mkdir(parents=True)
+        (mods / "SalesServer.xml").write_text("<CommonModule/>", encoding="utf-8")
+        bsl = mods / "SalesServer" / "Ext"
+        bsl.mkdir(parents=True)
+        (bsl / "Module.bsl").write_bytes(b"\xef\xbb\xbf")
+        cfg = source_dir / "Configuration.xml"
+        text = cfg.read_text(encoding="utf-8-sig")
+        text = text.replace(
+            "<Language>Русский</Language>",
+            "<Language>Русский</Language>\r\n\t\t\t"
+            "<CommonModule>SalesServer</CommonModule>",
+        )
+        cfg.write_text(text, encoding="utf-8-sig", newline="")
+        return [
+            "CommonModules/SalesServer.xml",
+            "CommonModules/SalesServer/Ext/Module.bsl",
+            "Configuration.xml",
+        ]
+
+    mod = catalog_from_parts(
+        qualified_name="CommonModule.SalesServer",
+        synonym="ПродажиСервер",
+        server=True,
+    )
+    result = create_metadata(target, mod, compile_fn=fake_compile)
+    assert result.status == "ok", result.diagnostics
+    assert result.object == "CommonModule.SalesServer"
+    assert any("CommonModules/SalesServer.xml" in p for p in result.created)
 
 
 def test_create_duplicate(tmp_path: Path) -> None:
@@ -564,6 +661,55 @@ def test_cli_create_enum_and_register_mock(
     assert json.loads(reg_result.output)["object"] == "InformationRegister.Prices"
 
 
+def test_cli_create_common_module_mock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    def fake_compile(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "CommonModule"
+        assert dsl["server"] is True
+        assert dsl["serverCall"] is True
+        assert dsl["clientManagedApplication"] is True
+        folder = source_dir / "CommonModules"
+        folder.mkdir(parents=True)
+        (folder / f"{dsl['name']}.xml").write_text("<CommonModule/>", encoding="utf-8")
+        return [f"CommonModules/{dsl['name']}.xml"]
+
+    from adapters.source.xmlgen.resolve import ToolResolve
+
+    monkeypatch.setattr("core.metadata.create.compile_metadata", fake_compile)
+    monkeypatch.setattr(
+        "core.metadata.create.resolve_java",
+        lambda: ToolResolve(found=True, path=Path("/usr/bin/java"), version="21"),
+    )
+    monkeypatch.setattr(
+        "core.metadata.create.resolve_jar",
+        lambda: ToolResolve(found=True, path=tmp_path / "xml-gen.jar"),
+    )
+    monkeypatch.chdir(target)
+
+    result = runner.invoke(
+        app,
+        [
+            "metadata",
+            "create",
+            "CommonModule.SalesClientServer",
+            "--synonym",
+            "ПродажиКлиентСервер",
+            "--server",
+            "--client",
+            "--server-call",
+            "--output",
+            "json",
+        ],
+    )
+    assert result.exit_code == SUCCESS, result.output
+    assert json.loads(result.output)["object"] == "CommonModule.SalesClientServer"
+
+
 def test_cli_bad_type(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     target = tmp_path / "shop"
     target.mkdir()
@@ -571,7 +717,7 @@ def test_cli_bad_type(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(target)
     result = runner.invoke(
         app,
-        ["metadata", "create", "CommonModule.Utils", "--output", "json"],
+        ["metadata", "create", "BusinessProcess.Flow", "--output", "json"],
     )
     assert result.exit_code == PROJECT_ERROR
     payload = json.loads(result.output)
@@ -714,6 +860,42 @@ def test_create_enum_and_registers_with_real_xmlgen(tmp_path: Path) -> None:
     assert "<Enum>OrderStatuses</Enum>" in cfg
     assert "<InformationRegister>Prices</InformationRegister>" in cfg
     assert "<AccumulationRegister>Stock</AccumulationRegister>" in cfg
+
+    from core.project import validate_project
+
+    assert validate_project(target).status == "ok"
+
+
+@pytest.mark.integration
+def test_create_common_module_with_real_xmlgen(tmp_path: Path) -> None:
+    jar = resolve_jar()
+    java = resolve_java()
+    if not jar.found or not java.found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    mod = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="CommonModule.SalesServer",
+            synonym="ПродажиСервер",
+            server=True,
+            server_call=True,
+        ),
+    )
+    assert mod.status == "ok", mod.diagnostics
+    xml_path = target / "src" / "cf" / "CommonModules" / "SalesServer.xml"
+    assert xml_path.is_file()
+    text = xml_path.read_text(encoding="utf-8-sig")
+    assert "<Server>true</Server>" in text
+    assert "<ServerCall>true</ServerCall>" in text
+    bsl = target / "src" / "cf" / "CommonModules" / "SalesServer" / "Ext" / "Module.bsl"
+    assert bsl.is_file()
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<CommonModule>SalesServer</CommonModule>" in cfg
 
     from core.project import validate_project
 

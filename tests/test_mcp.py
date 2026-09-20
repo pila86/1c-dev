@@ -90,10 +90,42 @@ def test_project_get_and_init(tmp_path: Path) -> None:
 def test_metadata_create_ir_error() -> None:
     payload = _call(
         "metadata.create",
-        {"qualified_name": "CommonModule.Utils", "path": "/tmp"},
+        {"qualified_name": "BusinessProcess.Flow", "path": "/tmp"},
     )
     assert payload["status"] == "error"
     assert any(d.get("code") == "1CM002" for d in payload["diagnostics"])
+
+
+def test_metadata_create_common_module_mocked(tmp_path: Path, monkeypatch: Any) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+
+    def fake_create(start: Path, catalog: Any, **kwargs: Any) -> MetadataResult:
+        assert catalog.qualified_name == "CommonModule.SalesServer"
+        assert catalog.server is True
+        assert catalog.client_managed_application is True
+        assert catalog.server_call is True
+        return MetadataResult(
+            status="ok",
+            object="CommonModule.SalesServer",
+            root=start,
+            created=["src/cf/CommonModules/SalesServer.xml"],
+        )
+
+    monkeypatch.setattr("mcp_server.tools.create_metadata", fake_create)
+    payload = _call(
+        "metadata.create",
+        {
+            "path": str(target),
+            "qualified_name": "CommonModule.SalesServer",
+            "synonym": "ПродажиСервер",
+            "server": True,
+            "client": True,
+            "server_call": True,
+        },
+    )
+    assert payload["status"] == "ok"
+    assert payload["object"] == "CommonModule.SalesServer"
 
 
 def test_metadata_create_enum_mocked(tmp_path: Path, monkeypatch: Any) -> None:
