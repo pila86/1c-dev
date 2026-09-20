@@ -1,4 +1,4 @@
-"""metadata.update orchestration (ADR-011 / #22)."""
+"""metadata.update orchestration (ADR-011 / #22 / #35)."""
 
 from __future__ import annotations
 
@@ -16,7 +16,14 @@ from adapters.source.xmlgen import (
     resolve_java,
 )
 from core.diagnostics import error, warning
-from core.metadata.ir import Attribute, IrError, parse_qualified_name
+from core.metadata.delete import object_xml_path
+from core.metadata.ir import (
+    CREATE_OBJECT_TYPES,
+    Attribute,
+    IrError,
+    TabularSection,
+    parse_qualified_name,
+)
 from core.metadata.read import get_metadata
 from core.metadata.result import MetadataResult
 from core.project.detect import detect_manifest
@@ -62,6 +69,30 @@ def ops_from_attr(attr: Attribute) -> list[EditOp]:
     return ops
 
 
+def ops_from_ts(section: TabularSection) -> list[EditOp]:
+    """Expand TabularSection into add-ts (+ optional modify-ts synonym)."""
+    ops = [EditOp(op="add-ts", value=section.name)]
+    if section.synonym:
+        ops.append(
+            EditOp(
+                op="modify-ts",
+                value=f"{section.name}: synonym={section.synonym}",
+            )
+        )
+    return ops
+
+
+def ops_from_ts_attr(ts_name: str, attr: Attribute) -> list[EditOp]:
+    """
+    Expand TS attribute into add-ts-attribute.
+
+    Synonym is accepted by CLI sugar for create-compat but not emitted:
+    pinned xml-gen has no modify-ts-attribute.
+    """
+    shorthand = attr_to_xmlgen_shorthand(attr)
+    return [EditOp(op="add-ts-attribute", value=f"{ts_name}.{shorthand}")]
+
+
 def update_metadata(
     start: Path | None,
     qualified_name: str,
@@ -71,7 +102,7 @@ def update_metadata(
     get_fn: GetFn | None = None,
 ) -> MetadataResult:
     """
-    Apply sequential meta-edit ops to an existing Catalog.
+    Apply sequential meta-edit ops to an existing Catalog or Document.
 
     edit_fn / get_fn: injectable for unit tests.
     """
@@ -99,13 +130,14 @@ def update_metadata(
             ],
         )
 
-    if obj_type != "Catalog":
+    if obj_type not in CREATE_OBJECT_TYPES:
         return MetadataResult(
             status="error",
             object=qualified_name,
             diagnostics=[
                 error(
-                    f"metadata.update (#22) поддерживает только Catalog.*, "
+                    f"metadata.update поддерживает только "
+                    f"{', '.join(sorted(CREATE_OBJECT_TYPES))}.*, "
                     f"получено: {qualified_name!r}",
                     code="1CM002",
                     source="metadata",
@@ -113,7 +145,7 @@ def update_metadata(
             ],
         )
 
-    qname = f"Catalog.{name}"
+    qname = f"{obj_type}.{name}"
     start_path = (start or Path.cwd()).resolve()
     manifest_path = detect_manifest(start_path)
     if manifest_path is None:
@@ -182,7 +214,7 @@ def update_metadata(
             ],
         )
 
-    object_xml = source_dir / "Catalogs" / f"{name}.xml"
+    object_xml = object_xml_path(source_dir, obj_type, name)
     if not object_xml.is_file():
         try:
             file_rel = object_xml.relative_to(root).as_posix()

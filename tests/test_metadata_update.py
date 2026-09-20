@@ -15,7 +15,16 @@ from adapters.source.xmlgen.edit import _parse_edit_output
 from adapters.source.xmlgen.resolve import resolve_jar, resolve_java
 from cli.main import app
 from core.exit_codes import PROJECT_ERROR, SUCCESS
-from core.metadata import attr_to_xmlgen_shorthand, ops_from_attr, parse_attr_spec, update_metadata
+from core.metadata import (
+    attr_to_xmlgen_shorthand,
+    ops_from_attr,
+    ops_from_ts,
+    ops_from_ts_attr,
+    parse_attr_spec,
+    parse_ts_attr_spec,
+    parse_ts_spec,
+    update_metadata,
+)
 from core.metadata.result import MetadataResult
 from core.project import init_project
 
@@ -42,6 +51,21 @@ def test_attr_to_xmlgen_shorthand() -> None:
 
     ref = parse_attr_spec("Counterparty:Ref:Catalog.Counterparties:Контрагент")
     assert attr_to_xmlgen_shorthand(ref) == "Counterparty:CatalogRef.Counterparties"
+
+
+def test_ops_from_ts_and_ts_attr() -> None:
+    section = parse_ts_spec("Products:Товары")
+    assert ops_from_ts(section) == [
+        EditOp("add-ts", "Products"),
+        EditOp("modify-ts", "Products: synonym=Товары"),
+    ]
+    assert ops_from_ts(parse_ts_spec("Lines")) == [EditOp("add-ts", "Lines")]
+
+    ts_name, attr = parse_ts_attr_spec("Products.Qty:Number:15.3:Количество")
+    assert ts_name == "Products"
+    assert ops_from_ts_attr(ts_name, attr) == [
+        EditOp("add-ts-attribute", "Products.Qty:Number(15,3)"),
+    ]
 
 
 def test_parse_edit_output_warn() -> None:
@@ -170,11 +194,110 @@ def test_update_not_found(tmp_path: Path) -> None:
     assert any(d.get("code") == "1CM008" for d in result.diagnostics)
 
 
-def test_update_rejects_document(tmp_path: Path) -> None:
+def test_update_document_ts_ops_mock(tmp_path: Path) -> None:
     target = _init_shop(tmp_path)
+    docs = target / "src" / "cf" / "Documents"
+    docs.mkdir(parents=True)
+    (docs / "Sales.xml").write_text("<Document/>", encoding="utf-8")
+    calls: list[EditOp] = []
+
+    def fake_edit(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "Sales.xml"
+        assert "Documents" in object_xml.parts
+        calls.extend(operations)
+        return EditResult(
+            changed_paths=["Documents/Sales.xml"],
+            added=1,
+        )
+
+    def fake_get(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "Document",
+                "name": "Sales",
+                "qname": qname,
+                "tabularSections": [
+                    {
+                        "name": "Products",
+                        "attributes": [{"name": "Qty", "type": "Number"}],
+                    }
+                ],
+            },
+        )
+
     result = update_metadata(
         target,
         "Document.Sales",
+        [
+            EditOp("add-ts", "Products"),
+            EditOp("add-ts-attribute", "Products.Qty:Number(15,3)"),
+        ],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert result.object == "Document.Sales"
+    assert result.updated
+    assert result.ir is not None
+    assert result.ir["tabularSections"][0]["name"] == "Products"
+    assert [c.op for c in calls] == ["add-ts", "add-ts-attribute"]
+
+    result = update_metadata(
+        target,
+        "Document.Sales",
+        [EditOp("remove-ts-attribute", "Products.Qty")],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+
+    result = update_metadata(
+        target,
+        "Document.Sales",
+        [EditOp("remove-ts", "Products")],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert [c.op for c in calls] == [
+        "add-ts",
+        "add-ts-attribute",
+        "remove-ts-attribute",
+        "remove-ts",
+    ]
+
+
+def test_update_duplicate_ts_warning(tmp_path: Path) -> None:
+    target = _init_shop(tmp_path)
+
+    def fake_edit(_object_xml: Path, _operations: list[EditOp]) -> EditResult:
+        return EditResult(
+            warnings=["Tabular section 'Products' already exists, skipping"],
+        )
+
+    def fake_get(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(status="ok", object=qname, ir={"type": "Catalog", "name": "Products"})
+
+    result = update_metadata(
+        target,
+        "Catalog.Products",
+        [EditOp("add-ts", "Products")],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert result.updated == []
+    assert any(d.get("severity") == "warning" for d in result.diagnostics)
+    assert "already exists" in result.diagnostics[0]["message"]
+
+
+def test_update_rejects_unsupported_type(tmp_path: Path) -> None:
+    target = _init_shop(tmp_path)
+    result = update_metadata(
+        target,
+        "Enum.Statuses",
         [EditOp("add-attribute", "X:String(10)")],
         edit_fn=lambda *_a, **_k: EditResult(),
     )
@@ -236,6 +359,43 @@ def test_cli_attr_sugar(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert "synonym=Цена" in seen[1].value
     payload = json.loads(result.output)
     assert payload["status"] == "ok"
+
+
+def test_cli_ts_sugar(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    target = _init_shop(tmp_path)
+    monkeypatch.chdir(target)
+    seen: list[EditOp] = []
+
+    def fake_update(
+        start: Path | None,
+        qname: str,
+        operations: list[EditOp],
+        **_kw: Any,
+    ) -> MetadataResult:
+        seen.extend(operations)
+        return MetadataResult(status="ok", object=qname)
+
+    monkeypatch.setattr("cli.metadata.update_metadata", fake_update)
+    result = runner.invoke(
+        app,
+        [
+            "metadata",
+            "update",
+            "Document.Sales",
+            "--ts",
+            "Products:Товары",
+            "--ts-attr",
+            "Products.Qty:Number:15.3:Количество",
+            "--output",
+            "json",
+        ],
+    )
+    assert result.exit_code == SUCCESS, result.output
+    assert seen == [
+        EditOp("add-ts", "Products"),
+        EditOp("modify-ts", "Products: synonym=Товары"),
+        EditOp("add-ts-attribute", "Products.Qty:Number(15,3)"),
+    ]
 
 
 def test_cli_from_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -385,3 +545,102 @@ def test_update_with_real_xmlgen(tmp_path: Path) -> None:
             if isinstance(a, dict)
         }
         assert "Price" not in names2
+
+
+@pytest.mark.integration
+def test_update_ts_document_with_real_xmlgen(tmp_path: Path) -> None:
+    jar = resolve_jar()
+    java = resolve_java()
+    if not jar.found or not java.found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    from adapters.source.mdclasses.resolve import resolve_jar as resolve_md
+    from adapters.source.mdclasses.resolve import resolve_java as resolve_md_java
+    from core.metadata import catalog_from_parts, create_metadata, get_metadata
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+    created = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Document.Sales",
+            synonym="Продажи",
+        ),
+    )
+    assert created.status == "ok", created.diagnostics
+
+    sales = target / "src" / "cf" / "Documents" / "Sales.xml"
+    assert sales.is_file()
+
+    added_ts = update_metadata(
+        target,
+        "Document.Sales",
+        [
+            EditOp("add-ts", "Products"),
+            EditOp("modify-ts", "Products: synonym=Товары"),
+            EditOp("add-ts-attribute", "Products.Qty:Number(15,3)"),
+        ],
+    )
+    assert added_ts.status == "ok", added_ts.diagnostics
+    assert added_ts.updated
+    text = sales.read_text(encoding="utf-8-sig")
+    assert "Products" in text
+    assert "Qty" in text
+    assert "Товары" in text
+
+    checksum = hashlib.sha256(sales.read_bytes()).hexdigest()
+    dup = update_metadata(
+        target,
+        "Document.Sales",
+        [EditOp("add-ts", "Products")],
+    )
+    assert dup.status == "ok", dup.diagnostics
+    assert any(d.get("severity") == "warning" for d in dup.diagnostics)
+    assert hashlib.sha256(sales.read_bytes()).hexdigest() == checksum
+
+    md_java = resolve_md_java()
+    md_jar = resolve_md()
+    if md_java.found and md_jar.found:
+        got = get_metadata(target, "Document.Sales")
+        assert got.status == "ok", got.diagnostics
+        assert got.ir is not None
+        sections = {
+            s.get("name"): s
+            for s in (got.ir.get("tabularSections") or [])
+            if isinstance(s, dict)
+        }
+        assert "Products" in sections
+        attrs = {
+            a.get("name"): a
+            for a in (sections["Products"].get("attributes") or [])
+            if isinstance(a, dict)
+        }
+        assert "Qty" in attrs
+        assert attrs["Qty"].get("type") == "Number"
+
+    removed_attr = update_metadata(
+        target,
+        "Document.Sales",
+        [EditOp("remove-ts-attribute", "Products.Qty")],
+    )
+    assert removed_attr.status == "ok", removed_attr.diagnostics
+    text = sales.read_text(encoding="utf-8-sig")
+    assert "<Name>Qty</Name>" not in text
+
+    removed_ts = update_metadata(
+        target,
+        "Document.Sales",
+        [EditOp("remove-ts", "Products")],
+    )
+    assert removed_ts.status == "ok", removed_ts.diagnostics
+    text = sales.read_text(encoding="utf-8-sig")
+    # Child ChildObjects entry / section name should be gone
+    assert "<Name>Products</Name>" not in text or "TabularSection" not in text
+
+    if md_java.found and md_jar.found:
+        got2 = get_metadata(target, "Document.Sales")
+        assert got2.status == "ok", got2.diagnostics
+        sections2 = (got2.ir or {}).get("tabularSections") or []
+        names = {s.get("name") for s in sections2 if isinstance(s, dict)}
+        assert "Products" not in names

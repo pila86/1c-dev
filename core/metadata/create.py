@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 from adapters.source.xmlgen import (
-    CREATE_FOLLOWUP_OPS,
     EditOp,
     XmlGenError,
     compile_metadata,
@@ -244,4 +243,4 @@ def _apply_tabular_synonyms(
             f"Файл объекта не найден после compile: {object_file}",
             code="1CM007",
         )
-    edit_metadata(object_file, ops, allowed_ops=CREATE_FOLLOWUP_OPS)
+    edit_metadata(object_file, ops)

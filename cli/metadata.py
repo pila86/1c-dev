@@ -23,7 +23,11 @@ from core.metadata import (
     list_metadata,
     load_json_input,
     ops_from_attr,
+    ops_from_ts,
+    ops_from_ts_attr,
     parse_attr_spec,
+    parse_ts_attr_spec,
+    parse_ts_spec,
     update_metadata,
 )
 
@@ -154,16 +158,26 @@ def _ir_error_result(exc: IrError) -> MetadataResult:
 def _build_update_ops(
     *,
     attr: list[str] | None,
+    ts: list[str] | None,
+    ts_attr: list[str] | None,
     ops: list[str] | None,
     values: list[str] | None,
     from_json: str | None,
 ) -> list[EditOp]:
-    """Combine --attr sugar, --from-json operations, then --op/--value pairs."""
+    """Combine --attr/--ts/--ts-attr sugar, --from-json operations, then --op/--value."""
     result: list[EditOp] = []
 
     for spec in attr or []:
         attribute = parse_attr_spec(spec)
         result.extend(ops_from_attr(attribute))
+
+    for spec in ts or []:
+        section = parse_ts_spec(spec)
+        result.extend(ops_from_ts(section))
+
+    for spec in ts_attr or []:
+        ts_name, attribute = parse_ts_attr_spec(spec)
+        result.extend(ops_from_ts_attr(ts_name, attribute))
 
     if from_json is not None:
         data = load_json_input(from_json)
@@ -197,7 +211,7 @@ def _build_update_ops(
 
     if not result:
         raise IrError(
-            "Укажите операции: --op/--value, --attr или --from-json",
+            "Укажите операции: --op/--value, --attr, --ts, --ts-attr или --from-json",
             code="1CM002",
         )
     return result
@@ -252,12 +266,15 @@ def update_command(
     ctx: typer.Context,
     qualified_name: str = typer.Argument(
         ...,
-        help="Qualified name, например Catalog.Products.",
+        help="Qualified name, например Catalog.Products или Document.Sales.",
     ),
     op: list[str] | None = typer.Option(
         None,
         "--op",
-        help="Операция xml-gen: add-attribute | modify-attribute | remove-attribute.",
+        help=(
+            "Операция xml-gen: add|modify|remove-attribute, "
+            "add|modify|remove-ts, add|remove-ts-attribute."
+        ),
     ),
     value: list[str] | None = typer.Option(
         None,
@@ -269,6 +286,16 @@ def update_command(
         "--attr",
         help="Сахар IR Name:Type[:Qual][:Synonym] → add (+ modify synonym).",
     ),
+    ts: list[str] | None = typer.Option(
+        None,
+        "--ts",
+        help="Сахар ТЧ Name[:Synonym] → add-ts (+ modify-ts synonym).",
+    ),
+    ts_attr: list[str] | None = typer.Option(
+        None,
+        "--ts-attr",
+        help="Сахар TSName.Name:Type[:Qual][:Synonym] → add-ts-attribute.",
+    ),
     from_json: str | None = typer.Option(
         None,
         "--from-json",
@@ -276,11 +303,13 @@ def update_command(
     ),
     output: OutputOption = None,
 ) -> None:
-    """Изменить объект метаданных (M2: Catalog attribute ops через xml-gen)."""
+    """Изменить объект метаданных (Catalog/Document: attributes и ТЧ через xml-gen)."""
     fmt = resolve_output(ctx, output)
     try:
         operations = _build_update_ops(
             attr=attr,
+            ts=ts,
+            ts_attr=ts_attr,
             ops=op,
             values=value,
             from_json=from_json,
