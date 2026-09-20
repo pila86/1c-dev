@@ -61,10 +61,13 @@ def register_tools(server: FastMCP) -> None:
     @server.tool(
         name="metadata.create",
         description=(
-            "Create a metadata object in XML source (Catalog or Document). "
-            "Pass qualified_name like Catalog.Products or Document.Sales, "
-            "optional attributes, and optional tabular_sections "
-            "[{name, synonym?, attributes[]}]."
+            "Create a metadata object in XML source. "
+            "Types: Catalog, Document, Enum, InformationRegister, "
+            "AccumulationRegister. Pass qualified_name (e.g. Catalog.Products, "
+            "Enum.Statuses, InformationRegister.Prices); optional synonym; "
+            "for Catalog/Document: attributes and tabular_sections; "
+            "for Enum: values [{name, synonym?}]; "
+            "for registers: dimensions and resources (same shape as attributes)."
             + _NO_SHELL
         ),
     )
@@ -73,16 +76,25 @@ def register_tools(server: FastMCP) -> None:
         synonym: str | None = None,
         attributes: list[dict[str, Any]] | None = None,
         tabular_sections: list[dict[str, Any]] | None = None,
+        values: list[dict[str, Any]] | None = None,
+        dimensions: list[dict[str, Any]] | None = None,
+        resources: list[dict[str, Any]] | None = None,
         path: str | None = None,
     ) -> dict[str, Any]:
         try:
-            data: dict[str, Any] = {
-                "attributes": list(attributes or []),
-            }
+            data: dict[str, Any] = {}
+            if attributes:
+                data["attributes"] = list(attributes)
             if synonym:
                 data["synonym"] = synonym
             if tabular_sections:
                 data["tabularSections"] = list(tabular_sections)
+            if values:
+                data["values"] = list(values)
+            if dimensions:
+                data["dimensions"] = list(dimensions)
+            if resources:
+                data["resources"] = list(resources)
             # type/name come from qualified_name (validated inside catalog_from_json)
             catalog = catalog_from_json(data, qualified_name=qualified_name)
             if synonym and not catalog.synonym:

@@ -97,8 +97,23 @@ class EnumValue:
         return data
 
 
-# Object types writable via metadata.create in #23 (Enum/registers → #24).
-CREATE_OBJECT_TYPES: frozenset[str] = frozenset({"Catalog", "Document"})
+# Object types writable via metadata.create (ADR-011 / #23 / #24).
+CREATE_OBJECT_TYPES: frozenset[str] = frozenset(
+    {
+        "Catalog",
+        "Document",
+        "Enum",
+        "InformationRegister",
+        "AccumulationRegister",
+    }
+)
+
+# Object types writable via metadata.update (Catalog/Document + attr/TS ops).
+UPDATE_OBJECT_TYPES: frozenset[str] = frozenset({"Catalog", "Document"})
+
+_REGISTER_TYPES: frozenset[str] = frozenset(
+    {"InformationRegister", "AccumulationRegister"}
+)
 
 
 @dataclass
@@ -107,6 +122,9 @@ class CatalogObject:
     synonym: str | None = None
     attributes: list[Attribute] = field(default_factory=list)
     tabular_sections: list[TabularSection] = field(default_factory=list)
+    values: list[EnumValue] = field(default_factory=list)
+    dimensions: list[Attribute] = field(default_factory=list)
+    resources: list[Attribute] = field(default_factory=list)
     type: ObjectType = "Catalog"
 
     @property
@@ -117,10 +135,17 @@ class CatalogObject:
         data: dict[str, Any] = {
             "type": self.type,
             "name": self.name,
-            "attributes": [a.to_dict() for a in self.attributes],
         }
         if self.synonym:
             data["synonym"] = self.synonym
+        if self.type == "Enum":
+            data["values"] = [v.to_dict() for v in self.values]
+            return data
+        if self.type in _REGISTER_TYPES:
+            data["dimensions"] = [a.to_dict() for a in self.dimensions]
+            data["resources"] = [a.to_dict() for a in self.resources]
+            return data
+        data["attributes"] = [a.to_dict() for a in self.attributes]
         if self.tabular_sections:
             data["tabularSections"] = [t.to_dict() for t in self.tabular_sections]
         return data
@@ -248,6 +273,19 @@ def parse_ts_spec(spec: str) -> TabularSection:
     return TabularSection(name=_check_name(name_part, what="табличной части"), synonym=synonym)
 
 
+def parse_enum_value_spec(spec: str) -> EnumValue:
+    """Parse CLI --value: Name[:Synonym]."""
+    raw = spec.strip()
+    if not raw:
+        raise IrError("Пустой --value")
+    if ":" in raw:
+        name_part, synonym_part = raw.split(":", 1)
+        synonym = synonym_part.strip() or None
+    else:
+        name_part, synonym = raw, None
+    return EnumValue(name=_check_name(name_part, what="значения перечисления"), synonym=synonym)
+
+
 def catalog_from_parts(
     *,
     qualified_name: str,
@@ -255,8 +293,11 @@ def catalog_from_parts(
     attr_specs: list[str] | None = None,
     ts_specs: list[str] | None = None,
     ts_attr_specs: list[str] | None = None,
+    value_specs: list[str] | None = None,
+    dimension_specs: list[str] | None = None,
+    resource_specs: list[str] | None = None,
 ) -> CatalogObject:
-    """Build Catalog/Document IR from CLI pieces (ADR-011 / #23)."""
+    """Build create IR from CLI pieces (ADR-011 / #23 / #24)."""
     obj_type, name = parse_qualified_name(qualified_name)
     if obj_type not in CREATE_OBJECT_TYPES:
         raise IrError(
@@ -269,13 +310,21 @@ def catalog_from_parts(
         ts_specs=list(ts_specs or []),
         ts_attr_specs=list(ts_attr_specs or []),
     )
-    return CatalogObject(
+    values = [parse_enum_value_spec(s) for s in (value_specs or [])]
+    dimensions = [parse_attr_spec(s) for s in (dimension_specs or [])]
+    resources = [parse_attr_spec(s) for s in (resource_specs or [])]
+    obj = CatalogObject(
         name=name,
         synonym=synonym,
         attributes=attrs,
         tabular_sections=sections,
+        values=values,
+        dimensions=dimensions,
+        resources=resources,
         type=obj_type,
     )
+    _validate_create_shape(obj)
+    return obj
 
 
 def catalog_from_json(
@@ -283,7 +332,7 @@ def catalog_from_json(
     *,
     qualified_name: str | None = None,
 ) -> CatalogObject:
-    """Build Catalog/Document IR from JSON body (ADR-011)."""
+    """Build create IR from JSON body (ADR-011 / #24)."""
     name_raw = data.get("name")
     obj_type: ObjectType
     name: str
@@ -317,22 +366,71 @@ def catalog_from_json(
 
     synonym = data.get("synonym")
     synonym_s = str(synonym) if synonym else None
-    attrs: list[Attribute] = []
-    for item in data.get("attributes") or []:
-        if isinstance(item, str):
-            attrs.append(parse_attr_spec(item))
-            continue
-        if not isinstance(item, dict):
-            raise IrError("Элемент attributes должен быть объектом или строкой")
-        attrs.append(_attribute_from_dict(item))
+    attrs = _attributes_from_json_list(list(data.get("attributes") or []))
     sections = _tabular_sections_from_json(data.get("tabularSections"))
-    return CatalogObject(
+    values = _enum_values_from_json(data.get("values"))
+    dimensions = _attributes_from_json_list(list(data.get("dimensions") or []))
+    resources = _attributes_from_json_list(list(data.get("resources") or []))
+    obj = CatalogObject(
         name=name,
         synonym=synonym_s,
         attributes=attrs,
         tabular_sections=sections,
+        values=values,
+        dimensions=dimensions,
+        resources=resources,
         type=obj_type,
     )
+    _validate_create_shape(obj)
+    return obj
+
+
+def _validate_create_shape(obj: CatalogObject) -> None:
+    """Reject IR fields that do not belong to the object type (ADR-011)."""
+    if obj.type == "Enum":
+        if obj.attributes or obj.tabular_sections or obj.dimensions or obj.resources:
+            raise IrError(
+                "Enum не поддерживает attributes / tabularSections / "
+                "dimensions / resources",
+                code="1CM004",
+            )
+        return
+    if obj.type in _REGISTER_TYPES:
+        if obj.attributes or obj.tabular_sections or obj.values:
+            raise IrError(
+                f"{obj.type} не поддерживает attributes / tabularSections / values",
+                code="1CM004",
+            )
+        return
+    # Catalog / Document
+    if obj.values or obj.dimensions or obj.resources:
+        raise IrError(
+            f"{obj.type} не поддерживает values / dimensions / resources",
+            code="1CM004",
+        )
+
+
+def _enum_values_from_json(raw: Any) -> list[EnumValue]:
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise IrError("values должен быть массивом")
+    values: list[EnumValue] = []
+    seen: set[str] = set()
+    for item in raw:
+        if isinstance(item, str):
+            value = parse_enum_value_spec(item)
+        elif isinstance(item, dict):
+            name = _check_name(str(item.get("name", "")), what="значения перечисления")
+            syn = item.get("synonym")
+            value = EnumValue(name=name, synonym=str(syn) if syn else None)
+        else:
+            raise IrError("Элемент values должен быть объектом или строкой")
+        if value.name in seen:
+            raise IrError(f"Дублирующееся значение перечисления: {value.name!r}")
+        seen.add(value.name)
+        values.append(value)
+    return values
 
 
 def _tabular_sections_from_cli(

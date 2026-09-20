@@ -1,4 +1,4 @@
-"""metadata.create orchestration (ADR-007 / #23)."""
+"""metadata.create orchestration (ADR-007 / #23 / #24)."""
 
 from __future__ import annotations
 
@@ -36,7 +36,10 @@ def create_metadata(
     followup_fn: FollowupFn | None = None,
 ) -> MetadataResult:
     """
-    Create Catalog or Document via xml-gen write-path (ADR-011 / #23).
+    Create metadata object via xml-gen write-path (ADR-011 / #23 / #24).
+
+    Supported types: Catalog, Document, Enum, InformationRegister,
+    AccumulationRegister.
 
     compile_fn: optional injectable (source_dir, dsl) -> list[str] for tests.
     followup_fn: optional injectable for tabular-section synonym edits.

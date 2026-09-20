@@ -7,6 +7,7 @@ from core.metadata.delete import delete_metadata
 from core.metadata.ir import (
     CREATE_OBJECT_TYPES,
     M2_OBJECT_TYPES,
+    UPDATE_OBJECT_TYPES,
     Attribute,
     CatalogObject,
     EnumValue,
@@ -17,6 +18,7 @@ from core.metadata.ir import (
     catalog_from_parts,
     load_json_input,
     parse_attr_spec,
+    parse_enum_value_spec,
     parse_qualified_name,
     parse_ts_attr_spec,
     parse_ts_spec,
@@ -35,6 +37,7 @@ from core.metadata.update import (
 __all__ = [
     "CREATE_OBJECT_TYPES",
     "M2_OBJECT_TYPES",
+    "UPDATE_OBJECT_TYPES",
     "Attribute",
     "CatalogObject",
     "EnumValue",
@@ -55,6 +58,7 @@ __all__ = [
     "ops_from_ts",
     "ops_from_ts_attr",
     "parse_attr_spec",
+    "parse_enum_value_spec",
     "parse_qualified_name",
     "parse_ts_attr_spec",
     "parse_ts_spec",

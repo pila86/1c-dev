@@ -14,6 +14,9 @@ from adapters.source.xmlgen.resolve import ToolResolve, resolve_jar, resolve_jav
 _TYPE_DIRS: dict[str, str] = {
     "Catalog": "Catalogs",
     "Document": "Documents",
+    "Enum": "Enums",
+    "InformationRegister": "InformationRegisters",
+    "AccumulationRegister": "AccumulationRegisters",
 }
 
 
@@ -69,6 +72,9 @@ def ir_to_xmlgen_dsl(ir: dict[str, Any]) -> dict[str, Any]:
     Tabular sections: IR uses an array of {name, synonym?, attributes[]};
     xml-gen expects a map ``{TSName: [attr, …]}`` (synonym applied later via
     ``meta edit --op modify-ts``).
+
+    Enum: ``values`` → xml-gen ``values`` (``{name, synonym?}``).
+    Registers: ``dimensions`` / ``resources`` → same attr entry shape as attributes.
     """
     attrs_out = [
         _attr_to_xmlgen_entry(attr)
@@ -84,6 +90,26 @@ def ir_to_xmlgen_dsl(ir: dict[str, Any]) -> dict[str, Any]:
         dsl["synonym"] = ir["synonym"]
     if attrs_out:
         dsl["attributes"] = attrs_out
+
+    values_out = _enum_values_to_xmlgen(ir.get("values"))
+    if values_out:
+        dsl["values"] = values_out
+
+    dims_out = [
+        _attr_to_xmlgen_entry(attr)
+        for attr in (ir.get("dimensions") or [])
+        if isinstance(attr, dict)
+    ]
+    if dims_out:
+        dsl["dimensions"] = dims_out
+
+    res_out = [
+        _attr_to_xmlgen_entry(attr)
+        for attr in (ir.get("resources") or [])
+        if isinstance(attr, dict)
+    ]
+    if res_out:
+        dsl["resources"] = res_out
 
     ts_raw = ir.get("tabularSections")
     if isinstance(ts_raw, dict):
@@ -119,6 +145,25 @@ def ir_to_xmlgen_dsl(ir: dict[str, Any]) -> dict[str, Any]:
         dsl["tabularSections"] = ts_map
 
     return dsl
+
+
+def _enum_values_to_xmlgen(raw: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if isinstance(item, dict):
+            name = item.get("name")
+            if not name:
+                continue
+            entry: dict[str, Any] = {"name": str(name)}
+            synonym = item.get("synonym")
+            if synonym:
+                entry["synonym"] = str(synonym)
+            out.append(entry)
+        elif isinstance(item, str) and item.strip():
+            out.append({"name": item.strip()})
+    return out
 
 
 def compile_metadata(
