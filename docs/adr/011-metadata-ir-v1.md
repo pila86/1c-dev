@@ -115,8 +115,13 @@ JSON-пример атрибута-ссылки:
 ### Семантика `metadata.update`
 
 - Цель: существующий объект по QName.
-- M2: **только добавление** `attributes` и/или `tabularSections` (и `values` / `dimensions` / `resources` для соответствующих типов по мере поддержки).
-- Конфликт имени → structured diagnostic, **source не меняется**.
+- Модель операций (как у xml-gen `meta edit`), не «только add»:
+  - `add-attribute` / `modify-attribute` / `remove-attribute` (и аналоги для ТЧ / dimensions / … по мере поддержки write).
+- Scope write #22: **Catalog** + три attribute-ops; Document / ТЧ / регистры — позже тем же контрактом.
+- No-op backend (дубль add, modify/remove несуществующего) → `status=ok`, diagnostic `severity=warning`, source не менялся; CLI exit = SUCCESS.
+- Объект / файл не найден → `status=error`, diagnostic (например `1CM008`), source intact.
+- Пустой список операций → `status=error`.
+- Удаление **атрибута** — через `update` + `remove-attribute`, не через `metadata.delete`.
 - Без публичного `source.write`.
 
 ### Семантика `metadata.delete`
@@ -126,7 +131,7 @@ JSON-пример атрибута-ссылки:
 - Объект не найден → structured diagnostic, source не меняется.
 - Без cascade по ссылкам (битые `Ref` после delete допустимы до graph / M5).
 - После delete: `metadata.get` → not found; `list` не содержит объект.
-- Удаление вложенных элементов (атрибуты, ТЧ, values, dimensions/resources) — **не** часть этого контракта; open design в issue delete.
+- Nested delete атрибутов — через `metadata.update` (`remove-attribute`); удаление ТЧ / values / dimensions / resources как отдельные ops — later, не must `metadata.delete`.
 
 ### Write-backend
 
@@ -140,7 +145,7 @@ JSON-пример атрибута-ссылки:
 - Полное покрытие видов метаданных платформы
 - Расширения (`project.type: extension`)
 - `CommonModule` (stretch)
-- Nested delete (атрибуты / ТЧ / …) — до отдельного решения
+- Nested delete ТЧ / values / dimensions / resources (атрибуты — через `update` `remove-attribute`)
 
 ## Альтернативы
 

@@ -47,6 +47,7 @@
         "build": { "$ref": "#/$defs/capability" },
         "check": { "$ref": "#/$defs/capability" },
         "metadata.create": { "$ref": "#/$defs/capability" },
+        "metadata.update": { "$ref": "#/$defs/capability" },
         "metadata.read": { "$ref": "#/$defs/capability" }
       }
     },

@@ -8,6 +8,7 @@ from typing import Any
 
 import typer
 
+from adapters.source.xmlgen import EditOp, edit_op_from_dict
 from cli.output import OutputFormat, OutputOption, resolve_output
 from core.exit_codes import ENV_UNAVAILABLE, PROJECT_ERROR, SUCCESS
 from core.metadata import (
@@ -20,6 +21,9 @@ from core.metadata import (
     get_metadata,
     list_metadata,
     load_json_input,
+    ops_from_attr,
+    parse_attr_spec,
+    update_metadata,
 )
 
 app = typer.Typer(
@@ -65,6 +69,24 @@ def _create_text(result: MetadataResult) -> list[str]:
     return lines
 
 
+def _update_text(result: MetadataResult) -> list[str]:
+    if result.status != "ok":
+        return _error_text(result)
+    lines = ["status: ok"]
+    if result.object:
+        lines.append(f"object: {result.object}")
+    if result.root:
+        lines.append(f"root: {result.root}")
+    if result.updated:
+        lines.append("updated:")
+        for item in result.updated:
+            lines.append(f"  - {item}")
+    for diag in result.diagnostics:
+        if diag.get("severity") == "warning":
+            lines.append(f"warning: {diag.get('message', '')}")
+    return lines
+
+
 def _list_text(result: MetadataResult) -> list[str]:
     if result.status != "ok":
         return _error_text(result)
@@ -97,6 +119,72 @@ def _exit_for(result: MetadataResult) -> None:
     if "1CM006" in codes:
         raise typer.Exit(code=ENV_UNAVAILABLE)
     raise typer.Exit(code=PROJECT_ERROR)
+
+
+def _ir_error_result(exc: IrError) -> MetadataResult:
+    return MetadataResult(
+        status="error",
+        diagnostics=[
+            {
+                "severity": "error",
+                "code": exc.code,
+                "message": exc.message,
+                "source": "metadata",
+            }
+        ],
+    )
+
+
+def _build_update_ops(
+    *,
+    attr: list[str] | None,
+    ops: list[str] | None,
+    values: list[str] | None,
+    from_json: str | None,
+) -> list[EditOp]:
+    """Combine --attr sugar, --from-json operations, then --op/--value pairs."""
+    result: list[EditOp] = []
+
+    for spec in attr or []:
+        attribute = parse_attr_spec(spec)
+        result.extend(ops_from_attr(attribute))
+
+    if from_json is not None:
+        data = load_json_input(from_json)
+        raw_ops = data.get("operations")
+        if not isinstance(raw_ops, list):
+            raise IrError(
+                "JSON update ожидает объект с полем operations[]",
+                code="1CM002",
+            )
+        for item in raw_ops:
+            if not isinstance(item, dict):
+                raise IrError(
+                    "Элемент operations должен быть объектом {op, value}",
+                    code="1CM002",
+                )
+            try:
+                result.append(edit_op_from_dict(item))
+            except ValueError as exc:
+                raise IrError(str(exc), code="1CM002") from exc
+
+    op_list = list(ops or [])
+    value_list = list(values or [])
+    if len(op_list) != len(value_list):
+        raise IrError(
+            f"Число --op ({len(op_list)}) должно совпадать с числом --value "
+            f"({len(value_list)})",
+            code="1CM002",
+        )
+    for op_name, val in zip(op_list, value_list, strict=True):
+        result.append(EditOp(op=op_name, value=val))
+
+    if not result:
+        raise IrError(
+            "Укажите операции: --op/--value, --attr или --from-json",
+            code="1CM002",
+        )
+    return result
 
 
 @app.command("list")
@@ -140,6 +228,70 @@ def find_command(
     fmt = resolve_output(ctx, output)
     result = find_metadata(Path.cwd(), query)
     _emit(result.to_payload(), fmt, text_lines=_list_text(result))
+    _exit_for(result)
+
+
+@app.command("update")
+def update_command(
+    ctx: typer.Context,
+    qualified_name: str = typer.Argument(
+        ...,
+        help="Qualified name, например Catalog.Products.",
+    ),
+    op: list[str] | None = typer.Option(
+        None,
+        "--op",
+        help="Операция xml-gen: add-attribute | modify-attribute | remove-attribute.",
+    ),
+    value: list[str] | None = typer.Option(
+        None,
+        "--value",
+        help="Значение для соответствующей --op (порядок zip).",
+    ),
+    attr: list[str] | None = typer.Option(
+        None,
+        "--attr",
+        help="Сахар IR Name:Type[:Qual][:Synonym] → add (+ modify synonym).",
+    ),
+    from_json: str | None = typer.Option(
+        None,
+        "--from-json",
+        help='JSON с operations[] или "-" для stdin.',
+    ),
+    output: OutputOption = None,
+) -> None:
+    """Изменить объект метаданных (M2: Catalog attribute ops через xml-gen)."""
+    fmt = resolve_output(ctx, output)
+    try:
+        operations = _build_update_ops(
+            attr=attr,
+            ops=op,
+            values=value,
+            from_json=from_json,
+        )
+    except IrError as exc:
+        result = _ir_error_result(exc)
+        _emit(result.to_payload(), fmt, text_lines=_update_text(result))
+        _exit_for(result)
+        return
+    except (OSError, json.JSONDecodeError) as exc:
+        result = MetadataResult(
+            status="error",
+            diagnostics=[
+                {
+                    "severity": "error",
+                    "code": "1CM004",
+                    "message": f"Не удалось прочитать JSON: {exc}",
+                    "source": "metadata",
+                }
+            ],
+        )
+        _emit(result.to_payload(), fmt, text_lines=_update_text(result))
+        _exit_for(result)
+        return
+
+    result = update_metadata(Path.cwd(), qualified_name, operations)
+    _emit(result.to_payload(), fmt, text_lines=_update_text(result))
     _exit_for(result)
 
 
@@ -189,17 +341,7 @@ def create_command(
                 attr_specs=list(attr or []),
             )
     except IrError as exc:
-        result = MetadataResult(
-            status="error",
-            diagnostics=[
-                {
-                    "severity": "error",
-                    "code": exc.code,
-                    "message": exc.message,
-                    "source": "metadata",
-                }
-            ],
-        )
+        result = _ir_error_result(exc)
         _emit(result.to_payload(), fmt, text_lines=_create_text(result))
         _exit_for(result)
         return

@@ -5,7 +5,8 @@ Agent-independent toolchain и API-слой для AI-native разработк�
 ## Prerequisites
 
 - Python 3.11+ и [Poetry](https://python-poetry.org/)
-- JDK 17+ — для `metadata.create` (jar xml-gen)
+- JDK 17+ — для `metadata.create` / `metadata.update` (jar xml-gen)
+- JDK 21+ — для `metadata.list` / `get` / `find` (jar md-reader / MDClasses)
 - Платформа 1С 8.3.x и `ibcmd` в PATH — для `build` / `check` и integration-тестов
 
 ## Стек
@@ -18,14 +19,15 @@ Agent-independent toolchain и API-слой для AI-native разработк�
 
 ```bash
 poetry install
-./scripts/fetch-xml-gen.sh   # один раз: xml-gen для metadata.create (JDK 17+)
+./scripts/fetch-xml-gen.sh     # один раз: xml-gen для create/update (JDK 17+)
+./scripts/fetch-md-reader.sh   # один раз: md-reader для list/get/find (JDK 21+)
 poetry run 1c-dev --version
 poetry run 1c-dev --help
 poetry run pytest
-poetry run pytest -m integration   # E2E с platform/xml-gen; иначе skip
+poetry run pytest -m integration   # E2E с platform/xml-gen/md-reader; иначе skip
 ```
 
-На Windows: `pwsh scripts/fetch-xml-gen.ps1`.
+На Windows: `pwsh scripts/fetch-xml-gen.ps1`, `pwsh scripts/fetch-md-reader.ps1`.
 
 ## CLI
 
@@ -33,10 +35,14 @@ poetry run pytest -m integration   # E2E с platform/xml-gen; иначе skip
 
 | Команда | Назначение |
 |---------|------------|
-| `1c-dev doctor` | Проверка окружения (платформа, `ibcmd`) |
+| `1c-dev doctor` | Проверка окружения (платформа, `ibcmd`, xml-gen, md-reader) |
 | `1c-dev init --type configuration` | Bootstrap пустого проекта |
 | `1c-dev project detect\|validate\|info` | Манифест `1c.project.yaml` (`project init` = алиас `init`) |
-| `1c-dev metadata create <QualifiedName>` | Создать объект метаданных в XML (M1: Catalog) |
+| `1c-dev metadata list` | Список объектов (IR summaries) |
+| `1c-dev metadata get <QualifiedName>` | IR объекта по QName |
+| `1c-dev metadata find <query>` | Поиск по имени / синониму |
+| `1c-dev metadata create <QualifiedName>` | Создать объект в XML (M1: Catalog) |
+| `1c-dev metadata update <QualifiedName>` | Ops над реквизитами Catalog (`add` / `modify` / `remove-attribute`) |
 | `1c-dev build [--artifact cf]` | Загрузить XML в file IB через `ibcmd` |
 | `1c-dev check [--platform]` | Платформенная проверка конфигурации (`ibcmd config check`) |
 | `1c-dev mcp` | MCP server (stdio) для AI-агентов |
@@ -47,6 +53,12 @@ poetry run pytest -m integration   # E2E с platform/xml-gen; иначе skip
 poetry run 1c-dev init --type configuration --output json
 poetry run 1c-dev doctor --output json
 poetry run 1c-dev metadata create Catalog.Products --synonym "Товары" --attr "Article:String:50:Артикул"
+poetry run 1c-dev metadata update Catalog.Products --op add-attribute --value "Price:Number(15,2)"
+poetry run 1c-dev metadata update Catalog.Products --op modify-attribute --value "Price: synonym=Цена, type=Number(10,2)"
+poetry run 1c-dev metadata update Catalog.Products --attr "Code:String:20:Код"
+poetry run 1c-dev metadata list --output json
+poetry run 1c-dev metadata get Catalog.Products --output json
+poetry run 1c-dev metadata find Товар --output json
 poetry run 1c-dev build --output json
 poetry run 1c-dev build --artifact cf --output json
 poetry run 1c-dev check --output json
@@ -87,9 +99,12 @@ Tools M1: `project.get`, `project.init`, `metadata.create`, `build`, `check` ([A
 ```bash
 poetry install
 ./scripts/fetch-xml-gen.sh
+./scripts/fetch-md-reader.sh
 poetry run 1c-dev init --type configuration
 poetry run 1c-dev doctor
 poetry run 1c-dev metadata create Catalog.Products --synonym "Товары"
+poetry run 1c-dev metadata update Catalog.Products --attr "Article:String:50:Артикул"
+poetry run 1c-dev metadata get Catalog.Products --output json
 poetry run 1c-dev build
 poetry run 1c-dev check
 ```
