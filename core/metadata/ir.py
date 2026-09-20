@@ -127,8 +127,17 @@ CREATE_OBJECT_TYPES: frozenset[str] = frozenset(
     }
 )
 
-# Object types writable via metadata.update (Catalog/Document + attr/TS ops).
-UPDATE_OBJECT_TYPES: frozenset[str] = frozenset({"Catalog", "Document"})
+# Object types writable via metadata.update (ADR-011 / #22 / #35 / #39 / #40).
+UPDATE_OBJECT_TYPES: frozenset[str] = frozenset(
+    {
+        "Catalog",
+        "Document",
+        "Enum",
+        "InformationRegister",
+        "AccumulationRegister",
+        "CommonModule",
+    }
+)
 
 _REGISTER_TYPES: frozenset[str] = frozenset(
     {"InformationRegister", "AccumulationRegister"}

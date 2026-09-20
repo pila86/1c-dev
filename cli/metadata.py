@@ -22,10 +22,16 @@ from core.metadata import (
     get_metadata,
     list_metadata,
     load_json_input,
+    normalize_edit_ops,
     ops_from_attr,
+    ops_from_common_module_flags,
+    ops_from_dimension,
+    ops_from_enum_value,
+    ops_from_resource,
     ops_from_ts,
     ops_from_ts_attr,
     parse_attr_spec,
+    parse_enum_value_spec,
     parse_ts_attr_spec,
     parse_ts_spec,
     update_metadata,
@@ -160,11 +166,21 @@ def _build_update_ops(
     attr: list[str] | None,
     ts: list[str] | None,
     ts_attr: list[str] | None,
+    dimension: list[str] | None,
+    resource: list[str] | None,
     ops: list[str] | None,
     values: list[str] | None,
     from_json: str | None,
+    server: bool | None = None,
+    client: bool | None = None,
+    client_ordinary: bool | None = None,
+    server_call: bool | None = None,
+    external_connection: bool | None = None,
+    privileged: bool | None = None,
+    global_flag: bool | None = None,
+    return_values_reuse: str | None = None,
 ) -> list[EditOp]:
-    """Combine --attr/--ts/--ts-attr sugar, --from-json operations, then --op/--value."""
+    """Combine sugar, --from-json operations, then --op/--value (with set-flag remap)."""
     result: list[EditOp] = []
 
     for spec in attr or []:
@@ -178,6 +194,25 @@ def _build_update_ops(
     for spec in ts_attr or []:
         ts_name, attribute = parse_ts_attr_spec(spec)
         result.extend(ops_from_ts_attr(ts_name, attribute))
+
+    for spec in dimension or []:
+        result.extend(ops_from_dimension(parse_attr_spec(spec)))
+
+    for spec in resource or []:
+        result.extend(ops_from_resource(parse_attr_spec(spec)))
+
+    result.extend(
+        ops_from_common_module_flags(
+            server=server,
+            client=client,
+            client_ordinary_application=client_ordinary,
+            server_call=server_call,
+            external_connection=external_connection,
+            privileged=privileged,
+            global_=global_flag,
+            return_values_reuse=return_values_reuse,
+        )
+    )
 
     if from_json is not None:
         data = load_json_input(from_json)
@@ -200,21 +235,27 @@ def _build_update_ops(
 
     op_list = list(ops or [])
     value_list = list(values or [])
-    if len(op_list) != len(value_list):
-        raise IrError(
-            f"Число --op ({len(op_list)}) должно совпадать с числом --value "
-            f"({len(value_list)})",
-            code="1CM002",
-        )
-    for op_name, val in zip(op_list, value_list, strict=True):
-        result.append(EditOp(op=op_name, value=val))
+    if op_list:
+        if len(op_list) != len(value_list):
+            raise IrError(
+                f"Число --op ({len(op_list)}) должно совпадать с числом --value "
+                f"({len(value_list)})",
+                code="1CM002",
+            )
+        for op_name, val in zip(op_list, value_list, strict=True):
+            result.append(EditOp(op=op_name, value=val))
+    elif value_list:
+        # No --op: --value is Enum sugar (Name[:Synonym]).
+        for spec in value_list:
+            result.extend(ops_from_enum_value(parse_enum_value_spec(spec)))
 
     if not result:
         raise IrError(
-            "Укажите операции: --op/--value, --attr, --ts, --ts-attr или --from-json",
+            "Укажите операции: --op/--value, --attr, --ts, --ts-attr, "
+            "--dimension, --resource, флаги CommonModule или --from-json",
             code="1CM002",
         )
-    return result
+    return normalize_edit_ops(result)
 
 
 @app.command("list")
@@ -266,20 +307,26 @@ def update_command(
     ctx: typer.Context,
     qualified_name: str = typer.Argument(
         ...,
-        help="Qualified name, например Catalog.Products или Document.Sales.",
+        help=(
+            "Qualified name, например Catalog.Products, Enum.Statuses, "
+            "InformationRegister.Prices, CommonModule.SalesServer."
+        ),
     ),
     op: list[str] | None = typer.Option(
         None,
         "--op",
         help=(
-            "Операция xml-gen: add|modify|remove-attribute, "
-            "add|modify|remove-ts, add|remove-ts-attribute."
+            "Операция: attribute/ts/enumValue/dimension/resource ops, "
+            "set-flag, modify-property."
         ),
     ),
     value: list[str] | None = typer.Option(
         None,
         "--value",
-        help="Значение для соответствующей --op (порядок zip).",
+        help=(
+            "С --op: значение операции (zip). Без --op: сахар Enum "
+            "Name[:Synonym]."
+        ),
     ),
     attr: list[str] | None = typer.Option(
         None,
@@ -296,6 +343,56 @@ def update_command(
         "--ts-attr",
         help="Сахар TSName.Name:Type[:Qual][:Synonym] → add-ts-attribute.",
     ),
+    dimension: list[str] | None = typer.Option(
+        None,
+        "--dimension",
+        help="Сахар измерения Name:Type[:Qual][:Synonym] (регистры).",
+    ),
+    resource: list[str] | None = typer.Option(
+        None,
+        "--resource",
+        help="Сахар ресурса Name:Type[:Qual][:Synonym] (регистры).",
+    ),
+    server: bool | None = typer.Option(
+        None,
+        "--server/--no-server",
+        help="Флаг Server (CommonModule).",
+    ),
+    client: bool | None = typer.Option(
+        None,
+        "--client/--no-client",
+        help="Сахар: ClientManagedApplication (CommonModule).",
+    ),
+    client_ordinary: bool | None = typer.Option(
+        None,
+        "--client-ordinary/--no-client-ordinary",
+        help="Флаг ClientOrdinaryApplication (CommonModule).",
+    ),
+    server_call: bool | None = typer.Option(
+        None,
+        "--server-call/--no-server-call",
+        help="Флаг ServerCall (CommonModule).",
+    ),
+    external_connection: bool | None = typer.Option(
+        None,
+        "--external-connection/--no-external-connection",
+        help="Флаг ExternalConnection (CommonModule).",
+    ),
+    privileged: bool | None = typer.Option(
+        None,
+        "--privileged/--no-privileged",
+        help="Флаг Privileged (CommonModule).",
+    ),
+    global_flag: bool | None = typer.Option(
+        None,
+        "--global/--no-global",
+        help="Флаг Global (CommonModule).",
+    ),
+    return_values_reuse: str | None = typer.Option(
+        None,
+        "--return-values-reuse",
+        help="DontUse | DuringRequest | DuringSession (CommonModule).",
+    ),
     from_json: str | None = typer.Option(
         None,
         "--from-json",
@@ -303,16 +400,26 @@ def update_command(
     ),
     output: OutputOption = None,
 ) -> None:
-    """Изменить объект метаданных (Catalog/Document: attributes и ТЧ через xml-gen)."""
+    """Изменить объект метаданных (attributes / ТЧ / Enum / регистры / флаги модуля)."""
     fmt = resolve_output(ctx, output)
     try:
         operations = _build_update_ops(
             attr=attr,
             ts=ts,
             ts_attr=ts_attr,
+            dimension=dimension,
+            resource=resource,
             ops=op,
             values=value,
             from_json=from_json,
+            server=server,
+            client=client,
+            client_ordinary=client_ordinary,
+            server_call=server_call,
+            external_connection=external_connection,
+            privileged=privileged,
+            global_flag=global_flag,
+            return_values_reuse=return_values_reuse,
         )
     except IrError as exc:
         result = _ir_error_result(exc)

@@ -293,16 +293,384 @@ def test_update_duplicate_ts_warning(tmp_path: Path) -> None:
     assert "already exists" in result.diagnostics[0]["message"]
 
 
-def test_update_rejects_unsupported_type(tmp_path: Path) -> None:
+def test_update_rejects_unknown_type(tmp_path: Path) -> None:
     target = _init_shop(tmp_path)
     result = update_metadata(
         target,
-        "Enum.Statuses",
+        "ChartOfAccounts.Main",
         [EditOp("add-attribute", "X:String(10)")],
         edit_fn=lambda *_a, **_k: EditResult(),
     )
     assert result.status == "error"
     assert any(d.get("code") == "1CM002" for d in result.diagnostics)
+
+
+def test_ops_from_enum_dimension_resource() -> None:
+    from core.metadata import (
+        ops_from_dimension,
+        ops_from_enum_value,
+        ops_from_resource,
+        parse_enum_value_spec,
+    )
+
+    ev = parse_enum_value_spec("Shipped:Отгружен")
+    assert ops_from_enum_value(ev) == [
+        EditOp("add-enumValue", "Shipped"),
+        EditOp("modify-enumValue", "Shipped: synonym=Отгружен"),
+    ]
+    assert ops_from_enum_value(parse_enum_value_spec("New")) == [
+        EditOp("add-enumValue", "New"),
+    ]
+
+    dim = parse_attr_spec("Product:Ref:Catalog.Products:Товар")
+    assert ops_from_dimension(dim) == [
+        EditOp("add-dimension", "Product:CatalogRef.Products"),
+        EditOp("modify-dimension", "Product: synonym=Товар"),
+    ]
+    res = parse_attr_spec("Price:Number:15.2:Цена")
+    assert ops_from_resource(res) == [
+        EditOp("add-resource", "Price:Number(15,2)"),
+        EditOp("modify-resource", "Price: synonym=Цена"),
+    ]
+
+
+def test_ops_from_set_flag_and_common_module_flags() -> None:
+    from core.metadata import (
+        normalize_edit_ops,
+        ops_from_common_module_flags,
+        ops_from_set_flag,
+    )
+
+    assert ops_from_set_flag("server=true") == [
+        EditOp("modify-property", "Server=true"),
+    ]
+    assert ops_from_set_flag("client=false") == [
+        EditOp("modify-property", "ClientManagedApplication=false"),
+    ]
+    assert ops_from_set_flag("ReturnValuesReuse=DuringRequest") == [
+        EditOp("modify-property", "ReturnValuesReuse=DuringRequest"),
+    ]
+    assert normalize_edit_ops([EditOp("set-flag", "serverCall=true")]) == [
+        EditOp("modify-property", "ServerCall=true"),
+    ]
+    assert ops_from_common_module_flags(server=False, client=True) == [
+        EditOp("modify-property", "Server=false"),
+        EditOp("modify-property", "ClientManagedApplication=true"),
+    ]
+
+
+def test_update_enum_ops_mock(tmp_path: Path) -> None:
+    target = _init_shop(tmp_path)
+    enums = target / "src" / "cf" / "Enums"
+    enums.mkdir(parents=True)
+    (enums / "OrderStatuses.xml").write_text("<Enum/>", encoding="utf-8")
+    calls: list[EditOp] = []
+
+    def fake_edit(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "OrderStatuses.xml"
+        calls.extend(operations)
+        return EditResult(changed_paths=["Enums/OrderStatuses.xml"], added=1)
+
+    def fake_get(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "Enum",
+                "name": "OrderStatuses",
+                "values": [{"name": "Shipped", "synonym": "Отгружен"}],
+            },
+        )
+
+    result = update_metadata(
+        target,
+        "Enum.OrderStatuses",
+        [
+            EditOp("add-enumValue", "Shipped"),
+            EditOp("modify-enumValue", "Shipped: synonym=Отгружен"),
+        ],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert result.ir["values"][0]["name"] == "Shipped"
+
+    result = update_metadata(
+        target,
+        "Enum.OrderStatuses",
+        [EditOp("remove-enumValue", "Shipped")],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert [c.op for c in calls] == [
+        "add-enumValue",
+        "modify-enumValue",
+        "remove-enumValue",
+    ]
+
+
+def test_update_register_ops_mock(tmp_path: Path) -> None:
+    target = _init_shop(tmp_path)
+    regs = target / "src" / "cf" / "InformationRegisters"
+    regs.mkdir(parents=True)
+    (regs / "Prices.xml").write_text("<InformationRegister/>", encoding="utf-8")
+    calls: list[EditOp] = []
+
+    def fake_edit(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "Prices.xml"
+        calls.extend(operations)
+        return EditResult(changed_paths=["InformationRegisters/Prices.xml"], added=1)
+
+    def fake_get(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "InformationRegister",
+                "name": "Prices",
+                "dimensions": [{"name": "Product", "type": "Ref"}],
+                "resources": [{"name": "Price", "type": "Number"}],
+            },
+        )
+
+    result = update_metadata(
+        target,
+        "InformationRegister.Prices",
+        [
+            EditOp("add-dimension", "Product:CatalogRef.Products"),
+            EditOp("add-resource", "Price:Number(15,2)"),
+        ],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert result.ir["dimensions"][0]["name"] == "Product"
+
+    result = update_metadata(
+        target,
+        "InformationRegister.Prices",
+        [EditOp("remove-resource", "Price")],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert [c.op for c in calls] == [
+        "add-dimension",
+        "add-resource",
+        "remove-resource",
+    ]
+
+
+def test_update_common_module_set_flag_mock(tmp_path: Path) -> None:
+    target = _init_shop(tmp_path)
+    mods = target / "src" / "cf" / "CommonModules"
+    mods.mkdir(parents=True)
+    (mods / "SalesServer.xml").write_text("<CommonModule/>", encoding="utf-8")
+    calls: list[EditOp] = []
+
+    def fake_edit(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "SalesServer.xml"
+        calls.extend(operations)
+        return EditResult(changed_paths=["CommonModules/SalesServer.xml"], modified=1)
+
+    def fake_get(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={"type": "CommonModule", "name": "SalesServer"},
+        )
+
+    result = update_metadata(
+        target,
+        "CommonModule.SalesServer",
+        [EditOp("set-flag", "server=false"), EditOp("set-flag", "client=true")],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert calls == [
+        EditOp("modify-property", "Server=false"),
+        EditOp("modify-property", "ClientManagedApplication=true"),
+    ]
+
+
+def test_update_enum_duplicate_warning(tmp_path: Path) -> None:
+    target = _init_shop(tmp_path)
+    enums = target / "src" / "cf" / "Enums"
+    enums.mkdir(parents=True)
+    (enums / "Statuses.xml").write_text("<Enum/>", encoding="utf-8")
+
+    def fake_edit(_object_xml: Path, _operations: list[EditOp]) -> EditResult:
+        return EditResult(warnings=["Enum value 'New' already exists, skipping"])
+
+    def fake_get(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(status="ok", object=qname, ir={"type": "Enum", "name": "Statuses"})
+
+    result = update_metadata(
+        target,
+        "Enum.Statuses",
+        [EditOp("add-enumValue", "New")],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert any(d.get("severity") == "warning" for d in result.diagnostics)
+
+
+def test_cli_enum_value_sugar(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    target = _init_shop(tmp_path)
+    monkeypatch.chdir(target)
+    seen: list[EditOp] = []
+
+    def fake_update(
+        start: Path | None,
+        qname: str,
+        operations: list[EditOp],
+        **_kw: Any,
+    ) -> MetadataResult:
+        seen.extend(operations)
+        return MetadataResult(status="ok", object=qname)
+
+    monkeypatch.setattr("cli.metadata.update_metadata", fake_update)
+    result = runner.invoke(
+        app,
+        [
+            "metadata",
+            "update",
+            "Enum.OrderStatuses",
+            "--value",
+            "Shipped:Отгружен",
+            "--output",
+            "json",
+        ],
+    )
+    assert result.exit_code == SUCCESS, result.output
+    assert seen == [
+        EditOp("add-enumValue", "Shipped"),
+        EditOp("modify-enumValue", "Shipped: synonym=Отгружен"),
+    ]
+
+
+def test_cli_dimension_resource_sugar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = _init_shop(tmp_path)
+    monkeypatch.chdir(target)
+    seen: list[EditOp] = []
+
+    def fake_update(
+        start: Path | None,
+        qname: str,
+        operations: list[EditOp],
+        **_kw: Any,
+    ) -> MetadataResult:
+        seen.extend(operations)
+        return MetadataResult(status="ok", object=qname)
+
+    monkeypatch.setattr("cli.metadata.update_metadata", fake_update)
+    result = runner.invoke(
+        app,
+        [
+            "metadata",
+            "update",
+            "InformationRegister.Prices",
+            "--dimension",
+            "Product:Ref:Catalog.Products",
+            "--resource",
+            "Price:Number:15.2:Цена",
+            "--output",
+            "json",
+        ],
+    )
+    assert result.exit_code == SUCCESS, result.output
+    assert seen == [
+        EditOp("add-dimension", "Product:CatalogRef.Products"),
+        EditOp("add-resource", "Price:Number(15,2)"),
+        EditOp("modify-resource", "Price: synonym=Цена"),
+    ]
+
+
+def test_cli_common_module_flags_and_set_flag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = _init_shop(tmp_path)
+    monkeypatch.chdir(target)
+    seen: list[EditOp] = []
+
+    def fake_update(
+        start: Path | None,
+        qname: str,
+        operations: list[EditOp],
+        **_kw: Any,
+    ) -> MetadataResult:
+        seen.extend(operations)
+        return MetadataResult(status="ok", object=qname)
+
+    monkeypatch.setattr("cli.metadata.update_metadata", fake_update)
+    result = runner.invoke(
+        app,
+        [
+            "metadata",
+            "update",
+            "CommonModule.SalesServer",
+            "--no-server",
+            "--client",
+            "--op",
+            "set-flag",
+            "--value",
+            "serverCall=true",
+            "--output",
+            "json",
+        ],
+    )
+    assert result.exit_code == SUCCESS, result.output
+    assert seen == [
+        EditOp("modify-property", "Server=false"),
+        EditOp("modify-property", "ClientManagedApplication=true"),
+        EditOp("modify-property", "ServerCall=true"),
+    ]
+
+
+def test_cli_from_json_set_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    target = _init_shop(tmp_path)
+    monkeypatch.chdir(target)
+    ops_file = target / "ops.json"
+    ops_file.write_text(
+        json.dumps(
+            {"operations": [{"op": "set-flag", "value": "privileged=true"}]},
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    seen: list[EditOp] = []
+
+    def fake_update(
+        start: Path | None,
+        qname: str,
+        operations: list[EditOp],
+        **_kw: Any,
+    ) -> MetadataResult:
+        seen.extend(operations)
+        return MetadataResult(status="ok", object=qname)
+
+    monkeypatch.setattr("cli.metadata.update_metadata", fake_update)
+    result = runner.invoke(
+        app,
+        [
+            "metadata",
+            "update",
+            "CommonModule.SalesServer",
+            "--from-json",
+            str(ops_file),
+            "--output",
+            "json",
+        ],
+    )
+    assert result.exit_code == SUCCESS, result.output
+    assert seen == [EditOp("modify-property", "Privileged=true")]
 
 
 def test_cli_update_unequal_op_value(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -644,3 +1012,159 @@ def test_update_ts_document_with_real_xmlgen(tmp_path: Path) -> None:
         sections2 = (got2.ir or {}).get("tabularSections") or []
         names = {s.get("name") for s in sections2 if isinstance(s, dict)}
         assert "Products" not in names
+
+
+@pytest.mark.integration
+def test_update_enum_register_with_real_xmlgen(tmp_path: Path) -> None:
+    jar = resolve_jar()
+    java = resolve_java()
+    if not jar.found or not java.found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    from adapters.source.mdclasses.resolve import resolve_jar as resolve_md
+    from adapters.source.mdclasses.resolve import resolve_java as resolve_md_java
+    from core.metadata import catalog_from_parts, create_metadata, get_metadata
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    enum_created = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Enum.OrderStatuses",
+            synonym="Статусы",
+            value_specs=["New:Новый"],
+        ),
+    )
+    assert enum_created.status == "ok", enum_created.diagnostics
+
+    enum_xml = target / "src" / "cf" / "Enums" / "OrderStatuses.xml"
+    added = update_metadata(
+        target,
+        "Enum.OrderStatuses",
+        [
+            EditOp("add-enumValue", "Shipped"),
+            EditOp("modify-enumValue", "Shipped: synonym=Отгружен"),
+        ],
+    )
+    assert added.status == "ok", added.diagnostics
+    text = enum_xml.read_text(encoding="utf-8-sig")
+    assert "Shipped" in text
+    assert "Отгружен" in text
+
+    checksum = hashlib.sha256(enum_xml.read_bytes()).hexdigest()
+    dup = update_metadata(
+        target,
+        "Enum.OrderStatuses",
+        [EditOp("add-enumValue", "Shipped")],
+    )
+    assert dup.status == "ok", dup.diagnostics
+    assert any(d.get("severity") == "warning" for d in dup.diagnostics)
+    assert hashlib.sha256(enum_xml.read_bytes()).hexdigest() == checksum
+
+    create_metadata(
+        target,
+        catalog_from_parts(qualified_name="Catalog.Products", synonym="Товары"),
+    )
+    reg_created = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="InformationRegister.Prices",
+            synonym="Цены",
+            dimension_specs=["Product:Ref:Catalog.Products"],
+        ),
+    )
+    assert reg_created.status == "ok", reg_created.diagnostics
+
+    reg_xml = target / "src" / "cf" / "InformationRegisters" / "Prices.xml"
+    reg_upd = update_metadata(
+        target,
+        "InformationRegister.Prices",
+        [EditOp("add-resource", "Price:Number(15,2)")],
+    )
+    assert reg_upd.status == "ok", reg_upd.diagnostics
+    reg_text = reg_xml.read_text(encoding="utf-8-sig")
+    assert "Price" in reg_text
+
+    removed = update_metadata(
+        target,
+        "InformationRegister.Prices",
+        [EditOp("remove-resource", "Price")],
+    )
+    assert removed.status == "ok", removed.diagnostics
+    reg_text = reg_xml.read_text(encoding="utf-8-sig")
+    assert "<Name>Price</Name>" not in reg_text
+
+    md_java = resolve_md_java()
+    md_jar = resolve_md()
+    if md_java.found and md_jar.found:
+        got_enum = get_metadata(target, "Enum.OrderStatuses")
+        assert got_enum.status == "ok", got_enum.diagnostics
+        names = {
+            v.get("name")
+            for v in ((got_enum.ir or {}).get("values") or [])
+            if isinstance(v, dict)
+        }
+        assert "Shipped" in names
+        assert "New" in names
+
+        got_reg = get_metadata(target, "InformationRegister.Prices")
+        assert got_reg.status == "ok", got_reg.diagnostics
+        dims = {
+            d.get("name")
+            for d in ((got_reg.ir or {}).get("dimensions") or [])
+            if isinstance(d, dict)
+        }
+        assert "Product" in dims
+
+
+@pytest.mark.integration
+def test_update_common_module_flags_preserves_bsl(tmp_path: Path) -> None:
+    jar = resolve_jar()
+    java = resolve_java()
+    if not jar.found or not java.found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    from core.metadata import catalog_from_parts, create_metadata
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+    created = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="CommonModule.SalesServer",
+            synonym="ПродажиСервер",
+            server=True,
+            server_call=False,
+        ),
+    )
+    assert created.status == "ok", created.diagnostics
+
+    xml_path = target / "src" / "cf" / "CommonModules" / "SalesServer.xml"
+    bsl_path = (
+        target / "src" / "cf" / "CommonModules" / "SalesServer" / "Ext" / "Module.bsl"
+    )
+    assert xml_path.is_file()
+    assert bsl_path.is_file()
+    marker = b"// agent-marker-do-not-touch\n"
+    bsl_path.write_bytes(marker)
+    bsl_checksum = hashlib.sha256(bsl_path.read_bytes()).hexdigest()
+
+    updated = update_metadata(
+        target,
+        "CommonModule.SalesServer",
+        [
+            EditOp("set-flag", "server=false"),
+            EditOp("set-flag", "client=true"),
+            EditOp("set-flag", "serverCall=true"),
+        ],
+    )
+    assert updated.status == "ok", updated.diagnostics
+    text = xml_path.read_text(encoding="utf-8-sig")
+    assert "<Server>false</Server>" in text
+    assert "<ClientManagedApplication>true</ClientManagedApplication>" in text
+    assert "<ServerCall>true</ServerCall>" in text
+    assert hashlib.sha256(bsl_path.read_bytes()).hexdigest() == bsl_checksum
+    assert bsl_path.read_bytes() == marker
