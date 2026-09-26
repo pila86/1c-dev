@@ -269,7 +269,7 @@ uv tool install git+https://github.com/pila86/1c-dev
 - [ADR-010](../adr/010-mcp-architecture.md)
 - [PRD §20 Documentation API](../../1c-dev-runtime-PRD-v0.1.md), [§19 BSL](../../1c-dev-runtime-PRD-v0.1.md), [§64 bsl-context / BSL LS](../../1c-dev-runtime-PRD-v0.1.md)
 - [bsl-context](https://github.com/1c-syntax/bsl-context)
-- [BSL LS MCP mode](https://1c-syntax.github.io/bsl-language-server/features/McpMode/)
+- [BSL LS MCP mode](https://1c-syntax.github.io/bsl-language-server/dev/features/McpMode/)
 
 ## Issues
 

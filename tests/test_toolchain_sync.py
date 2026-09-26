@@ -58,7 +58,7 @@ def test_resolve_component_jar_env_and_cache(
     spec = ComponentSpec(
         id="bsl-language-server",
         artifact="bsl-language-server.jar",
-        pin="1.0.6",
+        pin="1.1.0-rc.4",
         source={},
         env="ONEC_BSLLS_JAR",
     )
@@ -128,7 +128,7 @@ def _fake_manifest() -> ToolchainManifest:
             ComponentSpec(
                 id="bsl-language-server",
                 artifact="bsl-language-server.jar",
-                pin="1.0.6",
+                pin="1.1.0-rc.4",
                 source={"type": "github-release"},
                 min_java=21,
                 env="ONEC_BSLLS_JAR",

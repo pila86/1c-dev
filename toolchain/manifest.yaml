@@ -22,14 +22,16 @@ components:
 
   - id: bsl-language-server
     artifact: bsl-language-server.jar
-    pin: "1.0.6"
+    # 1.1.0-rc.4: register_workspace_folder — Cursor не отдаёт MCP roots (#4462)
+    pin: "1.1.0-rc.4"
     source:
       type: github-release
       repo: 1c-syntax/bsl-language-server
-      asset: bsl-language-server-1.0.6-exec.jar
-      url: https://github.com/1c-syntax/bsl-language-server/releases/download/v1.0.6/bsl-language-server-1.0.6-exec.jar
+      asset: bsl-language-server-1.1.0-rc.4-exec.jar
+      url: https://github.com/1c-syntax/bsl-language-server/releases/download/v1.1.0-rc.4/bsl-language-server-1.1.0-rc.4-exec.jar
     min_java: 21
     env: ONEC_BSLLS_JAR
+    sha256: "55f4695766a671591e9f7c1fdbaa72933b7ef0b2bc92dba9553cf26697a99a50"
 
   - id: docs-facade
     artifact: docs-facade.jar

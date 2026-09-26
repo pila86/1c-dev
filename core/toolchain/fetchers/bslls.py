@@ -15,8 +15,9 @@ from core.toolchain.progress import ProgressFn, noop_progress
 
 DEFAULT_BSL_URL = (
     "https://github.com/1c-syntax/bsl-language-server/releases/download/"
-    "v1.0.6/bsl-language-server-1.0.6-exec.jar"
+    "v1.1.0-rc.4/bsl-language-server-1.1.0-rc.4-exec.jar"
 )
+DEFAULT_BSL_PIN = "1.1.0-rc.4"
 
 
 def fetch_bsl_language_server(
@@ -31,7 +32,7 @@ def fetch_bsl_language_server(
     del env, quiet  # reserved for future proxy/env overrides
     report = progress or noop_progress
     diagnostics: list[Diagnostic] = []
-    pin = spec.pin or "1.0.6"
+    pin = spec.pin or DEFAULT_BSL_PIN
     artifact = spec.artifact
     pinned = tools_dir / pin_artifact_name(artifact, pin)
     stable = tools_dir / artifact

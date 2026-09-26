@@ -15,3 +15,6 @@
       build, check, and docs.* when available.
     - **bsl-language-server** MCP: BSL code analysis (diagnostics, symbols, references,
       hover, definitions) — not for metadata or build.
+      Before analyze_file / hover / definition / etc.: call `list_workspace_folders`;
+      if the project root is missing, call `register_workspace_folder` with the IDE
+      workspace root (not `src/cf`). Then analyze files inside that folder.
