@@ -65,11 +65,20 @@ def tools_sync_command(
     output: OutputOption = None,
 ) -> None:
     """Скачать/собрать jars toolchain в user cache (идемпотентно)."""
-    result = sync_tools()
     fmt = resolve_output(ctx, output)
+    live = fmt is not OutputFormat.json
+
+    def progress(message: str) -> None:
+        typer.echo(message, err=True)
+
+    result = sync_tools(
+        progress=progress if live else None,
+        quiet=not live,
+    )
     if fmt is OutputFormat.json:
         typer.echo(json.dumps(result.to_payload(), ensure_ascii=False, indent=2))
     else:
+        typer.echo("")
         for line in _text_sync(result):
             typer.echo(line)
 

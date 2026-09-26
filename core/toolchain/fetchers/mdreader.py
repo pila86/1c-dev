@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess
 from pathlib import Path
 
 from adapters.source.mdclasses.constants import MDREADER_PIN, MIN_JAVA_MAJOR
 from adapters.source.xmlgen.resolve import resolve_java
 from core.diagnostics import Diagnostic, error
-from core.toolchain.fetchers import find_gradle, gradlew_cmd, install_jar_pair, pin_artifact_name
+from core.toolchain.fetchers import gradlew_cmd, install_jar_pair, pin_artifact_name, run_cmd
 from core.toolchain.manifest import ComponentSpec
+from core.toolchain.progress import ProgressFn, noop_progress
 
 
 def md_reader_source_root() -> Path:
@@ -35,8 +35,11 @@ def fetch_md_reader(
     tools_dir: Path,
     *,
     env: dict[str, str] | None = None,
+    progress: ProgressFn | None = None,
+    quiet: bool = True,
 ) -> tuple[Path | None, list[Diagnostic]]:
     """Idempotently build md-reader into tools_dir."""
+    report = progress or noop_progress
     diagnostics: list[Diagnostic] = []
     pin = spec.pin or MDREADER_PIN
     artifact = spec.artifact
@@ -46,6 +49,7 @@ def fetch_md_reader(
     if pinned.is_file():
         tools_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy2(pinned, stable)
+        report(f"→ {spec.id}: cache hit")
         return stable.resolve(), diagnostics
 
     min_java = spec.min_java or MIN_JAVA_MAJOR
@@ -74,18 +78,14 @@ def fetch_md_reader(
         )
         return None, diagnostics
 
-    gradle_argv: list[str] | None = gradlew_cmd(src)
-    if gradle_argv is None:
-        gradle_bin = find_gradle()
-        if gradle_bin:
-            gradle_argv = [gradle_bin]
+    gradle_argv = gradlew_cmd(src)
     if gradle_argv is None:
         diagnostics.append(
             error(
-                "Gradle не найден (нужен Gradle 8+ или gradlew в tools/md-reader)",
+                "gradlew не найден в tools/md-reader (нужен Gradle Wrapper)",
                 code="1CT013",
                 source="toolchain",
-                suggestion="Установите Gradle 8+ и добавьте в PATH.",
+                suggestion="Переустановите 1c-dev из git/wheel с полным tools/md-reader (gradlew).",
             )
         )
         return None, diagnostics
@@ -93,21 +93,19 @@ def fetch_md_reader(
     run_env = dict(os.environ if env is None else env)
     run_env["JAVA_HOME"] = str(java.path.parent.parent)
 
-    build = subprocess.run(
-        [*gradle_argv, "fatJar", "--no-daemon", "-q"],
-        cwd=str(src),
-        capture_output=True,
-        text=True,
-        check=False,
-        env=run_env,
-    )
+    report(f"→ {spec.id}: gradle fatJar…")
+    cmd = [*gradle_argv, "fatJar", "--no-daemon"]
+    if quiet:
+        cmd.append("-q")
+    build = run_cmd(cmd, cwd=str(src), env=run_env, quiet=quiet)
     if build.returncode != 0:
         diagnostics.append(
             error(
                 "Сборка md-reader через Gradle завершилась с ошибкой",
                 code="1CT014",
                 source="toolchain",
-                suggestion=(build.stderr or build.stdout or "").strip()[:500],
+                suggestion=(build.stderr or build.stdout or "").strip()[:500]
+                or "См. вывод Gradle выше.",
             )
         )
         return None, diagnostics

@@ -4,8 +4,35 @@ from __future__ import annotations
 
 import hashlib
 import shutil
+import subprocess
 import sys
 from pathlib import Path
+
+
+def run_cmd(
+    argv: list[str],
+    *,
+    cwd: str | None = None,
+    env: dict[str, str] | None = None,
+    quiet: bool = True,
+) -> subprocess.CompletedProcess[str]:
+    """Run a command; in quiet mode capture output, otherwise stream to the terminal."""
+    if quiet:
+        return subprocess.run(
+            argv,
+            cwd=cwd,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    return subprocess.run(
+        argv,
+        cwd=cwd,
+        env=env,
+        text=True,
+        check=False,
+    )
 
 
 def pin_artifact_name(artifact: str, pin: str) -> str:
@@ -35,7 +62,11 @@ def sha256_file(path: Path) -> str:
 
 
 def gradlew_cmd(project_dir: Path) -> list[str] | None:
-    """Return argv for Gradle wrapper in project_dir, if present."""
+    """Return argv for Gradle wrapper in project_dir, if present.
+
+    On Unix invoke via ``sh`` so a missing execute bit (wheel unpack / checkout)
+    does not break ``tools sync``.
+    """
     if sys.platform == "win32":
         bat = project_dir / "gradlew.bat"
         if bat.is_file():
@@ -43,17 +74,7 @@ def gradlew_cmd(project_dir: Path) -> list[str] | None:
     else:
         script = project_dir / "gradlew"
         if script.is_file():
-            return [str(script)]
-    return None
-
-
-def find_gradle() -> str | None:
-    """Locate system gradle / gradle.bat on PATH."""
-    names = ("gradle.bat", "gradle") if sys.platform == "win32" else ("gradle",)
-    for name in names:
-        found = shutil.which(name)
-        if found:
-            return found
+            return ["sh", str(script)]
     return None
 
 

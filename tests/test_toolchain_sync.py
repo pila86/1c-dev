@@ -90,29 +90,42 @@ def test_sync_tools_with_mocked_fetchers(
 ) -> None:
     cache = tmp_path / "cache"
     monkeypatch.setenv("XDG_CACHE_HOME", str(cache))
+    seen: list[str] = []
 
     def fake_xml(
-        spec: ComponentSpec, tools_dir: Path, *, env: dict[str, str] | None = None
+        spec: ComponentSpec,
+        tools_dir: Path,
+        *,
+        env: dict[str, str] | None = None,
+        **kwargs: Any,
     ) -> tuple[Path, list]:
-        del env
+        del env, kwargs
         path = tools_dir / spec.artifact
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"xml")
         return path, []
 
     def fake_md(
-        spec: ComponentSpec, tools_dir: Path, *, env: dict[str, str] | None = None
+        spec: ComponentSpec,
+        tools_dir: Path,
+        *,
+        env: dict[str, str] | None = None,
+        **kwargs: Any,
     ) -> tuple[Path, list]:
-        del env
+        del env, kwargs
         path = tools_dir / spec.artifact
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"md")
         return path, []
 
     def fake_bsl(
-        spec: ComponentSpec, tools_dir: Path, *, env: dict[str, str] | None = None
+        spec: ComponentSpec,
+        tools_dir: Path,
+        *,
+        env: dict[str, str] | None = None,
+        **kwargs: Any,
     ) -> tuple[Path, list]:
-        del env
+        del env, kwargs
         path = tools_dir / spec.artifact
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"bsl")
@@ -122,7 +135,7 @@ def test_sync_tools_with_mocked_fetchers(
     monkeypatch.setattr("core.toolchain.sync.fetch_md_reader", fake_md)
     monkeypatch.setattr("core.toolchain.sync.fetch_bsl_language_server", fake_bsl)
 
-    result = sync_tools(manifest=_fake_manifest())
+    result = sync_tools(manifest=_fake_manifest(), progress=seen.append, quiet=False)
     assert result.status == "ok"
     by_id = {c.id: c for c in result.components}
     assert by_id["xml-gen"].status == "ok"
@@ -130,6 +143,9 @@ def test_sync_tools_with_mocked_fetchers(
     assert by_id["bsl-language-server"].status == "ok"
     assert by_id["docs-facade"].status == "deferred"
     assert any(d.get("code") == "1CT030" for d in result.diagnostics)
+    assert seen[0] == "Toolchain sync…"
+    assert any("✓ xml-gen" in m for m in seen)
+    assert any("docs-facade: deferred" in m for m in seen)
 
     # idempotent second run
     result2 = sync_tools(manifest=_fake_manifest())
@@ -143,18 +159,26 @@ def test_sync_soft_fail_bsl_degraded(
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
 
     def ok_jar(
-        spec: ComponentSpec, tools_dir: Path, *, env: dict[str, str] | None = None
+        spec: ComponentSpec,
+        tools_dir: Path,
+        *,
+        env: dict[str, str] | None = None,
+        **kwargs: Any,
     ) -> tuple[Path, list]:
-        del env
+        del env, kwargs
         path = tools_dir / spec.artifact
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"x")
         return path, []
 
     def fail_bsl(
-        spec: ComponentSpec, tools_dir: Path, *, env: dict[str, str] | None = None
+        spec: ComponentSpec,
+        tools_dir: Path,
+        *,
+        env: dict[str, str] | None = None,
+        **kwargs: Any,
     ) -> tuple[None, list]:
-        del spec, tools_dir, env
+        del spec, tools_dir, env, kwargs
         return None, [info("bsl fail", code="1CT020", source="toolchain")]
 
     monkeypatch.setattr("core.toolchain.sync.fetch_xml_gen", ok_jar)
@@ -250,6 +274,36 @@ def test_cli_tools_sync_json(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
     assert "xml-gen" in result.stdout
 
 
+def test_cli_tools_sync_text_progress(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg"))
+    captured: dict[str, Any] = {}
+
+    def fake_sync(**kwargs: Any) -> Any:
+        captured.update(kwargs)
+        progress = kwargs.get("progress")
+        if progress is not None:
+            progress("Toolchain sync…")
+            progress("→ xml-gen: cache hit")
+            progress("✓ xml-gen: ok")
+        from core.toolchain.result import SyncResult
+
+        return SyncResult(
+            status="ok",
+            components=[ComponentResult(id="xml-gen", status="ok", path="/tmp/x.jar")],
+            diagnostics=[],
+        )
+
+    monkeypatch.setattr("cli.tools.sync_tools", fake_sync)
+    runner = CliRunner()
+    result = runner.invoke(app, ["tools", "sync"])
+    assert result.exit_code == 0
+    assert captured.get("quiet") is False
+    assert captured.get("progress") is not None
+    assert "Toolchain sync…" in result.stderr
+    assert "→ xml-gen: cache hit" in result.stderr
+    assert "Status: ok" in result.stdout
+
+
 def test_cli_tools_clean_requires_yes() -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["tools", "clean", "--output", "json"])
@@ -271,3 +325,13 @@ def test_gradlew_cmd_win32(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> N
     bat.write_text("@echo off\n", encoding="utf-8")
     monkeypatch.setattr("core.toolchain.fetchers.sys.platform", "win32")
     assert gradlew_cmd(tmp_path) == [str(bat)]
+
+
+def test_gradlew_cmd_unix_via_sh(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from core.toolchain.fetchers import gradlew_cmd
+
+    script = tmp_path / "gradlew"
+    script.write_text("#!/bin/sh\n", encoding="utf-8")
+    script.chmod(0o644)  # no +x — wheel/checkout case
+    monkeypatch.setattr("core.toolchain.fetchers.sys.platform", "linux")
+    assert gradlew_cmd(tmp_path) == ["sh", str(script)]

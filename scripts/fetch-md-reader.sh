@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build md-reader jar into the local 1c-dev tools cache (ADR-012).
-# Requires: JDK 21+ (MDClasses 0.20.0), Gradle 8+
+# Requires: JDK 21+ (MDClasses 0.20.0). Uses tools/md-reader/gradlew (Gradle 8.10.2).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -63,27 +63,16 @@ if [[ -f "${PINNED_JAR}" ]]; then
   exit 0
 fi
 
-GRADLE_BIN="$(command -v gradle || true)"
-if [[ -z "${GRADLE_BIN}" ]]; then
-  # Prefer a cached Gradle distribution if present
-  for candidate in \
-    "${HOME}/.gradle/wrapper/dists"/gradle-8.*/**/gradle-8.*/bin/gradle
-  do
-    if [[ -x "${candidate}" ]]; then
-      GRADLE_BIN="${candidate}"
-      break
-    fi
-  done
-fi
-if [[ -z "${GRADLE_BIN}" ]]; then
-  echo "ERROR: gradle not found (install Gradle 8+ or ensure wrapper dists exist)" >&2
+if [[ ! -f "${SRC}/gradlew" ]]; then
+  echo "ERROR: gradlew not found in ${SRC}" >&2
   exit 1
 fi
 
 echo "Building md-reader (${PIN}) with Java ${JAVA_HOME}..."
 (
   cd "${SRC}"
-  "${GRADLE_BIN}" fatJar --no-daemon -q
+  chmod +x ./gradlew
+  ./gradlew fatJar --no-daemon -q
 )
 
 BUILT="${SRC}/build/libs/md-reader.jar"

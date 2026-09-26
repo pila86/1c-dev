@@ -4,15 +4,21 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess
 import tempfile
 from pathlib import Path
 
 from adapters.source.xmlgen.constants import XMLGEN_COMMIT, XMLGEN_REPO, XMLGEN_SPARSE_PATH
 from adapters.source.xmlgen.resolve import resolve_java
 from core.diagnostics import Diagnostic, error
-from core.toolchain.fetchers import find_git, gradlew_cmd, install_jar_pair, pin_artifact_name
+from core.toolchain.fetchers import (
+    find_git,
+    gradlew_cmd,
+    install_jar_pair,
+    pin_artifact_name,
+    run_cmd,
+)
 from core.toolchain.manifest import ComponentSpec
+from core.toolchain.progress import ProgressFn, noop_progress
 
 
 def fetch_xml_gen(
@@ -20,8 +26,11 @@ def fetch_xml_gen(
     tools_dir: Path,
     *,
     env: dict[str, str] | None = None,
+    progress: ProgressFn | None = None,
+    quiet: bool = True,
 ) -> tuple[Path | None, list[Diagnostic]]:
     """Idempotently build xml-gen into tools_dir. Returns (stable_path, diagnostics)."""
+    report = progress or noop_progress
     diagnostics: list[Diagnostic] = []
     pin = spec.pin or XMLGEN_COMMIT
     short = pin[:12]
@@ -32,6 +41,7 @@ def fetch_xml_gen(
     if pinned.is_file():
         tools_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy2(pinned, stable)
+        report(f"→ {spec.id}: cache hit")
         return stable.resolve(), diagnostics
 
     min_java = spec.min_java or 17
@@ -65,11 +75,10 @@ def fetch_xml_gen(
     work = Path(tempfile.mkdtemp(prefix="1c-dev-xmlgen-"))
     try:
         src = work / "src"
-        clone = subprocess.run(
+        report(f"→ {spec.id}: git clone…")
+        clone = run_cmd(
             [git, "clone", "--filter=blob:none", "--sparse", repo, str(src)],
-            capture_output=True,
-            text=True,
-            check=False,
+            quiet=quiet,
         )
         if clone.returncode != 0:
             diagnostics.append(
@@ -83,11 +92,9 @@ def fetch_xml_gen(
             )
             return None, diagnostics
 
-        sparse_set = subprocess.run(
+        sparse_set = run_cmd(
             [git, "-C", str(src), "sparse-checkout", "set", sparse],
-            capture_output=True,
-            text=True,
-            check=False,
+            quiet=quiet,
         )
         if sparse_set.returncode != 0:
             diagnostics.append(
@@ -100,11 +107,9 @@ def fetch_xml_gen(
             )
             return None, diagnostics
 
-        checkout = subprocess.run(
+        checkout = run_cmd(
             [git, "-C", str(src), "checkout", pin],
-            capture_output=True,
-            text=True,
-            check=False,
+            quiet=quiet,
         )
         if checkout.returncode != 0:
             diagnostics.append(
@@ -132,13 +137,15 @@ def fetch_xml_gen(
         run_env = dict(os.environ if env is None else env)
         run_env["JAVA_HOME"] = str(java.path.parent.parent)
 
-        build = subprocess.run(
-            [*wrapper, "build", "-x", "test", "--no-daemon", "-q"],
+        report(f"→ {spec.id}: gradle build…")
+        gradle_argv = [*wrapper, "build", "-x", "test", "--no-daemon"]
+        if quiet:
+            gradle_argv.append("-q")
+        build = run_cmd(
+            gradle_argv,
             cwd=str(project),
-            capture_output=True,
-            text=True,
-            check=False,
             env=run_env,
+            quiet=quiet,
         )
         if build.returncode != 0:
             diagnostics.append(
@@ -146,7 +153,8 @@ def fetch_xml_gen(
                     "Сборка xml-gen через Gradle завершилась с ошибкой",
                     code="1CT004",
                     source="toolchain",
-                    suggestion=(build.stderr or build.stdout or "").strip()[:500],
+                    suggestion=(build.stderr or build.stdout or "").strip()[:500]
+                    or "См. вывод Gradle выше.",
                 )
             )
             return None, diagnostics

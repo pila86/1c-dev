@@ -56,7 +56,7 @@ def clean_tools_cache(
         )
     return UninstallResult(
         status="ok",
-        cache_removed=removed or not root.exists(),
+        cache_removed=removed,
         package_uninstalled=None,
         diagnostics=diagnostics,
     )
