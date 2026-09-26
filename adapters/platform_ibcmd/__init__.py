@@ -1,4 +1,4 @@
-"""Ibcmd platform adapter: build and check XML configuration (ADR-008, ADR-009)."""
+"""Ibcmd platform adapter: build, check, import from .cf (ADR-008, ADR-009, ADR-014)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,9 @@ from adapters.platform_ibcmd.client import (
     apply_config,
     check_config,
     create_infobase,
+    export_xml,
     import_xml,
+    load_cf,
     save_cf,
 )
 from adapters.platform_ibcmd.constants import IB_MARKER
@@ -20,7 +22,10 @@ __all__ = [
     "RunFn",
     "build_with_ibcmd",
     "check_config",
+    "export_xml",
+    "import_cf_with_ibcmd",
     "infobase_exists",
+    "load_cf",
 ]
 
 
@@ -72,5 +77,51 @@ def build_with_ibcmd(
             run=run,
         )
         steps.append("save")
+
+    return steps
+
+
+def import_cf_with_ibcmd(
+    ibcmd: Path,
+    *,
+    db_path: Path,
+    data_path: Path,
+    cf_path: Path,
+    source_dir: Path,
+    run: RunFn | None = None,
+) -> list[str]:
+    """
+    Create (if needed) → load .cf → apply → export XML (ADR-014).
+
+    Returns list of completed step names: create?, load, apply, export.
+    """
+    steps: list[str] = []
+    db_path.mkdir(parents=True, exist_ok=True)
+    data_path.mkdir(parents=True, exist_ok=True)
+
+    if not infobase_exists(db_path):
+        create_infobase(ibcmd, db_path=db_path, data_path=data_path, run=run)
+        steps.append("create")
+
+    load_cf(
+        ibcmd,
+        db_path=db_path,
+        data_path=data_path,
+        cf_path=cf_path,
+        run=run,
+    )
+    steps.append("load")
+
+    apply_config(ibcmd, db_path=db_path, data_path=data_path, run=run)
+    steps.append("apply")
+
+    export_xml(
+        ibcmd,
+        db_path=db_path,
+        data_path=data_path,
+        target_dir=source_dir,
+        run=run,
+    )
+    steps.append("export")
 
     return steps

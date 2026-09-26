@@ -1,4 +1,4 @@
-"""Subprocess wrappers for ibcmd build pipeline (ADR-008)."""
+"""Subprocess wrappers for ibcmd build / import pipelines (ADR-008, ADR-014)."""
 
 from __future__ import annotations
 
@@ -145,6 +145,49 @@ def save_cf(
         str(cf_path),
     ]
     return _require_ok(runner(argv), step="save")
+
+
+def load_cf(
+    ibcmd: Path,
+    *,
+    db_path: Path,
+    data_path: Path,
+    cf_path: Path,
+    run: RunFn | None = None,
+) -> IbcmdRunResult:
+    """Load configuration from a .cf file into the infobase (ADR-014)."""
+    runner = run or default_run
+    argv = [
+        str(ibcmd),
+        "infobase",
+        "config",
+        "load",
+        *_db_args(db_path, data_path),
+        str(cf_path),
+    ]
+    return _require_ok(runner(argv), step="load")
+
+
+def export_xml(
+    ibcmd: Path,
+    *,
+    db_path: Path,
+    data_path: Path,
+    target_dir: Path,
+    run: RunFn | None = None,
+) -> IbcmdRunResult:
+    """Export configuration from the infobase to hierarchical XML (ADR-014)."""
+    runner = run or default_run
+    target_dir.mkdir(parents=True, exist_ok=True)
+    argv = [
+        str(ibcmd),
+        "infobase",
+        "config",
+        "export",
+        *_db_args(db_path, data_path),
+        str(target_dir),
+    ]
+    return _require_ok(runner(argv), step="export")
 
 
 def check_config(
