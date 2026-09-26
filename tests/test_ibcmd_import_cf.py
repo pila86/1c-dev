@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from adapters.platform_ibcmd import IbcmdError, import_cf_with_ibcmd
+from adapters.platform_ibcmd import IbcmdError, import_cf_with_ibcmd, load_cf_with_ibcmd
 from adapters.platform_ibcmd.client import IbcmdRunResult, export_xml, load_cf
 from adapters.platform_ibcmd.constants import CODE_IBCMD_FAILED, IB_MARKER
 from core.project import init_project
@@ -77,6 +77,54 @@ def test_export_xml_argv(tmp_path: Path) -> None:
     argv = captured[0]
     assert argv[:4] == [str(ibcmd), "infobase", "config", "export"]
     assert argv[-1] == str(target)
+
+
+def test_load_cf_with_ibcmd_happy_path(tmp_path: Path) -> None:
+    ibcmd = tmp_path / "ibcmd"
+    ibcmd.write_text("", encoding="utf-8")
+    db_path = tmp_path / "ib"
+    data_path = tmp_path / "data"
+    cf_path = tmp_path / "configuration.cf"
+    cf_path.write_bytes(b"CF")
+    captured: list[list[str]] = []
+
+    def run(argv: list[str]) -> IbcmdRunResult:
+        captured.append(argv)
+        return _ok_run(argv)
+
+    steps = load_cf_with_ibcmd(
+        ibcmd,
+        db_path=db_path,
+        data_path=data_path,
+        cf_path=cf_path,
+        run=run,
+    )
+    assert steps == ["create", "load", "apply"]
+    assert (db_path / IB_MARKER).is_file()
+    assert any("create" in a for a in captured)
+    assert any("load" in a for a in captured)
+    assert any("apply" in a for a in captured)
+    assert not any("export" in a for a in captured)
+
+
+def test_load_cf_with_ibcmd_skips_create_when_ib_exists(tmp_path: Path) -> None:
+    ibcmd = tmp_path / "ibcmd"
+    ibcmd.write_text("", encoding="utf-8")
+    db_path = tmp_path / "ib"
+    db_path.mkdir()
+    (db_path / IB_MARKER).write_bytes(b"")
+    data_path = tmp_path / "data"
+    cf_path = tmp_path / "configuration.cf"
+    cf_path.write_bytes(b"CF")
+
+    steps = load_cf_with_ibcmd(
+        ibcmd,
+        db_path=db_path,
+        data_path=data_path,
+        cf_path=cf_path,
+        run=_ok_run,
+    )
+    assert steps == ["load", "apply"]
 
 
 def test_import_cf_happy_path(tmp_path: Path) -> None:

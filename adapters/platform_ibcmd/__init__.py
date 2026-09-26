@@ -26,6 +26,7 @@ __all__ = [
     "import_cf_with_ibcmd",
     "infobase_exists",
     "load_cf",
+    "load_cf_with_ibcmd",
 ]
 
 
@@ -81,19 +82,18 @@ def build_with_ibcmd(
     return steps
 
 
-def import_cf_with_ibcmd(
+def load_cf_with_ibcmd(
     ibcmd: Path,
     *,
     db_path: Path,
     data_path: Path,
     cf_path: Path,
-    source_dir: Path,
     run: RunFn | None = None,
 ) -> list[str]:
     """
-    Create (if needed) → load .cf → apply → export XML (ADR-014).
+    Create (if needed) → load .cf → apply (no export; ADR-015 runtime.load).
 
-    Returns list of completed step names: create?, load, apply, export.
+    Returns list of completed step names: create?, load, apply.
     """
     steps: list[str] = []
     db_path.mkdir(parents=True, exist_ok=True)
@@ -114,6 +114,31 @@ def import_cf_with_ibcmd(
 
     apply_config(ibcmd, db_path=db_path, data_path=data_path, run=run)
     steps.append("apply")
+
+    return steps
+
+
+def import_cf_with_ibcmd(
+    ibcmd: Path,
+    *,
+    db_path: Path,
+    data_path: Path,
+    cf_path: Path,
+    source_dir: Path,
+    run: RunFn | None = None,
+) -> list[str]:
+    """
+    Create (if needed) → load .cf → apply → export XML (ADR-014).
+
+    Returns list of completed step names: create?, load, apply, export.
+    """
+    steps = load_cf_with_ibcmd(
+        ibcmd,
+        db_path=db_path,
+        data_path=data_path,
+        cf_path=cf_path,
+        run=run,
+    )
 
     export_xml(
         ibcmd,

@@ -9,6 +9,7 @@ from mcp.server.fastmcp import FastMCP
 from adapters.source.xmlgen import EditOp, edit_op_from_dict
 from core.build import run_build
 from core.check import run_check
+from core.import_cf import run_import
 from core.metadata import (
     IrError,
     MetadataResult,
@@ -109,6 +110,28 @@ def register_tools(server: FastMCP) -> None:
             force=force,
         )
         return result.to_payload(include_manifest=False)
+
+    @server.tool(
+        name="project.import",
+        description=(
+            "Import a .cf configuration into project XML source via ibcmd "
+            "(load → apply → export). Creates 1c.project.yaml if missing. "
+            "Refuses to overwrite existing Configuration.xml unless force=true. "
+            "Does not write AGENTS.md or IDE MCP configs (use setup for that)."
+            + _NO_SHELL
+        ),
+    )
+    def project_import_tool(
+        from_path: str,
+        path: str | None = None,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        result = run_import(
+            resolve_path(path),
+            from_path=from_path,
+            force=force,
+        )
+        return result.to_payload()
 
     @server.tool(
         name="metadata.list",

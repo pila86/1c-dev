@@ -8,9 +8,18 @@ from typing import Any
 
 import typer
 
+from adapters.platform_ibcmd.constants import CODE_IBCMD_FAILED
 from cli.init import init_command
 from cli.output import OutputFormat, OutputOption, resolve_output
-from core.exit_codes import PROJECT_ERROR, SUCCESS
+from core.exit_codes import BUILD_FAILURE, ENV_UNAVAILABLE, PROJECT_ERROR, SUCCESS
+from core.import_cf import ImportResult, run_import
+from core.import_cf.constants import (
+    CODE_CF_MISSING,
+    CODE_DIRTY_SOURCE,
+    CODE_EXPORT_MISSING,
+    CODE_IBCMD_MISSING,
+    CODE_PROJECT,
+)
 from core.project import detect_project, validate_project
 from core.project.result import ProjectResult
 
@@ -35,6 +44,59 @@ def _emit(payload: dict[str, Any], output: OutputFormat, *, text_lines: list[str
 def _exit_for(result: ProjectResult) -> None:
     code = SUCCESS if result.status == "ok" else PROJECT_ERROR
     raise typer.Exit(code=code)
+
+
+def _import_exit_for(result: ImportResult) -> None:
+    if result.status == "ok":
+        raise typer.Exit(code=SUCCESS)
+    codes = {d.get("code") for d in result.diagnostics}
+    if CODE_IBCMD_MISSING in codes:
+        raise typer.Exit(code=ENV_UNAVAILABLE)
+    if codes & {
+        CODE_CF_MISSING,
+        CODE_PROJECT,
+        CODE_DIRTY_SOURCE,
+    }:
+        raise typer.Exit(code=PROJECT_ERROR)
+    if codes & {CODE_IBCMD_FAILED, CODE_EXPORT_MISSING}:
+        raise typer.Exit(code=BUILD_FAILURE)
+    raise typer.Exit(code=BUILD_FAILURE)
+
+
+def _import_text(result: ImportResult) -> list[str]:
+    if result.status != "ok":
+        lines = ["status: failed"]
+        for diag in result.diagnostics:
+            code = diag.get("code", "")
+            prefix = f"[{code}] " if code else ""
+            lines.append(f"error: {prefix}{diag.get('message', '')}")
+            suggestion = diag.get("suggestion")
+            if suggestion:
+                lines.append(f"  → {suggestion}")
+        return lines
+
+    lines = ["status: ok"]
+    if result.duration is not None:
+        lines.append(f"duration: {result.duration:.3f}s")
+    if result.source_path is not None and result.root is not None:
+        try:
+            rel = result.source_path.relative_to(result.root).as_posix()
+        except ValueError:
+            rel = str(result.source_path)
+        lines.append(f"source: {rel}")
+    if result.runtime_path is not None and result.root is not None:
+        try:
+            rel = result.runtime_path.relative_to(result.root).as_posix()
+        except ValueError:
+            rel = str(result.runtime_path)
+        lines.append(f"runtime: {rel}")
+    if result.from_path is not None:
+        lines.append(f"from: {result.from_path}")
+    if result.steps:
+        lines.append("steps: " + ", ".join(result.steps))
+    if result.created:
+        lines.append("created: " + ", ".join(result.created))
+    return lines
 
 
 def _detect_text(result: ProjectResult) -> list[str]:
@@ -90,6 +152,31 @@ def _info_text(result: ProjectResult) -> list[str]:
         f"source: {source.get('format', '')} ({source.get('path', '')})",
         f"runtime: {runtime.get('type', '')} ({runtime.get('path', '')})",
     ]
+
+
+@app.command("import")
+def project_import(
+    ctx: typer.Context,
+    from_path: Path = typer.Option(
+        ...,
+        "--from",
+        help="Путь к файлу конфигурации (.cf).",
+        exists=False,
+        dir_okay=False,
+        file_okay=True,
+        resolve_path=False,
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Перезаписать существующий XML source (Configuration.xml).",
+    ),
+    output: OutputOption = None,
+) -> None:
+    """Импортировать .cf в XML source проекта (CF → IB → export)."""
+    result = run_import(Path.cwd(), from_path=from_path, force=force)
+    _emit(result.to_payload(), resolve_output(ctx, output), text_lines=_import_text(result))
+    _import_exit_for(result)
 
 
 @app.command("detect")

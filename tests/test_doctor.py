@@ -99,8 +99,9 @@ def test_run_doctor_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.status == "ok"
     assert result.capabilities["build"]["available"] is True
     assert result.capabilities["check"]["available"] is True
+    assert result.capabilities["project.import"]["available"] is True
     # metadata.create may be unavailable without java/xml-gen; platform ok ≠ no gaps
-    assert not any(g["capability"] in {"build", "check"} for g in result.gaps)
+    assert not any(g["capability"] in {"build", "check", "project.import"} for g in result.gaps)
     assert not any(d.get("code") == "1CD002" for d in result.diagnostics)
 
 
@@ -119,6 +120,7 @@ def test_run_doctor_supported_write_types(
     assert delete["supportedTypes"] == sorted(M2_OBJECT_TYPES)
     assert "supportedTypes" not in payload["capabilities"]["build"]
     assert "supportedTypes" not in payload["capabilities"]["check"]
+    assert "supportedTypes" not in payload["capabilities"]["project.import"]
     assert "supportedTypes" not in payload["capabilities"]["metadata.read"]
     # Types are advertised even when tools are missing (available may be false).
     assert "supportedTypes" in result.capabilities["metadata.create"]
