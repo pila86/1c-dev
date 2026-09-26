@@ -289,18 +289,6 @@ def test_cli_project_import(tmp_path: Path, monkeypatch: Any) -> None:
     ibcmd = tmp_path / "ibcmd"
     ibcmd.write_text("", encoding="utf-8")
 
-    # Patch discover inside run_import via monkeypatch on adapters.platform
-    from adapters.platform import discovery as disc_mod
-
-    monkeypatch.setattr(
-        disc_mod,
-        "discover_environment",
-        lambda: _fake_discovery(ibcmd=ibcmd),
-    )
-    # Also patch subprocess runner used by adapter — inject via wrapping run_import is hard;
-    # use CORE inject by patching import_cf_with_ibcmd
-    from adapters import platform_ibcmd as ibcmd_mod
-
     def fake_import(
         _ibcmd: Path,
         *,
@@ -316,7 +304,10 @@ def test_cli_project_import(tmp_path: Path, monkeypatch: Any) -> None:
         (db_path / IB_MARKER).write_bytes(b"")
         return ["create", "load", "apply", "export"]
 
-    monkeypatch.setattr(ibcmd_mod, "import_cf_with_ibcmd", fake_import)
+    monkeypatch.setattr(
+        "core.import_cf.run.discover_environment",
+        lambda: _fake_discovery(ibcmd=ibcmd),
+    )
     monkeypatch.setattr("core.import_cf.run.import_cf_with_ibcmd", fake_import)
 
     result = runner.invoke(
