@@ -14,6 +14,7 @@ from cli.mcp_cmd import mcp_command
 from cli.metadata import app as metadata_app
 from cli.output import OutputFormat
 from cli.project import app as project_app
+from cli.runtime import app as runtime_app
 from core.version import __version__
 
 app = typer.Typer(
@@ -24,6 +25,7 @@ app = typer.Typer(
 )
 app.add_typer(project_app, name="project")
 app.add_typer(metadata_app, name="metadata")
+app.add_typer(runtime_app, name="runtime")
 app.command("doctor")(doctor_command)
 app.command("init")(init_command)
 app.command("build")(build_command)

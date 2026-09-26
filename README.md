@@ -7,7 +7,7 @@ Agent-independent toolchain и API-слой для AI-native разработк�
 - Python 3.11+ и [Poetry](https://python-poetry.org/)
 - JDK 17+ — для `metadata.create` / `metadata.update` (jar xml-gen)
 - JDK 21+ — для `metadata.list` / `get` / `find` (jar md-reader / MDClasses)
-- Платформа 1С 8.3.x и `ibcmd` в PATH — для `build` / `check` и integration-тестов
+- Платформа 1С 8.3.x и `ibcmd` в PATH — для `build` / `check` / `project import` и integration-тестов
 
 ## Стек
 
@@ -39,6 +39,8 @@ poetry run pytest -m integration   # E2E с platform/xml-gen/md-reader; инач
 | `1c-dev doctor` | Проверка окружения (платформа, `ibcmd`, xml-gen, md-reader) |
 | `1c-dev init --type configuration` | Bootstrap пустого проекта |
 | `1c-dev project detect\|validate\|info` | Манифест `1c.project.yaml` (`project init` = алиас `init`) |
+| `1c-dev project import --from <file.cf>` | Импорт `.cf` → XML source (`--force` перезаписывает) |
+| `1c-dev runtime load --from <file.cf>` | Загрузка `.cf` в file IB без export XML |
 | `1c-dev metadata list` | Список объектов (IR summaries) |
 | `1c-dev metadata get <QualifiedName>` | IR объекта по QName |
 | `1c-dev metadata find <query>` | Поиск по имени / синониму |
@@ -74,6 +76,8 @@ poetry run 1c-dev metadata get Catalog.Products --output json
 poetry run 1c-dev metadata find Товар --output json
 poetry run 1c-dev build --output json
 poetry run 1c-dev build --artifact cf --output json
+poetry run 1c-dev project import --from build/out/configuration.cf --force --output json
+poetry run 1c-dev runtime load --from build/out/configuration.cf --output json
 poetry run 1c-dev check --output json
 poetry run 1c-dev mcp
 ```

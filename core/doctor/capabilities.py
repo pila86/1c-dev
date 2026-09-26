@@ -1,4 +1,4 @@
-"""Capability matrix for doctor (ADR-005, ADR-007, ADR-012, #25)."""
+"""Capability matrix for doctor (ADR-005, ADR-007, ADR-012, ADR-015, #25)."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from core.metadata.ir import (
 CAPABILITY_REQUIREMENTS: dict[str, list[str]] = {
     "build": ["ibcmd"],
     "check": ["ibcmd"],
+    "project.import": ["ibcmd"],
     "metadata.create": ["java", "xml-gen"],
     "metadata.update": ["java", "xml-gen"],
     "metadata.delete": ["java", "xml-gen"],
