@@ -25,6 +25,7 @@ poetry run 1c-dev --version
 poetry run 1c-dev --help
 poetry run pytest
 poetry run pytest -m integration   # E2E с platform/xml-gen/md-reader; иначе skip
+# M1: tests/test_m1_acceptance.py · M2: tests/test_m2_acceptance.py
 ```
 
 На Windows: `pwsh scripts/fetch-xml-gen.ps1`, `pwsh scripts/fetch-md-reader.ps1`.

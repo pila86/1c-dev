@@ -138,7 +138,7 @@ metadata.get(Catalog.Products)
 
 ## Acceptance criteria
 
-Feature-issues #20–#26, #28, #29, #35, #39, #40 закрыты. Остаётся сквозной acceptance [#27](https://github.com/pila86/1c-dev/issues/27).
+Feature-issues #20–#26, #28, #29, #35, #39, #40 и сквозной acceptance [#27](https://github.com/pila86/1c-dev/issues/27) закрыты.
 
 ### Read
 
@@ -177,8 +177,8 @@ Feature-issues #20–#26, #28, #29, #35, #39, #40 закрыты. Остаётс
 
 ### Acceptance (#27)
 
-- [ ] Integration E2E: Document (+ attr + ТЧ) → update → Enum + регистр → delete → list/get → build → check (skip без platform / xml-gen / md-reader) — [#27](https://github.com/pila86/1c-dev/issues/27)
-- [ ] Запуск задокументирован: `poetry run pytest -m integration`
+- [x] Integration E2E: Document (+ attr + ТЧ) → update → Enum + регистр → delete → list/get → build → check (skip без platform / xml-gen / md-reader) — [#27](https://github.com/pila86/1c-dev/issues/27) (`tests/test_m2_acceptance.py`)
+- [x] Запуск задокументирован: `poetry run pytest -m integration`
 
 ## Out of scope M2
 
