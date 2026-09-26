@@ -7,6 +7,7 @@ from pathlib import Path
 from core.diagnostics import Diagnostic, info
 from core.toolchain.cache import tools_cache_dir
 from core.toolchain.fetchers.bslls import fetch_bsl_language_server
+from core.toolchain.fetchers.docsfacade import fetch_docs_facade
 from core.toolchain.fetchers.mdreader import fetch_md_reader
 from core.toolchain.fetchers.xmlgen import fetch_xml_gen
 from core.toolchain.manifest import ComponentSpec, ToolchainManifest, load_manifest
@@ -14,7 +15,7 @@ from core.toolchain.progress import ProgressFn, noop_progress
 from core.toolchain.result import ComponentResult, OverallStatus, SyncResult
 
 MUST_IDS = frozenset({"xml-gen", "md-reader"})
-SOFT_IDS = frozenset({"bsl-language-server"})
+SOFT_IDS = frozenset({"bsl-language-server", "docs-facade"})
 
 
 def _sync_component(
@@ -32,11 +33,11 @@ def _sync_component(
                 id=spec.id,
                 status="deferred",
                 pin=spec.pin,
-                message="Ожидает реализации (#51)",
+                message="Ожидает реализации",
             ),
             [
                 info(
-                    f"Компонент {spec.id} отложен (docs facade → #51)",
+                    f"Компонент {spec.id} отложен",
                     code="1CT030",
                     source="toolchain",
                 )
@@ -55,6 +56,10 @@ def _sync_component(
         )
     elif spec.id == "bsl-language-server":
         path, diags = fetch_bsl_language_server(
+            spec, tools_dir, env=env, progress=progress, quiet=quiet
+        )
+    elif spec.id == "docs-facade":
+        path, diags = fetch_docs_facade(
             spec, tools_dir, env=env, progress=progress, quiet=quiet
         )
     else:

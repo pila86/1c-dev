@@ -25,3 +25,8 @@ def cache_root(*, env: dict[str, str] | None = None, platform: str | None = None
 def tools_cache_dir(*, env: dict[str, str] | None = None, platform: str | None = None) -> Path:
     """Directory for toolchain jars under the user cache."""
     return cache_root(env=env, platform=platform) / "tools"
+
+
+def docs_cache_dir(*, env: dict[str, str] | None = None, platform: str | None = None) -> Path:
+    """Directory for lazy docs indexes keyed by platform.version (ADR-017)."""
+    return cache_root(env=env, platform=platform) / "docs"

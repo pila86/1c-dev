@@ -176,9 +176,9 @@ def test_run_doctor_reports_all_toolchain_tools(
         assert key in result.tools
         assert "found" in result.tools[key]
     codes = {d.get("code") for d in result.diagnostics}
-    assert "1CD008" in codes  # docs-facade deferred
+    assert "1CD008" in codes  # docs-facade missing
     docs_diag = next(d for d in result.diagnostics if d.get("code") == "1CD008")
-    assert docs_diag["severity"] == "info"
+    assert docs_diag["severity"] == "warning"
 
 
 def test_run_doctor_env_override_source(
@@ -322,7 +322,7 @@ def test_cli_doctor_fix_runs_sync(
                 ComponentResult(id="xml-gen", status="ok", path="/tmp/xml-gen.jar"),
                 ComponentResult(id="md-reader", status="ok"),
                 ComponentResult(id="bsl-language-server", status="ok"),
-                ComponentResult(id="docs-facade", status="deferred"),
+                ComponentResult(id="docs-facade", status="ok"),
             ],
         )
 

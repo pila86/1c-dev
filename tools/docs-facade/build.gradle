@@ -1,0 +1,50 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'dev.onec'
+version = '0.1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Pin: bsl-context 0.10.0 (ADR-017). Fat jar → user cache via tools sync.
+    implementation 'io.github.1c-syntax:bsl-context:0.10.0'
+    implementation 'com.google.code.gson:gson:2.11.0'
+    runtimeOnly 'org.slf4j:slf4j-nop:2.0.16'
+}
+
+application {
+    mainClass = 'dev.onec.docsfacade.Main'
+}
+
+tasks.register('fatJar', Jar) {
+    group = 'build'
+    description = 'Build fat jar with runtime dependencies'
+    archiveBaseName.set('docs-facade')
+    archiveClassifier.set('')
+    archiveVersion.set('')
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes('Main-Class': 'dev.onec.docsfacade.Main')
+    }
+    from {
+        configurations.runtimeClasspath.collect { file ->
+            file.isDirectory() ? file : zipTree(file)
+        }
+    }
+    with jar
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('fatJar')
+}

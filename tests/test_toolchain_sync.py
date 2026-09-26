@@ -41,7 +41,8 @@ def test_load_manifest_from_repo() -> None:
     assert "bsl-language-server" in ids
     docs = manifest.get("docs-facade")
     assert docs is not None
-    assert docs.deferred is True
+    assert docs.deferred is False
+    assert docs.pin == "bsl-context-0.10.0"
 
 
 def test_resolve_component_jar_env_and_cache(
@@ -78,25 +79,30 @@ def test_resolve_component_jar_env_and_cache(
     assert env_hit.path == override.resolve()
 
 
-def test_resolve_docs_facade_deferred(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_resolve_docs_facade_cache(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     from core.toolchain.resolve import resolve_component_jar
 
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg"))
+    tools = tools_cache_dir(platform="linux")
+    tools.mkdir(parents=True)
+    jar = tools / "docs-facade.jar"
+    jar.write_bytes(b"jar")
     spec = ComponentSpec(
         id="docs-facade",
         artifact="docs-facade.jar",
-        pin="deferred",
-        source={},
+        pin="bsl-context-0.10.0",
+        source={"type": "local-build"},
         env="ONEC_DOCS_FACADE_JAR",
-        status="deferred",
     )
     result = resolve_component_jar(
         spec,
         env={},
         cache_env={"XDG_CACHE_HOME": str(tmp_path / "xdg")},
     )
-    assert result.found is False
-    assert result.deferred is True
+    assert result.found is True
+    assert result.deferred is False
 
 
 def _fake_manifest() -> ToolchainManifest:
@@ -130,9 +136,9 @@ def _fake_manifest() -> ToolchainManifest:
             ComponentSpec(
                 id="docs-facade",
                 artifact="docs-facade.jar",
-                pin="deferred",
-                source={"type": "deferred"},
-                status="deferred",
+                pin="bsl-context-0.10.0",
+                source={"type": "local-build", "path": "tools/docs-facade"},
+                min_java=21,
                 env="ONEC_DOCS_FACADE_JAR",
             ),
         ),
@@ -186,9 +192,23 @@ def test_sync_tools_with_mocked_fetchers(
         path.write_bytes(b"bsl")
         return path, []
 
+    def fake_docs(
+        spec: ComponentSpec,
+        tools_dir: Path,
+        *,
+        env: dict[str, str] | None = None,
+        **kwargs: Any,
+    ) -> tuple[Path, list]:
+        del env, kwargs
+        path = tools_dir / spec.artifact
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"docs")
+        return path, []
+
     monkeypatch.setattr("core.toolchain.sync.fetch_xml_gen", fake_xml)
     monkeypatch.setattr("core.toolchain.sync.fetch_md_reader", fake_md)
     monkeypatch.setattr("core.toolchain.sync.fetch_bsl_language_server", fake_bsl)
+    monkeypatch.setattr("core.toolchain.sync.fetch_docs_facade", fake_docs)
 
     result = sync_tools(manifest=_fake_manifest(), progress=seen.append, quiet=False)
     assert result.status == "ok"
@@ -196,11 +216,11 @@ def test_sync_tools_with_mocked_fetchers(
     assert by_id["xml-gen"].status == "ok"
     assert by_id["md-reader"].status == "ok"
     assert by_id["bsl-language-server"].status == "ok"
-    assert by_id["docs-facade"].status == "deferred"
-    assert any(d.get("code") == "1CT030" for d in result.diagnostics)
+    assert by_id["docs-facade"].status == "ok"
+    assert not any(d.get("code") == "1CT030" for d in result.diagnostics)
     assert seen[0] == "Toolchain sync…"
     assert any("✓ xml-gen" in m for m in seen)
-    assert any("docs-facade: deferred" in m for m in seen)
+    assert any("✓ docs-facade" in m for m in seen)
 
     # idempotent second run
     result2 = sync_tools(manifest=_fake_manifest())
@@ -239,6 +259,7 @@ def test_sync_soft_fail_bsl_degraded(
     monkeypatch.setattr("core.toolchain.sync.fetch_xml_gen", ok_jar)
     monkeypatch.setattr("core.toolchain.sync.fetch_md_reader", ok_jar)
     monkeypatch.setattr("core.toolchain.sync.fetch_bsl_language_server", fail_bsl)
+    monkeypatch.setattr("core.toolchain.sync.fetch_docs_facade", ok_jar)
 
     result = sync_tools(manifest=_fake_manifest())
     assert result.status == "degraded"
@@ -316,7 +337,7 @@ def test_cli_tools_sync_json(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
             status="ok",
             components=[
                 ComponentResult(id="xml-gen", status="ok", path="/tmp/xml-gen.jar"),
-                ComponentResult(id="docs-facade", status="deferred"),
+                ComponentResult(id="docs-facade", status="ok"),
             ],
             diagnostics=[],
         )
