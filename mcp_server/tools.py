@@ -1,4 +1,4 @@
-"""MCP tools: thin wrappers over core API (ADR-010 / #29)."""
+"""MCP tools: thin wrappers over core API (ADR-010 / #26 / #29)."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from adapters.source.xmlgen import EditOp, edit_op_from_dict
 from core.build import run_build
 from core.check import run_check
 from core.metadata import (
@@ -14,6 +15,10 @@ from core.metadata import (
     catalog_from_json,
     create_metadata,
     delete_metadata,
+    find_metadata,
+    get_metadata,
+    list_metadata,
+    update_metadata,
 )
 from core.project import init_project, validate_project
 from mcp_server._path import resolve_path
@@ -21,6 +26,53 @@ from mcp_server._path import resolve_path
 _NO_SHELL = (
     " Do not use shell, Designer/Configurator, or raw ibcmd for this operation — use this tool."
 )
+
+
+def _parse_update_operations(
+    operations: list[dict[str, Any]] | None,
+) -> list[EditOp] | MetadataResult:
+    """Parse MCP operations[] into EditOp list, or return an error result."""
+    if not operations:
+        return MetadataResult(
+            status="error",
+            diagnostics=[
+                {
+                    "severity": "error",
+                    "code": "1CM002",
+                    "message": "Список операций пуст",
+                    "source": "metadata",
+                }
+            ],
+        )
+    result: list[EditOp] = []
+    for item in operations:
+        if not isinstance(item, dict):
+            return MetadataResult(
+                status="error",
+                diagnostics=[
+                    {
+                        "severity": "error",
+                        "code": "1CM002",
+                        "message": "Элемент operations должен быть объектом {op, value}",
+                        "source": "metadata",
+                    }
+                ],
+            )
+        try:
+            result.append(edit_op_from_dict(item))
+        except ValueError as exc:
+            return MetadataResult(
+                status="error",
+                diagnostics=[
+                    {
+                        "severity": "error",
+                        "code": "1CM002",
+                        "message": str(exc),
+                        "source": "metadata",
+                    }
+                ],
+            )
+    return result
 
 
 def register_tools(server: FastMCP) -> None:
@@ -59,9 +111,56 @@ def register_tools(server: FastMCP) -> None:
         return result.to_payload(include_manifest=False)
 
     @server.tool(
+        name="metadata.list",
+        description=(
+            "List metadata objects in project XML source as IR summaries "
+            "({type, name, qname, synonym?}). Use to survey the configuration "
+            "before get/update/create/delete. Works from source without the 1C platform."
+            + _NO_SHELL
+        ),
+    )
+    def metadata_list(path: str | None = None) -> dict[str, Any]:
+        result = list_metadata(resolve_path(path))
+        return result.to_payload()
+
+    @server.tool(
+        name="metadata.get",
+        description=(
+            "Get full Metadata IR for one object by qualified name "
+            "(e.g. Catalog.Products). Call before metadata.update to inspect "
+            "existing attributes/tabular sections/values. Works from source "
+            "without the 1C platform."
+            + _NO_SHELL
+        ),
+    )
+    def metadata_get(
+        qualified_name: str,
+        path: str | None = None,
+    ) -> dict[str, Any]:
+        result = get_metadata(resolve_path(path), qualified_name)
+        return result.to_payload()
+
+    @server.tool(
+        name="metadata.find",
+        description=(
+            "Find metadata objects by substring of name or synonym. "
+            "Returns IR summaries like metadata.list. Prefer over list when "
+            "looking for a specific object."
+            + _NO_SHELL
+        ),
+    )
+    def metadata_find(
+        query: str,
+        path: str | None = None,
+    ) -> dict[str, Any]:
+        result = find_metadata(resolve_path(path), query)
+        return result.to_payload()
+
+    @server.tool(
         name="metadata.create",
         description=(
-            "Create a metadata object in XML source. "
+            "Create a new metadata object in XML source (does not modify existing "
+            "objects — use metadata.update for that). "
             "Types: Catalog, Document, Enum, InformationRegister, "
             "AccumulationRegister, CommonModule. Pass qualified_name "
             "(e.g. Catalog.Products, Enum.Statuses, CommonModule.SalesServer); "
@@ -145,11 +244,43 @@ def register_tools(server: FastMCP) -> None:
         return result.to_payload()
 
     @server.tool(
+        name="metadata.update",
+        description=(
+            "Apply edit operations to an existing metadata object. Prefer "
+            "metadata.get first. Pass operations as [{op, value}, …]: "
+            "add-attribute / modify-attribute / remove-attribute; "
+            "add-ts / modify-ts / remove-ts; add-ts-attribute / remove-ts-attribute; "
+            "add-enumValue / modify-enumValue / remove-enumValue; "
+            "add-dimension / modify-dimension / remove-dimension; "
+            "add-resource / modify-resource / remove-resource; "
+            "modify-property; set-flag (CommonModule sugar → modify-property). "
+            "Examples: {op:'add-attribute', value:'Price:Number(15,2)'}, "
+            "{op:'modify-attribute', value:'Price: synonym=Цена'}, "
+            "{op:'set-flag', value:'server=true'}. "
+            "Does not create new objects — use metadata.create."
+            + _NO_SHELL
+        ),
+    )
+    def metadata_update(
+        qualified_name: str,
+        operations: list[dict[str, Any]] | None = None,
+        path: str | None = None,
+    ) -> dict[str, Any]:
+        parsed = _parse_update_operations(operations)
+        if isinstance(parsed, MetadataResult):
+            parsed.object = qualified_name
+            return parsed.to_payload()
+        result = update_metadata(resolve_path(path), qualified_name, parsed)
+        return result.to_payload()
+
+    @server.tool(
         name="metadata.delete",
         description=(
             "Delete a whole metadata object from XML source by qualified name "
             "(e.g. Catalog.Products). Removes object artifacts and Configuration.xml "
-            "registration. Does not cascade references."
+            "registration. Does not cascade references. Prefer metadata.get first. "
+            "To remove attributes/tabular sections/values use metadata.update "
+            "remove-* ops instead."
             + _NO_SHELL
         ),
     )
