@@ -141,6 +141,77 @@ def test_run_doctor_metadata_create_gap(
     assert "java" in gap["missing"] or "xml-gen" in gap["missing"]
     codes = {d.get("code") for d in result.diagnostics}
     assert "1CD004" in codes or "1CD005" in codes
+    jar_diags = [d for d in result.diagnostics if d.get("code") in {"1CD005", "1CD006", "1CD007"}]
+    assert jar_diags
+    assert any(
+        "doctor --fix" in (d.get("suggestion") or "") or "tools sync" in (d.get("suggestion") or "")
+        for d in jar_diags
+    )
+
+
+def test_run_doctor_reports_all_toolchain_tools(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_path(monkeypatch)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "empty-cache"))
+    for key in (
+        "ONEC_XMLGEN_JAR",
+        "ONEC_MDREADER_JAR",
+        "ONEC_BSLLS_JAR",
+        "ONEC_DOCS_FACADE_JAR",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    _make_install(tmp_path, "8.3.27.1549")
+    result = run_doctor(search_roots=[tmp_path])
+    for key in (
+        "cli",
+        "ibcmd",
+        "1cv8",
+        "java",
+        "xml-gen",
+        "md-reader",
+        "bsl-language-server",
+        "docs-facade",
+    ):
+        assert key in result.tools
+        assert "found" in result.tools[key]
+    codes = {d.get("code") for d in result.diagnostics}
+    assert "1CD008" in codes  # docs-facade deferred
+    docs_diag = next(d for d in result.diagnostics if d.get("code") == "1CD008")
+    assert docs_diag["severity"] == "info"
+
+
+def test_run_doctor_env_override_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_path(monkeypatch)
+    _make_install(tmp_path, "8.3.27.1549")
+    jar = tmp_path / "custom-xml-gen.jar"
+    jar.write_bytes(b"pk\x03\x04")
+    monkeypatch.setenv("ONEC_XMLGEN_JAR", str(jar))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "empty-cache"))
+    result = run_doctor(search_roots=[tmp_path])
+    xmlgen = result.tools["xml-gen"]
+    assert xmlgen["found"] is True
+    assert xmlgen["source"] == "env"
+    assert xmlgen["path"] == str(jar.resolve())
+
+
+def test_run_doctor_bsl_env_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_path(monkeypatch)
+    _make_install(tmp_path, "8.3.27.1549")
+    jar = tmp_path / "bsl-language-server.jar"
+    jar.write_bytes(b"pk\x03\x04")
+    monkeypatch.setenv("ONEC_BSLLS_JAR", str(jar))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "empty-cache"))
+    result = run_doctor(search_roots=[tmp_path])
+    bsl = result.tools["bsl-language-server"]
+    assert bsl["found"] is True
+    assert bsl["source"] == "env"
+    assert bsl["path"] == str(jar.resolve())
+    assert not any(d.get("code") == "1CD007" for d in result.diagnostics)
 
 
 def test_run_doctor_missing_ibcmd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -223,8 +294,71 @@ def test_cli_doctor_text_ok(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
     assert "8.3.27.1549" in result.stdout
     assert "build: available" in result.stdout
     assert "metadata.create:" in result.stdout
+    assert "md-reader:" in result.stdout
+    assert "bsl-language-server:" in result.stdout
+    assert "docs-facade:" in result.stdout
+    assert "cli:" in result.stdout
     expected_types = (
         "types: AccumulationRegister, Catalog, CommonModule, "
         "Document, Enum, InformationRegister"
     )
     assert expected_types in result.stdout
+
+
+def test_cli_doctor_fix_runs_sync(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from core.toolchain.result import ComponentResult, SyncResult
+
+    _clear_path(monkeypatch)
+    _make_install(tmp_path, "8.3.27.1549")
+    called: list[bool] = []
+
+    def fake_sync(**_kwargs: object) -> SyncResult:
+        called.append(True)
+        return SyncResult(
+            status="ok",
+            components=[
+                ComponentResult(id="xml-gen", status="ok", path="/tmp/xml-gen.jar"),
+                ComponentResult(id="md-reader", status="ok"),
+                ComponentResult(id="bsl-language-server", status="ok"),
+                ComponentResult(id="docs-facade", status="deferred"),
+            ],
+        )
+
+    monkeypatch.setattr("cli.doctor.sync_tools", fake_sync)
+    monkeypatch.setattr(
+        "cli.doctor.run_doctor",
+        lambda: run_doctor(search_roots=[tmp_path]),
+    )
+    result = runner.invoke(app, ["--output", "json", "doctor", "--fix"])
+    assert result.exit_code == SUCCESS
+    assert called == [True]
+    payload = json.loads(result.stdout)
+    assert payload["fix"]["status"] == "ok"
+    assert payload["doctor"]["status"] == "ok"
+    assert "xml-gen" in payload["doctor"]["tools"]
+
+
+def test_cli_doctor_fix_sync_error_exit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from core.toolchain.result import ComponentResult, SyncResult
+
+    _clear_path(monkeypatch)
+    _make_install(tmp_path, "8.3.27.1549")
+
+    def fake_sync(**_kwargs: object) -> SyncResult:
+        return SyncResult(
+            status="error",
+            components=[ComponentResult(id="xml-gen", status="error")],
+        )
+
+    monkeypatch.setattr("cli.doctor.sync_tools", fake_sync)
+    monkeypatch.setattr(
+        "cli.doctor.run_doctor",
+        lambda: run_doctor(search_roots=[tmp_path]),
+    )
+    result = runner.invoke(app, ["doctor", "--fix"])
+    assert result.exit_code == ENV_UNAVAILABLE
+    assert "Toolchain sync" in result.stdout

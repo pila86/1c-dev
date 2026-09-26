@@ -44,6 +44,61 @@ def test_load_manifest_from_repo() -> None:
     assert docs.deferred is True
 
 
+def test_resolve_component_jar_env_and_cache(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from core.toolchain.resolve import resolve_component_jar
+
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg"))
+    tools = tools_cache_dir(platform="linux")
+    tools.mkdir(parents=True)
+    stable = tools / "bsl-language-server.jar"
+    stable.write_bytes(b"jar")
+    spec = ComponentSpec(
+        id="bsl-language-server",
+        artifact="bsl-language-server.jar",
+        pin="1.0.6",
+        source={},
+        env="ONEC_BSLLS_JAR",
+    )
+    monkeypatch.delenv("ONEC_BSLLS_JAR", raising=False)
+    cached = resolve_component_jar(spec, cache_env={"XDG_CACHE_HOME": str(tmp_path / "xdg")})
+    assert cached.found is True
+    assert cached.source == "cache"
+
+    override = tmp_path / "custom.jar"
+    override.write_bytes(b"x")
+    env_hit = resolve_component_jar(
+        spec,
+        env={"ONEC_BSLLS_JAR": str(override)},
+        cache_env={"XDG_CACHE_HOME": str(tmp_path / "xdg")},
+    )
+    assert env_hit.found is True
+    assert env_hit.source == "env"
+    assert env_hit.path == override.resolve()
+
+
+def test_resolve_docs_facade_deferred(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from core.toolchain.resolve import resolve_component_jar
+
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg"))
+    spec = ComponentSpec(
+        id="docs-facade",
+        artifact="docs-facade.jar",
+        pin="deferred",
+        source={},
+        env="ONEC_DOCS_FACADE_JAR",
+        status="deferred",
+    )
+    result = resolve_component_jar(
+        spec,
+        env={},
+        cache_env={"XDG_CACHE_HOME": str(tmp_path / "xdg")},
+    )
+    assert result.found is False
+    assert result.deferred is True
+
+
 def _fake_manifest() -> ToolchainManifest:
     return ToolchainManifest(
         version=1,

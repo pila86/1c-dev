@@ -44,10 +44,10 @@ def pinned_jar_path() -> Path:
 
 
 def fetch_script_suggestion() -> str:
-    """OS-specific hint to build md-reader."""
+    """OS-specific hint to bootstrap md-reader."""
     if sys.platform == "win32":
-        return "1c-dev tools sync  # или: pwsh scripts/fetch-md-reader.ps1"
-    return "1c-dev tools sync  # или: ./scripts/fetch-md-reader.sh"
+        return "1c-dev doctor --fix  # или: 1c-dev tools sync / pwsh scripts/fetch-md-reader.ps1"
+    return "1c-dev doctor --fix  # или: 1c-dev tools sync / ./scripts/fetch-md-reader.sh"
 
 
 def resolve_jar(*, env: dict[str, str] | None = None) -> ToolResolve:

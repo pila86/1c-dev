@@ -1,16 +1,15 @@
-"""Capability matrix for doctor (ADR-005, ADR-007, ADR-012, ADR-015, #25)."""
+"""Capability matrix for doctor (ADR-005, ADR-007, ADR-012, ADR-015, #25, #49)."""
 
 from __future__ import annotations
 
 from typing import NotRequired, TypedDict
 
-from adapters.source.mdclasses.resolve import fetch_script_suggestion as mdreader_suggest
-from adapters.source.xmlgen.resolve import fetch_script_suggestion as xmlgen_suggest
 from core.metadata.ir import (
     CREATE_OBJECT_TYPES,
     M2_OBJECT_TYPES,
     UPDATE_OBJECT_TYPES,
 )
+from core.toolchain.resolve import sync_suggestion
 
 # Capability → required tool names (keys in tools map).
 CAPABILITY_REQUIREMENTS: dict[str, list[str]] = {
@@ -36,8 +35,8 @@ _TOOL_HINTS: dict[str, str] = {
         "(или в стандартный каталог установки)."
     ),
     "java": "Установите JDK 17+ и добавьте java в PATH (или задайте JAVA_HOME).",
-    "xml-gen": ("Соберите xml-gen: {suggest} (или задайте ONEC_XMLGEN_JAR)."),
-    "md-reader": ("Соберите md-reader: {suggest} (или задайте ONEC_MDREADER_JAR)."),
+    "xml-gen": "{suggest} (или задайте ONEC_XMLGEN_JAR).",
+    "md-reader": "{suggest} (или задайте ONEC_MDREADER_JAR).",
 }
 
 
@@ -60,6 +59,7 @@ def resolve_capabilities(
     """Compute capability availability and gaps from discovered tools."""
     capabilities: dict[str, CapabilityStatus] = {}
     gaps: list[CapabilityGap] = []
+    suggest = sync_suggestion()
 
     for name, requires in CAPABILITY_REQUIREMENTS.items():
         missing = [t for t in requires if not tools_found.get(t, False)]
@@ -76,7 +76,6 @@ def resolve_capabilities(
             first = missing[0]
             raw = _TOOL_HINTS.get(first, f"Требуется: {', '.join(missing)}")
             if "{suggest}" in raw:
-                suggest = mdreader_suggest() if first == "md-reader" else xmlgen_suggest()
                 hint = raw.format(suggest=suggest)
             else:
                 hint = raw
