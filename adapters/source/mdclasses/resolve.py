@@ -46,8 +46,8 @@ def pinned_jar_path() -> Path:
 def fetch_script_suggestion() -> str:
     """OS-specific hint to build md-reader."""
     if sys.platform == "win32":
-        return "pwsh scripts/fetch-md-reader.ps1"
-    return "./scripts/fetch-md-reader.sh"
+        return "1c-dev tools sync  # или: pwsh scripts/fetch-md-reader.ps1"
+    return "1c-dev tools sync  # или: ./scripts/fetch-md-reader.sh"
 
 
 def resolve_jar(*, env: dict[str, str] | None = None) -> ToolResolve:

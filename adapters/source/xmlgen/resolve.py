@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from adapters.source.xmlgen.constants import MIN_JAVA_MAJOR, XMLGEN_COMMIT, XMLGEN_JAR_ENV
+from core.toolchain.cache import tools_cache_dir as _tools_cache_dir
 
 _JAVA_VERSION_RE = re.compile(r'version\s+"?(?P<ver>\d+)(?:\.(?P<minor>\d+))?')
 
@@ -26,15 +27,7 @@ class ToolResolve:
 
 def tools_cache_dir() -> Path:
     """OS-specific cache directory for toolchain jars."""
-    if sys.platform == "win32":
-        base = os.environ.get("LOCALAPPDATA")
-        if base:
-            return Path(base) / "1c-dev" / "tools"
-        return Path.home() / "AppData" / "Local" / "1c-dev" / "tools"
-    xdg = os.environ.get("XDG_CACHE_HOME")
-    if xdg:
-        return Path(xdg) / "1c-dev" / "tools"
-    return Path.home() / ".cache" / "1c-dev" / "tools"
+    return _tools_cache_dir()
 
 
 def default_jar_path() -> Path:
@@ -51,8 +44,8 @@ def pinned_jar_path() -> Path:
 def fetch_script_suggestion() -> str:
     """OS-specific hint to build xml-gen."""
     if sys.platform == "win32":
-        return "pwsh scripts/fetch-xml-gen.ps1"
-    return "./scripts/fetch-xml-gen.sh"
+        return "1c-dev tools sync  # или: pwsh scripts/fetch-xml-gen.ps1"
+    return "1c-dev tools sync  # или: ./scripts/fetch-xml-gen.sh"
 
 
 def resolve_jar(*, env: dict[str, str] | None = None) -> ToolResolve:

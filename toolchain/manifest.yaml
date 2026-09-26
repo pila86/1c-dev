@@ -1,0 +1,42 @@
+# Toolchain pin manifest (ADR-013). SoT for `1c-dev tools sync`.
+version: 1
+components:
+  - id: xml-gen
+    artifact: xml-gen.jar
+    pin: "19f67bfed6d15f051f9568678bab1701b7735f95"
+    source:
+      type: git
+      repo: https://github.com/SteelMorgan/1c-agent-based-dev-framework.git
+      sparse_path: tools/xml-gen
+    min_java: 17
+    env: ONEC_XMLGEN_JAR
+
+  - id: md-reader
+    artifact: md-reader.jar
+    pin: mdclasses-0.20.0
+    source:
+      type: local-build
+      path: tools/md-reader
+    min_java: 21
+    env: ONEC_MDREADER_JAR
+
+  - id: bsl-language-server
+    artifact: bsl-language-server.jar
+    pin: "1.0.6"
+    source:
+      type: github-release
+      repo: 1c-syntax/bsl-language-server
+      asset: bsl-language-server-1.0.6-exec.jar
+      url: https://github.com/1c-syntax/bsl-language-server/releases/download/v1.0.6/bsl-language-server-1.0.6-exec.jar
+    min_java: 21
+    env: ONEC_BSLLS_JAR
+
+  - id: docs-facade
+    artifact: docs-facade.jar
+    pin: deferred
+    status: deferred
+    source:
+      type: deferred
+      note: "Implemented in #51"
+    min_java: 21
+    env: ONEC_DOCS_FACADE_JAR

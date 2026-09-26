@@ -69,13 +69,13 @@ create IB (если нет)
 ```bash
 # один раз
 uv tool install git+https://github.com/pila86/1c-dev   # или из локального wheel
-1c-dev install                                         # jars в user cache
+1c-dev tools sync                                      # jars в user cache
 1c-dev doctor
 ```
 
-Имя команды и layout cache — [ADR-013](../adr/013-packaging-toolchain-cache.md): `1c-dev install`, cache `~/.cache/1c-dev` (Windows: `%LOCALAPPDATA%\1c-dev`).
+Имя команды и layout cache — [ADR-013](../adr/013-packaging-toolchain-cache.md): `1c-dev tools sync`, cache `~/.cache/1c-dev` (Windows: `%LOCALAPPDATA%\1c-dev`).
 
-`1c-dev install` — идемпотентный bootstrap toolchain в user-dir:
+`1c-dev tools sync` — идемпотентный bootstrap toolchain в user-dir:
 
 | Компонент | Зачем | Примечание |
 |-----------|--------|------------|
@@ -88,12 +88,12 @@ uv tool install git+https://github.com/pila86/1c-dev   # или из локал�
 
 - entrypoint `1c-dev` в PATH пользователя через `uv tool install`
 - кэш toolchain в user-dir (например `~/.cache/1c-dev` / `~/.local/share/1c-dev`), с версионированием артефактов (pin / checksum в манифесте toolchain)
-- **после install** `metadata.create` / `list` / `get` работают без ручного `./scripts/fetch-*.sh` и без checkout monorepo
-- `doctor` проверяет self (CLI, **каждый** jar toolchain, Java, platform, ibcmd) и умеет подсказать / запустить докачку (`--fix` или отсылка к `install`)
+- **после `tools sync`** `metadata.create` / `list` / `get` работают без ручного `./scripts/fetch-*.sh` и без checkout monorepo
+- `doctor` проверяет self (CLI, **каждый** jar toolchain, Java, platform, ibcmd) и умеет подсказать / запустить докачку (`--fix` или отсылка к `tools sync`)
 - override путей через env (`ONEC_XMLGEN_JAR`, `ONEC_MDREADER_JAR`, …) сохраняется и имеет приоритет над cache
 - сеть недоступна / JDK нет → structured diagnostic, CLI при этом остаётся usable для команд без jar
 
-ADR packaging: [ADR-013](../adr/013-packaging-toolchain-cache.md) — `uv tool` must, layout cache, pin toolchain; pipx / PyPI — later. Single-binary не must M3. Maven Central / GitHub Releases как источники jar — reuse текущих fetch-скриптов, но вызов из install, не из README «вручную».
+ADR packaging: [ADR-013](../adr/013-packaging-toolchain-cache.md) — `uv tool` must, layout cache, pin toolchain; pipx / PyPI — later. Single-binary не must M3. Maven Central / GitHub Releases как источники jar — reuse текущих fetch-скриптов, но вызов из `tools sync`, не из README «вручную».
 
 ### C. Project setup (манифест + агенты + IDE MCP)
 
@@ -175,7 +175,7 @@ Installed platform HBK
 > Подготовь этот каталог для работы с 1c-dev в Cursor / Kilocode.
 
 ```
-1. (user) uv tool install … → 1c-dev в PATH; 1c-dev install
+1. (user) uv tool install … → 1c-dev в PATH; 1c-dev tools sync
 2. setup --ide cursor   # или kilocode
 3. doctor
 4. агент работает через MCP 1c-dev + bsl-ls; docs.* — по необходимости (lazy index)
@@ -196,12 +196,12 @@ Installed platform HBK
 ### Install
 
 - [ ] Документированный must-путь: `uv tool install` (git и/или wheel) → `1c-dev` в PATH без Poetry-checkout рядом с продуктом
-- [ ] `1c-dev install` (или эквивалент post-install) **автоматически** скачивает в user cache: xml-gen, md-reader (MDClasses), bsl-ls jar, docs facade
-- [ ] После install на чистой машине (без monorepo) `metadata.create` и `metadata.list`/`get` не требуют ручного `fetch-*.sh`
-- [ ] Повторный `install` идемпотентен; при смене pin toolchain — обновляет артефакты
-- [ ] `1c-dev doctor` отражает наличие CLI, **каждого** jar toolchain, Java, platform, ibcmd; отсутствует jar → diagnostic с указанием `install` / `--fix`
+- [ ] `1c-dev tools sync` **автоматически** скачивает в user cache: xml-gen, md-reader (MDClasses), bsl-ls jar; docs facade — deferred до #51
+- [ ] После `tools sync` на чистой машине (без monorepo) `metadata.create` и `metadata.list`/`get` не требуют ручного `fetch-*.sh`
+- [ ] Повторный `tools sync` идемпотентен; при смене pin toolchain — обновляет артефакты
+- [ ] `1c-dev doctor` отражает наличие CLI, **каждого** jar toolchain, Java, platform, ibcmd; отсутствует jar → diagnostic с указанием `tools sync` / `--fix`
 - [ ] Env-override jar’ов по-прежнему работает
-- [ ] README: быстрый старт через `uv tool install` + `1c-dev install` (не только `poetry run` + ручные fetch)
+- [ ] README: быстрый старт через `uv tool install` + `1c-dev tools sync` (не только `poetry run` + ручные fetch)
 
 ### Setup
 
@@ -238,7 +238,7 @@ Installed platform HBK
 # 0. Install
 uv tool install git+https://github.com/pila86/1c-dev
 1c-dev --version
-1c-dev install --output json          # xml-gen, md-reader/MDClasses, bsl-ls, docs facade
+1c-dev tools sync --output json       # xml-gen, md-reader/MDClasses, bsl-ls; docs facade deferred
 1c-dev doctor --output json
 
 # 1. Import
@@ -278,7 +278,7 @@ uv tool install git+https://github.com/pila86/1c-dev
 | [#45](https://github.com/pila86/1c-dev/issues/45) | ADR: packaging (`uv tool`) / user cache layout + pin toolchain | — |
 | [#46](https://github.com/pila86/1c-dev/issues/46) | Platform: ibcmd `config load` + `config export` | — |
 | [#47](https://github.com/pila86/1c-dev/issues/47) | CLI/MCP `project.import` (+ should: CLI `runtime.load`) | #46 |
-| [#48](https://github.com/pila86/1c-dev/issues/48) | `1c-dev install`: bootstrap toolchain jars | #45 |
+| [#48](https://github.com/pila86/1c-dev/issues/48) | `1c-dev tools sync`: bootstrap toolchain jars (+ uninstall) | #45 |
 | [#49](https://github.com/pila86/1c-dev/issues/49) | Doctor: jar self-checks + `--fix`; README `uv tool` quick start | #48 |
 | [#50](https://github.com/pila86/1c-dev/issues/50) | CLI `setup --ide cursor\|kilocode` + merge + MCP/AGENTS templates | #48 |
 | [#51](https://github.com/pila86/1c-dev/issues/51) | `docs.search` / `docs.get` via bsl-context, lazy index | #48 |
