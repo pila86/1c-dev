@@ -36,6 +36,9 @@ metadata.find
 1c-dev metadata update Catalog.Products \
   --op remove-attribute --value "Price"
 # сахар IR: --attr "Price:Number:15.2:Цена" → add + modify synonym
+# ТЧ: --ts "Lines:Строки" / --ts-attr "Lines.Qty:Number:15.3:Кол"
+# регистры: --dimension / --resource; Enum: --value Name[:Synonym]
+# CommonModule: --server / set-flag → modify-property
 # MCP: metadata.update (operations[])
 ```
 
@@ -59,11 +62,11 @@ metadata.get(Catalog.Products)
 | Тип | Приоритет | Заметки |
 |-----|-----------|---------|
 | `Catalog` | уже M1 | расширить типы атрибутов при необходимости (Boolean, Date, ref); ТЧ — та же модель IR, что у Document |
-| `Document` | must | реквизиты; табличные части — желательно в M2 (общая конструкция IR с Catalog) |
-| `Enum` | should | простые перечисления |
-| `InformationRegister` | should | измерения / ресурсы (упрощённый IR) |
-| `AccumulationRegister` | should | упрощённый IR |
-| `CommonModule` | stretch | create + флаги (#28); тело BSL later; update флагов — [#40](https://github.com/pila86/1c-dev/issues/40) |
+| `Document` | must, **done** | реквизиты + табличные части (#23 / #35) |
+| `Enum` | should, **done** | простые перечисления (#24); update values — #39 |
+| `InformationRegister` | must (хотя бы один регистр), **done** | измерения / ресурсы (#24 / #39) |
+| `AccumulationRegister` | should, **done** | упрощённый IR (#24 / #39) |
+| `CommonModule` | stretch, **done** | create + флаги (#28); update флагов (#40); тело BSL later |
 | Charts / BusinessProcess / … | out | → later |
 
 Qualified names: `Document.Sales`, `InformationRegister.Prices`, …
@@ -112,6 +115,18 @@ metadata.get(Catalog.Products)
 4. check
 ```
 
+### Enum и регистр
+
+> Создай перечисление СтатусыЗаказа и регистр сведений Цены.
+
+```
+1. metadata.create(Enum.OrderStatuses, ...)
+2. metadata.create(InformationRegister.Prices, ...)
+3. metadata.list / metadata.get
+4. build
+5. check
+```
+
 ### Удалить объект
 
 > Удали справочник Products.
@@ -123,39 +138,47 @@ metadata.get(Catalog.Products)
 
 ## Acceptance criteria
 
+Feature-issues #20–#26, #28, #29, #35, #39, #40 закрыты. Остаётся сквозной acceptance [#27](https://github.com/pila86/1c-dev/issues/27).
+
 ### Read
 
-- [ ] `metadata.list` возвращает объекты конфигурации (тип + имя + qname)
-- [ ] `metadata.get <QName>` возвращает IR объекта (включая attributes)
-- [ ] `metadata.find` ищет по имени / синониму
-- [ ] MCP tools `metadata.list` / `get` / `find` без shell.exec
-- [ ] Нет платформы → read всё равно работает по source (в отличие от build)
+- [x] `metadata.list` возвращает объекты конфигурации (тип + имя + qname)
+- [x] `metadata.get <QName>` возвращает IR объекта (включая attributes)
+- [x] `metadata.find` ищет по имени / синониму
+- [x] MCP tools `metadata.list` / `get` / `find` без shell.exec
+- [x] Нет платформы → read всё равно работает по source (в отличие от build)
 
 ### Update
 
-- [ ] `metadata.update` выполняет `add-attribute` / `modify-attribute` / `remove-attribute` на существующем `Catalog` (и Document / ТЧ — #35)
-- [ ] `metadata.update` ops для `Enum` (values) и регистров (dimensions / resources) — #39 (should)
-- [ ] Повторное добавление того же имени → `ok` + warning diagnostic, source не повреждён
-- [ ] После успешного update `metadata.get` / поле `ir` отражают изменения; `build` / `check` проходят
+- [x] `metadata.update` выполняет `add-attribute` / `modify-attribute` / `remove-attribute` на существующем `Catalog` (и Document / ТЧ — #35)
+- [x] `metadata.update` ops для `Enum` (values) и регистров (dimensions / resources) — #39
+- [x] Повторное добавление того же имени → `ok` + warning diagnostic, source не повреждён
+- [x] После успешного update `metadata.get` / поле `ir` отражают изменения (feature / integration-тесты)
+- [x] stretch: `metadata.update` флаги CommonModule (`set-flag` / CLI flags) — #40
 
 ### Create beyond Catalog
 
-- [ ] `metadata.create Document.*` пишет XML + регистрацию в `Configuration.xml`
-- [ ] Хотя бы один регистр (`InformationRegister` или `AccumulationRegister`) через create
-- [ ] `Enum` через create (should)
-- [ ] Integration: create Document (+ attr) → build → check (skip без platform / xml-gen)
+- [x] `metadata.create Document.*` пишет XML + регистрацию в `Configuration.xml` (в т.ч. ТЧ)
+- [x] Хотя бы один регистр (`InformationRegister` или `AccumulationRegister`) через create
+- [x] `Enum` через create
+- [x] stretch: `metadata.create CommonModule.*` (+ флаги) — #28
 
 ### Delete
 
-- [ ] `metadata.delete <QName>` удаляет объект из source + `Configuration.xml`
-- [ ] Несуществующий QName → diagnostic, source intact
-- [ ] После delete `metadata.get` / `list` согласованы; MCP `metadata.delete` без shell.exec
+- [x] `metadata.delete <QName>` удаляет объект из source + `Configuration.xml`
+- [x] Несуществующий QName → diagnostic, source intact
+- [x] После delete `metadata.get` / `list` согласованы; MCP `metadata.delete` без shell.exec
 
 ### Общее
 
-- [ ] IR v1 задокументирован ([ADR-011](../adr/011-metadata-ir-v1.md))
+- [x] IR v1 задокументирован ([ADR-011](../adr/011-metadata-ir-v1.md))
 - [x] Doctor capability отражает поддерживаемые write-типы
-- [ ] CLI и MCP используют один `core.metadata` API
+- [x] CLI и MCP используют один `core.metadata` API
+
+### Acceptance (#27)
+
+- [ ] Integration E2E: Document (+ attr + ТЧ) → update → Enum + регистр → delete → list/get → build → check (skip без platform / xml-gen / md-reader) — [#27](https://github.com/pila86/1c-dev/issues/27)
+- [ ] Запуск задокументирован: `poetry run pytest -m integration`
 
 ## Out of scope M2
 
@@ -175,7 +198,7 @@ metadata.get(Catalog.Products)
 1c-dev metadata list --output json
 1c-dev metadata get Catalog.Products --output json
 
-# Update
+# Update Catalog
 1c-dev metadata update Catalog.Products \
   --op add-attribute --value "Price:Number(15,2)" --output json
 1c-dev metadata update Catalog.Products \
@@ -183,9 +206,34 @@ metadata.get(Catalog.Products)
 1c-dev metadata update Catalog.Products \
   --op remove-attribute --value "Discount" --output json
 
-# Create Document
+# Create Document + ТЧ
 1c-dev metadata create Document.Sales \
-  --synonym "Продажи" --output json
+  --synonym "Продажи" \
+  --attr "Counterparty:Ref:Catalog.Counterparties:Контрагент" \
+  --ts "Products:Товары" \
+  --ts-attr "Products.Qty:Number:15.3:Количество" \
+  --output json
+
+# Create Enum + регистр
+1c-dev metadata create Enum.OrderStatuses \
+  --synonym "СтатусыЗаказа" \
+  --value "New:Новый" --value "Done:Выполнен" \
+  --output json
+1c-dev metadata create InformationRegister.Prices \
+  --synonym "Цены" \
+  --dimension "Product:Ref:Catalog.Products:Товар" \
+  --resource "Price:Number:15.2:Цена" \
+  --output json
+
+# Update ТЧ / измерение (примеры)
+1c-dev metadata update Document.Sales \
+  --ts-attr "Products.Price:Number:15.2:Цена" --output json
+1c-dev metadata update InformationRegister.Prices \
+  --dimension "Currency:String:10:Валюта" --output json
+
+# Stretch: CommonModule
+1c-dev metadata create CommonModule.SalesServer \
+  --server --output json
 
 # Delete
 1c-dev metadata delete Catalog.Products --output json
@@ -219,6 +267,6 @@ metadata.get(Catalog.Products)
 | [#24](https://github.com/pila86/1c-dev/issues/24) | `metadata.create` Enum / InformationRegister / AccumulationRegister | #23 |
 | [#25](https://github.com/pila86/1c-dev/issues/25) | Doctor: capability поддерживаемых write-типов | #23, #24 |
 | [#26](https://github.com/pila86/1c-dev/issues/26) | MCP tools: list / get / find / update / delete + expanded create | #21, #22, #23, #29 |
-| [#27](https://github.com/pila86/1c-dev/issues/27) | Acceptance tests M2 | #26 |
+| [#27](https://github.com/pila86/1c-dev/issues/27) | Acceptance: E2E Document+ТЧ / Enum / регистр / delete | #26 |
 | [#28](https://github.com/pila86/1c-dev/issues/28) | stretch: `metadata.create` CommonModule | #23 |
 | [#40](https://github.com/pila86/1c-dev/issues/40) | `metadata.update` — флаги CommonModule (stretch) | #28 |
