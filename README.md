@@ -75,6 +75,7 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 | `1c-dev build [--artifact cf]` | Загрузить XML в file IB через `ibcmd` |
 | `1c-dev check [--platform]` | Платформенная проверка конфигурации (`ibcmd config check`) |
 | `1c-dev mcp` | MCP server (stdio) для AI-агентов |
+| `1c-dev ide configure [--target all\|cursor\|kilocode\|none]` | AGENTS.md, `.gitignore`, IDE MCP |
 
 Примеры:
 
@@ -104,26 +105,40 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 1c-dev project import --from build/out/configuration.cf --force --output json
 1c-dev runtime load --from build/out/configuration.cf --output json
 1c-dev check --output json
+1c-dev ide configure --output json
+1c-dev ide configure --target cursor --output json
+1c-dev ide configure --target none --output json
 1c-dev mcp
 ```
 
 В Poetry-checkout те же команды через `poetry run 1c-dev …`.
 
-### MCP (Cursor)
+### MCP (Cursor / Kilocode)
 
-Tools: `project.get`, `project.init`, `metadata.list`, `metadata.get`,
-`metadata.find`, `metadata.create`, `metadata.update`, `metadata.delete`,
-`build`, `check` ([ADR-010](docs/adr/010-mcp-architecture.md)).
+После установки CLI:
 
-Пример `mcp.json` после `uv tool install`:
+```bash
+1c-dev ide configure                 # MCP для cursor и kilocode (default --target all)
+# или: 1c-dev ide configure --target cursor
+```
+
+Tools: `project.get`, `project.init`, `ide.configure`, `project.import`,
+`metadata.list`, `metadata.get`, `metadata.find`, `metadata.create`,
+`metadata.update`, `metadata.delete`, `build`, `check`
+([ADR-010](docs/adr/010-mcp-architecture.md), [ADR-016](docs/adr/016-ide-configure.md)).
+
+Пример `.cursor/mcp.json` (пишет `ide configure`; `cwd` не нужен — IDE стартует из workspace):
 
 ```json
 {
   "mcpServers": {
     "1c-dev": {
       "command": "1c-dev",
-      "args": ["mcp"],
-      "cwd": "<workspace>"
+      "args": ["mcp"]
+    },
+    "bsl-language-server": {
+      "command": "java",
+      "args": ["-jar", "/path/to/bsl-language-server.jar", "mcp"]
     }
   }
 }
@@ -131,11 +146,11 @@ Tools: `project.get`, `project.init`, `metadata.list`, `metadata.get`,
 
 Для разработки через Poetry: `"command": "poetry"`, `"args": ["run", "1c-dev", "mcp"]`.
 
-`cwd` должен указывать на корень workspace (или каталог 1С-проекта).
+Kilocode: тот же формат в `.kilo/mcp.json`.
 
 ## Текущий фокус
 
-**Milestone M3: Product adopt** — import `.cf`, `uv tool` + `tools sync`, `setup` IDE/агентов, BSL LS MCP и docs (bsl-context).
+**Milestone M3: Product adopt** — import `.cf`, `uv tool` + `tools sync`, `ide configure`, BSL LS MCP и docs (bsl-context).
 
 - [M3 Product adopt](docs/milestones/m3-product-adopt.md)
 - [M2: metadata API](docs/milestones/m2-metadata-api.md) (Done)

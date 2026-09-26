@@ -21,7 +21,7 @@ from core.metadata import (
     list_metadata,
     update_metadata,
 )
-from core.project import init_project, validate_project
+from core.project import configure_ide, init_project, validate_project
 from mcp_server._path import resolve_path
 
 _NO_SHELL = (
@@ -112,12 +112,35 @@ def register_tools(server: FastMCP) -> None:
         return result.to_payload(include_manifest=False)
 
     @server.tool(
+        name="ide.configure",
+        description=(
+            "Configure IDE MCP configs (cursor/kilocode), AGENTS.md, and .gitignore "
+            "for an existing 1C project. "
+            "target: all (default), cursor, kilocode, or none. "
+            "Without force, does not overwrite AGENTS.md; merges missing MCP servers "
+            "and .gitignore lines."
+            + _NO_SHELL
+        ),
+    )
+    def ide_configure_tool(
+        path: str | None = None,
+        target: str = "all",
+        force: bool = False,
+    ) -> dict[str, Any]:
+        result = configure_ide(
+            resolve_path(path),
+            target=target,
+            force=force,
+        )
+        return result.to_payload(include_manifest=False)
+
+    @server.tool(
         name="project.import",
         description=(
             "Import a .cf configuration into project XML source via ibcmd "
             "(load → apply → export). Creates 1c.project.yaml if missing. "
             "Refuses to overwrite existing Configuration.xml unless force=true. "
-            "Does not write AGENTS.md or IDE MCP configs (use setup for that)."
+            "Does not write AGENTS.md or IDE MCP configs (use ide.configure for that)."
             + _NO_SHELL
         ),
     )

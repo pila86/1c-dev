@@ -182,7 +182,7 @@ Feature-issues #20–#26, #28, #29, #35, #39, #40 и сквозной acceptance
 
 ## Out of scope M2
 
-- Import `.cf`, user install, `setup`, BSL LS MCP, docs/context (→ [M3](m3-product-adopt.md))
+- Import `.cf`, user install, `ide configure`, BSL LS MCP, docs/context (→ [M3](m3-product-adopt.md))
 - EDT / `source.convert` (→ [M4](m4-source-formats.md))
 - `references` / `dependencies` / `impact` (→ later / M6 graph)
 - Nested delete ТЧ / values / dimensions через `metadata.delete` (атрибуты / ТЧ / values / dimensions / resources — через `metadata.update`; Enum/регистры — #39)

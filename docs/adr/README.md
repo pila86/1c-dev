@@ -27,6 +27,7 @@
 | [013](013-packaging-toolchain-cache.md) | Accepted | Packaging (`uv tool`) / user cache / pin toolchain |
 | [014](014-ibcmd-import-cf.md) | Accepted | Platform adapter: ibcmd import from `.cf` |
 | [015](015-project-import-cf.md) | Accepted | Product API: `project.import` / `runtime.load` |
+| [016](016-ide-configure.md) | Accepted | IDE configure (MCP + AGENTS merge) |
 
 ## Когда писать ADR
 

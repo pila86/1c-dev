@@ -9,6 +9,7 @@ import typer
 from cli.build import build_command
 from cli.check import check_command
 from cli.doctor import doctor_command
+from cli.ide import app as ide_app
 from cli.init import init_command
 from cli.mcp_cmd import mcp_command
 from cli.metadata import app as metadata_app
@@ -29,6 +30,7 @@ app.add_typer(project_app, name="project")
 app.add_typer(metadata_app, name="metadata")
 app.add_typer(runtime_app, name="runtime")
 app.add_typer(tools_app, name="tools")
+app.add_typer(ide_app, name="ide")
 app.command("doctor")(doctor_command)
 app.command("init")(init_command)
 app.command("build")(build_command)

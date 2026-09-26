@@ -2,7 +2,7 @@
 
 ## Текущий фокус: M3
 
-**M3: Product adopt** — поставить CLI в PATH (`uv tool` + toolchain), импортировать `.cf`, подключить агента в IDE (`setup`, BSL LS MCP, docs через bsl-context).
+**M3: Product adopt** — поставить CLI в PATH (`uv tool` + toolchain), импортировать `.cf`, подключить агента в IDE (`ide configure`, BSL LS MCP, docs через bsl-context).
 
 M2 закрыт: Metadata API (list/get/find, update, create beyond Catalog, delete).
 
@@ -17,7 +17,7 @@ M2 закрыт: Metadata API (list/get/find, update, create beyond Catalog, del
 |-----------|------|--------|
 | **M1** | Init → metadata.create(Catalog) → build → check через MCP | Done |
 | **M2** | Metadata API: list/get/find + update + create (Document, registers, …) + delete | Done |
-| **M3** | Product adopt: import `.cf`, user install/PATH **+ автозагрузка toolchain** (xml-gen, md-reader/MDClasses, …), `setup` (IDE/agents/MCP), BSL LS MCP wiring, docs/context (bsl-context) | In progress |
+| **M3** | Product adopt: import `.cf`, user install/PATH **+ автозагрузка toolchain** (xml-gen, md-reader/MDClasses, …), `ide configure` (IDE/agents/MCP), BSL LS MCP wiring, docs/context (bsl-context) | In progress |
 | M4 | Source formats: EDT adapter + `source.convert` XML ↔ EDT | Planned |
 | M5 | Tests (YAxUnit / Vanessa) | Planned |
 | M6 | Debug (DAP), semantic diff, verify | Planned |
