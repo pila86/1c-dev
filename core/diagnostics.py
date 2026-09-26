@@ -69,3 +69,26 @@ def warning(
     if suggestion is not None:
         diag["suggestion"] = suggestion
     return diag
+
+
+def info(
+    message: str,
+    *,
+    code: str | None = None,
+    file: str | None = None,
+    source: str = "runtime",
+    suggestion: str | None = None,
+) -> Diagnostic:
+    """Создать diagnostic с severity=info."""
+    diag: Diagnostic = {
+        "severity": "info",
+        "message": message,
+        "source": source,
+    }
+    if code is not None:
+        diag["code"] = code
+    if file is not None:
+        diag["file"] = file
+    if suggestion is not None:
+        diag["suggestion"] = suggestion
+    return diag

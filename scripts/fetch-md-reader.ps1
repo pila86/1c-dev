@@ -1,5 +1,5 @@
 # Build md-reader jar into the local 1c-dev tools cache (ADR-012).
-# Requires: JDK 21+ (MDClasses 0.20.0), Gradle 8+
+# Requires: JDK 21+ (MDClasses 0.20.0). Uses tools\md-reader\gradlew.bat (Gradle 8.10.2).
 $ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -54,16 +54,16 @@ if (Test-Path $PinnedJar) {
     exit 0
 }
 
-$Gradle = Get-Command gradle -ErrorAction SilentlyContinue
-if (-not $Gradle) {
-    Write-Error "gradle not found (install Gradle 8+)"
+$Gradlew = Join-Path $Src "gradlew.bat"
+if (-not (Test-Path $Gradlew)) {
+    Write-Error "gradlew.bat not found in $Src"
 }
 
 Write-Host "Building md-reader ($Pin) with Java $($env:JAVA_HOME)..."
 Push-Location $Src
 try {
-    & $Gradle.Source fatJar --no-daemon -q
-    if ($LASTEXITCODE -ne 0) { throw "gradle failed with exit $LASTEXITCODE" }
+    & .\gradlew.bat fatJar --no-daemon -q
+    if ($LASTEXITCODE -ne 0) { throw "gradlew failed with exit $LASTEXITCODE" }
 } finally {
     Pop-Location
 }

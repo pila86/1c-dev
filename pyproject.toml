@@ -13,6 +13,13 @@ packages = [
 include = [
     { path = "templates", format = ["sdist", "wheel"] },
     { path = "schemas", format = ["sdist", "wheel"] },
+    { path = "toolchain", format = ["sdist", "wheel"] },
+    { path = "tools/md-reader", format = ["sdist", "wheel"] },
+]
+exclude = [
+    "tools/md-reader/build",
+    "tools/md-reader/.gradle",
+    "tools/md-reader/bin",
 ]
 
 [tool.poetry.dependencies]

@@ -31,33 +31,37 @@ refs #2
 
 Значимые решения фиксируются в [docs/adr/](docs/adr/) по шаблону [000-template.md](docs/adr/000-template.md).
 
-## Toolchain: xml-gen
+## Toolchain jars
 
-Для `1c-dev metadata create` нужен jar xml-gen (ADR-007). Один раз:
+Рекомендуемый путь (ADR-013 / #48) — без ручных скриптов:
+
+```bash
+1c-dev tools sync
+```
+
+Кэш: Linux/macOS `~/.cache/1c-dev/tools/`, Windows `%LOCALAPPDATA%\1c-dev\tools\`.
+
+Снятие cache / пакета:
+
+```bash
+1c-dev tools clean --yes
+1c-dev uninstall --yes                # cache + uv tool uninstall
+```
+
+Fallback для разработчиков (те же pin’ы):
 
 ```bash
 # Linux / macOS
 ./scripts/fetch-xml-gen.sh
-
-# Windows
-pwsh scripts/fetch-xml-gen.ps1
-```
-
-Требуется JDK 17+. Override пути: `ONEC_XMLGEN_JAR`.
-
-## Toolchain: md-reader
-
-Для `1c-dev metadata list|get|find` нужен jar md-reader поверх MDClasses (ADR-012). Один раз:
-
-```bash
-# Linux / macOS
 ./scripts/fetch-md-reader.sh
 
 # Windows
+pwsh scripts/fetch-xml-gen.ps1
 pwsh scripts/fetch-md-reader.ps1
 ```
 
-Требуется JDK 21+ (MDClasses 0.20.0). Override пути: `ONEC_MDREADER_JAR`.
+- xml-gen: JDK 17+, override `ONEC_XMLGEN_JAR`
+- md-reader: JDK 21+ (MDClasses 0.20.0), override `ONEC_MDREADER_JAR`
 
 ## Тесты
 
