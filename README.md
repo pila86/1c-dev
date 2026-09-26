@@ -79,7 +79,9 @@ poetry run 1c-dev mcp
 
 ### MCP (Cursor)
 
-Tools: `project.get`, `project.init`, `metadata.create`, `metadata.delete`, `build`, `check` ([ADR-010](docs/adr/010-mcp-architecture.md)).
+Tools: `project.get`, `project.init`, `metadata.list`, `metadata.get`,
+`metadata.find`, `metadata.create`, `metadata.update`, `metadata.delete`,
+`build`, `check` ([ADR-010](docs/adr/010-mcp-architecture.md)).
 
 Пример `mcp.json`:
 

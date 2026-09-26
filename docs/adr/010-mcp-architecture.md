@@ -44,7 +44,22 @@ Cursor обычно стартует MCP из workspace root.
 
 В descriptions каждого tool — явный запрет shell / Designer для этой операции.
 
-### Вне M1 / #6
+### M2 tools (#26)
+
+Тот же thin-wrapper паттерн над `core.metadata` (один контракт с CLI):
+
+| Tool | Core |
+|------|------|
+| `metadata.list` | `list_metadata` |
+| `metadata.get` | `get_metadata` |
+| `metadata.find` | `find_metadata` |
+| `metadata.update` | `update_metadata` (`operations[]` как `{op, value}`) |
+| `metadata.delete` | `delete_metadata` |
+| `metadata.create` | расширен: Document / Enum / регистры / CommonModule |
+
+`metadata.update` для агента — явные ops (`add-attribute` / …), без CLI-сахара `--attr` / `--ts`.
+
+### Вне M1–M2 / #6 / #26
 
 - `shell.exec`, `doctor`, `project.validate` как MCP tools
 - Streamable HTTP transport
@@ -70,6 +85,6 @@ Cursor обычно стартует MCP из workspace root.
 
 ## Связанные решения
 
-- ADR-001, ADR-002, ADR-003–009
-- Issue #6
+- ADR-001, ADR-002, ADR-003–009, ADR-011, ADR-012
+- Issue #6, Issue #26
 - PRD §32, §33, R7

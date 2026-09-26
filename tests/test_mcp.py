@@ -1,4 +1,4 @@
-"""Tests for MCP server (ADR-010, Issue #6)."""
+"""Tests for MCP server (ADR-010, Issue #6 / #26)."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from typing import Any
 
 from typer.testing import CliRunner
 
+from adapters.source.xmlgen import EditOp
 from cli.main import app
 from core.build import BuildResult
 from core.check import CheckResult
@@ -21,7 +22,11 @@ runner = CliRunner()
 EXPECTED_TOOLS = {
     "project.get",
     "project.init",
+    "metadata.list",
+    "metadata.get",
+    "metadata.find",
     "metadata.create",
+    "metadata.update",
     "metadata.delete",
     "build",
     "check",
@@ -57,7 +62,8 @@ def test_registered_tools() -> None:
     assert names == EXPECTED_TOOLS
     assert "shell.exec" not in names
     for tool in tools:
-        assert "Do not use shell" in tool.description or "shell" in tool.description.lower()
+        desc = tool.description or ""
+        assert "Do not use shell" in desc or "shell" in desc.lower()
 
 
 def test_cli_mcp_help() -> None:
@@ -191,6 +197,142 @@ def test_metadata_create_mocked(tmp_path: Path, monkeypatch: Any) -> None:
     )
     assert payload["status"] == "ok"
     assert payload["object"] == "Catalog.Products"
+
+
+def test_metadata_list_mocked(tmp_path: Path, monkeypatch: Any) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+
+    def fake_list(start: Path, **kwargs: Any) -> MetadataResult:
+        assert start == target.resolve()
+        return MetadataResult(
+            status="ok",
+            root=start,
+            objects=[
+                {
+                    "type": "Catalog",
+                    "name": "Products",
+                    "qname": "Catalog.Products",
+                    "synonym": "Товары",
+                }
+            ],
+        )
+
+    monkeypatch.setattr("mcp_server.tools.list_metadata", fake_list)
+    payload = _call("metadata.list", {"path": str(target)})
+    assert payload["status"] == "ok"
+    assert payload["objects"][0]["qname"] == "Catalog.Products"
+
+
+def test_metadata_get_mocked(tmp_path: Path, monkeypatch: Any) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+
+    def fake_get(start: Path, qualified_name: str, **kwargs: Any) -> MetadataResult:
+        assert start == target.resolve()
+        assert qualified_name == "Catalog.Products"
+        return MetadataResult(
+            status="ok",
+            object="Catalog.Products",
+            root=start,
+            ir={"type": "Catalog", "name": "Products", "qname": "Catalog.Products"},
+        )
+
+    monkeypatch.setattr("mcp_server.tools.get_metadata", fake_get)
+    payload = _call(
+        "metadata.get",
+        {"path": str(target), "qualified_name": "Catalog.Products"},
+    )
+    assert payload["status"] == "ok"
+    assert payload["object"] == "Catalog.Products"
+    assert payload["ir"]["qname"] == "Catalog.Products"
+
+
+def test_metadata_find_mocked(tmp_path: Path, monkeypatch: Any) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+
+    def fake_find(start: Path, query: str, **kwargs: Any) -> MetadataResult:
+        assert start == target.resolve()
+        assert query == "Товар"
+        return MetadataResult(
+            status="ok",
+            root=start,
+            objects=[{"type": "Catalog", "name": "Products", "qname": "Catalog.Products"}],
+        )
+
+    monkeypatch.setattr("mcp_server.tools.find_metadata", fake_find)
+    payload = _call("metadata.find", {"path": str(target), "query": "Товар"})
+    assert payload["status"] == "ok"
+    assert len(payload["objects"]) == 1
+
+
+def test_metadata_update_mocked(tmp_path: Path, monkeypatch: Any) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+
+    def fake_update(
+        start: Path,
+        qualified_name: str,
+        operations: list[EditOp],
+        **kwargs: Any,
+    ) -> MetadataResult:
+        assert start == target.resolve()
+        assert qualified_name == "Catalog.Products"
+        assert operations == [EditOp("add-attribute", "Price:Number(15,2)")]
+        return MetadataResult(
+            status="ok",
+            object="Catalog.Products",
+            root=start,
+            updated=["src/cf/Catalogs/Products.xml"],
+            ir={"type": "Catalog", "name": "Products", "qname": "Catalog.Products"},
+        )
+
+    monkeypatch.setattr("mcp_server.tools.update_metadata", fake_update)
+    payload = _call(
+        "metadata.update",
+        {
+            "path": str(target),
+            "qualified_name": "Catalog.Products",
+            "operations": [{"op": "add-attribute", "value": "Price:Number(15,2)"}],
+        },
+    )
+    assert payload["status"] == "ok"
+    assert payload["object"] == "Catalog.Products"
+    assert payload["updated"] == ["src/cf/Catalogs/Products.xml"]
+
+
+def test_metadata_update_empty_operations() -> None:
+    payload = _call(
+        "metadata.update",
+        {"qualified_name": "Catalog.Products", "operations": []},
+    )
+    assert payload["status"] == "error"
+    assert payload["object"] == "Catalog.Products"
+    assert any(d.get("code") == "1CM002" for d in payload["diagnostics"])
+
+
+def test_parse_update_operations_rejects_non_dict() -> None:
+    from typing import cast
+
+    from mcp_server.tools import _parse_update_operations
+
+    parsed = _parse_update_operations(cast(list[dict[str, Any]], ["not-an-object"]))
+    assert isinstance(parsed, MetadataResult)
+    assert parsed.status == "error"
+    assert any(d.get("code") == "1CM002" for d in parsed.diagnostics)
+
+
+def test_metadata_update_missing_op() -> None:
+    payload = _call(
+        "metadata.update",
+        {
+            "qualified_name": "Catalog.Products",
+            "operations": [{"value": "Price:Number(15,2)"}],
+        },
+    )
+    assert payload["status"] == "error"
+    assert any(d.get("code") == "1CM002" for d in payload["diagnostics"])
 
 
 def test_metadata_delete_mocked(tmp_path: Path, monkeypatch: Any) -> None:
