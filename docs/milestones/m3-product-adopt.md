@@ -11,6 +11,19 @@
 - Платформа 1С 8.3.x, `ibcmd` в PATH (для import / build / check)
 - JDK 17+ (xml-gen) и JDK 21+ (md-reader; bsl-context / BSL LS — тоже 21+)
 
+## Decisions
+
+| Тема | Решение |
+|------|---------|
+| Packaging | **must:** `uv tool install` из git/wheel; PyPI / pipx — альтернативы в ADR, не acceptance M3; single-binary не must |
+| `runtime.load` | **should:** CLI желателен; MCP — later |
+| IDE в `setup` | **must:** `cursor` и `kilocode`; путь/формат MCP Kilocode — по доке при реализации |
+| Setup без `--force` | безопасный merge (см. трек C); `--force` = полная перезапись шаблонных артефактов |
+| `import` vs `setup` | раздельно: import = CF → XML + манифест; агентские файлы (`AGENTS.md`, MCP IDE) — только `setup` |
+| Dirty source | конфликт = в `source.path` уже есть `Configuration.xml`; без `--force` — отказ, source intact |
+| Docs index | **lazy-only** при первом `docs.search` / `docs.get`; явный `docs build-index` — later |
+| Тест import | round-trip: `build --artifact cf` → `project.import`; skip без platform; бинарный `.cf` в git не коммитим |
+
 ## Scope
 
 Четыре трека. EDT **не** входит (→ [M4](m4-source-formats.md)).
@@ -21,6 +34,8 @@ Bootstrap существующей конфигурации: бинарный `.
 
 `.cf` — **входной** артефакт (не source of truth). Дальше истина — Git + XML source проекта.
 
+`import` **не** пишет агентские артефакты (`AGENTS.md`, MCP IDE) — для этого отдельный `setup` (трек C).
+
 Pipeline (ibcmd):
 
 ```text
@@ -30,74 +45,78 @@ create IB (если нет)
   → config export → source.path
 ```
 
-Публичный контракт:
+Публичный контракт (**must**):
 
 ```bash
 1c-dev project import --from configuration.cf
 # MCP: project.import
 ```
 
-Опционально узкий шаг (только CF → IB, без dump в source):
+Узкий шаг только CF → IB, без dump в source (**should**, CLI; MCP later):
 
 ```bash
 1c-dev runtime load --from configuration.cf
-# MCP: runtime.load
 ```
 
-Конфликты с уже изменённым `src/` — явный `--force` / отказ с structured diagnostic.
+Конфликт без `--force`: в `source.path` уже есть `Configuration.xml` → structured diagnostic, source не затёрт. Пустой / отсутствующий `source.path` — import ок. После `init` (там уже есть `Configuration.xml`) нужен `--force`.
 
 ### B. User-level install (cache + PATH + toolchain deps)
 
 Установка CLI **без** `poetry run` и без клонирования репозитория рядом с продуктом. Python-пакет — только оркестратор: **вместе с установкой (или сразу после неё) в user cache должны подтягиваться нативные зависимости toolchain**, сейчас раздаваемые вручную через `scripts/fetch-*.sh`.
 
-Целевой UX:
+Целевой UX (**must**):
 
 ```bash
-# один раз (варианты — зафиксировать ADR)
-uv tool install 1c-dev   # или pipx / installer-скрипт
-1c-dev install           # или post-install hook / `1c-dev doctor --fix`
+# один раз
+uv tool install git+https://github.com/pila86/1c-dev   # или из локального wheel
+1c-dev install                                         # jars в user cache
 1c-dev doctor
 ```
 
-`1c-dev install` (имя уточнить в ADR) — идемпотентный bootstrap toolchain в user-dir:
+Имя `install` / post-install / `doctor --fix` и layout cache — уточнить в ADR при старте трека; публичный контракт acceptance — «есть идемпотентная команда докачки toolchain».
+
+`1c-dev install` — идемпотентный bootstrap toolchain в user-dir:
 
 | Компонент | Зачем | Примечание |
 |-----------|--------|------------|
 | **xml-gen** jar | `metadata.create` / `update` | сейчас `scripts/fetch-xml-gen.sh`, JDK 17+ |
 | **md-reader** jar (+ **MDClasses** на classpath / shaded) | `metadata.list` / `get` / `find` | сейчас `scripts/fetch-md-reader.sh`, JDK 21+ |
 | **bsl-language-server** jar | MCP анализа BSL (трек D1) | скачать release в тот же cache |
-| **docs facade** (bsl-context) | `docs.search` / `get` (трек D2) | jar поверх bsl-context; индекс HBK — lazy при первом `docs.*` или явный `docs build-index` |
+| **docs facade** (bsl-context) | `docs.search` / `get` (трек D2) | jar поверх bsl-context; индекс HBK — **lazy** при первом `docs.*` |
 
 Ожидания:
 
-- entrypoint `1c-dev` в PATH пользователя
+- entrypoint `1c-dev` в PATH пользователя через `uv tool install`
 - кэш toolchain в user-dir (например `~/.cache/1c-dev` / `~/.local/share/1c-dev`), с версионированием артефактов (pin / checksum в манифесте toolchain)
 - **после install** `metadata.create` / `list` / `get` работают без ручного `./scripts/fetch-*.sh` и без checkout monorepo
 - `doctor` проверяет self (CLI, **каждый** jar toolchain, Java, platform, ibcmd) и умеет подсказать / запустить докачку (`--fix` или отсылка к `install`)
 - override путей через env (`ONEC_XMLGEN_JAR`, `ONEC_MDREADER_JAR`, …) сохраняется и имеет приоритет над cache
 - сеть недоступна / JDK нет → structured diagnostic, CLI при этом остаётся usable для команд без jar
 
-Packaging-решение (`uv tool` / `pipx` / wheel на PyPI / self-contained binary) и layout cache — ADR при старте трека; single-binary не must M3. Maven Central / GitHub Releases как источники jar — reuse текущих fetch-скриптов, но вызов из install, не из README «вручную».
+ADR packaging: зафиксировать `uv tool` как must-путь, layout cache, pin toolchain; pipx / PyPI publish — альтернативы / later. Single-binary не must M3. Maven Central / GitHub Releases как источники jar — reuse текущих fetch-скриптов, но вызов из install, не из README «вручную».
 
 ### C. Project setup (манифест + агенты + IDE MCP)
 
 Идемпотентная установка артефактов **в каталог проекта** (существующий Git-репозиторий конфигурации), без копирования monorepo:
 
 ```bash
-1c-dev setup [--ide cursor|vscode|…] [--force]
+1c-dev setup [--ide cursor|kilocode] [--force]
 # MCP: project.setup (или расширение project.init)
 ```
 
-Что пишет / мержит (с `--force` и dry-run по желанию):
+`--ide`: **must** `cursor` и `kilocode` (плагин VS Code). Путь/формат MCP-конфига Kilocode — выяснить по доке при реализации issue `setup`.
 
-| Артефакт | Назначение |
-|----------|------------|
-| `1c.project.yaml` | манифест (если ещё нет; иначе validate / merge минимальных полей) |
-| `AGENTS.md` (+ опционально rules/skills) | инструкции агенту: какие MCP/tools звать |
-| IDE MCP config (`.cursor/mcp.json`, …) | `1c-dev mcp` + `bsl-language-server mcp` |
-| дописывания `.gitignore` | `build/`, `.runtime/`, `.cache/` |
+Политика без `--force` (безопасный merge):
 
-Отличие от `init`: `init` — bootstrap **пустой** конфигурации; `setup` — подключить runtime к **уже существующему** source (после import или clone).
+| Артефакт | Без `--force` | С `--force` |
+|----------|---------------|-------------|
+| файл отсутствует | создать из шаблона | то же |
+| `.gitignore` | дописать только недостающие строки | перезаписать шаблоном (с diagnostic) |
+| IDE MCP config | добавить servers `1c-dev` / `bsl-language-server`, если их ещё нет; чужие servers и уже заданные — не трогать | перезаписать шаблоном |
+| `AGENTS.md` | skip + warning (пользовательский текст) | перезаписать шаблоном |
+| `1c.project.yaml` | не перезаписывать существующие поля; только недостающие обязательные (если трогаем) | осторожно: не клоббировать source/runtime без явной семантики; предпочтительно validate |
+
+Отличие от `init`: `init` — bootstrap **пустой** конфигурации; `setup` — подключить runtime к **уже существующему** source (после import или clone). `import` setup не вызывает.
 
 ### D. Agent knowledge: BSL LS MCP + docs/context (bsl-context)
 
@@ -124,13 +143,15 @@ Installed platform HBK
   → docs.search / docs.get (+ MCP)
 ```
 
-Минимальный публичный контракт:
+Минимальный публичный контракт (**must**):
 
 ```bash
 1c-dev docs search "ТаблицаЗначений"
 1c-dev docs get "Массив.Добавить"
 # MCP: docs.search, docs.get
 ```
+
+Индекс строится **lazy** при первом `docs.search` / `docs.get` (явный статус в JSON/diagnostic при долгой индексации). Нет HBK / JDK → skip + diagnostic. Явный `docs build-index`, `docs.related`, `docs.version` — **out of scope** M3.
 
 Источник знаний для агента: глобальный контекст, типы/методы/свойства, языковые конструкции, при необходимости — элементы языка запросов. Не заливать весь индекс в system prompt — только по запросу tool.
 
@@ -147,49 +168,52 @@ Installed platform HBK
 4. build / check
 ```
 
+(При работе из IDE после import — отдельно `setup --ide …`.)
+
 ### B. Онбординг репозитория под агента
 
-> Подготовь этот каталог для работы с 1c-dev в Cursor.
+> Подготовь этот каталог для работы с 1c-dev в Cursor / Kilocode.
 
 ```
-1. (user) install 1c-dev в PATH
-2. setup --ide cursor
+1. (user) uv tool install … → 1c-dev в PATH; 1c-dev install
+2. setup --ide cursor   # или kilocode
 3. doctor
-4. агент работает через MCP 1c-dev + bsl-ls; docs.* — по необходимости
+4. агент работает через MCP 1c-dev + bsl-ls; docs.* — по необходимости (lazy index)
 ```
 
 ## Acceptance criteria
 
 ### Import
 
-- [ ] `1c-dev project import --from <file.cf>` создаёт/обновляет XML source и валидный `1c.project.yaml`
+- [ ] `1c-dev project import --from <file.cf>` создаёт/обновляет XML source и валидный `1c.project.yaml` (**без** обязательной записи `AGENTS.md` / MCP IDE)
 - [ ] После import `metadata.list` / `get` видят объекты из `.cf`
 - [ ] `build` и `check` после import проходят (или дают платформенные diagnostics)
-- [ ] Конфликт с dirty source без `--force` → ошибка с diagnostic, source не затёрт
+- [ ] Если в `source.path` уже есть `Configuration.xml` и нет `--force` → ошибка с diagnostic, source не затёрт
 - [ ] MCP: `project.import` без shell.exec
-- [ ] Integration-тест: skip с сообщением, если нет platform
+- [ ] Integration-тест: `build --artifact cf` → `project.import` (round-trip); skip с сообщением, если нет platform
+- [ ] should: CLI `runtime load --from <file.cf>` (MCP — later)
 
 ### Install
 
-- [ ] Документированный способ поставить `1c-dev` в PATH без Poetry-checkout рядом с продуктом
-- [ ] `1c-dev install` (или эквивалент post-install) **автоматически** скачивает в user cache: xml-gen, md-reader (MDClasses), и по scope M3 — bsl-ls jar (+ docs facade, если в треке D)
+- [ ] Документированный must-путь: `uv tool install` (git и/или wheel) → `1c-dev` в PATH без Poetry-checkout рядом с продуктом
+- [ ] `1c-dev install` (или эквивалент post-install) **автоматически** скачивает в user cache: xml-gen, md-reader (MDClasses), bsl-ls jar, docs facade
 - [ ] После install на чистой машине (без monorepo) `metadata.create` и `metadata.list`/`get` не требуют ручного `fetch-*.sh`
 - [ ] Повторный `install` идемпотентен; при смене pin toolchain — обновляет артефакты
 - [ ] `1c-dev doctor` отражает наличие CLI, **каждого** jar toolchain, Java, platform, ibcmd; отсутствует jar → diagnostic с указанием `install` / `--fix`
 - [ ] Env-override jar’ов по-прежнему работает
-- [ ] README: быстрый старт через установленный CLI (не только `poetry run` + ручные fetch)
+- [ ] README: быстрый старт через `uv tool install` + `1c-dev install` (не только `poetry run` + ручные fetch)
 
 ### Setup
 
-- [ ] `1c-dev setup` пишет/мержит манифест, `AGENTS.md`, MCP-конфиг IDE, `.gitignore`
-- [ ] Повторный `setup` без `--force` не затирает пользовательские правки (или даёт diagnostic)
-- [ ] После setup агент в Cursor может вызвать `1c-dev` MCP без ручного копирования репо
+- [ ] `1c-dev setup --ide cursor|kilocode` пишет/мержит манифест, `AGENTS.md`, MCP-конфиг IDE, `.gitignore` по политике merge выше
+- [ ] Повторный `setup` без `--force` не затирает пользовательские правки (`AGENTS.md` skip; MCP — только недостающие servers; `.gitignore` — append)
+- [ ] После setup агент в Cursor (и Kilocode) может вызвать `1c-dev` MCP без ручного копирования репо
 
 ### BSL LS + docs
 
 - [ ] Doctor / setup умеют указать рабочий BSL LS MCP (jar в cache или явный путь)
 - [ ] В шаблоне IDE MCP — два server’а: `1c-dev` и `bsl-language-server`
-- [ ] `docs.search` / `docs.get` (CLI + MCP) отвечают по индексу текущей `platform.version`
+- [ ] `docs.search` / `docs.get` (CLI + MCP) отвечают по индексу текущей `platform.version` (индекс — lazy при первом вызове)
 - [ ] Индекс строится через bsl-context из HBK установленной платформы (или skip + diagnostic, если HBK нет)
 - [ ] AGENTS.md описывает разделение: metadata/build → 1c-dev; BSL-анализ → bsl-ls; API платформы → docs.*
 
@@ -203,13 +227,18 @@ Installed platform HBK
 - Unified MCP, дублирующий BSL LS tools
 - Полный PRD BSL API (`bsl.symbols`, `bsl.definition`, …) внутри 1c-dev
 - Vector DB / embeddings для docs
+- Публикация на PyPI как must (может быть later / ADR alternative)
+- Явный `docs build-index`, `docs.related`, `docs.version`
+- MCP для `runtime.load` (CLI — should)
+- Must-поддержка «голого» VS Code без Kilocode
 
 ## Manual verification
 
 ```bash
-# 0. Install (после ADR packaging)
+# 0. Install
+uv tool install git+https://github.com/pila86/1c-dev
 1c-dev --version
-1c-dev install --output json          # xml-gen, md-reader/MDClasses, …
+1c-dev install --output json          # xml-gen, md-reader/MDClasses, bsl-ls, docs facade
 1c-dev doctor --output json
 
 # 1. Import
@@ -218,8 +247,9 @@ Installed platform HBK
 
 # 2. Setup IDE
 1c-dev setup --ide cursor --output json
+# или: 1c-dev setup --ide kilocode --output json
 
-# 3. Docs
+# 3. Docs (первый вызов может построить индекс)
 1c-dev docs search "Сообщить" --output json
 1c-dev docs get "Массив" --output json
 
@@ -233,7 +263,7 @@ Installed platform HBK
 - [Roadmap](../roadmap.md)
 - [M2](m2-metadata-api.md)
 - [M4](m4-source-formats.md) (бывший M3 без CF)
-- [ADR-001](../adr/001-language-core-cli.md) (packaging было отложено)
+- [ADR-001](../adr/001-language-core-cli.md) (packaging было отложено → must в M3)
 - [ADR-010](../adr/010-mcp-architecture.md)
 - [PRD §20 Documentation API](../../1c-dev-runtime-PRD-v0.1.md), [§19 BSL](../../1c-dev-runtime-PRD-v0.1.md), [§64 bsl-context / BSL LS](../../1c-dev-runtime-PRD-v0.1.md)
 - [bsl-context](https://github.com/1c-syntax/bsl-context)
@@ -244,11 +274,11 @@ Installed platform HBK
 | Тема | Зависит от |
 |------|------------|
 | Platform: `config load` + `config export` (ibcmd) | M1 build/check |
-| CLI/MCP `project.import` / `runtime.load` | platform load/export |
-| ADR: packaging / user cache layout + pin toolchain deps | — |
+| CLI/MCP `project.import` (+ should: CLI `runtime.load`) | platform load/export |
+| ADR: packaging (`uv tool`) / user cache layout + pin toolchain deps | — |
 | `1c-dev install`: fetch xml-gen, md-reader/MDClasses (reuse `scripts/fetch-*`) | ADR packaging |
 | Doctor self-checks по каждому jar + `--fix` → install | `1c-dev install` |
-| CLI `setup` + шаблоны IDE MCP / AGENTS | install |
+| CLI `setup` + шаблоны IDE MCP / AGENTS (`cursor`, `kilocode`) | install |
 | Fetch/wire BSL LS jar + MCP snippet | setup |
-| Java facade над bsl-context + `docs.search`/`get` + cache | doctor platform path |
-| Acceptance / integration M3 | import + setup + docs |
+| Java facade над bsl-context + lazy `docs.search`/`get` + cache | doctor platform path |
+| Acceptance / integration M3 (import round-trip via `build --artifact cf`) | import + setup + docs |
