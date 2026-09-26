@@ -22,6 +22,7 @@ runner = CliRunner()
 EXPECTED_TOOLS = {
     "project.get",
     "project.init",
+    "ide.configure",
     "project.import",
     "metadata.list",
     "metadata.get",

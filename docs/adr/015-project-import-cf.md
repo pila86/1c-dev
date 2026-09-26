@@ -29,7 +29,7 @@ ensure 1c.project.yaml (если нет — только манифест + .run
 
 - `--from` / MCP `from_path` — путь к `.cf`.
 - `--force` — перезаписать существующий XML source.
-- Не пишет `AGENTS.md` / IDE MCP (это `setup`, #50).
+- Не пишет `AGENTS.md` / IDE MCP (это `ide configure`, #50).
 - Пустой / отсутствующий `source.path` — import ок.
 
 ### `runtime load` (should, CLI only)
@@ -56,7 +56,7 @@ ensure 1c.project.yaml (если нет — только манифест + .run
 | Коды `1CI*` | Отделяет import от build/init | Ещё одна серия | **Принято** |
 | Reuse `1CP004` для dirty | Меньше кодов | Смешивает init и import | Отвергнуто |
 | MCP `runtime.load` в M3 | Полнота | Out of scope M3 (should CLI only) | Отложено |
-| Import вызывает `setup` | Удобнее агенту | Нарушает разделение import/setup | Отвергнуто |
+| Import вызывает `ide configure` | Удобнее агенту | Нарушает разделение import / ide configure | Отвергнуто |
 
 ## Последствия
 

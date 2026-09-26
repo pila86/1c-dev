@@ -9,6 +9,7 @@ from typing import Any
 import typer
 
 from adapters.platform_ibcmd.constants import CODE_IBCMD_FAILED
+from cli.ide import app as ide_app
 from cli.init import init_command
 from cli.output import OutputFormat, OutputOption, resolve_output
 from core.exit_codes import BUILD_FAILURE, ENV_UNAVAILABLE, PROJECT_ERROR, SUCCESS
@@ -31,6 +32,7 @@ app = typer.Typer(
 )
 
 app.command("init")(init_command)
+app.add_typer(ide_app, name="ide")
 
 
 def _emit(payload: dict[str, Any], output: OutputFormat, *, text_lines: list[str]) -> None:

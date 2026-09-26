@@ -13,7 +13,7 @@ Status = Literal["ok", "error"]
 
 @dataclass
 class ProjectResult:
-    """Structured result for project detect/validate/info/init."""
+    """Structured result for project detect/validate/info/init/ide configure."""
 
     status: Status
     diagnostics: list[Diagnostic] = field(default_factory=list)
@@ -21,6 +21,8 @@ class ProjectResult:
     root: Path | None = None
     manifest: dict[str, Any] | None = None
     created: list[str] = field(default_factory=list)
+    updated: list[str] = field(default_factory=list)
+    skipped: list[str] = field(default_factory=list)
 
     def to_payload(self, *, include_manifest: bool = False) -> dict[str, Any]:
         """Machine-readable payload for CLI/MCP."""
@@ -40,6 +42,10 @@ class ProjectResult:
                 }
         if self.created:
             payload["created"] = list(self.created)
+        if self.updated:
+            payload["updated"] = list(self.updated)
+        if self.skipped:
+            payload["skipped"] = list(self.skipped)
         if self.diagnostics:
             payload["diagnostics"] = list(self.diagnostics)
         return payload

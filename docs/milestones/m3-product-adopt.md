@@ -1,4 +1,4 @@
-# M3: Product adopt (CF import + install + agent setup)
+# M3: Product adopt (CF import + install + ide configure)
 
 ## Goal
 
@@ -17,9 +17,9 @@
 |------|---------|
 | Packaging | **must:** `uv tool install` из git/wheel; layout cache + pin — [ADR-013](../adr/013-packaging-toolchain-cache.md); PyPI / pipx / single-binary — later, не acceptance M3 |
 | `runtime.load` | **should:** CLI желателен; MCP — later |
-| IDE в `setup` | **must:** `cursor` и `kilocode`; путь/формат MCP Kilocode — по доке при реализации |
-| Setup без `--force` | безопасный merge (см. трек C); `--force` = полная перезапись шаблонных артефактов |
-| `import` vs `setup` | раздельно: import = CF → XML + манифест; агентские файлы (`AGENTS.md`, MCP IDE) — только `setup` |
+| IDE в `ide configure` | **must:** `cursor` и `kilocode`; путь/формат MCP Kilocode — по доке при реализации |
+| `ide configure` без `--force` | безопасный merge (см. трек C); `--force` = полная перезапись шаблонных артефактов |
+| `import` vs `ide configure` | раздельно: import = CF → XML + манифест; агентские файлы (`AGENTS.md`, MCP IDE) — только `ide configure` |
 | Dirty source | конфликт = в `source.path` уже есть `Configuration.xml`; без `--force` — отказ, source intact |
 | Docs index | **lazy-only** при первом `docs.search` / `docs.get`; явный `docs build-index` — later |
 | Тест import | round-trip: `build --artifact cf` → `project.import`; skip без platform; бинарный `.cf` в git не коммитим |
@@ -34,7 +34,7 @@ Bootstrap существующей конфигурации: бинарный `.
 
 `.cf` — **входной** артефакт (не source of truth). Дальше истина — Git + XML source проекта.
 
-`import` **не** пишет агентские артефакты (`AGENTS.md`, MCP IDE) — для этого отдельный `setup` (трек C).
+`import` **не** пишет агентские артефакты (`AGENTS.md`, MCP IDE) — для этого отдельный `ide configure` (трек C).
 
 Pipeline (ibcmd):
 
@@ -95,16 +95,16 @@ uv tool install git+https://github.com/pila86/1c-dev   # или из локал�
 
 ADR packaging: [ADR-013](../adr/013-packaging-toolchain-cache.md) — `uv tool` must, layout cache, pin toolchain; pipx / PyPI — later. Single-binary не must M3. Maven Central / GitHub Releases как источники jar — reuse текущих fetch-скриптов, но вызов из `tools sync`, не из README «вручную».
 
-### C. Project setup (манифест + агенты + IDE MCP)
+### C. IDE configure (манифест + агенты + IDE MCP)
 
 Идемпотентная установка артефактов **в каталог проекта** (существующий Git-репозиторий конфигурации), без копирования monorepo:
 
 ```bash
-1c-dev setup [--ide cursor|kilocode] [--force]
-# MCP: project.setup (или расширение project.init)
+1c-dev ide configure [--target all|cursor|kilocode|none] [--force]
+# MCP: ide.configure
 ```
 
-`--ide`: **must** `cursor` и `kilocode` (плагин VS Code). Путь/формат MCP-конфига Kilocode — выяснить по доке при реализации issue `setup`.
+`--target`: **must** `cursor` и `kilocode` (плагин VS Code); default `all`. Путь/формат MCP-конфига Kilocode — по [ADR-016](../adr/016-ide-configure.md).
 
 Политика без `--force` (безопасный merge):
 
@@ -116,7 +116,7 @@ ADR packaging: [ADR-013](../adr/013-packaging-toolchain-cache.md) — `uv tool` 
 | `AGENTS.md` | skip + warning (пользовательский текст) | перезаписать шаблоном |
 | `1c.project.yaml` | не перезаписывать существующие поля; только недостающие обязательные (если трогаем) | осторожно: не клоббировать source/runtime без явной семантики; предпочтительно validate |
 
-Отличие от `init`: `init` — bootstrap **пустой** конфигурации; `setup` — подключить runtime к **уже существующему** source (после import или clone). `import` setup не вызывает.
+Отличие от `init`: `init` — bootstrap **пустой** конфигурации; `ide configure` — подключить runtime к **уже существующему** source (после import или clone). `import` `ide configure` не вызывает.
 
 ### D. Agent knowledge: BSL LS MCP + docs/context (bsl-context)
 
@@ -127,7 +127,7 @@ ADR packaging: [ADR-013](../adr/013-packaging-toolchain-cache.md) — `uv tool` 
 BSL LS уже умеет режим MCP (`java -jar bsl-language-server.jar mcp`). В M3:
 
 - doctor: обнаружить / скачать jar BSL LS в user cache
-- `setup --ide …`: прописать отдельный MCP server рядом с `1c-dev`
+- `ide configure --target …`: прописать отдельный MCP server рядом с `1c-dev`
 - `AGENTS.md`: когда использовать tools `1c-dev.*` vs анализ BSL через bsl-ls
 
 Собственные MCP-обёртки над LSP API (`bsl.analyze`, …) и unified MCP — **out of scope** M3 (PRD open Q#16 → later / ADR).
@@ -168,7 +168,7 @@ Installed platform HBK
 4. build / check
 ```
 
-(При работе из IDE после import — отдельно `setup --ide …`.)
+(При работе из IDE после import — отдельно `ide configure --target …`.)
 
 ### B. Онбординг репозитория под агента
 
@@ -176,7 +176,7 @@ Installed platform HBK
 
 ```
 1. (user) uv tool install … → 1c-dev в PATH; 1c-dev tools sync
-2. setup --ide cursor   # или kilocode
+2. ide configure --target cursor   # или kilocode / all
 3. doctor
 4. агент работает через MCP 1c-dev + bsl-ls; docs.* — по необходимости (lazy index)
 ```
@@ -203,15 +203,15 @@ Installed platform HBK
 - [ ] Env-override jar’ов по-прежнему работает
 - [ ] README: быстрый старт через `uv tool install` + `1c-dev tools sync` (не только `poetry run` + ручные fetch)
 
-### Setup
+### IDE configure
 
-- [ ] `1c-dev setup --ide cursor|kilocode` пишет/мержит манифест, `AGENTS.md`, MCP-конфиг IDE, `.gitignore` по политике merge выше
-- [ ] Повторный `setup` без `--force` не затирает пользовательские правки (`AGENTS.md` skip; MCP — только недостающие servers; `.gitignore` — append)
-- [ ] После setup агент в Cursor (и Kilocode) может вызвать `1c-dev` MCP без ручного копирования репо
+- [ ] `1c-dev ide configure --target cursor|kilocode` пишет/мержит манифест, `AGENTS.md`, MCP-конфиг IDE, `.gitignore` по политике merge выше
+- [ ] Повторный `ide configure` без `--force` не затирает пользовательские правки (`AGENTS.md` skip; MCP — только недостающие servers; `.gitignore` — append)
+- [ ] После `ide configure` агент в Cursor (и Kilocode) может вызвать `1c-dev` MCP без ручного копирования репо
 
 ### BSL LS + docs
 
-- [ ] Doctor / setup умеют указать рабочий BSL LS MCP (jar в cache или явный путь)
+- [ ] Doctor / `ide configure` умеют указать рабочий BSL LS MCP (jar в cache или явный путь)
 - [ ] В шаблоне IDE MCP — два server’а: `1c-dev` и `bsl-language-server`
 - [ ] `docs.search` / `docs.get` (CLI + MCP) отвечают по индексу текущей `platform.version` (индекс — lazy при первом вызове)
 - [ ] Индекс строится через bsl-context из HBK установленной платформы (или skip + diagnostic, если HBK нет)
@@ -245,9 +245,9 @@ uv tool install git+https://github.com/pila86/1c-dev
 1c-dev project import --from /path/to/configuration.cf --output json
 1c-dev metadata list --output json
 
-# 2. Setup IDE
-1c-dev setup --ide cursor --output json
-# или: 1c-dev setup --ide kilocode --output json
+# 2. IDE configure
+1c-dev ide configure --target cursor --output json
+# или: 1c-dev ide configure --target kilocode --output json
 
 # 3. Docs (первый вызов может построить индекс)
 1c-dev docs search "Сообщить" --output json
@@ -280,6 +280,6 @@ uv tool install git+https://github.com/pila86/1c-dev
 | [#47](https://github.com/pila86/1c-dev/issues/47) | CLI/MCP `project.import` (+ should: CLI `runtime.load`) | #46 |
 | [#48](https://github.com/pila86/1c-dev/issues/48) | `1c-dev tools sync`: bootstrap toolchain jars (+ uninstall) | #45 |
 | [#49](https://github.com/pila86/1c-dev/issues/49) | Doctor: jar self-checks + `--fix`; README `uv tool` quick start | #48 |
-| [#50](https://github.com/pila86/1c-dev/issues/50) | CLI `setup --ide cursor\|kilocode` + merge + MCP/AGENTS templates | #48 |
+| [#50](https://github.com/pila86/1c-dev/issues/50) | CLI `ide configure --target cursor\|kilocode` + merge + MCP/AGENTS templates | #48 |
 | [#51](https://github.com/pila86/1c-dev/issues/51) | `docs.search` / `docs.get` via bsl-context, lazy index | #48 |
-| [#52](https://github.com/pila86/1c-dev/issues/52) | Acceptance: E2E import round-trip + setup + docs | #47, #50, #51 |
+| [#52](https://github.com/pila86/1c-dev/issues/52) | Acceptance: E2E import round-trip + ide configure + docs | #47, #50, #51 |

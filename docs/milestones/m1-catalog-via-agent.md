@@ -41,7 +41,7 @@ AI-агент через MCP создаёт конфигурацию 1С с од
 
 - EDT adapter, `source.convert` (→ [M4](m4-source-formats.md)); import из `.cf` (→ [M3](m3-product-adopt.md))
 - `metadata.list` / `get` / `find`, `metadata.update`, create кроме `Catalog` (→ [M2](m2-metadata-api.md))
-- User install / `setup` / BSL LS MCP / docs index (→ [M3](m3-product-adopt.md))
+- User install / `ide configure` / BSL LS MCP / docs index (→ [M3](m3-product-adopt.md))
 - YAxUnit / Vanessa (→ M5)
 - Semantic diff / verify / DAP (→ M6)
 - `source.write` как отдельный API (write только через `metadata.create`)
