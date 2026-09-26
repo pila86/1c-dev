@@ -32,6 +32,8 @@ EXPECTED_TOOLS = {
     "metadata.delete",
     "build",
     "check",
+    "docs.search",
+    "docs.get",
 }
 
 
@@ -443,3 +445,52 @@ def test_project_init_mocked(tmp_path: Path, monkeypatch: Any) -> None:
     )
     assert payload["status"] == "ok"
     assert payload["created"] == ["a"]
+
+
+def test_docs_search_and_get_mocked(tmp_path: Path, monkeypatch: Any) -> None:
+    from core.docs import DocsResult
+
+    target = tmp_path / "shop"
+    target.mkdir()
+
+    def fake_search(
+        start: Path | None,
+        query: str,
+        *,
+        limit: int = 20,
+        **kwargs: Any,
+    ) -> DocsResult:
+        assert start == target.resolve()
+        assert query == "Массив"
+        assert limit == 5
+        return DocsResult(
+            status="ok",
+            platform_version="8.3.27",
+            hits=[{"name": "Массив", "kind": "collection", "score": 3.0, "snippet": ""}],
+        )
+
+    def fake_get(start: Path | None, name: str, **kwargs: Any) -> DocsResult:
+        assert start == target.resolve()
+        assert name == "Массив.Добавить"
+        return DocsResult(
+            status="ok",
+            platform_version="8.3.27",
+            entry={"qualifiedName": "Массив.Добавить", "kind": "method"},
+        )
+
+    monkeypatch.setattr("mcp_server.tools.search_docs", fake_search)
+    monkeypatch.setattr("mcp_server.tools.get_docs", fake_get)
+
+    search_payload = _call(
+        "docs.search",
+        {"path": str(target), "query": "Массив", "limit": 5},
+    )
+    assert search_payload["status"] == "ok"
+    assert search_payload["hits"][0]["name"] == "Массив"
+
+    get_payload = _call(
+        "docs.get",
+        {"path": str(target), "name": "Массив.Добавить"},
+    )
+    assert get_payload["status"] == "ok"
+    assert get_payload["entry"]["qualifiedName"] == "Массив.Добавить"

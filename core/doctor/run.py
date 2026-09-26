@@ -11,7 +11,7 @@ from adapters.platform.discovery import DiscoveryResult, discover_environment
 from adapters.source.mdclasses.resolve import resolve_jar as resolve_mdreader_jar
 from adapters.source.xmlgen.resolve import resolve_jar as resolve_xmlgen_jar
 from adapters.source.xmlgen.resolve import resolve_java
-from core.diagnostics import Diagnostic, error, info, warning
+from core.diagnostics import Diagnostic, error, warning
 from core.doctor.capabilities import resolve_capabilities
 from core.doctor.result import DoctorResult
 from core.toolchain.manifest import load_manifest
@@ -130,7 +130,7 @@ def run_doctor(
     docs = (
         resolve_component_jar(docs_spec, env=env)
         if docs_spec is not None
-        else JarResolve(found=False, deferred=True)
+        else JarResolve(found=False)
     )
 
     tools = {
@@ -239,23 +239,11 @@ def run_doctor(
                 suggestion=f"{hint} (или задайте {env_name}).",
             )
         )
-    if docs.deferred and not docs.found:
-        diagnostics.append(
-            info(
-                "docs-facade отложен (ожидает реализации #51)",
-                code="1CD008",
-                source="doctor",
-                suggestion=(
-                    "Компонент появится после #51; "
-                    "env ONEC_DOCS_FACADE_JAR уже поддерживается."
-                ),
-            )
-        )
-    elif not docs.found:
+    if not docs.found:
         env_name = (docs_spec.env if docs_spec else None) or "ONEC_DOCS_FACADE_JAR"
         diagnostics.append(
             warning(
-                "docs-facade jar не найден",
+                "docs-facade jar не найден (нужен для docs.search/get)",
                 code="1CD008",
                 source="doctor",
                 suggestion=f"{hint} (или задайте {env_name}).",

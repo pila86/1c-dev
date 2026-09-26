@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from core.toolchain.cache import cache_root, tools_cache_dir
+from core.toolchain.cache import cache_root, docs_cache_dir, tools_cache_dir
 
 __all__ = [
     "SyncResult",
     "UninstallResult",
     "cache_root",
     "clean_tools_cache",
+    "docs_cache_dir",
     "sync_tools",
     "tools_cache_dir",
     "uninstall_tools",

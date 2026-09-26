@@ -9,6 +9,7 @@ from mcp.server.fastmcp import FastMCP
 from adapters.source.xmlgen import EditOp, edit_op_from_dict
 from core.build import run_build
 from core.check import run_check
+from core.docs import get_docs, search_docs
 from core.import_cf import run_import
 from core.metadata import (
     IrError,
@@ -360,4 +361,37 @@ def register_tools(server: FastMCP) -> None:
     )
     def check_tool(path: str | None = None) -> dict[str, Any]:
         result = run_check(resolve_path(path))
+        return result.to_payload()
+
+    @server.tool(
+        name="docs.search",
+        description=(
+            "Search the local platform syntax-help index (bsl-context) for the "
+            "project's platform.version. Builds the index lazily on first use. "
+            "Returns hits with name/kind/snippet. Prefer over guessing API names."
+            + _NO_SHELL
+        ),
+    )
+    def docs_search_tool(
+        query: str,
+        path: str | None = None,
+        limit: int = 20,
+    ) -> dict[str, Any]:
+        result = search_docs(resolve_path(path), query, limit=limit)
+        return result.to_payload()
+
+    @server.tool(
+        name="docs.get",
+        description=(
+            "Get a full syntax-help entry by name or Owner.Member "
+            "(e.g. Массив, Массив.Добавить). Uses the project's platform.version "
+            "index; builds it lazily on first use."
+            + _NO_SHELL
+        ),
+    )
+    def docs_get_tool(
+        name: str,
+        path: str | None = None,
+    ) -> dict[str, Any]:
+        result = get_docs(resolve_path(path), name)
         return result.to_payload()

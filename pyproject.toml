@@ -15,11 +15,15 @@ include = [
     { path = "schemas", format = ["sdist", "wheel"] },
     { path = "toolchain", format = ["sdist", "wheel"] },
     { path = "tools/md-reader", format = ["sdist", "wheel"] },
+    { path = "tools/docs-facade", format = ["sdist", "wheel"] },
 ]
 exclude = [
     "tools/md-reader/build",
     "tools/md-reader/.gradle",
     "tools/md-reader/bin",
+    "tools/docs-facade/build",
+    "tools/docs-facade/.gradle",
+    "tools/docs-facade/bin",
 ]
 
 [tool.poetry.dependencies]

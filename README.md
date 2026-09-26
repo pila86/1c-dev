@@ -168,6 +168,8 @@ uv tool install git+https://github.com/pila86/1c-dev
 1c-dev metadata create Catalog.Products --synonym "Товары"
 1c-dev metadata update Catalog.Products --attr "Article:String:50:Артикул"
 1c-dev metadata get Catalog.Products --output json
+1c-dev docs search "ТаблицаЗначений" --output json
+1c-dev docs get "Массив.Добавить" --output json
 1c-dev build
 1c-dev check
 ```

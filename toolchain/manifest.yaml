@@ -33,10 +33,9 @@ components:
 
   - id: docs-facade
     artifact: docs-facade.jar
-    pin: deferred
-    status: deferred
+    pin: bsl-context-0.10.0
     source:
-      type: deferred
-      note: "Implemented in #51"
+      type: local-build
+      path: tools/docs-facade
     min_java: 21
     env: ONEC_DOCS_FACADE_JAR

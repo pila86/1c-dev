@@ -196,7 +196,7 @@ Installed platform HBK
 ### Install
 
 - [ ] Документированный must-путь: `uv tool install` (git и/или wheel) → `1c-dev` в PATH без Poetry-checkout рядом с продуктом
-- [ ] `1c-dev tools sync` **автоматически** скачивает в user cache: xml-gen, md-reader (MDClasses), bsl-ls jar; docs facade — deferred до #51
+- [ ] `1c-dev tools sync` **автоматически** скачивает в user cache: xml-gen, md-reader (MDClasses), bsl-ls jar, docs-facade
 - [ ] После `tools sync` на чистой машине (без monorepo) `metadata.create` и `metadata.list`/`get` не требуют ручного `fetch-*.sh`
 - [ ] Повторный `tools sync` идемпотентен; при смене pin toolchain — обновляет артефакты
 - [ ] `1c-dev doctor` отражает наличие CLI, **каждого** jar toolchain, Java, platform, ibcmd; отсутствует jar → diagnostic с указанием `tools sync` / `--fix`
@@ -238,7 +238,7 @@ Installed platform HBK
 # 0. Install
 uv tool install git+https://github.com/pila86/1c-dev
 1c-dev --version
-1c-dev tools sync --output json       # xml-gen, md-reader/MDClasses, bsl-ls; docs facade deferred
+1c-dev tools sync --output json       # xml-gen, md-reader/MDClasses, bsl-ls, docs-facade
 1c-dev doctor --output json
 
 # 1. Import

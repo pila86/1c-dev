@@ -52,8 +52,8 @@ Windows:      %LOCALAPPDATA%\1c-dev\
     xml-gen.jar / xml-gen-{pin}.jar
     md-reader.jar / md-reader-{pin}.jar
     bsl-language-server.jar / bsl-language-server-{ver}.jar
-    docs-facade.jar / docs-facade-{pin}.jar   # фасад bsl-context — #51 (в #48: deferred)
-  docs/                                      # lazy index по platform.version (#51)
+    docs-facade.jar / docs-facade-{pin}.jar   # фасад bsl-context — ADR-017 / #51
+  docs/                                      # lazy index по platform.version (ADR-017)
 ```
 
 Совпадает с `tools_cache_dir()` / `core.toolchain.cache` (каталог `tools/`).
