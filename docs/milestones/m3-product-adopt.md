@@ -15,7 +15,7 @@
 
 | Тема | Решение |
 |------|---------|
-| Packaging | **must:** `uv tool install` из git/wheel; PyPI / pipx — альтернативы в ADR, не acceptance M3; single-binary не must |
+| Packaging | **must:** `uv tool install` из git/wheel; layout cache + pin — [ADR-013](../adr/013-packaging-toolchain-cache.md); PyPI / pipx / single-binary — later, не acceptance M3 |
 | `runtime.load` | **should:** CLI желателен; MCP — later |
 | IDE в `setup` | **must:** `cursor` и `kilocode`; путь/формат MCP Kilocode — по доке при реализации |
 | Setup без `--force` | безопасный merge (см. трек C); `--force` = полная перезапись шаблонных артефактов |
@@ -73,7 +73,7 @@ uv tool install git+https://github.com/pila86/1c-dev   # или из локал�
 1c-dev doctor
 ```
 
-Имя `install` / post-install / `doctor --fix` и layout cache — уточнить в ADR при старте трека; публичный контракт acceptance — «есть идемпотентная команда докачки toolchain».
+Имя команды и layout cache — [ADR-013](../adr/013-packaging-toolchain-cache.md): `1c-dev install`, cache `~/.cache/1c-dev` (Windows: `%LOCALAPPDATA%\1c-dev`).
 
 `1c-dev install` — идемпотентный bootstrap toolchain в user-dir:
 
@@ -93,7 +93,7 @@ uv tool install git+https://github.com/pila86/1c-dev   # или из локал�
 - override путей через env (`ONEC_XMLGEN_JAR`, `ONEC_MDREADER_JAR`, …) сохраняется и имеет приоритет над cache
 - сеть недоступна / JDK нет → structured diagnostic, CLI при этом остаётся usable для команд без jar
 
-ADR packaging: зафиксировать `uv tool` как must-путь, layout cache, pin toolchain; pipx / PyPI publish — альтернативы / later. Single-binary не must M3. Maven Central / GitHub Releases как источники jar — reuse текущих fetch-скриптов, но вызов из install, не из README «вручную».
+ADR packaging: [ADR-013](../adr/013-packaging-toolchain-cache.md) — `uv tool` must, layout cache, pin toolchain; pipx / PyPI — later. Single-binary не must M3. Maven Central / GitHub Releases как источники jar — reuse текущих fetch-скриптов, но вызов из install, не из README «вручную».
 
 ### C. Project setup (манифест + агенты + IDE MCP)
 
@@ -264,7 +264,8 @@ uv tool install git+https://github.com/pila86/1c-dev
 - [Roadmap](../roadmap.md)
 - [M2](m2-metadata-api.md)
 - [M4](m4-source-formats.md) (бывший M3 без CF)
-- [ADR-001](../adr/001-language-core-cli.md) (packaging было отложено → must в M3)
+- [ADR-001](../adr/001-language-core-cli.md) (packaging → [ADR-013](../adr/013-packaging-toolchain-cache.md))
+- [ADR-013](../adr/013-packaging-toolchain-cache.md) (uv tool / cache / pin toolchain)
 - [ADR-010](../adr/010-mcp-architecture.md)
 - [PRD §20 Documentation API](../../1c-dev-runtime-PRD-v0.1.md), [§19 BSL](../../1c-dev-runtime-PRD-v0.1.md), [§64 bsl-context / BSL LS](../../1c-dev-runtime-PRD-v0.1.md)
 - [bsl-context](https://github.com/1c-syntax/bsl-context)

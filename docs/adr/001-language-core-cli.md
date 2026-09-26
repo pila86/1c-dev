@@ -71,14 +71,14 @@ CLI — Typer; entrypoint — `1c-dev`.
 | Python 3.11+ + Poetry | Принято |
 | Go | Отложено (single-binary / packaging — при необходимости после M1) |
 | Rust | Отвергнуто для M1 (высокий порог входа без выигрыша для orchestration) |
-| Packaging (`pipx` / `uv tool` / PyInstaller) | Отложено (не блокер M1; must для [M3 Product adopt](../milestones/m3-product-adopt.md)) |
+| Packaging (`pipx` / `uv tool` / PyInstaller) | Решено в [ADR-013](013-packaging-toolchain-cache.md) (M3: must = `uv tool`) |
 
 ## Последствия
 
 - Scaffold monorepo и CI — под Python/Poetry (см. ADR-002, Issue #1).
 - MCP (#6) — через официальный Python SDK (`mcp` / FastMCP).
 - Тесты — `pytest` в окружении Poetry.
-- Distribution как user install / PATH — [M3](../milestones/m3-product-adopt.md); single-binary — отдельное решение при необходимости.
+- Distribution как user install / PATH — [ADR-013](013-packaging-toolchain-cache.md) (`uv tool` + user cache); single-binary — later.
 
 ## Связанные решения
 
