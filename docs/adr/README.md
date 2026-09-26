@@ -25,6 +25,7 @@
 | [011](011-metadata-ir-v1.md) | Accepted | Metadata IR v1 (M2 contract) |
 | [012](012-metadata-read-mdclasses.md) | Accepted | Metadata read-backend MDClasses |
 | [013](013-packaging-toolchain-cache.md) | Accepted | Packaging (`uv tool`) / user cache / pin toolchain |
+| [014](014-ibcmd-import-cf.md) | Accepted | Platform adapter: ibcmd import from `.cf` |
 
 ## Когда писать ADR
 
