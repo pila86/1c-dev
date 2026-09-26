@@ -42,10 +42,10 @@ def pinned_jar_path() -> Path:
 
 
 def fetch_script_suggestion() -> str:
-    """OS-specific hint to build xml-gen."""
+    """OS-specific hint to bootstrap xml-gen."""
     if sys.platform == "win32":
-        return "1c-dev tools sync  # или: pwsh scripts/fetch-xml-gen.ps1"
-    return "1c-dev tools sync  # или: ./scripts/fetch-xml-gen.sh"
+        return "1c-dev doctor --fix  # или: 1c-dev tools sync / pwsh scripts/fetch-xml-gen.ps1"
+    return "1c-dev doctor --fix  # или: 1c-dev tools sync / ./scripts/fetch-xml-gen.sh"
 
 
 def resolve_jar(*, env: dict[str, str] | None = None) -> ToolResolve:
