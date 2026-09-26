@@ -260,6 +260,7 @@ uv tool install git+https://github.com/pila86/1c-dev
 
 ## Links
 
+- [GitHub milestone M3](https://github.com/pila86/1c-dev/milestone/3)
 - [Roadmap](../roadmap.md)
 - [M2](m2-metadata-api.md)
 - [M4](m4-source-formats.md) (бывший M3 без CF)
@@ -269,16 +270,15 @@ uv tool install git+https://github.com/pila86/1c-dev
 - [bsl-context](https://github.com/1c-syntax/bsl-context)
 - [BSL LS MCP mode](https://1c-syntax.github.io/bsl-language-server/features/McpMode/)
 
-## Suggested work packages
+## Issues
 
-| Тема | Зависит от |
-|------|------------|
-| Platform: `config load` + `config export` (ibcmd) | M1 build/check |
-| CLI/MCP `project.import` (+ should: CLI `runtime.load`) | platform load/export |
-| ADR: packaging (`uv tool`) / user cache layout + pin toolchain deps | — |
-| `1c-dev install`: fetch xml-gen, md-reader/MDClasses (reuse `scripts/fetch-*`) | ADR packaging |
-| Doctor self-checks по каждому jar + `--fix` → install | `1c-dev install` |
-| CLI `setup` + шаблоны IDE MCP / AGENTS (`cursor`, `kilocode`) | install |
-| Fetch/wire BSL LS jar + MCP snippet | setup |
-| Java facade над bsl-context + lazy `docs.search`/`get` + cache | doctor platform path |
-| Acceptance / integration M3 (import round-trip via `build --artifact cf`) | import + setup + docs |
+| # | Задача | Depends on |
+|---|--------|------------|
+| [#45](https://github.com/pila86/1c-dev/issues/45) | ADR: packaging (`uv tool`) / user cache layout + pin toolchain | — |
+| [#46](https://github.com/pila86/1c-dev/issues/46) | Platform: ibcmd `config load` + `config export` | — |
+| [#47](https://github.com/pila86/1c-dev/issues/47) | CLI/MCP `project.import` (+ should: CLI `runtime.load`) | #46 |
+| [#48](https://github.com/pila86/1c-dev/issues/48) | `1c-dev install`: bootstrap toolchain jars | #45 |
+| [#49](https://github.com/pila86/1c-dev/issues/49) | Doctor: jar self-checks + `--fix`; README `uv tool` quick start | #48 |
+| [#50](https://github.com/pila86/1c-dev/issues/50) | CLI `setup --ide cursor\|kilocode` + merge + MCP/AGENTS templates | #48 |
+| [#51](https://github.com/pila86/1c-dev/issues/51) | `docs.search` / `docs.get` via bsl-context, lazy index | #48 |
+| [#52](https://github.com/pila86/1c-dev/issues/52) | Acceptance: E2E import round-trip + setup + docs | #47, #50, #51 |
