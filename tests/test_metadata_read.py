@@ -166,6 +166,110 @@ def test_cli_list_mock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert payload["objects"][0]["qname"] == "Language.Русский"
 
 
+def test_get_common_module_flags_mock(tmp_path: Path) -> None:
+    """Smoke: md-reader full IR for CommonModule projects context flags (#61)."""
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    def fake_read(command: str, source_dir: Path, args: tuple[str, ...]) -> dict[str, Any]:
+        assert command == "get"
+        assert args == ("CommonModule.SalesServer",)
+        return {
+            "status": "ok",
+            "object": {
+                "type": "CommonModule",
+                "name": "SalesServer",
+                "qname": "CommonModule.SalesServer",
+                "synonym": "ПродажиСервер",
+                "server": True,
+                "clientManagedApplication": False,
+                "clientOrdinaryApplication": False,
+                "serverCall": True,
+                "externalConnection": False,
+                "privileged": False,
+                "global": False,
+                "returnValuesReuse": "DontUse",
+            },
+        }
+
+    result = get_metadata(target, "CommonModule.SalesServer", read_fn=fake_read)
+    assert result.status == "ok"
+    assert result.object == "CommonModule.SalesServer"
+    assert result.ir is not None
+    assert result.ir["server"] is True
+    assert result.ir["serverCall"] is True
+    assert result.ir["clientManagedApplication"] is False
+    assert result.ir["returnValuesReuse"] == "DontUse"
+
+
+@pytest.mark.integration
+def test_common_module_get_flags_roundtrip(tmp_path: Path) -> None:
+    """create → get flags → update set-flag → get (#61)."""
+    from adapters.source.xmlgen import EditOp
+    from adapters.source.xmlgen.resolve import resolve_jar as resolve_xmlgen
+    from adapters.source.xmlgen.resolve import resolve_java as resolve_java_xml
+    from core.metadata import catalog_from_parts, create_metadata, update_metadata
+
+    java = resolve_java()
+    jar = resolve_jar()
+    if not java.found or not jar.found:
+        pytest.skip(
+            "md-reader jar / Java 21+ недоступны (запустите scripts/fetch-md-reader.sh)"
+        )
+    xmlgen = resolve_xmlgen()
+    if not xmlgen.found or not resolve_java_xml().found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    created = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="CommonModule.SalesServer",
+            synonym="ПродажиСервер",
+            server=True,
+            server_call=False,
+        ),
+    )
+    assert created.status == "ok", created.diagnostics
+
+    got = get_metadata(target, "CommonModule.SalesServer")
+    assert got.status == "ok", got.diagnostics
+    assert got.ir is not None
+    assert got.ir["type"] == "CommonModule"
+    assert got.ir["name"] == "SalesServer"
+    assert got.ir["server"] is True
+    assert got.ir["serverCall"] is False
+    assert got.ir["clientManagedApplication"] is False
+    assert got.ir["clientOrdinaryApplication"] is False
+    assert got.ir["externalConnection"] is False
+    assert got.ir["privileged"] is False
+    assert got.ir["global"] is False
+    assert got.ir["returnValuesReuse"] == "DontUse"
+
+    updated = update_metadata(
+        target,
+        "CommonModule.SalesServer",
+        [
+            EditOp("set-flag", "serverCall=true"),
+            EditOp("set-flag", "client=true"),
+            EditOp("set-flag", "returnValuesReuse=DuringRequest"),
+        ],
+    )
+    assert updated.status == "ok", updated.diagnostics
+
+    got2 = get_metadata(target, "CommonModule.SalesServer")
+    assert got2.status == "ok", got2.diagnostics
+    assert got2.ir is not None
+    assert got2.ir["server"] is True
+    assert got2.ir["serverCall"] is True
+    assert got2.ir["clientManagedApplication"] is True
+    assert got2.ir["returnValuesReuse"] == "DuringRequest"
+
+
 @pytest.mark.integration
 def test_read_with_real_md_reader(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     java = resolve_java()
