@@ -137,7 +137,7 @@ def test_project_import_mocked(tmp_path: Path, monkeypatch: Any) -> None:
 def test_metadata_create_ir_error() -> None:
     payload = _call(
         "metadata.create",
-        {"qualified_name": "BusinessProcess.Flow", "path": "/tmp"},
+        {"qualified_name": "Role.Admin", "path": "/tmp"},
     )
     assert payload["status"] == "error"
     assert any(d.get("code") == "1CM002" for d in payload["diagnostics"])

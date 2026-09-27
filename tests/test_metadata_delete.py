@@ -111,7 +111,7 @@ def test_delete_rejects_unknown_type(tmp_path: Path) -> None:
     target = _init_shop_with_catalog(tmp_path)
     result = delete_metadata(
         target,
-        "Report.Sales",
+        "Role.Admin",
         remove_fn=lambda *_a, **_k: [],
     )
     assert result.status == "error"

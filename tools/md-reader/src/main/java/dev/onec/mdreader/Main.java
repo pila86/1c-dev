@@ -5,12 +5,14 @@ import com.github._1c_syntax.bsl.mdclasses.MDClasses;
 import com.github._1c_syntax.bsl.mdo.AccumulationRegister;
 import com.github._1c_syntax.bsl.mdo.Attribute;
 import com.github._1c_syntax.bsl.mdo.Catalog;
+import com.github._1c_syntax.bsl.mdo.CommonModule;
 import com.github._1c_syntax.bsl.mdo.Document;
 import com.github._1c_syntax.bsl.mdo.Enum;
 import com.github._1c_syntax.bsl.mdo.InformationRegister;
 import com.github._1c_syntax.bsl.mdo.MD;
 import com.github._1c_syntax.bsl.mdo.TabularSection;
 import com.github._1c_syntax.bsl.mdo.children.EnumValue;
+import com.github._1c_syntax.bsl.mdo.support.ReturnValueReuse;
 import com.github._1c_syntax.bsl.types.MdoReference;
 import com.github._1c_syntax.bsl.types.MultiLanguageString;
 import com.github._1c_syntax.bsl.types.ValueType;
@@ -49,7 +51,8 @@ public final class Main {
       "Document",
       "Enum",
       "InformationRegister",
-      "AccumulationRegister"
+      "AccumulationRegister",
+      "CommonModule"
   );
 
   private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
@@ -227,8 +230,25 @@ public final class Main {
     } else if (md instanceof AccumulationRegister register) {
       obj.add("dimensions", attributesArray((List<Attribute>) (List<?>) register.getDimensions()));
       obj.add("resources", attributesArray((List<Attribute>) (List<?>) register.getResources()));
+    } else if (md instanceof CommonModule module) {
+      obj.addProperty("server", module.isServer());
+      obj.addProperty("clientManagedApplication", module.isClientManagedApplication());
+      obj.addProperty("clientOrdinaryApplication", module.isClientOrdinaryApplication());
+      obj.addProperty("serverCall", module.isServerCall());
+      obj.addProperty("externalConnection", module.isExternalConnection());
+      obj.addProperty("privileged", module.isPrivileged());
+      obj.addProperty("global", module.isGlobal());
+      obj.addProperty("returnValuesReuse", returnValuesReuseOf(module.getReturnValuesReuse()));
     }
     return obj;
+  }
+
+  private static String returnValuesReuseOf(ReturnValueReuse reuse) {
+    if (reuse == null || reuse == ReturnValueReuse.UNKNOWN) {
+      return "DontUse";
+    }
+    String en = reuse.nameEn();
+    return en == null || en.isBlank() ? "DontUse" : en;
   }
 
   private static JsonArray attributesArray(List<? extends Attribute> attributes) {

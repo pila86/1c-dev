@@ -8,28 +8,24 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-AttrType = Literal["String", "Number", "Boolean", "Date", "Ref"]
-ObjectType = Literal[
-    "Catalog",
-    "Document",
-    "Enum",
-    "InformationRegister",
-    "AccumulationRegister",
-    "CommonModule",
-]
-ReturnValuesReuse = Literal["DontUse", "DuringRequest", "DuringSession"]
-
-# Types accepted in QualifiedName for read/update/delete paths (M2).
-M2_OBJECT_TYPES: frozenset[str] = frozenset(
-    {
-        "Catalog",
-        "Document",
-        "Enum",
-        "InformationRegister",
-        "AccumulationRegister",
-        "CommonModule",
-    }
+from core.metadata.types import (
+    CREATE_OBJECT_TYPES as CREATE_OBJECT_TYPES,
 )
+from core.metadata.types import (
+    M2_OBJECT_TYPES as M2_OBJECT_TYPES,
+)
+from core.metadata.types import (
+    UPDATE_OBJECT_TYPES as UPDATE_OBJECT_TYPES,
+)
+from core.metadata.types import (
+    WRITE_OBJECT_TYPES as WRITE_OBJECT_TYPES,
+)
+from core.metadata.types import (
+    ObjectType as ObjectType,
+)
+
+AttrType = Literal["String", "Number", "Boolean", "Date", "Ref"]
+ReturnValuesReuse = Literal["DontUse", "DuringRequest", "DuringSession"]
 
 _RETURN_VALUES_REUSE: frozenset[str] = frozenset(
     {"DontUse", "DuringRequest", "DuringSession"}
@@ -114,30 +110,6 @@ class EnumValue:
             data["synonym"] = self.synonym
         return data
 
-
-# Object types writable via metadata.create (ADR-011 / #23 / #24 / #28).
-CREATE_OBJECT_TYPES: frozenset[str] = frozenset(
-    {
-        "Catalog",
-        "Document",
-        "Enum",
-        "InformationRegister",
-        "AccumulationRegister",
-        "CommonModule",
-    }
-)
-
-# Object types writable via metadata.update (ADR-011 / #22 / #35 / #39 / #40).
-UPDATE_OBJECT_TYPES: frozenset[str] = frozenset(
-    {
-        "Catalog",
-        "Document",
-        "Enum",
-        "InformationRegister",
-        "AccumulationRegister",
-        "CommonModule",
-    }
-)
 
 _REGISTER_TYPES: frozenset[str] = frozenset(
     {"InformationRegister", "AccumulationRegister"}
@@ -224,7 +196,7 @@ def _check_name(name: str, *, what: str) -> str:
 
 
 def parse_qualified_name(ref: str) -> tuple[ObjectType, str]:
-    """Parse `Catalog.Products` → (Catalog, Products). Accepts M2 object types."""
+    """Parse `Catalog.Products` → (Catalog, Products). ADR-018 write types."""
     raw = ref.strip()
     if "." not in raw:
         raise IrError(
@@ -232,10 +204,10 @@ def parse_qualified_name(ref: str) -> tuple[ObjectType, str]:
             code="1CM002",
         )
     type_part, name_part = raw.split(".", 1)
-    if type_part not in M2_OBJECT_TYPES or not name_part or "." in name_part:
+    if type_part not in WRITE_OBJECT_TYPES or not name_part or "." in name_part:
         raise IrError(
             f"Неподдерживаемый QualifiedName (ожидается один из "
-            f"{', '.join(sorted(M2_OBJECT_TYPES))}): {ref!r}",
+            f"{', '.join(sorted(WRITE_OBJECT_TYPES))}): {ref!r}",
             code="1CM002",
         )
     obj_type: ObjectType = type_part  # type: ignore[assignment]

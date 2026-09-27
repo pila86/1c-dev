@@ -79,8 +79,12 @@ meta waves → [#70](https://github.com/pila86/1c-dev/issues/70) docs →
 
 - ADR-011 остаётся контрактом IR v1 для M2-типов; этот ADR — политика coverage
   и Subsystem write-path.
-- Pin xml-gen должен покрывать meta 23 и subsystem compile/edit.
-- Реализация — отдельными issues/PR по волнам; этот ADR не включает код.
+- Pin xml-gen должен покрывать meta 23 и subsystem compile/edit
+  (`adapters/source/xmlgen/constants.py` / `toolchain/manifest.yaml`:
+  `19f67bfed6d15f051f9568678bab1701b7735f95` — verified #60).
+- Единый каталог write-типов и `TYPE_DIRS` — `core/metadata/types.py`
+  (`WRITE_OBJECT_TYPES`); doctor `supportedTypes` читает оттуда.
+- Реализация CRUD по типам — отдельными issues/PR по волнам.
 
 ## Связанные решения
 

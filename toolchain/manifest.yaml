@@ -3,6 +3,7 @@ version: 1
 components:
   - id: xml-gen
     artifact: xml-gen.jar
+    # Meta DSL 23 (meta compile/edit/remove) + subsystem compile/edit (ADR-018 / #60)
     pin: "19f67bfed6d15f051f9568678bab1701b7735f95"
     source:
       type: git

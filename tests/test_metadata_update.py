@@ -297,7 +297,7 @@ def test_update_rejects_unknown_type(tmp_path: Path) -> None:
     target = _init_shop(tmp_path)
     result = update_metadata(
         target,
-        "ChartOfAccounts.Main",
+        "Role.Admin",
         [EditOp("add-attribute", "X:String(10)")],
         edit_fn=lambda *_a, **_k: EditResult(),
     )
