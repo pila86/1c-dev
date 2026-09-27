@@ -544,6 +544,501 @@ def test_update_subsystem_ops_mock(tmp_path: Path) -> None:
     ]
 
 
+def test_update_constant_modify_property_mock(tmp_path: Path) -> None:
+    target = _init_shop(tmp_path)
+    consts = target / "src" / "cf" / "Constants"
+    consts.mkdir(parents=True)
+    (consts / "VATRate.xml").write_text("<Constant/>", encoding="utf-8")
+    calls: list[EditOp] = []
+
+    def fake_edit(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "VATRate.xml"
+        calls.extend(operations)
+        return EditResult(changed_paths=["Constants/VATRate.xml"], modified=1)
+
+    def fake_get(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "Constant",
+                "name": "VATRate",
+                "synonym": "НоваяСтавка",
+                "valueType": {"type": "Number", "precision": 5, "scale": 2},
+            },
+        )
+
+    result = update_metadata(
+        target,
+        "Constant.VATRate",
+        [EditOp("modify-property", "Synonym=НоваяСтавка")],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert result.ir["synonym"] == "НоваяСтавка"
+    assert calls == [EditOp("modify-property", "Synonym=НоваяСтавка")]
+
+
+def test_update_report_attr_and_ts_mock(tmp_path: Path) -> None:
+    target = _init_shop(tmp_path)
+    reports = target / "src" / "cf" / "Reports"
+    reports.mkdir(parents=True)
+    (reports / "Sales.xml").write_text("<Report/>", encoding="utf-8")
+    calls: list[EditOp] = []
+
+    def fake_edit(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "Sales.xml"
+        calls.extend(operations)
+        return EditResult(changed_paths=["Reports/Sales.xml"], modified=len(operations))
+
+    def fake_get(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "Report",
+                "name": "Sales",
+                "attributes": [
+                    {"name": "Period", "type": "Date"},
+                    {"name": "Cutoff", "type": "Number", "precision": 10, "scale": 2},
+                ],
+                "tabularSections": [
+                    {
+                        "name": "Lines",
+                        "attributes": [
+                            {"name": "Amount", "type": "Number", "precision": 15, "scale": 2},
+                            {"name": "Qty", "type": "Number", "precision": 15, "scale": 3},
+                        ],
+                    }
+                ],
+            },
+        )
+
+    result = update_metadata(
+        target,
+        "Report.Sales",
+        [
+            EditOp("add-attribute", "Cutoff:Number(10,2)"),
+            EditOp("add-ts-attribute", "Lines.Qty:Number(15,3)"),
+        ],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert {a["name"] for a in result.ir["attributes"]} == {"Period", "Cutoff"}
+    assert calls == [
+        EditOp("add-attribute", "Cutoff:Number(10,2)"),
+        EditOp("add-ts-attribute", "Lines.Qty:Number(15,3)"),
+    ]
+
+
+def test_update_scheduled_job_and_event_subscription_modify_property_mock(
+    tmp_path: Path,
+) -> None:
+    target = _init_shop(tmp_path)
+    jobs = target / "src" / "cf" / "ScheduledJobs"
+    jobs.mkdir(parents=True)
+    (jobs / "Cleanup.xml").write_text("<ScheduledJob/>", encoding="utf-8")
+    calls: list[EditOp] = []
+
+    def fake_edit(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "Cleanup.xml"
+        calls.extend(operations)
+        return EditResult(changed_paths=["ScheduledJobs/Cleanup.xml"], modified=1)
+
+    def fake_get(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "ScheduledJob",
+                "name": "Cleanup",
+                "use": False,
+                "methodName": "CommonModule.Jobs.Cleanup",
+            },
+        )
+
+    result = update_metadata(
+        target,
+        "ScheduledJob.Cleanup",
+        [EditOp("modify-property", "Use=false")],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert result.ir["use"] is False
+    assert calls == [EditOp("modify-property", "Use=false")]
+
+    subs = target / "src" / "cf" / "EventSubscriptions"
+    subs.mkdir(parents=True)
+    (subs / "ProductsBeforeWrite.xml").write_text("<EventSubscription/>", encoding="utf-8")
+    calls_es: list[EditOp] = []
+
+    def fake_edit_es(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "ProductsBeforeWrite.xml"
+        calls_es.extend(operations)
+        return EditResult(
+            changed_paths=["EventSubscriptions/ProductsBeforeWrite.xml"],
+            modified=1,
+        )
+
+    def fake_get_es(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "EventSubscription",
+                "name": "ProductsBeforeWrite",
+                "event": "OnWrite",
+                "handler": "CommonModule.Jobs.BeforeWrite",
+                "source": ["Catalog.Products"],
+            },
+        )
+
+    result2 = update_metadata(
+        target,
+        "EventSubscription.ProductsBeforeWrite",
+        [EditOp("modify-property", "Event=OnWrite")],
+        edit_fn=fake_edit_es,
+        get_fn=fake_get_es,
+    )
+    assert result2.status == "ok"
+    assert result2.ir is not None
+    assert result2.ir["event"] == "OnWrite"
+    assert calls_es == [EditOp("modify-property", "Event=OnWrite")]
+
+
+def test_update_http_service_and_web_service_modify_property_mock(
+    tmp_path: Path,
+) -> None:
+    target = _init_shop(tmp_path)
+    https = target / "src" / "cf" / "HTTPServices"
+    https.mkdir(parents=True)
+    (https / "API.xml").write_text("<HTTPService/>", encoding="utf-8")
+    calls: list[EditOp] = []
+
+    def fake_edit(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "API.xml"
+        calls.extend(operations)
+        return EditResult(changed_paths=["HTTPServices/API.xml"], modified=1)
+
+    def fake_get(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "HTTPService",
+                "name": "API",
+                "urlTemplates": {
+                    "Users": {"template": "/v1/users", "methods": {"Get": "UsersGet"}}
+                },
+            },
+        )
+
+    result = update_metadata(
+        target,
+        "HTTPService.API",
+        [EditOp("modify-property", "RootURL=v2")],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert calls == [EditOp("modify-property", "RootURL=v2")]
+
+    webs = target / "src" / "cf" / "WebServices"
+    webs.mkdir(parents=True)
+    (webs / "DataExchange.xml").write_text("<WebService/>", encoding="utf-8")
+    calls_ws: list[EditOp] = []
+
+    def fake_edit_ws(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "DataExchange.xml"
+        calls_ws.extend(operations)
+        return EditResult(
+            changed_paths=["WebServices/DataExchange.xml"],
+            modified=1,
+        )
+
+    def fake_get_ws(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "WebService",
+                "name": "DataExchange",
+                "namespace": "http://example.com/exchange",
+                "reuseSessions": "DontUse",
+                "sessionMaxAge": 20,
+                "operations": {},
+            },
+        )
+
+    result2 = update_metadata(
+        target,
+        "WebService.DataExchange",
+        [EditOp("modify-property", "Namespace=http://example.com/exchange")],
+        edit_fn=fake_edit_ws,
+        get_fn=fake_get_ws,
+    )
+    assert result2.status == "ok"
+    assert result2.ir is not None
+    assert result2.ir["namespace"] == "http://example.com/exchange"
+    assert calls_ws == [
+        EditOp("modify-property", "Namespace=http://example.com/exchange")
+    ]
+
+
+def test_update_accounting_and_calculation_register_ops_mock(tmp_path: Path) -> None:
+    target = _init_shop(tmp_path)
+    accts = target / "src" / "cf" / "AccountingRegisters"
+    accts.mkdir(parents=True)
+    (accts / "Accounting.xml").write_text("<AccountingRegister/>", encoding="utf-8")
+    calls: list[EditOp] = []
+
+    def fake_edit(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "Accounting.xml"
+        calls.extend(operations)
+        return EditResult(changed_paths=["AccountingRegisters/Accounting.xml"], added=1)
+
+    def fake_get(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "AccountingRegister",
+                "name": "Accounting",
+                "dimensions": [{"name": "Org", "type": "String"}],
+                "resources": [{"name": "Sum", "type": "Number"}],
+            },
+        )
+
+    result = update_metadata(
+        target,
+        "AccountingRegister.Accounting",
+        [
+            EditOp("add-dimension", "Org:String(50)"),
+            EditOp("add-resource", "Sum:Number(15,2)"),
+        ],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert calls == [
+        EditOp("add-dimension", "Org:String(50)"),
+        EditOp("add-resource", "Sum:Number(15,2)"),
+    ]
+
+    calcs = target / "src" / "cf" / "CalculationRegisters"
+    calcs.mkdir(parents=True)
+    (calcs / "Salary.xml").write_text("<CalculationRegister/>", encoding="utf-8")
+    calls_c: list[EditOp] = []
+
+    def fake_edit_c(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "Salary.xml"
+        calls_c.extend(operations)
+        return EditResult(
+            changed_paths=["CalculationRegisters/Salary.xml"],
+            modified=1,
+        )
+
+    def fake_get_c(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "CalculationRegister",
+                "name": "Salary",
+                "dimensions": [{"name": "Employee", "type": "String"}],
+                "resources": [{"name": "Amount", "type": "Number"}],
+                "periodicity": "Month",
+            },
+        )
+
+    result2 = update_metadata(
+        target,
+        "CalculationRegister.Salary",
+        [EditOp("modify-property", "Synonym=Зарплата")],
+        edit_fn=fake_edit_c,
+        get_fn=fake_get_c,
+    )
+    assert result2.status == "ok"
+    assert calls_c == [EditOp("modify-property", "Synonym=Зарплата")]
+
+
+def test_update_charts_attr_and_ts_mock(tmp_path: Path) -> None:
+    target = _init_shop(tmp_path)
+    charts = target / "src" / "cf" / "ChartsOfCharacteristicTypes"
+    charts.mkdir(parents=True)
+    (charts / "Properties.xml").write_text(
+        "<ChartOfCharacteristicTypes/>", encoding="utf-8"
+    )
+    calls: list[EditOp] = []
+
+    def fake_edit(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "Properties.xml"
+        calls.extend(operations)
+        return EditResult(
+            changed_paths=["ChartsOfCharacteristicTypes/Properties.xml"],
+            modified=len(operations),
+        )
+
+    def fake_get(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "ChartOfCharacteristicTypes",
+                "name": "Properties",
+                "valueType": {"type": "String", "length": 50},
+                "attributes": [
+                    {"name": "CodeExtra", "type": "String", "length": 10},
+                    {"name": "Cutoff", "type": "Number", "precision": 10, "scale": 2},
+                ],
+                "tabularSections": [
+                    {
+                        "name": "Extra",
+                        "attributes": [
+                            {"name": "Note", "type": "String", "length": 20},
+                            {"name": "Qty", "type": "Number", "precision": 15, "scale": 3},
+                        ],
+                    }
+                ],
+            },
+        )
+
+    result = update_metadata(
+        target,
+        "ChartOfCharacteristicTypes.Properties",
+        [
+            EditOp("add-attribute", "Cutoff:Number(10,2)"),
+            EditOp("add-ts-attribute", "Extra.Qty:Number(15,3)"),
+        ],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert {a["name"] for a in result.ir["attributes"]} == {"CodeExtra", "Cutoff"}
+    assert calls == [
+        EditOp("add-attribute", "Cutoff:Number(10,2)"),
+        EditOp("add-ts-attribute", "Extra.Qty:Number(15,3)"),
+    ]
+
+    accts = target / "src" / "cf" / "ChartsOfAccounts"
+    accts.mkdir(parents=True)
+    (accts / "MainAccounts.xml").write_text("<ChartOfAccounts/>", encoding="utf-8")
+    calls_a: list[EditOp] = []
+
+    def fake_edit_a(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "MainAccounts.xml"
+        calls_a.extend(operations)
+        return EditResult(changed_paths=["ChartsOfAccounts/MainAccounts.xml"], added=1)
+
+    def fake_get_a(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "ChartOfAccounts",
+                "name": "MainAccounts",
+                "attributes": [
+                    {"name": "Extra", "type": "String"},
+                    {"name": "Comment", "type": "String"},
+                ],
+                "accountingFlags": [{"name": "Currency", "type": "Boolean"}],
+            },
+        )
+
+    result_a = update_metadata(
+        target,
+        "ChartOfAccounts.MainAccounts",
+        [EditOp("add-attribute", "Comment:String(100)")],
+        edit_fn=fake_edit_a,
+        get_fn=fake_get_a,
+    )
+    assert result_a.status == "ok"
+    assert calls_a == [EditOp("add-attribute", "Comment:String(100)")]
+
+
+def test_update_e8_attr_and_exchange_content_mock(tmp_path: Path) -> None:
+    target = _init_shop(tmp_path)
+    tasks = target / "src" / "cf" / "Tasks"
+    tasks.mkdir(parents=True)
+    (tasks / "Todo.xml").write_text("<Task/>", encoding="utf-8")
+    calls: list[EditOp] = []
+
+    def fake_edit(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "Todo.xml"
+        calls.extend(operations)
+        return EditResult(changed_paths=["Tasks/Todo.xml"], added=1)
+
+    def fake_get(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "Task",
+                "name": "Todo",
+                "attributes": [
+                    {"name": "Note", "type": "String"},
+                    {"name": "Priority", "type": "Number"},
+                ],
+                "addressingAttributes": [{"name": "Assignee", "type": "String"}],
+            },
+        )
+
+    result = update_metadata(
+        target,
+        "Task.Todo",
+        [EditOp("add-attribute", "Priority:Number(10,0)")],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert calls == [EditOp("add-attribute", "Priority:Number(10,0)")]
+
+    plans = target / "src" / "cf" / "ExchangePlans"
+    plans.mkdir(parents=True)
+    (plans / "Main.xml").write_text("<ExchangePlan/>", encoding="utf-8")
+    calls_p: list[EditOp] = []
+
+    def fake_edit_p(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "Main.xml"
+        calls_p.extend(operations)
+        return EditResult(
+            changed_paths=["ExchangePlans/Main/Ext/Content.xml"], added=1
+        )
+
+    def fake_get_p(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "ExchangePlan",
+                "name": "Main",
+                "attributes": [{"name": "Extra", "type": "String"}],
+                "content": [
+                    {"metadata": "Catalog.Products", "autoRecord": "Deny"},
+                ],
+            },
+        )
+
+    result_p = update_metadata(
+        target,
+        "ExchangePlan.Main",
+        [EditOp("add-exchange-content", "Catalog.Products")],
+        edit_fn=fake_edit_p,
+        get_fn=fake_get_p,
+    )
+    assert result_p.status == "ok"
+    assert calls_p == [EditOp("add-exchange-content", "Catalog.Products")]
+
+
 def test_update_enum_duplicate_warning(tmp_path: Path) -> None:
     target = _init_shop(tmp_path)
     enums = target / "src" / "cf" / "Enums"

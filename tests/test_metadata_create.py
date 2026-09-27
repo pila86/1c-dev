@@ -317,6 +317,554 @@ def test_subsystem_from_parts_and_json() -> None:
     assert bad_content.value.code == "1CM004"
 
 
+def test_constant_and_defined_type_from_parts_and_json() -> None:
+    const = catalog_from_parts(
+        qualified_name="Constant.VATRate",
+        synonym="СтавкаНДС",
+        value_type_specs=["Number:5.2"],
+    )
+    assert const.qualified_name == "Constant.VATRate"
+    assert const.value_type is not None
+    assert const.value_type.type == "Number"
+    assert const.value_type.precision == 5
+    assert const.value_type.scale == 2
+    dsl = ir_to_xmlgen_dsl(const.to_dict())
+    assert dsl == {
+        "type": "Constant",
+        "name": "VATRate",
+        "synonym": "СтавкаНДС",
+        "valueType": "Number(5,2)",
+    }
+    assert "attributes" not in dsl
+
+    defined = catalog_from_parts(
+        qualified_name="DefinedType.CounterpartyRef",
+        value_type_specs=["String:50", "Number:10.0"],
+    )
+    assert defined.value_types[0].type == "String"
+    assert defined.value_types[0].length == 50
+    defined_dsl = ir_to_xmlgen_dsl(defined.to_dict())
+    assert defined_dsl["type"] == "DefinedType"
+    assert defined_dsl["valueTypes"] == ["String(50)", "Number(10,0)"]
+
+    from_json = catalog_from_json(
+        {
+            "type": "DefinedType",
+            "name": "Money",
+            "valueType": {"type": "Number", "precision": 15, "scale": 2},
+        }
+    )
+    assert len(from_json.value_types) == 1
+    assert from_json.value_types[0].precision == 15
+
+    with pytest.raises(IrError) as shape:
+        catalog_from_parts(
+            qualified_name="Constant.Bad",
+            attr_specs=["X:String:10"],
+        )
+    assert shape.value.code == "1CM004"
+
+    with pytest.raises(IrError) as required:
+        catalog_from_parts(qualified_name="DefinedType.Bad")
+    assert required.value.code == "1CM004"
+
+
+def test_report_and_dataprocessor_from_parts_and_json() -> None:
+    report = catalog_from_parts(
+        qualified_name="Report.Sales",
+        synonym="Продажи",
+        attr_specs=["Period:Date:Период"],
+        ts_specs=["Lines:Строки"],
+        ts_attr_specs=["Lines.Amount:Number:15.2:Сумма"],
+    )
+    assert report.qualified_name == "Report.Sales"
+    assert report.type == "Report"
+    assert len(report.attributes) == 1
+    assert report.attributes[0].name == "Period"
+    assert len(report.tabular_sections) == 1
+    assert report.tabular_sections[0].name == "Lines"
+    dsl = ir_to_xmlgen_dsl(report.to_dict())
+    assert dsl["type"] == "Report"
+    assert dsl["attributes"][0]["type"] == "Date"
+    assert "Lines" in dsl["tabularSections"]
+
+    processor = catalog_from_parts(
+        qualified_name="DataProcessor.ImportData",
+        synonym="Загрузка",
+        attr_specs=["Path:String:200:Путь"],
+    )
+    assert processor.qualified_name == "DataProcessor.ImportData"
+    proc_dsl = ir_to_xmlgen_dsl(processor.to_dict())
+    assert proc_dsl["type"] == "DataProcessor"
+    assert proc_dsl["attributes"][0]["type"] == "String(200)"
+
+    from_json = catalog_from_json(
+        {
+            "type": "Report",
+            "name": "Margin",
+            "attributes": [{"name": "Cutoff", "type": "Number", "precision": 10, "scale": 2}],
+            "tabularSections": [
+                {
+                    "name": "Rows",
+                    "attributes": [{"name": "Qty", "type": "Number", "precision": 15, "scale": 3}],
+                }
+            ],
+        }
+    )
+    assert from_json.type == "Report"
+    assert from_json.attributes[0].name == "Cutoff"
+    assert from_json.tabular_sections[0].name == "Rows"
+
+    with pytest.raises(IrError) as shape:
+        catalog_from_parts(
+            qualified_name="Report.Bad",
+            value_type_specs=["String:10"],
+        )
+    assert shape.value.code == "1CM004"
+
+
+def test_scheduled_job_and_event_subscription_from_parts_and_json() -> None:
+    job = catalog_from_parts(
+        qualified_name="ScheduledJob.Cleanup",
+        synonym="Очистка",
+        method_name="CommonModule.Jobs.Cleanup",
+        use=True,
+        description="Nightly",
+        key="cleanup",
+        predefined=False,
+        restart_count_on_failure=5,
+        restart_interval_on_failure=20,
+    )
+    assert job.qualified_name == "ScheduledJob.Cleanup"
+    assert job.type == "ScheduledJob"
+    assert job.method_name == "CommonModule.Jobs.Cleanup"
+    assert job.use is True
+    dsl = ir_to_xmlgen_dsl(job.to_dict())
+    assert dsl == {
+        "type": "ScheduledJob",
+        "name": "Cleanup",
+        "synonym": "Очистка",
+        "methodName": "CommonModule.Jobs.Cleanup",
+        "use": True,
+        "description": "Nightly",
+        "key": "cleanup",
+        "predefined": False,
+        "restartCountOnFailure": 5,
+        "restartIntervalOnFailure": 20,
+    }
+    assert "attributes" not in dsl
+
+    sub = catalog_from_parts(
+        qualified_name="EventSubscription.ProductsBeforeWrite",
+        synonym="ПередЗаписью",
+        handler="CommonModule.Jobs.BeforeWrite",
+        event="BeforeWrite",
+        source=["Catalog.Products"],
+    )
+    assert sub.qualified_name == "EventSubscription.ProductsBeforeWrite"
+    assert sub.handler == "CommonModule.Jobs.BeforeWrite"
+    assert sub.event == "BeforeWrite"
+    assert sub.source == ["Catalog.Products"]
+    sub_dsl = ir_to_xmlgen_dsl(sub.to_dict())
+    assert sub_dsl["type"] == "EventSubscription"
+    assert sub_dsl["handler"] == "CommonModule.Jobs.BeforeWrite"
+    assert sub_dsl["event"] == "BeforeWrite"
+    assert sub_dsl["source"] == ["Catalog.Products"]
+
+    from_json = catalog_from_json(
+        {
+            "type": "ScheduledJob",
+            "name": "Rebuild",
+            "methodName": "CommonModule.Jobs.Rebuild",
+            "use": False,
+        }
+    )
+    assert from_json.type == "ScheduledJob"
+    assert from_json.method_name == "CommonModule.Jobs.Rebuild"
+    assert from_json.use is False
+
+    from_json_es = catalog_from_json(
+        {
+            "type": "EventSubscription",
+            "name": "DocOnWrite",
+            "handler": "CommonModule.Jobs.OnWrite",
+            "event": "OnWrite",
+            "source": ["Document.Order"],
+        }
+    )
+    assert from_json_es.source == ["Document.Order"]
+
+    with pytest.raises(IrError) as shape:
+        catalog_from_parts(
+            qualified_name="ScheduledJob.Bad",
+            attr_specs=["X:String:10"],
+        )
+    assert shape.value.code == "1CM004"
+
+    with pytest.raises(IrError) as bad_handler:
+        catalog_from_parts(
+            qualified_name="EventSubscription.Bad",
+            handler="Jobs.BeforeWrite",
+        )
+    assert bad_handler.value.code == "1CM004"
+
+    with pytest.raises(IrError) as bad_source:
+        catalog_from_parts(
+            qualified_name="EventSubscription.Bad",
+            source=["Products"],
+        )
+    assert bad_source.value.code == "1CM004"
+
+
+def test_http_service_and_web_service_from_parts_and_json() -> None:
+    http = catalog_from_parts(
+        qualified_name="HTTPService.API",
+        synonym="API",
+        root_url="api",
+        reuse_sessions="DontUse",
+        session_max_age=20,
+        url_templates={
+            "Users": {
+                "template": "/v1/users",
+                "methods": {"Get": "GET", "Create": "POST"},
+            }
+        },
+    )
+    assert http.qualified_name == "HTTPService.API"
+    assert http.type == "HTTPService"
+    assert http.root_url == "api"
+    assert http.reuse_sessions == "DontUse"
+    assert http.session_max_age == 20
+    assert http.url_templates["Users"]["template"] == "/v1/users"
+    assert http.url_templates["Users"]["methods"]["Get"] == "GET"
+    dsl = ir_to_xmlgen_dsl(http.to_dict())
+    assert dsl == {
+        "type": "HTTPService",
+        "name": "API",
+        "synonym": "API",
+        "rootURL": "api",
+        "reuseSessions": "DontUse",
+        "sessionMaxAge": 20,
+        "urlTemplates": {
+            "Users": {
+                "template": "/v1/users",
+                "methods": {"Get": "GET", "Create": "POST"},
+            }
+        },
+    }
+    assert "attributes" not in dsl
+
+    web = catalog_from_parts(
+        qualified_name="WebService.DataExchange",
+        synonym="Обмен",
+        namespace="http://www.1c.ru/DataExchange",
+        reuse_sessions="DontUse",
+        session_max_age=20,
+        operations={
+            "TestConnection": {
+                "returnType": "xs:boolean",
+                "handler": "ПроверкаПодключения",
+                "parameters": {
+                    "ErrorMessage": {"type": "xs:string", "direction": "Out"}
+                },
+            }
+        },
+    )
+    assert web.qualified_name == "WebService.DataExchange"
+    assert web.namespace == "http://www.1c.ru/DataExchange"
+    assert web.operations["TestConnection"]["handler"] == "ПроверкаПодключения"
+    web_dsl = ir_to_xmlgen_dsl(web.to_dict())
+    assert web_dsl["type"] == "WebService"
+    assert web_dsl["namespace"] == "http://www.1c.ru/DataExchange"
+    assert web_dsl["operations"]["TestConnection"]["returnType"] == "xs:boolean"
+    assert web_dsl["operations"]["TestConnection"]["parameters"]["ErrorMessage"][
+        "direction"
+    ] == "Out"
+
+    from_json = catalog_from_json(
+        {
+            "type": "HTTPService",
+            "name": "Public",
+            "rootURL": "public",
+            "urlTemplates": {"Ping": "/ping"},
+        }
+    )
+    assert from_json.type == "HTTPService"
+    assert from_json.root_url == "public"
+    assert from_json.url_templates["Ping"]["template"] == "/ping"
+
+    from_json_ws = catalog_from_json(
+        {
+            "type": "WebService",
+            "name": "Exchange",
+            "namespace": "http://example.com",
+            "operations": {
+                "Echo": {"handler": "EchoHandler", "returnType": "xs:string"}
+            },
+        }
+    )
+    assert from_json_ws.operations["Echo"]["handler"] == "EchoHandler"
+
+    with pytest.raises(IrError) as shape:
+        catalog_from_parts(
+            qualified_name="HTTPService.Bad",
+            attr_specs=["X:String:10"],
+        )
+    assert shape.value.code == "1CM004"
+
+    with pytest.raises(IrError) as bad_verb:
+        catalog_from_parts(
+            qualified_name="HTTPService.Bad",
+            url_templates={"T": {"template": "/t", "methods": {"X": "FOO"}}},
+        )
+    assert bad_verb.value.code == "1CM004"
+
+    with pytest.raises(IrError) as cross:
+        catalog_from_parts(
+            qualified_name="WebService.Bad",
+            root_url="api",
+        )
+    assert cross.value.code == "1CM004"
+
+
+def test_accounting_and_calculation_register_from_parts_and_json() -> None:
+    acct = catalog_from_parts(
+        qualified_name="AccountingRegister.Accounting",
+        synonym="Бух",
+        chart_of_accounts="ChartOfAccounts.MainAccounts",
+        dimension_specs=["Org:String:50"],
+        resource_specs=["Sum:Number:15.2:Сумма"],
+    )
+    assert acct.qualified_name == "AccountingRegister.Accounting"
+    assert acct.type == "AccountingRegister"
+    assert acct.chart_of_accounts == "ChartOfAccounts.MainAccounts"
+    assert acct.dimensions[0].name == "Org"
+    assert acct.resources[0].synonym == "Сумма"
+    dsl = ir_to_xmlgen_dsl(acct.to_dict())
+    assert dsl == {
+        "type": "AccountingRegister",
+        "name": "Accounting",
+        "synonym": "Бух",
+        "dimensions": [{"name": "Org", "type": "String(50)"}],
+        "resources": [{"name": "Sum", "type": "Number(15,2)", "synonym": "Сумма"}],
+        "chartOfAccounts": "ChartOfAccounts.MainAccounts",
+    }
+
+    calc = catalog_from_parts(
+        qualified_name="CalculationRegister.Salary",
+        chart_of_calculation_types="MainCalcs",
+        dimension_specs=["Employee:String:50"],
+        resource_specs=["Amount:Number:15.2"],
+    )
+    assert calc.chart_of_calculation_types == "ChartOfCalculationTypes.MainCalcs"
+    calc_dsl = ir_to_xmlgen_dsl(calc.to_dict())
+    assert calc_dsl["type"] == "CalculationRegister"
+    assert calc_dsl["chartOfCalculationTypes"] == "ChartOfCalculationTypes.MainCalcs"
+    assert calc_dsl["dimensions"][0]["name"] == "Employee"
+
+    from_json = catalog_from_json(
+        {
+            "type": "AccountingRegister",
+            "name": "AR",
+            "chartOfAccounts": "ChartOfAccounts.MainAccounts",
+            "dimensions": [{"name": "D", "type": "String", "length": 10}],
+            "resources": [{"name": "R", "type": "Number", "precision": 15, "scale": 2}],
+        }
+    )
+    assert from_json.chart_of_accounts == "ChartOfAccounts.MainAccounts"
+
+    with pytest.raises(IrError) as missing:
+        catalog_from_parts(qualified_name="AccountingRegister.Bad")
+    assert missing.value.code == "1CM004"
+
+    with pytest.raises(IrError) as missing_calc:
+        catalog_from_parts(qualified_name="CalculationRegister.Bad")
+    assert missing_calc.value.code == "1CM004"
+
+    with pytest.raises(IrError) as wrong_chart:
+        catalog_from_parts(
+            qualified_name="AccountingRegister.Bad",
+            chart_of_accounts="Catalog.Products",
+        )
+    assert wrong_chart.value.code == "1CM004"
+
+    with pytest.raises(IrError) as shape:
+        catalog_from_parts(
+            qualified_name="AccountingRegister.Bad",
+            chart_of_accounts="ChartOfAccounts.MainAccounts",
+            attr_specs=["X:String:10"],
+        )
+    assert shape.value.code == "1CM004"
+
+    with pytest.raises(IrError) as info_chart:
+        catalog_from_parts(
+            qualified_name="InformationRegister.Bad",
+            chart_of_accounts="ChartOfAccounts.MainAccounts",
+        )
+    assert info_chart.value.code == "1CM004"
+
+
+def test_charts_from_parts_and_json() -> None:
+    char = catalog_from_parts(
+        qualified_name="ChartOfCharacteristicTypes.Properties",
+        synonym="Свойства",
+        value_type_specs=["String:50"],
+        attr_specs=["CodeExtra:String:10:ДопКод"],
+        ts_specs=["Extra:Доп"],
+        ts_attr_specs=["Extra.Note:String:20:Заметка"],
+    )
+    assert char.qualified_name == "ChartOfCharacteristicTypes.Properties"
+    assert char.type == "ChartOfCharacteristicTypes"
+    assert char.value_type is not None
+    assert char.value_type.type == "String"
+    assert char.value_type.length == 50
+    assert char.attributes[0].name == "CodeExtra"
+    assert char.tabular_sections[0].name == "Extra"
+    char_dsl = ir_to_xmlgen_dsl(char.to_dict())
+    assert char_dsl["type"] == "ChartOfCharacteristicTypes"
+    assert char_dsl["valueType"] == "String(50)"
+    assert "Extra" in char_dsl["tabularSections"]
+
+    accounts = catalog_from_parts(
+        qualified_name="ChartOfAccounts.MainAccounts",
+        synonym="Счета",
+        attr_specs=["Extra:String:10"],
+        accounting_flag_specs=["Currency:Boolean:Валютный"],
+        ext_dimension_accounting_flag_specs=["Amount:Boolean:Суммовой"],
+        ts_specs=["ExtraTS"],
+        ts_attr_specs=["ExtraTS.Note:String:20"],
+    )
+    assert accounts.type == "ChartOfAccounts"
+    assert accounts.accounting_flags[0].name == "Currency"
+    assert accounts.ext_dimension_accounting_flags[0].name == "Amount"
+    acc_dsl = ir_to_xmlgen_dsl(accounts.to_dict())
+    assert acc_dsl["accountingFlags"][0]["type"] == "Boolean"
+    assert acc_dsl["extDimensionAccountingFlags"][0]["name"] == "Amount"
+
+    calcs = catalog_from_parts(
+        qualified_name="ChartOfCalculationTypes.MainCalcs",
+        attr_specs=["Extra:String:10"],
+    )
+    assert calcs.type == "ChartOfCalculationTypes"
+    calc_dsl = ir_to_xmlgen_dsl(calcs.to_dict())
+    assert calc_dsl["attributes"][0]["type"] == "String(10)"
+
+    from_json = catalog_from_json(
+        {
+            "type": "ChartOfAccounts",
+            "name": "Plan",
+            "accountingFlags": [{"name": "Currency", "type": "Boolean"}],
+            "attributes": [{"name": "Extra", "type": "String", "length": 10}],
+        }
+    )
+    assert from_json.accounting_flags[0].name == "Currency"
+
+    with pytest.raises(IrError) as bad_vt:
+        catalog_from_parts(
+            qualified_name="ChartOfAccounts.Bad",
+            value_type_specs=["String:10"],
+        )
+    assert bad_vt.value.code == "1CM004"
+
+    with pytest.raises(IrError) as bad_flags:
+        catalog_from_parts(
+            qualified_name="Catalog.Bad",
+            accounting_flag_specs=["Currency:Boolean"],
+        )
+    assert bad_flags.value.code == "1CM004"
+
+
+def test_e8_from_parts_and_json() -> None:
+    task = catalog_from_parts(
+        qualified_name="Task.Todo",
+        synonym="Задача",
+        attr_specs=["Note:String:50:Заметка"],
+        addressing_attr_specs=["Assignee:String:50:Исполнитель"],
+        ts_specs=["Extra"],
+        ts_attr_specs=["Extra.Qty:Number:15.3"],
+    )
+    assert task.type == "Task"
+    assert task.addressing_attributes[0].name == "Assignee"
+    task_dsl = ir_to_xmlgen_dsl(task.to_dict())
+    assert task_dsl["addressingAttributes"][0]["type"] == "String(50)"
+    assert "Extra" in task_dsl["tabularSections"]
+
+    bp = catalog_from_parts(
+        qualified_name="BusinessProcess.Approval",
+        synonym="Согласование",
+        task="Task.Todo",
+        attr_specs=["Comment:String:100"],
+        ts_specs=["Steps"],
+        ts_attr_specs=["Steps.Step:String:20"],
+    )
+    assert bp.task == "Task.Todo"
+    bp_dsl = ir_to_xmlgen_dsl(bp.to_dict())
+    assert bp_dsl["task"] == "Task.Todo"
+    assert bp_dsl["attributes"][0]["name"] == "Comment"
+
+    plan = catalog_from_parts(
+        qualified_name="ExchangePlan.Main",
+        attr_specs=["Extra:String:10"],
+        content=["Catalog.Products"],
+    )
+    assert plan.content == ["Catalog.Products"]
+    plan_dsl = ir_to_xmlgen_dsl(plan.to_dict())
+    assert plan_dsl["content"] == ["Catalog.Products"]
+
+    journal = catalog_from_parts(
+        qualified_name="DocumentJournal.Docs",
+        registered_document_specs=["Document.Sales"],
+        column_specs=["Comment:Document.Sales.Attribute.Comment"],
+    )
+    assert journal.registered_documents == ["Document.Sales"]
+    assert journal.columns[0].name == "Comment"
+    assert journal.columns[0].references == ["Document.Sales.Attribute.Comment"]
+    journal_dsl = ir_to_xmlgen_dsl(journal.to_dict())
+    assert journal_dsl["registeredDocuments"] == ["Document.Sales"]
+    assert journal_dsl["columns"][0]["references"][0].endswith("Attribute.Comment")
+
+    from_json = catalog_from_json(
+        {
+            "type": "Task",
+            "name": "Todo",
+            "addressingAttributes": [{"name": "Assignee", "type": "String", "length": 50}],
+            "attributes": [{"name": "Note", "type": "String", "length": 50}],
+        }
+    )
+    assert from_json.addressing_attributes[0].name == "Assignee"
+
+    plan_json = catalog_from_json(
+        {
+            "type": "ExchangePlan",
+            "name": "Main",
+            "content": [{"metadata": "Catalog.Products", "autoRecord": "Allow"}],
+            "attributes": [{"name": "Extra", "type": "String", "length": 10}],
+        }
+    )
+    assert plan_json.content == ["Catalog.Products"]
+
+    with pytest.raises(IrError) as bad_task:
+        catalog_from_parts(
+            qualified_name="BusinessProcess.Bad",
+            task="Catalog.Products",
+        )
+    assert bad_task.value.code == "1CM004"
+
+    with pytest.raises(IrError) as bad_addr:
+        catalog_from_parts(
+            qualified_name="Catalog.Bad",
+            addressing_attr_specs=["Assignee:String:10"],
+        )
+    assert bad_addr.value.code == "1CM004"
+
+    with pytest.raises(IrError) as bad_cols:
+        catalog_from_parts(
+            qualified_name="Catalog.Bad",
+            column_specs=["Comment:Document.Sales.Attribute.Comment"],
+        )
+    assert bad_cols.value.code == "1CM004"
+
+
 def test_create_metadata_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
@@ -548,6 +1096,430 @@ def test_create_subsystem_mock(tmp_path: Path) -> None:
     assert result.status == "ok", result.diagnostics
     assert result.object == "Subsystem.Main"
     assert any("Subsystems/Main.xml" in p for p in result.created)
+
+
+def test_create_constant_and_defined_type_mock(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+
+    def fake_compile_const(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "Constant"
+        assert dsl["valueType"] == "Number(5,2)"
+        folder = source_dir / "Constants"
+        folder.mkdir(parents=True)
+        (folder / "VATRate.xml").write_text("<Constant/>", encoding="utf-8")
+        return ["Constants/VATRate.xml"]
+
+    result = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Constant.VATRate",
+            synonym="СтавкаНДС",
+            value_type_specs=["Number:5.2"],
+        ),
+        compile_fn=fake_compile_const,
+    )
+    assert result.status == "ok"
+    assert result.object == "Constant.VATRate"
+
+    def fake_compile_defined(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "DefinedType"
+        assert dsl["valueTypes"] == ["String(50)"]
+        folder = source_dir / "DefinedTypes"
+        folder.mkdir(parents=True)
+        (folder / "MoneyCode.xml").write_text("<DefinedType/>", encoding="utf-8")
+        return ["DefinedTypes/MoneyCode.xml"]
+
+    result2 = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="DefinedType.MoneyCode",
+            value_type_specs=["String:50"],
+        ),
+        compile_fn=fake_compile_defined,
+    )
+    assert result2.status == "ok"
+    assert result2.object == "DefinedType.MoneyCode"
+
+
+def test_create_report_and_dataprocessor_mock(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+
+    def fake_compile_report(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "Report"
+        assert dsl["name"] == "Sales"
+        assert len(dsl["attributes"]) == 1
+        assert "Lines" in dsl["tabularSections"]
+        folder = source_dir / "Reports"
+        folder.mkdir(parents=True)
+        (folder / "Sales.xml").write_text("<Report/>", encoding="utf-8")
+        return ["Reports/Sales.xml"]
+
+    result = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Report.Sales",
+            synonym="Продажи",
+            attr_specs=["Period:Date"],
+            ts_specs=["Lines"],
+            ts_attr_specs=["Lines.Amount:Number:15.2"],
+        ),
+        compile_fn=fake_compile_report,
+    )
+    assert result.status == "ok"
+    assert result.object == "Report.Sales"
+
+    def fake_compile_processor(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "DataProcessor"
+        assert dsl["attributes"][0]["type"] == "String(200)"
+        folder = source_dir / "DataProcessors"
+        folder.mkdir(parents=True)
+        (folder / "ImportData.xml").write_text("<DataProcessor/>", encoding="utf-8")
+        return ["DataProcessors/ImportData.xml"]
+
+    result2 = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="DataProcessor.ImportData",
+            attr_specs=["Path:String:200"],
+        ),
+        compile_fn=fake_compile_processor,
+    )
+    assert result2.status == "ok"
+    assert result2.object == "DataProcessor.ImportData"
+
+
+def test_create_scheduled_job_and_event_subscription_mock(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+
+    def fake_compile_job(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "ScheduledJob"
+        assert dsl["methodName"] == "CommonModule.Jobs.Cleanup"
+        assert dsl["use"] is True
+        folder = source_dir / "ScheduledJobs"
+        folder.mkdir(parents=True)
+        (folder / "Cleanup.xml").write_text("<ScheduledJob/>", encoding="utf-8")
+        return ["ScheduledJobs/Cleanup.xml"]
+
+    result = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ScheduledJob.Cleanup",
+            synonym="Очистка",
+            method_name="CommonModule.Jobs.Cleanup",
+            use=True,
+        ),
+        compile_fn=fake_compile_job,
+    )
+    assert result.status == "ok"
+    assert result.object == "ScheduledJob.Cleanup"
+
+    def fake_compile_sub(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "EventSubscription"
+        assert dsl["handler"] == "CommonModule.Jobs.BeforeWrite"
+        assert dsl["event"] == "BeforeWrite"
+        assert dsl["source"] == ["Catalog.Products"]
+        folder = source_dir / "EventSubscriptions"
+        folder.mkdir(parents=True)
+        (folder / "ProductsBeforeWrite.xml").write_text(
+            "<EventSubscription/>", encoding="utf-8"
+        )
+        return ["EventSubscriptions/ProductsBeforeWrite.xml"]
+
+    result2 = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="EventSubscription.ProductsBeforeWrite",
+            handler="CommonModule.Jobs.BeforeWrite",
+            event="BeforeWrite",
+            source=["Catalog.Products"],
+        ),
+        compile_fn=fake_compile_sub,
+    )
+    assert result2.status == "ok"
+    assert result2.object == "EventSubscription.ProductsBeforeWrite"
+
+
+def test_create_http_service_and_web_service_mock(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+
+    def fake_compile_http(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "HTTPService"
+        assert dsl["rootURL"] == "api"
+        assert dsl["urlTemplates"]["Users"]["methods"]["Get"] == "GET"
+        folder = source_dir / "HTTPServices"
+        folder.mkdir(parents=True)
+        (folder / "API.xml").write_text("<HTTPService/>", encoding="utf-8")
+        return ["HTTPServices/API.xml"]
+
+    result = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="HTTPService.API",
+            synonym="API",
+            root_url="api",
+            url_templates={
+                "Users": {
+                    "template": "/v1/users",
+                    "methods": {"Get": "GET", "Create": "POST"},
+                }
+            },
+        ),
+        compile_fn=fake_compile_http,
+    )
+    assert result.status == "ok"
+    assert result.object == "HTTPService.API"
+
+    def fake_compile_web(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "WebService"
+        assert dsl["namespace"] == "http://www.1c.ru/DataExchange"
+        assert dsl["operations"]["TestConnection"]["handler"] == "ПроверкаПодключения"
+        folder = source_dir / "WebServices"
+        folder.mkdir(parents=True)
+        (folder / "DataExchange.xml").write_text("<WebService/>", encoding="utf-8")
+        return ["WebServices/DataExchange.xml"]
+
+    result2 = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="WebService.DataExchange",
+            namespace="http://www.1c.ru/DataExchange",
+            operations={
+                "TestConnection": {
+                    "returnType": "xs:boolean",
+                    "handler": "ПроверкаПодключения",
+                    "parameters": {
+                        "ErrorMessage": {"type": "xs:string", "direction": "Out"}
+                    },
+                }
+            },
+        ),
+        compile_fn=fake_compile_web,
+    )
+    assert result2.status == "ok"
+    assert result2.object == "WebService.DataExchange"
+
+
+def test_create_accounting_and_calculation_register_mock(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+
+    def fake_compile_acct(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "AccountingRegister"
+        assert dsl["chartOfAccounts"] == "ChartOfAccounts.MainAccounts"
+        assert dsl["dimensions"][0]["name"] == "Org"
+        assert dsl["resources"][0]["name"] == "Sum"
+        folder = source_dir / "AccountingRegisters"
+        folder.mkdir(parents=True)
+        (folder / "Accounting.xml").write_text("<AccountingRegister/>", encoding="utf-8")
+        return ["AccountingRegisters/Accounting.xml"]
+
+    result = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="AccountingRegister.Accounting",
+            chart_of_accounts="ChartOfAccounts.MainAccounts",
+            dimension_specs=["Org:String:50"],
+            resource_specs=["Sum:Number:15.2"],
+        ),
+        compile_fn=fake_compile_acct,
+    )
+    assert result.status == "ok"
+    assert result.object == "AccountingRegister.Accounting"
+
+    def fake_compile_calc(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "CalculationRegister"
+        assert dsl["chartOfCalculationTypes"] == "ChartOfCalculationTypes.MainCalcs"
+        folder = source_dir / "CalculationRegisters"
+        folder.mkdir(parents=True)
+        (folder / "Salary.xml").write_text("<CalculationRegister/>", encoding="utf-8")
+        return ["CalculationRegisters/Salary.xml"]
+
+    result2 = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="CalculationRegister.Salary",
+            chart_of_calculation_types="ChartOfCalculationTypes.MainCalcs",
+            dimension_specs=["Employee:String:50"],
+            resource_specs=["Amount:Number:15.2"],
+        ),
+        compile_fn=fake_compile_calc,
+    )
+    assert result2.status == "ok"
+    assert result2.object == "CalculationRegister.Salary"
+
+
+def test_create_charts_mock(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+
+    def fake_compile_char(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "ChartOfCharacteristicTypes"
+        assert dsl["valueType"] == "String(50)"
+        assert dsl["attributes"][0]["name"] == "CodeExtra"
+        assert "Extra" in dsl["tabularSections"]
+        folder = source_dir / "ChartsOfCharacteristicTypes"
+        folder.mkdir(parents=True)
+        (folder / "Properties.xml").write_text(
+            "<ChartOfCharacteristicTypes/>", encoding="utf-8"
+        )
+        return ["ChartsOfCharacteristicTypes/Properties.xml"]
+
+    result = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ChartOfCharacteristicTypes.Properties",
+            value_type_specs=["String:50"],
+            attr_specs=["CodeExtra:String:10"],
+            ts_specs=["Extra"],
+            ts_attr_specs=["Extra.Note:String:20"],
+        ),
+        compile_fn=fake_compile_char,
+    )
+    assert result.status == "ok"
+    assert result.object == "ChartOfCharacteristicTypes.Properties"
+
+    def fake_compile_acc(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "ChartOfAccounts"
+        assert dsl["accountingFlags"][0]["name"] == "Currency"
+        folder = source_dir / "ChartsOfAccounts"
+        folder.mkdir(parents=True)
+        (folder / "MainAccounts.xml").write_text("<ChartOfAccounts/>", encoding="utf-8")
+        return ["ChartsOfAccounts/MainAccounts.xml"]
+
+    result2 = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ChartOfAccounts.MainAccounts",
+            accounting_flag_specs=["Currency:Boolean"],
+            attr_specs=["Extra:String:10"],
+        ),
+        compile_fn=fake_compile_acc,
+    )
+    assert result2.status == "ok"
+    assert result2.object == "ChartOfAccounts.MainAccounts"
+
+    def fake_compile_calc(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "ChartOfCalculationTypes"
+        folder = source_dir / "ChartsOfCalculationTypes"
+        folder.mkdir(parents=True)
+        (folder / "MainCalcs.xml").write_text(
+            "<ChartOfCalculationTypes/>", encoding="utf-8"
+        )
+        return ["ChartsOfCalculationTypes/MainCalcs.xml"]
+
+    result3 = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ChartOfCalculationTypes.MainCalcs",
+            attr_specs=["Extra:String:10"],
+        ),
+        compile_fn=fake_compile_calc,
+    )
+    assert result3.status == "ok"
+    assert result3.object == "ChartOfCalculationTypes.MainCalcs"
+
+
+def test_create_e8_mock(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    followups: list[tuple[str, str]] = []
+
+    def fake_compile_task(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "Task"
+        assert dsl["addressingAttributes"][0]["name"] == "Assignee"
+        folder = source_dir / "Tasks"
+        folder.mkdir(parents=True)
+        (folder / "Todo.xml").write_text("<Task/>", encoding="utf-8")
+        return ["Tasks/Todo.xml"]
+
+    result = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Task.Todo",
+            addressing_attr_specs=["Assignee:String:50"],
+            attr_specs=["Note:String:50"],
+        ),
+        compile_fn=fake_compile_task,
+    )
+    assert result.status == "ok"
+    assert result.object == "Task.Todo"
+
+    def fake_compile_bp(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "BusinessProcess"
+        assert dsl["task"] == "Task.Todo"
+        folder = source_dir / "BusinessProcesses"
+        folder.mkdir(parents=True)
+        (folder / "Approval.xml").write_text("<BusinessProcess/>", encoding="utf-8")
+        return ["BusinessProcesses/Approval.xml"]
+
+    result2 = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="BusinessProcess.Approval",
+            task="Task.Todo",
+            attr_specs=["Comment:String:100"],
+        ),
+        compile_fn=fake_compile_bp,
+    )
+    assert result2.status == "ok"
+
+    def fake_compile_plan(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "ExchangePlan"
+        assert dsl["content"] == ["Catalog.Products"]
+        folder = source_dir / "ExchangePlans"
+        folder.mkdir(parents=True)
+        (folder / "Main.xml").write_text("<ExchangePlan/>", encoding="utf-8")
+        return ["ExchangePlans/Main.xml"]
+
+    def fake_followup(object_xml: Path, ops: list[Any]) -> None:
+        assert object_xml.name == "Main.xml"
+        for op in ops:
+            followups.append((op.op, op.value))
+
+    result3 = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ExchangePlan.Main",
+            content=["Catalog.Products"],
+            attr_specs=["Extra:String:10"],
+        ),
+        compile_fn=fake_compile_plan,
+        followup_fn=fake_followup,
+    )
+    assert result3.status == "ok"
+    assert followups == [("add-exchange-content", "Catalog.Products")]
+
+    def fake_compile_journal(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "DocumentJournal"
+        assert dsl["registeredDocuments"] == ["Document.Sales"]
+        assert dsl["columns"][0]["name"] == "Comment"
+        folder = source_dir / "DocumentJournals"
+        folder.mkdir(parents=True)
+        (folder / "Docs.xml").write_text("<DocumentJournal/>", encoding="utf-8")
+        return ["DocumentJournals/Docs.xml"]
+
+    result4 = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="DocumentJournal.Docs",
+            registered_document_specs=["Document.Sales"],
+            column_specs=["Comment:Document.Sales.Attribute.Comment"],
+        ),
+        compile_fn=fake_compile_journal,
+    )
+    assert result4.status == "ok"
+    assert result4.object == "DocumentJournal.Docs"
 
 
 def test_create_duplicate(tmp_path: Path) -> None:
@@ -1031,6 +2003,514 @@ def test_create_subsystem_with_real_xmlgen(tmp_path: Path) -> None:
     assert "<IncludeInCommandInterface>true</IncludeInCommandInterface>" in text
     cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
     assert "<Subsystem>Main</Subsystem>" in cfg
+
+    from core.project import validate_project
+
+    assert validate_project(target).status == "ok"
+
+
+@pytest.mark.integration
+def test_create_constant_and_defined_type_with_real_xmlgen(tmp_path: Path) -> None:
+    jar = resolve_jar()
+    java = resolve_java()
+    if not jar.found or not java.found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    const = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Constant.VATRate",
+            synonym="СтавкаНДС",
+            value_type_specs=["Number:5.2"],
+        ),
+    )
+    assert const.status == "ok", const.diagnostics
+    const_xml = target / "src" / "cf" / "Constants" / "VATRate.xml"
+    assert const_xml.is_file()
+    const_text = const_xml.read_text(encoding="utf-8-sig")
+    assert "xs:decimal" in const_text
+    assert "<v8:Digits>5</v8:Digits>" in const_text
+
+    defined = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="DefinedType.MoneyCode",
+            value_type_specs=["String:50"],
+        ),
+    )
+    assert defined.status == "ok", defined.diagnostics
+    defined_xml = target / "src" / "cf" / "DefinedTypes" / "MoneyCode.xml"
+    assert defined_xml.is_file()
+    defined_text = defined_xml.read_text(encoding="utf-8-sig")
+    assert "xs:string" in defined_text
+    assert "<v8:Length>50</v8:Length>" in defined_text
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<Constant>VATRate</Constant>" in cfg
+    assert "<DefinedType>MoneyCode</DefinedType>" in cfg
+
+    from core.project import validate_project
+
+    assert validate_project(target).status == "ok"
+
+
+@pytest.mark.integration
+def test_create_report_and_dataprocessor_with_real_xmlgen(tmp_path: Path) -> None:
+    jar = resolve_jar()
+    java = resolve_java()
+    if not jar.found or not java.found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    report = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Report.Sales",
+            synonym="Продажи",
+            attr_specs=["Period:Date:Период"],
+            ts_specs=["Lines:Строки"],
+            ts_attr_specs=["Lines.Amount:Number:15.2:Сумма"],
+        ),
+    )
+    assert report.status == "ok", report.diagnostics
+    report_xml = target / "src" / "cf" / "Reports" / "Sales.xml"
+    assert report_xml.is_file()
+    report_text = report_xml.read_text(encoding="utf-8-sig")
+    assert "<Name>Period</Name>" in report_text
+    assert "<Name>Lines</Name>" in report_text
+    assert "<Name>Amount</Name>" in report_text
+
+    processor = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="DataProcessor.ImportData",
+            synonym="Загрузка",
+            attr_specs=["Path:String:200:Путь"],
+        ),
+    )
+    assert processor.status == "ok", processor.diagnostics
+    proc_xml = target / "src" / "cf" / "DataProcessors" / "ImportData.xml"
+    assert proc_xml.is_file()
+    proc_text = proc_xml.read_text(encoding="utf-8-sig")
+    assert "<Name>Path</Name>" in proc_text
+    assert "<v8:Length>200</v8:Length>" in proc_text
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<Report>Sales</Report>" in cfg
+    assert "<DataProcessor>ImportData</DataProcessor>" in cfg
+
+    from core.project import validate_project
+
+    assert validate_project(target).status == "ok"
+
+
+@pytest.mark.integration
+def test_create_scheduled_job_and_event_subscription_with_real_xmlgen(
+    tmp_path: Path,
+) -> None:
+    jar = resolve_jar()
+    java = resolve_java()
+    if not jar.found or not java.found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    module = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="CommonModule.Jobs",
+            server=True,
+        ),
+    )
+    assert module.status == "ok", module.diagnostics
+
+    catalog = create_metadata(
+        target,
+        catalog_from_parts(qualified_name="Catalog.Products"),
+    )
+    assert catalog.status == "ok", catalog.diagnostics
+
+    job = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ScheduledJob.Cleanup",
+            synonym="Очистка",
+            method_name="CommonModule.Jobs.Cleanup",
+            use=True,
+            description="Nightly",
+            key="cleanup",
+            predefined=False,
+            restart_count_on_failure=5,
+            restart_interval_on_failure=20,
+        ),
+    )
+    assert job.status == "ok", job.diagnostics
+    job_xml = target / "src" / "cf" / "ScheduledJobs" / "Cleanup.xml"
+    assert job_xml.is_file()
+    job_text = job_xml.read_text(encoding="utf-8-sig")
+    assert "<MethodName>CommonModule.Jobs.Cleanup</MethodName>" in job_text
+    assert "<Use>true</Use>" in job_text
+    assert "<Description>Nightly</Description>" in job_text
+    assert "<Key>cleanup</Key>" in job_text
+    assert "<RestartCountOnFailure>5</RestartCountOnFailure>" in job_text
+    assert (target / "src" / "cf" / "ScheduledJobs" / "Cleanup" / "Ext" / "Schedule.xml").is_file()
+
+    sub = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="EventSubscription.ProductsBeforeWrite",
+            synonym="ПередЗаписью",
+            handler="CommonModule.Jobs.BeforeWrite",
+            event="BeforeWrite",
+            source=["Catalog.Products"],
+        ),
+    )
+    assert sub.status == "ok", sub.diagnostics
+    sub_xml = target / "src" / "cf" / "EventSubscriptions" / "ProductsBeforeWrite.xml"
+    assert sub_xml.is_file()
+    sub_text = sub_xml.read_text(encoding="utf-8-sig")
+    assert "<Handler>CommonModule.Jobs.BeforeWrite</Handler>" in sub_text
+    assert "<Event>BeforeWrite</Event>" in sub_text
+    assert "cfg:Catalog.Products" in sub_text
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<ScheduledJob>Cleanup</ScheduledJob>" in cfg
+    assert "<EventSubscription>ProductsBeforeWrite</EventSubscription>" in cfg
+
+    from core.project import validate_project
+
+    assert validate_project(target).status == "ok"
+
+
+@pytest.mark.integration
+def test_create_http_service_and_web_service_with_real_xmlgen(tmp_path: Path) -> None:
+    jar = resolve_jar()
+    java = resolve_java()
+    if not jar.found or not java.found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    http = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="HTTPService.API",
+            synonym="API",
+            root_url="api",
+            reuse_sessions="DontUse",
+            session_max_age=20,
+            url_templates={
+                "Users": {
+                    "template": "/v1/users",
+                    "methods": {"Get": "GET", "Create": "POST"},
+                }
+            },
+        ),
+    )
+    assert http.status == "ok", http.diagnostics
+    http_xml = target / "src" / "cf" / "HTTPServices" / "API.xml"
+    assert http_xml.is_file()
+    http_text = http_xml.read_text(encoding="utf-8-sig")
+    assert "<RootURL>api</RootURL>" in http_text
+    assert "<Template>/v1/users</Template>" in http_text
+    assert "<HTTPMethod>GET</HTTPMethod>" in http_text
+    assert (target / "src" / "cf" / "HTTPServices" / "API" / "Ext" / "Module.bsl").is_file()
+
+    web = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="WebService.DataExchange",
+            synonym="Обмен",
+            namespace="http://www.1c.ru/DataExchange",
+            reuse_sessions="DontUse",
+            session_max_age=20,
+            operations={
+                "TestConnection": {
+                    "returnType": "xs:boolean",
+                    "handler": "ПроверкаПодключения",
+                    "parameters": {
+                        "ErrorMessage": {"type": "xs:string", "direction": "Out"}
+                    },
+                }
+            },
+        ),
+    )
+    assert web.status == "ok", web.diagnostics
+    web_xml = target / "src" / "cf" / "WebServices" / "DataExchange.xml"
+    assert web_xml.is_file()
+    web_text = web_xml.read_text(encoding="utf-8-sig")
+    assert "<Namespace>http://www.1c.ru/DataExchange</Namespace>" in web_text
+    assert "<ProcedureName>ПроверкаПодключения</ProcedureName>" in web_text
+    assert (target / "src" / "cf" / "WebServices" / "DataExchange" / "Ext" / "Module.bsl").is_file()
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<HTTPService>API</HTTPService>" in cfg
+    assert "<WebService>DataExchange</WebService>" in cfg
+
+    from core.project import validate_project
+
+    assert validate_project(target).status == "ok"
+
+
+@pytest.mark.integration
+def test_create_accounting_and_calculation_register_with_real_xmlgen(
+    tmp_path: Path,
+) -> None:
+    jar = resolve_jar()
+    java = resolve_java()
+    if not jar.found or not java.found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    chart_a = create_metadata(
+        target,
+        catalog_from_parts(qualified_name="ChartOfAccounts.MainAccounts"),
+    )
+    assert chart_a.status == "ok", chart_a.diagnostics
+
+    chart_c = create_metadata(
+        target,
+        catalog_from_parts(qualified_name="ChartOfCalculationTypes.MainCalcs"),
+    )
+    assert chart_c.status == "ok", chart_c.diagnostics
+
+    acct = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="AccountingRegister.Accounting",
+            synonym="Бух",
+            chart_of_accounts="ChartOfAccounts.MainAccounts",
+            dimension_specs=["Org:String:50"],
+            resource_specs=["Sum:Number:15.2:Сумма"],
+        ),
+    )
+    assert acct.status == "ok", acct.diagnostics
+    acct_xml = target / "src" / "cf" / "AccountingRegisters" / "Accounting.xml"
+    assert acct_xml.is_file()
+    acct_text = acct_xml.read_text(encoding="utf-8-sig")
+    assert "<ChartOfAccounts>ChartOfAccounts.MainAccounts</ChartOfAccounts>" in acct_text
+    assert "Org" in acct_text
+    assert "Sum" in acct_text
+
+    calc = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="CalculationRegister.Salary",
+            chart_of_calculation_types="ChartOfCalculationTypes.MainCalcs",
+            dimension_specs=["Employee:String:50"],
+            resource_specs=["Amount:Number:15.2"],
+        ),
+    )
+    assert calc.status == "ok", calc.diagnostics
+    calc_xml = target / "src" / "cf" / "CalculationRegisters" / "Salary.xml"
+    assert calc_xml.is_file()
+    calc_text = calc_xml.read_text(encoding="utf-8-sig")
+    assert (
+        "<ChartOfCalculationTypes>ChartOfCalculationTypes.MainCalcs"
+        "</ChartOfCalculationTypes>"
+        in calc_text
+    )
+    assert "Employee" in calc_text
+    assert "Amount" in calc_text
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<AccountingRegister>Accounting</AccountingRegister>" in cfg
+    assert "<CalculationRegister>Salary</CalculationRegister>" in cfg
+
+    from core.project import validate_project
+
+    assert validate_project(target).status == "ok"
+
+
+@pytest.mark.integration
+def test_create_charts_with_real_xmlgen(tmp_path: Path) -> None:
+    jar = resolve_jar()
+    java = resolve_java()
+    if not jar.found or not java.found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    char = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ChartOfCharacteristicTypes.Properties",
+            synonym="Свойства",
+            value_type_specs=["String:50"],
+            attr_specs=["CodeExtra:String:10:ДопКод"],
+            ts_specs=["Extra:Доп"],
+            ts_attr_specs=["Extra.Note:String:20:Заметка"],
+        ),
+    )
+    assert char.status == "ok", char.diagnostics
+    char_xml = target / "src" / "cf" / "ChartsOfCharacteristicTypes" / "Properties.xml"
+    assert char_xml.is_file()
+    char_text = char_xml.read_text(encoding="utf-8-sig")
+    assert "<Name>CodeExtra</Name>" in char_text
+    assert "<Name>Extra</Name>" in char_text
+    assert "<Name>Note</Name>" in char_text
+    assert "xs:string" in char_text
+
+    accounts = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ChartOfAccounts.MainAccounts",
+            synonym="Счета",
+            attr_specs=["Extra:String:10"],
+            accounting_flag_specs=["Currency:Boolean:Валютный"],
+            ext_dimension_accounting_flag_specs=["Amount:Boolean:Суммовой"],
+            ts_specs=["ExtraTS"],
+            ts_attr_specs=["ExtraTS.Note:String:20"],
+        ),
+    )
+    assert accounts.status == "ok", accounts.diagnostics
+    acc_xml = target / "src" / "cf" / "ChartsOfAccounts" / "MainAccounts.xml"
+    assert acc_xml.is_file()
+    acc_text = acc_xml.read_text(encoding="utf-8-sig")
+    assert "Currency" in acc_text
+    assert "<Name>Extra</Name>" in acc_text
+    assert "ExtraTS" in acc_text
+
+    calcs = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ChartOfCalculationTypes.MainCalcs",
+            synonym="ВидыРасчёта",
+            attr_specs=["Extra:String:10"],
+            ts_specs=["ExtraTS"],
+            ts_attr_specs=["ExtraTS.Note:String:20"],
+        ),
+    )
+    assert calcs.status == "ok", calcs.diagnostics
+    calc_xml = target / "src" / "cf" / "ChartsOfCalculationTypes" / "MainCalcs.xml"
+    assert calc_xml.is_file()
+    calc_text = calc_xml.read_text(encoding="utf-8-sig")
+    assert "<Name>Extra</Name>" in calc_text
+    assert "ExtraTS" in calc_text
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<ChartOfCharacteristicTypes>Properties</ChartOfCharacteristicTypes>" in cfg
+    assert "<ChartOfAccounts>MainAccounts</ChartOfAccounts>" in cfg
+    assert "<ChartOfCalculationTypes>MainCalcs</ChartOfCalculationTypes>" in cfg
+
+    from core.project import validate_project
+
+    assert validate_project(target).status == "ok"
+
+
+@pytest.mark.integration
+def test_create_e8_with_real_xmlgen(tmp_path: Path) -> None:
+    jar = resolve_jar()
+    java = resolve_java()
+    if not jar.found or not java.found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    assert create_metadata(
+        target,
+        catalog_from_parts(qualified_name="Catalog.Products"),
+    ).status == "ok"
+    assert create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Document.Sales",
+            attr_specs=["Comment:String:100"],
+        ),
+    ).status == "ok"
+
+    task = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Task.Todo",
+            synonym="Задача",
+            attr_specs=["Note:String:50:Заметка"],
+            addressing_attr_specs=["Assignee:String:50:Исполнитель"],
+            ts_specs=["Extra:Доп"],
+            ts_attr_specs=["Extra.Qty:Number:15.3"],
+        ),
+    )
+    assert task.status == "ok", task.diagnostics
+    task_xml = target / "src" / "cf" / "Tasks" / "Todo.xml"
+    assert task_xml.is_file()
+    task_text = task_xml.read_text(encoding="utf-8-sig")
+    assert "Assignee" in task_text
+    assert "Note" in task_text
+
+    bp = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="BusinessProcess.Approval",
+            synonym="Согласование",
+            task="Task.Todo",
+            attr_specs=["Comment:String:100"],
+            ts_specs=["Steps"],
+            ts_attr_specs=["Steps.Step:String:20"],
+        ),
+    )
+    assert bp.status == "ok", bp.diagnostics
+    bp_xml = target / "src" / "cf" / "BusinessProcesses" / "Approval.xml"
+    assert bp_xml.is_file()
+    bp_text = bp_xml.read_text(encoding="utf-8-sig")
+    assert "<Task>Task.Todo</Task>" in bp_text
+    assert "Comment" in bp_text
+
+    plan = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ExchangePlan.Main",
+            synonym="Обмен",
+            attr_specs=["Extra:String:10"],
+            content=["Catalog.Products"],
+        ),
+    )
+    assert plan.status == "ok", plan.diagnostics
+    assert (target / "src" / "cf" / "ExchangePlans" / "Main.xml").is_file()
+    content_xml = (
+        target / "src" / "cf" / "ExchangePlans" / "Main" / "Ext" / "Content.xml"
+    )
+    assert content_xml.is_file()
+    assert "Catalog.Products" in content_xml.read_text(encoding="utf-8-sig")
+
+    journal = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="DocumentJournal.Docs",
+            synonym="Журнал",
+            registered_document_specs=["Document.Sales"],
+            column_specs=["Comment:Document.Sales.Attribute.Comment"],
+        ),
+    )
+    assert journal.status == "ok", journal.diagnostics
+    journal_text = (
+        target / "src" / "cf" / "DocumentJournals" / "Docs.xml"
+    ).read_text(encoding="utf-8-sig")
+    assert "Document.Sales" in journal_text
+    assert "Document.Sales.Attribute.Comment" in journal_text
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<Task>Todo</Task>" in cfg
+    assert "<BusinessProcess>Approval</BusinessProcess>" in cfg
+    assert "<ExchangePlan>Main</ExchangePlan>" in cfg
+    assert "<DocumentJournal>Docs</DocumentJournal>" in cfg
 
     from core.project import validate_project
 

@@ -10,6 +10,8 @@ from core.metadata.types import (
     TYPE_DIRS,
     UPDATE_OBJECT_TYPES,
     WRITE_OBJECT_TYPES,
+    WRITE_OBJECT_TYPES_HELP,
+    WRITE_OBJECT_TYPES_SORTED,
 )
 
 
@@ -24,6 +26,12 @@ def test_write_catalog_is_meta_plus_subsystem() -> None:
     assert CREATE_OBJECT_TYPES is WRITE_OBJECT_TYPES
     assert UPDATE_OBJECT_TYPES is WRITE_OBJECT_TYPES
     assert M2_OBJECT_TYPES is WRITE_OBJECT_TYPES
+    assert WRITE_OBJECT_TYPES_SORTED == tuple(sorted(WRITE_OBJECT_TYPES))
+    assert WRITE_OBJECT_TYPES_HELP == ", ".join(WRITE_OBJECT_TYPES_SORTED)
+    assert "Subsystem" in WRITE_OBJECT_TYPES_HELP
+    assert "Constant" in WRITE_OBJECT_TYPES_HELP
+    assert "BusinessProcess" in WRITE_OBJECT_TYPES_HELP
+    assert "DocumentJournal" in WRITE_OBJECT_TYPES_HELP
 
 
 def test_type_dirs_cover_write_catalog() -> None:

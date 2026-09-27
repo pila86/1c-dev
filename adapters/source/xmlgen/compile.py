@@ -21,6 +21,36 @@ _COMMON_MODULE_DSL_KEYS: tuple[str, ...] = (
     "returnValuesReuse",
 )
 
+_SCHEDULED_JOB_DSL_KEYS: tuple[str, ...] = (
+    "methodName",
+    "use",
+    "description",
+    "key",
+    "predefined",
+    "restartCountOnFailure",
+    "restartIntervalOnFailure",
+)
+
+_EVENT_SUBSCRIPTION_DSL_KEYS: tuple[str, ...] = (
+    "handler",
+    "event",
+    "source",
+)
+
+_HTTP_SERVICE_DSL_KEYS: tuple[str, ...] = (
+    "rootURL",
+    "reuseSessions",
+    "sessionMaxAge",
+    "urlTemplates",
+)
+
+_WEB_SERVICE_DSL_KEYS: tuple[str, ...] = (
+    "namespace",
+    "xdtoPackages",
+    "reuseSessions",
+    "sessionMaxAge",
+    "operations",
+)
 
 class XmlGenError(Exception):
     """xml-gen subprocess or environment failure."""
@@ -35,11 +65,11 @@ def attr_ir_to_xmlgen_type(attr: dict[str, Any]) -> str:
     """Map one IR attribute dict to xml-gen type shorthand (String(10), CatalogRef.X, …)."""
     atype = str(attr.get("type", "String"))
     if atype == "String":
-        length = int(attr.get("length") or 10)
+        length = int(attr["length"]) if attr.get("length") is not None else 10
         return f"String({length})"
     if atype == "Number":
-        precision = int(attr.get("precision") or 15)
-        scale = int(attr.get("scale") or 2)
+        precision = int(attr["precision"]) if attr.get("precision") is not None else 15
+        scale = int(attr["scale"]) if attr.get("scale") is not None else 2
         return f"Number({precision},{scale})"
     if atype == "Boolean":
         return "Boolean"
@@ -92,6 +122,34 @@ def ir_to_xmlgen_dsl(ir: dict[str, Any]) -> dict[str, Any]:
                 dsl[key] = ir[key]
         return dsl
 
+    if ir.get("type") in ("Constant", "DefinedType"):
+        _apply_value_type_dsl(dsl, ir)
+        return dsl
+
+    if ir.get("type") == "ScheduledJob":
+        for key in _SCHEDULED_JOB_DSL_KEYS:
+            if key in ir and ir[key] is not None:
+                dsl[key] = ir[key]
+        return dsl
+
+    if ir.get("type") == "EventSubscription":
+        for key in _EVENT_SUBSCRIPTION_DSL_KEYS:
+            if key in ir and ir[key] is not None:
+                dsl[key] = ir[key]
+        return dsl
+
+    if ir.get("type") == "HTTPService":
+        for key in _HTTP_SERVICE_DSL_KEYS:
+            if key in ir and ir[key] is not None:
+                dsl[key] = ir[key]
+        return dsl
+
+    if ir.get("type") == "WebService":
+        for key in _WEB_SERVICE_DSL_KEYS:
+            if key in ir and ir[key] is not None:
+                dsl[key] = ir[key]
+        return dsl
+
     attrs_out = [
         _attr_to_xmlgen_entry(attr)
         for attr in (ir.get("attributes") or [])
@@ -119,6 +177,65 @@ def ir_to_xmlgen_dsl(ir: dict[str, Any]) -> dict[str, Any]:
     ]
     if res_out:
         dsl["resources"] = res_out
+
+    if ir.get("chartOfAccounts"):
+        dsl["chartOfAccounts"] = str(ir["chartOfAccounts"])
+    if ir.get("chartOfCalculationTypes"):
+        dsl["chartOfCalculationTypes"] = str(ir["chartOfCalculationTypes"])
+
+    acct_flags_out = [
+        _attr_to_xmlgen_entry(attr)
+        for attr in (ir.get("accountingFlags") or [])
+        if isinstance(attr, dict)
+    ]
+    if acct_flags_out:
+        dsl["accountingFlags"] = acct_flags_out
+
+    ext_flags_out = [
+        _attr_to_xmlgen_entry(attr)
+        for attr in (ir.get("extDimensionAccountingFlags") or [])
+        if isinstance(attr, dict)
+    ]
+    if ext_flags_out:
+        dsl["extDimensionAccountingFlags"] = ext_flags_out
+
+    addressing_out = [
+        _attr_to_xmlgen_entry(attr)
+        for attr in (ir.get("addressingAttributes") or [])
+        if isinstance(attr, dict)
+    ]
+    if addressing_out:
+        dsl["addressingAttributes"] = addressing_out
+
+    if ir.get("task"):
+        dsl["task"] = str(ir["task"])
+
+    registered_docs = ir.get("registeredDocuments")
+    if isinstance(registered_docs, list) and registered_docs:
+        dsl["registeredDocuments"] = [str(x) for x in registered_docs]
+
+    columns_raw = ir.get("columns")
+    if isinstance(columns_raw, list) and columns_raw:
+        cols_out: list[dict[str, Any]] = []
+        for col in columns_raw:
+            if not isinstance(col, dict):
+                continue
+            entry: dict[str, Any] = {"name": str(col["name"])}
+            if col.get("synonym"):
+                entry["synonym"] = str(col["synonym"])
+            refs = col.get("references")
+            if isinstance(refs, list) and refs:
+                entry["references"] = [str(r) for r in refs]
+            cols_out.append(entry)
+        if cols_out:
+            dsl["columns"] = cols_out
+
+    # ExchangePlan content: compile writes empty Content.xml stub; applied via
+    # create followup add-exchange-content. Still pass through for tooling.
+    if ir.get("type") == "ExchangePlan":
+        content_raw = ir.get("content")
+        if isinstance(content_raw, list) and content_raw:
+            dsl["content"] = list(content_raw)
 
     ts_raw = ir.get("tabularSections")
     if isinstance(ts_raw, dict):
@@ -153,7 +270,55 @@ def ir_to_xmlgen_dsl(ir: dict[str, Any]) -> dict[str, Any]:
             ]
         dsl["tabularSections"] = ts_map
 
+    # ChartOfCharacteristicTypes (and any IR that carries valueType alongside attrs).
+    if ir.get("type") == "ChartOfCharacteristicTypes" or (
+        ir.get("valueType") is not None or ir.get("valueTypes") is not None
+    ):
+        if ir.get("type") not in ("Constant", "DefinedType"):
+            _apply_value_type_dsl(dsl, ir)
+
     return dsl
+
+
+def _value_type_to_shorthand(raw: Any) -> str | None:
+    """Map IR valueType object/string → xml-gen shorthand."""
+    if isinstance(raw, str) and raw.strip():
+        cleaned = raw.strip()
+        # Already xml-gen shorthand: String(10), Number(15,2), CatalogRef.X, …
+        if cleaned in ("Boolean", "Date"):
+            return cleaned
+        if cleaned.startswith("String(") or cleaned.startswith("Number("):
+            return cleaned
+        if "Ref." in cleaned:
+            return cleaned
+        if cleaned == "String":
+            return "String(10)"
+        if cleaned == "Number":
+            return "Number(15,2)"
+        # CLI-like Type[:Qual] (Number:5.2, String:50, Ref:Catalog.X)
+        from core.metadata.ir import parse_value_type_spec
+
+        return attr_ir_to_xmlgen_type(parse_value_type_spec(cleaned).to_dict())
+    if isinstance(raw, dict):
+        return attr_ir_to_xmlgen_type(raw)
+    return None
+
+
+def _apply_value_type_dsl(dsl: dict[str, Any], ir: dict[str, Any]) -> None:
+    """Attach valueType / valueTypes for Constant and DefinedType."""
+    if "valueTypes" in ir and ir["valueTypes"] is not None:
+        raw_list = ir["valueTypes"]
+        if isinstance(raw_list, list):
+            shorthands = [
+                s for s in (_value_type_to_shorthand(item) for item in raw_list) if s
+            ]
+            if shorthands:
+                dsl["valueTypes"] = shorthands
+                return
+    if "valueType" in ir and ir["valueType"] is not None:
+        shorthand = _value_type_to_shorthand(ir["valueType"])
+        if shorthand:
+            dsl["valueType"] = shorthand
 
 
 def _enum_values_to_xmlgen(raw: Any) -> list[dict[str, Any]]:

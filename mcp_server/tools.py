@@ -22,12 +22,16 @@ from core.metadata import (
     list_metadata,
     update_metadata,
 )
+from core.metadata.types import WRITE_OBJECT_TYPES_HELP
 from core.project import configure_ide, init_project, validate_project
 from core.runtime import run_start, run_status, run_stop
 from mcp_server._path import resolve_path
 
 _NO_SHELL = (
     " Do not use shell, Designer/Configurator, or raw ibcmd for this operation — use this tool."
+)
+_WRITE_TYPES = (
+    "Write types (23 Meta DSL + Subsystem): " + WRITE_OBJECT_TYPES_HELP + "."
 )
 
 
@@ -213,22 +217,57 @@ def register_tools(server: FastMCP) -> None:
         description=(
             "Create a new metadata object in XML source (does not modify existing "
             "objects — use metadata.update for that). "
-            "Types: Catalog, Document, Enum, InformationRegister, "
-            "AccumulationRegister, CommonModule, Subsystem (plus other Meta DSL "
-            "types from the write allowlist). Pass qualified_name "
+            + _WRITE_TYPES
+            + " Pass qualified_name "
             "(e.g. Catalog.Products, Enum.Statuses, CommonModule.SalesServer, "
-            "Subsystem.Main); "
+            "Subsystem.Main, Constant.VATRate, DefinedType.CounterpartyRef, "
+            "Report.Sales, DataProcessor.ImportData, ScheduledJob.Cleanup, "
+            "EventSubscription.ProductsBeforeWrite, HTTPService.API, "
+            "WebService.DataExchange, AccountingRegister.Accounting, "
+            "CalculationRegister.Salary, ChartOfCharacteristicTypes.Properties, "
+            "ChartOfAccounts.MainAccounts, ChartOfCalculationTypes.MainCalcs, "
+            "BusinessProcess.Approval, Task.Todo, ExchangePlan.Main, "
+            "DocumentJournal.Docs); "
             "optional synonym; "
-            "for Catalog/Document: attributes and tabular_sections; "
+            "for Catalog/Document/Report/DataProcessor/Charts/BusinessProcess/"
+            "Task/ExchangePlan: "
+            "attributes and tabular_sections; "
             "for Enum: values [{name, synonym?}]; "
             "for registers: dimensions and resources (same shape as attributes); "
+            "for AccountingRegister: required chart_of_accounts "
+            "(ChartOfAccounts.Name); "
+            "for CalculationRegister: required chart_of_calculation_types "
+            "(ChartOfCalculationTypes.Name); "
+            "for ChartOfCharacteristicTypes: optional value_type / value_types; "
+            "for ChartOfAccounts: optional accounting_flags and "
+            "ext_dimension_accounting_flags (same shape as attributes); "
+            "for BusinessProcess: optional task (Task.Name); "
+            "for Task: optional addressing_attributes (same shape as attributes); "
+            "for ExchangePlan: optional content [Type.Name] "
+            "(applied via add-exchange-content; AutoRecord=Deny in xml-gen); "
+            "for DocumentJournal: optional registered_documents [Document.Name] "
+            "and columns [{name, references[]}]; "
             "for CommonModule: optional flags server, client "
             "(→ clientManagedApplication), client_ordinary_application, "
             "server_call, external_connection, privileged, global, "
             "return_values_reuse (DontUse|DuringRequest|DuringSession). "
             "BSL body is not written (empty Module.bsl). "
             "for Subsystem: optional content [Type.Name], children [Name], "
-            "include_in_command_interface."
+            "include_in_command_interface; "
+            "for Constant: optional value_type {type, length?/precision?/…}; "
+            "for DefinedType: value_type or value_types "
+            "[{type, …}, …] (required); "
+            "for ScheduledJob: optional method_name "
+            "(CommonModule.Name.Method), use, description, key, predefined, "
+            "restart_count_on_failure, restart_interval_on_failure; "
+            "for EventSubscription: optional handler "
+            "(CommonModule.Name.Method), event, source [Type.Name, …]; "
+            "for HTTPService: optional root_url, reuse_sessions "
+            "(DontUse|Use|AutoUse), session_max_age, url_templates "
+            "{Name: {template, methods{Name: GET|POST|…}}}; "
+            "for WebService: optional namespace, xdto_packages, reuse_sessions, "
+            "session_max_age, operations "
+            "{Name: {returnType?, handler?, parameters?}}."
             + _NO_SHELL
         ),
     )
@@ -251,6 +290,33 @@ def register_tools(server: FastMCP) -> None:
         content: list[str] | None = None,
         children: list[str] | None = None,
         include_in_command_interface: bool | None = None,
+        value_type: dict[str, Any] | str | None = None,
+        value_types: list[dict[str, Any] | str] | None = None,
+        method_name: str | None = None,
+        use: bool | None = None,
+        description: str | None = None,
+        key: str | None = None,
+        predefined: bool | None = None,
+        restart_count_on_failure: int | None = None,
+        restart_interval_on_failure: int | None = None,
+        handler: str | None = None,
+        event: str | None = None,
+        source: list[str] | None = None,
+        root_url: str | None = None,
+        reuse_sessions: str | None = None,
+        session_max_age: int | None = None,
+        url_templates: dict[str, Any] | None = None,
+        namespace: str | None = None,
+        xdto_packages: str | None = None,
+        operations: dict[str, Any] | None = None,
+        chart_of_accounts: str | None = None,
+        chart_of_calculation_types: str | None = None,
+        accounting_flags: list[dict[str, Any]] | None = None,
+        ext_dimension_accounting_flags: list[dict[str, Any]] | None = None,
+        task: str | None = None,
+        addressing_attributes: list[dict[str, Any]] | None = None,
+        columns: list[dict[str, Any]] | None = None,
+        registered_documents: list[str] | None = None,
         path: str | None = None,
     ) -> dict[str, Any]:
         try:
@@ -267,6 +333,20 @@ def register_tools(server: FastMCP) -> None:
                 data["dimensions"] = list(dimensions)
             if resources:
                 data["resources"] = list(resources)
+            if accounting_flags:
+                data["accountingFlags"] = list(accounting_flags)
+            if ext_dimension_accounting_flags:
+                data["extDimensionAccountingFlags"] = list(
+                    ext_dimension_accounting_flags
+                )
+            if task is not None:
+                data["task"] = task
+            if addressing_attributes:
+                data["addressingAttributes"] = list(addressing_attributes)
+            if columns:
+                data["columns"] = list(columns)
+            if registered_documents:
+                data["registeredDocuments"] = list(registered_documents)
             if server is not None:
                 data["server"] = server
             if client is not None:
@@ -289,6 +369,48 @@ def register_tools(server: FastMCP) -> None:
                 data["children"] = list(children)
             if include_in_command_interface is not None:
                 data["includeInCommandInterface"] = include_in_command_interface
+            if value_type is not None:
+                data["valueType"] = value_type
+            if value_types:
+                data["valueTypes"] = list(value_types)
+            if method_name is not None:
+                data["methodName"] = method_name
+            if use is not None:
+                data["use"] = use
+            if description is not None:
+                data["description"] = description
+            if key is not None:
+                data["key"] = key
+            if predefined is not None:
+                data["predefined"] = predefined
+            if restart_count_on_failure is not None:
+                data["restartCountOnFailure"] = restart_count_on_failure
+            if restart_interval_on_failure is not None:
+                data["restartIntervalOnFailure"] = restart_interval_on_failure
+            if handler is not None:
+                data["handler"] = handler
+            if event is not None:
+                data["event"] = event
+            if source:
+                data["source"] = list(source)
+            if root_url is not None:
+                data["rootURL"] = root_url
+            if reuse_sessions is not None:
+                data["reuseSessions"] = reuse_sessions
+            if session_max_age is not None:
+                data["sessionMaxAge"] = session_max_age
+            if url_templates:
+                data["urlTemplates"] = dict(url_templates)
+            if namespace is not None:
+                data["namespace"] = namespace
+            if xdto_packages is not None:
+                data["xdtoPackages"] = xdto_packages
+            if operations:
+                data["operations"] = dict(operations)
+            if chart_of_accounts is not None:
+                data["chartOfAccounts"] = chart_of_accounts
+            if chart_of_calculation_types is not None:
+                data["chartOfCalculationTypes"] = chart_of_calculation_types
             # type/name come from qualified_name (validated inside catalog_from_json)
             catalog = catalog_from_json(data, qualified_name=qualified_name)
             if synonym and not catalog.synonym:
@@ -312,7 +434,9 @@ def register_tools(server: FastMCP) -> None:
         name="metadata.update",
         description=(
             "Apply edit operations to an existing metadata object. Prefer "
-            "metadata.get first. Pass operations as [{op, value}, …]: "
+            "metadata.get first. "
+            + _WRITE_TYPES
+            + " Pass operations as [{op, value}, …]: "
             "add-attribute / modify-attribute / remove-attribute; "
             "add-ts / modify-ts / remove-ts; add-ts-attribute / remove-ts-attribute; "
             "add-enumValue / modify-enumValue / remove-enumValue; "
@@ -320,11 +444,14 @@ def register_tools(server: FastMCP) -> None:
             "add-resource / modify-resource / remove-resource; "
             "modify-property; set-flag (CommonModule sugar → modify-property); "
             "for Subsystem: add-content / remove-content / add-child / "
-            "remove-child / set-property. "
+            "remove-child / set-property; "
+            "for ExchangePlan: add-exchange-content (value Type.Name; "
+            "AutoRecord=Deny in pinned xml-gen). "
             "Examples: {op:'add-attribute', value:'Price:Number(15,2)'}, "
             "{op:'modify-attribute', value:'Price: synonym=Цена'}, "
             "{op:'set-flag', value:'server=true'}, "
-            "{op:'add-content', value:'Catalog.Products'}. "
+            "{op:'add-content', value:'Catalog.Products'}, "
+            "{op:'add-exchange-content', value:'Catalog.Products'}. "
             "Does not create new objects — use metadata.create."
             + _NO_SHELL
         ),
@@ -345,8 +472,10 @@ def register_tools(server: FastMCP) -> None:
         name="metadata.delete",
         description=(
             "Delete a whole metadata object from XML source by qualified name "
-            "(e.g. Catalog.Products). Removes object artifacts and Configuration.xml "
-            "registration. Does not cascade references. Prefer metadata.get first. "
+            "(e.g. Catalog.Products, Subsystem.Main, Constant.VATRate). "
+            + _WRITE_TYPES
+            + " Removes object artifacts and Configuration.xml registration. "
+            "Does not cascade references. Prefer metadata.get first. "
             "To remove attributes/tabular sections/values use metadata.update "
             "remove-* ops instead."
             + _NO_SHELL

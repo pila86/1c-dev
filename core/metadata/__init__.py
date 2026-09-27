@@ -11,6 +11,7 @@ from core.metadata.ir import (
     IrError,
     MetadataSummary,
     TabularSection,
+    ValueType,
     catalog_from_json,
     catalog_from_parts,
     load_json_input,
@@ -19,6 +20,7 @@ from core.metadata.ir import (
     parse_qualified_name,
     parse_ts_attr_spec,
     parse_ts_spec,
+    parse_value_type_spec,
     summary_from_dict,
 )
 from core.metadata.read import find_metadata, get_metadata, list_metadata
@@ -61,6 +63,7 @@ __all__ = [
     "MetadataResult",
     "MetadataSummary",
     "TabularSection",
+    "ValueType",
     "attr_to_xmlgen_shorthand",
     "catalog_from_json",
     "catalog_from_parts",
@@ -84,6 +87,7 @@ __all__ = [
     "parse_qualified_name",
     "parse_ts_attr_spec",
     "parse_ts_spec",
+    "parse_value_type_spec",
     "summary_from_dict",
     "update_metadata",
 ]

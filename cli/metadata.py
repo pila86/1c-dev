@@ -311,7 +311,14 @@ def update_command(
         help=(
             "Qualified name, например Catalog.Products, Enum.Statuses, "
             "InformationRegister.Prices, CommonModule.SalesServer, "
-            "Subsystem.Main."
+            "Subsystem.Main, Constant.VATRate, DefinedType.CounterpartyRef, "
+            "Report.Sales, DataProcessor.ImportData, ScheduledJob.Cleanup, "
+            "EventSubscription.ProductsBeforeWrite, HTTPService.API, "
+            "WebService.DataExchange, AccountingRegister.Accounting, "
+            "CalculationRegister.Salary, ChartOfCharacteristicTypes.Properties, "
+            "ChartOfAccounts.MainAccounts, ChartOfCalculationTypes.MainCalcs, "
+            "BusinessProcess.Approval, Task.Todo, ExchangePlan.Main, "
+            "DocumentJournal.Docs."
         ),
     ),
     op: list[str] | None = typer.Option(
@@ -319,8 +326,8 @@ def update_command(
         "--op",
         help=(
             "Операция: attribute/ts/enumValue/dimension/resource ops, "
-            "set-flag, modify-property; для Subsystem: add-content, "
-            "remove-content, add-child, remove-child, set-property."
+            "set-flag, modify-property, add-exchange-content; для Subsystem: "
+            "add-content, remove-content, add-child, remove-child, set-property."
         ),
     ),
     value: list[str] | None = typer.Option(
@@ -403,7 +410,7 @@ def update_command(
     ),
     output: OutputOption = None,
 ) -> None:
-    """Изменить объект метаданных (attributes / ТЧ / Enum / регистры / флаги модуля)."""
+    """Изменить объект метаданных (Meta DSL 23 + Subsystem)."""
     fmt = resolve_output(ctx, output)
     try:
         operations = _build_update_ops(
@@ -455,11 +462,15 @@ def delete_command(
     ctx: typer.Context,
     qualified_name: str = typer.Argument(
         ...,
-        help="Qualified name, например Catalog.Products.",
+        help=(
+            "Qualified name, например Catalog.Products, Subsystem.Main, "
+            "Constant.VATRate, ScheduledJob.Cleanup, BusinessProcess.Approval "
+            "(все write-типы: 23 Meta DSL + Subsystem)."
+        ),
     ),
     output: OutputOption = None,
 ) -> None:
-    """Удалить объект метаданных из source (xml-gen meta remove)."""
+    """Удалить объект метаданных из source (Meta DSL / Subsystem)."""
     fmt = resolve_output(ctx, output)
     result = delete_metadata(Path.cwd(), qualified_name)
     _emit(result.to_payload(), fmt, text_lines=_delete_text(result))
@@ -474,7 +485,14 @@ def create_command(
         help=(
             "Qualified name, например Catalog.Products, Document.Sales, "
             "Enum.Statuses, InformationRegister.Prices, CommonModule.SalesServer, "
-            "Subsystem.Main."
+            "Subsystem.Main, Constant.VATRate, DefinedType.CounterpartyRef, "
+            "Report.Sales, DataProcessor.ImportData, ScheduledJob.Cleanup, "
+            "EventSubscription.ProductsBeforeWrite, HTTPService.API, "
+            "WebService.DataExchange, AccountingRegister.Accounting, "
+            "CalculationRegister.Salary, ChartOfCharacteristicTypes.Properties, "
+            "ChartOfAccounts.MainAccounts, ChartOfCalculationTypes.MainCalcs, "
+            "BusinessProcess.Approval, Task.Todo, ExchangePlan.Main, "
+            "DocumentJournal.Docs."
         ),
     ),
     synonym: str | None = typer.Option(
@@ -567,14 +585,110 @@ def create_command(
         "--include-in-command-interface/--no-include-in-command-interface",
         help="IncludeInCommandInterface (Subsystem).",
     ),
+    value_type: list[str] | None = typer.Option(
+        None,
+        "--value-type",
+        help=(
+            "Тип значения Type[:Qual] для Constant / DefinedType "
+            "(например Number:5.2, String:50); можно повторять."
+        ),
+    ),
+    method_name: str | None = typer.Option(
+        None,
+        "--method-name",
+        help="Путь метода CommonModule.Name.Method (ScheduledJob).",
+    ),
+    use: bool | None = typer.Option(
+        None,
+        "--use/--no-use",
+        help="Флаг Use (ScheduledJob).",
+    ),
+    description: str | None = typer.Option(
+        None,
+        "--description",
+        help="Description (ScheduledJob).",
+    ),
+    key: str | None = typer.Option(
+        None,
+        "--key",
+        help="Key уникальности (ScheduledJob).",
+    ),
+    predefined: bool | None = typer.Option(
+        None,
+        "--predefined/--no-predefined",
+        help="Флаг Predefined (ScheduledJob).",
+    ),
+    restart_count_on_failure: int | None = typer.Option(
+        None,
+        "--restart-count-on-failure",
+        help="RestartCountOnFailure (ScheduledJob).",
+    ),
+    restart_interval_on_failure: int | None = typer.Option(
+        None,
+        "--restart-interval-on-failure",
+        help="RestartIntervalOnFailure (ScheduledJob).",
+    ),
+    handler: str | None = typer.Option(
+        None,
+        "--handler",
+        help="Путь обработчика CommonModule.Name.Method (EventSubscription).",
+    ),
+    event: str | None = typer.Option(
+        None,
+        "--event",
+        help="Имя события, например BeforeWrite (EventSubscription).",
+    ),
+    source: list[str] | None = typer.Option(
+        None,
+        "--source",
+        help="Источник Type.Name (EventSubscription), можно повторять.",
+    ),
+    root_url: str | None = typer.Option(
+        None,
+        "--root-url",
+        help="RootURL (HTTPService).",
+    ),
+    reuse_sessions: str | None = typer.Option(
+        None,
+        "--reuse-sessions",
+        help="DontUse | Use | AutoUse (HTTPService / WebService).",
+    ),
+    session_max_age: int | None = typer.Option(
+        None,
+        "--session-max-age",
+        help="SessionMaxAge (HTTPService / WebService).",
+    ),
+    namespace: str | None = typer.Option(
+        None,
+        "--namespace",
+        help="Namespace URI (WebService).",
+    ),
+    xdto_packages: str | None = typer.Option(
+        None,
+        "--xdto-packages",
+        help="XDTOPackages (WebService).",
+    ),
+    chart_of_accounts: str | None = typer.Option(
+        None,
+        "--chart-of-accounts",
+        help="ChartOfAccounts.Name (AccountingRegister).",
+    ),
+    chart_of_calculation_types: str | None = typer.Option(
+        None,
+        "--chart-of-calculation-types",
+        help="ChartOfCalculationTypes.Name (CalculationRegister).",
+    ),
     from_json: str | None = typer.Option(
         None,
         "--from-json",
-        help="Путь к JSON IR или '-' для stdin.",
+        help=(
+            "Путь к JSON IR или '-' для stdin "
+            "(вложенные urlTemplates / operations — через JSON)."
+        ),
     ),
     output: OutputOption = None,
 ) -> None:
-    """Создать объект метаданных (Meta DSL + Subsystem)."""
+    """Создать объект метаданных (Meta DSL 23 + Subsystem)."""
     fmt = resolve_output(ctx, output)
     try:
         if from_json is not None:
@@ -605,6 +719,12 @@ def create_command(
                 existing_ch = list(data.get("children") or [])
                 existing_ch.extend(child)
                 data["children"] = existing_ch
+            if value_type:
+                existing_vt = list(data.get("valueTypes") or [])
+                if "valueType" in data and data["valueType"] is not None:
+                    existing_vt.insert(0, data.pop("valueType"))
+                existing_vt.extend(value_type)
+                data["valueTypes"] = existing_vt
             if (
                 include_in_command_interface is not None
                 and "includeInCommandInterface" not in data
@@ -620,6 +740,35 @@ def create_command(
                 privileged=privileged,
                 global_flag=global_flag,
                 return_values_reuse=return_values_reuse,
+            )
+            _merge_scheduled_job_cli_fields(
+                data,
+                method_name=method_name,
+                use=use,
+                description=description,
+                key=key,
+                predefined=predefined,
+                restart_count_on_failure=restart_count_on_failure,
+                restart_interval_on_failure=restart_interval_on_failure,
+            )
+            _merge_event_subscription_cli_fields(
+                data,
+                handler=handler,
+                event=event,
+                source=source,
+            )
+            _merge_http_web_cli_fields(
+                data,
+                root_url=root_url,
+                reuse_sessions=reuse_sessions,
+                session_max_age=session_max_age,
+                namespace=namespace,
+                xdto_packages=xdto_packages,
+            )
+            _merge_register_chart_cli_fields(
+                data,
+                chart_of_accounts=chart_of_accounts,
+                chart_of_calculation_types=chart_of_calculation_types,
             )
             catalog = catalog_from_json(data, qualified_name=qualified_name)
             if synonym and not catalog.synonym:
@@ -665,6 +814,24 @@ def create_command(
                 content=list(content or []),
                 children=list(child or []),
                 include_in_command_interface=include_in_command_interface,
+                value_type_specs=list(value_type or []),
+                method_name=method_name,
+                use=use,
+                description=description,
+                key=key,
+                predefined=predefined,
+                restart_count_on_failure=restart_count_on_failure,
+                restart_interval_on_failure=restart_interval_on_failure,
+                handler=handler,
+                event=event,
+                source=list(source or []),
+                root_url=root_url,
+                reuse_sessions=reuse_sessions,
+                session_max_age=session_max_age,
+                namespace=namespace,
+                xdto_packages=xdto_packages,
+                chart_of_accounts=chart_of_accounts,
+                chart_of_calculation_types=chart_of_calculation_types,
             )
     except IrError as exc:
         result = _ir_error_result(exc)
@@ -719,3 +886,93 @@ def _merge_common_module_cli_flags(
             data[key] = value
     if return_values_reuse is not None and "returnValuesReuse" not in data:
         data["returnValuesReuse"] = return_values_reuse
+
+
+def _merge_scheduled_job_cli_fields(
+    data: dict[str, Any],
+    *,
+    method_name: str | None,
+    use: bool | None,
+    description: str | None,
+    key: str | None,
+    predefined: bool | None,
+    restart_count_on_failure: int | None,
+    restart_interval_on_failure: int | None,
+) -> None:
+    """Fill ScheduledJob JSON keys from CLI when absent in --from-json body."""
+    if method_name is not None and "methodName" not in data:
+        data["methodName"] = method_name
+    if use is not None and "use" not in data:
+        data["use"] = use
+    if description is not None and "description" not in data:
+        data["description"] = description
+    if key is not None and "key" not in data:
+        data["key"] = key
+    if predefined is not None and "predefined" not in data:
+        data["predefined"] = predefined
+    if (
+        restart_count_on_failure is not None
+        and "restartCountOnFailure" not in data
+    ):
+        data["restartCountOnFailure"] = restart_count_on_failure
+    if (
+        restart_interval_on_failure is not None
+        and "restartIntervalOnFailure" not in data
+    ):
+        data["restartIntervalOnFailure"] = restart_interval_on_failure
+
+
+def _merge_event_subscription_cli_fields(
+    data: dict[str, Any],
+    *,
+    handler: str | None,
+    event: str | None,
+    source: list[str] | None,
+) -> None:
+    """Fill EventSubscription JSON keys from CLI when absent in --from-json body."""
+    if handler is not None and "handler" not in data:
+        data["handler"] = handler
+    if event is not None and "event" not in data:
+        data["event"] = event
+    if source:
+        existing = list(data.get("source") or [])
+        existing.extend(source)
+        data["source"] = existing
+
+
+def _merge_http_web_cli_fields(
+    data: dict[str, Any],
+    *,
+    root_url: str | None,
+    reuse_sessions: str | None,
+    session_max_age: int | None,
+    namespace: str | None,
+    xdto_packages: str | None,
+) -> None:
+    """Fill HTTPService / WebService scalar keys from CLI when absent in JSON."""
+    if root_url is not None and "rootURL" not in data:
+        data["rootURL"] = root_url
+    if reuse_sessions is not None and "reuseSessions" not in data:
+        data["reuseSessions"] = reuse_sessions
+    if session_max_age is not None and "sessionMaxAge" not in data:
+        data["sessionMaxAge"] = session_max_age
+    if namespace is not None and "namespace" not in data:
+        data["namespace"] = namespace
+    if xdto_packages is not None and "xdtoPackages" not in data:
+        data["xdtoPackages"] = xdto_packages
+
+
+def _merge_register_chart_cli_fields(
+    data: dict[str, Any],
+    *,
+    chart_of_accounts: str | None,
+    chart_of_calculation_types: str | None,
+) -> None:
+    """Fill Accounting/CalculationRegister chart refs from CLI when absent."""
+    if chart_of_accounts is not None and "chartOfAccounts" not in data:
+        data["chartOfAccounts"] = chart_of_accounts
+    if (
+        chart_of_calculation_types is not None
+        and "chartOfCalculationTypes" not in data
+    ):
+        data["chartOfCalculationTypes"] = chart_of_calculation_types

@@ -14,6 +14,12 @@
     - **1c-dev** MCP: project init/import, ide.configure, metadata list/get/find/create/update/delete,
       build, check, runtime.start/stop/status (client thick|thin, optional debug=/Debug),
       and docs.* when available.
+      Write types for metadata.create/update/delete: 23 Meta DSL + Subsystem
+      (AccountingRegister, AccumulationRegister, BusinessProcess, CalculationRegister,
+      Catalog, ChartOfAccounts, ChartOfCalculationTypes, ChartOfCharacteristicTypes,
+      CommonModule, Constant, DataProcessor, DefinedType, Document, DocumentJournal,
+      Enum, EventSubscription, ExchangePlan, HTTPService, InformationRegister, Report,
+      ScheduledJob, Subsystem, Task, WebService) — see `doctor` → `supportedTypes`.
     - **bsl-language-server** MCP: BSL code analysis (diagnostics, symbols, references,
       hover, definitions) — not for metadata or build.
       Before analyze_file / hover / definition / etc.: call `list_workspace_folders`;

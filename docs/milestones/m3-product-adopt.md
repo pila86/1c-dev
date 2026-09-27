@@ -166,9 +166,9 @@ Installed platform HBK
 | **should** | Issues в milestone M3; **не** блокирует must-acceptance треков A–D / #52 |
 | Temporary | При необходимости трек целиком переносится в отдельный milestone |
 
-Уже в M2 (CRUD + full get): Catalog, Document, Enum, InformationRegister, AccumulationRegister. CommonModule — CRUD + full get (E0 / #61). Subsystem — CRUD + full get (E1 / #62).
+Уже в M2 (CRUD + full get): Catalog, Document, Enum, InformationRegister, AccumulationRegister. CommonModule — CRUD + full get (E0 / #61). Subsystem — CRUD + full get (E1 / #62). Constant + DefinedType — CRUD + full get (E2 / #63). Report + DataProcessor — CRUD + full get (E3 / #64). ScheduledJob + EventSubscription — CRUD + full get (E4 / #65). HTTPService + WebService — CRUD + full get (E5 / #66). AccountingRegister + CalculationRegister — CRUD + full get (E6 / #67). ChartOfCharacteristicTypes + ChartOfAccounts + ChartOfCalculationTypes — CRUD + full get (E7 / #68). BusinessProcess + Task + ExchangePlan + DocumentJournal — CRUD + full get (E8 / #69). **E-docs (#70):** doctor `supportedTypes`, CLI help, MCP tool descriptions, README / AGENTS — поверхность всех 24 write-типов.
 
-Волны (см. Issues ниже): [#60](https://github.com/pila86/1c-dev/issues/60) E-found → [#61](https://github.com/pila86/1c-dev/issues/61) E0 (CommonModule get) → [#62](https://github.com/pila86/1c-dev/issues/62) E1 Subsystem → [#63](https://github.com/pila86/1c-dev/issues/63)–[#69](https://github.com/pila86/1c-dev/issues/69) E2…E8 → [#70](https://github.com/pila86/1c-dev/issues/70) E-docs → [#71](https://github.com/pila86/1c-dev/issues/71) E-accept.
+Волны (см. Issues ниже): [#60](https://github.com/pila86/1c-dev/issues/60) E-found → [#61](https://github.com/pila86/1c-dev/issues/61) E0 (CommonModule get) → [#62](https://github.com/pila86/1c-dev/issues/62) E1 Subsystem → [#63](https://github.com/pila86/1c-dev/issues/63)–[#69](https://github.com/pila86/1c-dev/issues/69) E2…E8 → [#70](https://github.com/pila86/1c-dev/issues/70) E-docs (**surface done**) → [#71](https://github.com/pila86/1c-dev/issues/71) E-accept.
 
 Out of this track: Role / Form / Command / SessionParameter / …; `xml-gen interface edit` (CommandInterface); полное покрытие платформы ≠ трек E.
 

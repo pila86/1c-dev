@@ -2,18 +2,47 @@ package dev.onec.mdreader;
 
 import com.github._1c_syntax.bsl.mdclasses.Configuration;
 import com.github._1c_syntax.bsl.mdclasses.MDClasses;
+import com.github._1c_syntax.bsl.mdo.AccountingRegister;
 import com.github._1c_syntax.bsl.mdo.AccumulationRegister;
 import com.github._1c_syntax.bsl.mdo.Attribute;
+import com.github._1c_syntax.bsl.mdo.BusinessProcess;
+import com.github._1c_syntax.bsl.mdo.CalculationRegister;
 import com.github._1c_syntax.bsl.mdo.Catalog;
+import com.github._1c_syntax.bsl.mdo.ChartOfAccounts;
+import com.github._1c_syntax.bsl.mdo.ChartOfCalculationTypes;
+import com.github._1c_syntax.bsl.mdo.ChartOfCharacteristicTypes;
 import com.github._1c_syntax.bsl.mdo.CommonModule;
+import com.github._1c_syntax.bsl.mdo.Constant;
+import com.github._1c_syntax.bsl.mdo.DataProcessor;
+import com.github._1c_syntax.bsl.mdo.DefinedType;
 import com.github._1c_syntax.bsl.mdo.Document;
+import com.github._1c_syntax.bsl.mdo.DocumentJournal;
 import com.github._1c_syntax.bsl.mdo.Enum;
+import com.github._1c_syntax.bsl.mdo.EventSubscription;
+import com.github._1c_syntax.bsl.mdo.ExchangePlan;
+import com.github._1c_syntax.bsl.mdo.HTTPService;
 import com.github._1c_syntax.bsl.mdo.InformationRegister;
 import com.github._1c_syntax.bsl.mdo.MD;
+import com.github._1c_syntax.bsl.mdo.Report;
+import com.github._1c_syntax.bsl.mdo.ScheduledJob;
 import com.github._1c_syntax.bsl.mdo.Subsystem;
 import com.github._1c_syntax.bsl.mdo.TabularSection;
+import com.github._1c_syntax.bsl.mdo.Task;
+import com.github._1c_syntax.bsl.mdo.WebService;
+import com.github._1c_syntax.bsl.mdo.children.AccountingFlag;
+import com.github._1c_syntax.bsl.mdo.children.DocumentJournalColumn;
 import com.github._1c_syntax.bsl.mdo.children.EnumValue;
+import com.github._1c_syntax.bsl.mdo.children.ExtDimensionAccountingFlag;
+import com.github._1c_syntax.bsl.mdo.children.HTTPServiceMethod;
+import com.github._1c_syntax.bsl.mdo.children.HTTPServiceURLTemplate;
+import com.github._1c_syntax.bsl.mdo.children.TaskAddressingAttribute;
+import com.github._1c_syntax.bsl.mdo.children.WebServiceOperation;
+import com.github._1c_syntax.bsl.mdo.children.WebServiceOperationParameter;
+import com.github._1c_syntax.bsl.mdo.support.CalculationRegisterPeriodicity;
+import com.github._1c_syntax.bsl.mdo.support.Handler;
 import com.github._1c_syntax.bsl.mdo.support.ReturnValueReuse;
+import com.github._1c_syntax.bsl.mdo.support.ReuseSessions;
+import com.github._1c_syntax.bsl.mdo.support.TransferDirection;
 import com.github._1c_syntax.bsl.types.MdoReference;
 import com.github._1c_syntax.bsl.types.MultiLanguageString;
 import com.github._1c_syntax.bsl.types.ValueType;
@@ -53,8 +82,25 @@ public final class Main {
       "Enum",
       "InformationRegister",
       "AccumulationRegister",
+      "AccountingRegister",
+      "CalculationRegister",
       "CommonModule",
-      "Subsystem"
+      "Subsystem",
+      "Constant",
+      "DefinedType",
+      "Report",
+      "DataProcessor",
+      "ScheduledJob",
+      "EventSubscription",
+      "HTTPService",
+      "WebService",
+      "ChartOfCharacteristicTypes",
+      "ChartOfAccounts",
+      "ChartOfCalculationTypes",
+      "BusinessProcess",
+      "Task",
+      "ExchangePlan",
+      "DocumentJournal"
   );
 
   private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
@@ -224,6 +270,80 @@ public final class Main {
     } else if (md instanceof Document document) {
       obj.add("attributes", attributesArray((List<Attribute>) (List<?>) document.getAttributes()));
       obj.add("tabularSections", tabularSectionsArray((List<?>) document.getTabularSections()));
+    } else if (md instanceof Report report) {
+      obj.add("attributes", attributesArray((List<Attribute>) (List<?>) report.getAttributes()));
+      obj.add("tabularSections", tabularSectionsArray((List<?>) report.getTabularSections()));
+    } else if (md instanceof DataProcessor dataProcessor) {
+      obj.add(
+          "attributes",
+          attributesArray((List<Attribute>) (List<?>) dataProcessor.getAttributes()));
+      obj.add(
+          "tabularSections",
+          tabularSectionsArray((List<?>) dataProcessor.getTabularSections()));
+    } else if (md instanceof ChartOfCharacteristicTypes chart) {
+      obj.add("attributes", attributesArray((List<Attribute>) (List<?>) chart.getAttributes()));
+      obj.add("tabularSections", tabularSectionsArray((List<?>) chart.getTabularSections()));
+      // Prefer valueTypes array when composite; otherwise single valueType (Constant-like).
+      ValueTypeDescription chartVt = chart.getValueType();
+      if (chartVt != null && !chartVt.isEmpty() && chartVt.isComposite()
+          && chartVt.getTypes() != null && chartVt.getTypes().size() > 1) {
+        obj.add("valueTypes", valueTypesArray(chartVt));
+      } else {
+        obj.add("valueType", valueTypeToJson(chartVt));
+      }
+    } else if (md instanceof ChartOfAccounts chart) {
+      obj.add("attributes", attributesArray((List<Attribute>) (List<?>) chart.getAttributes()));
+      obj.add("tabularSections", tabularSectionsArray((List<?>) chart.getTabularSections()));
+      obj.add(
+          "accountingFlags",
+          accountingFlagsArray((List<AccountingFlag>) (List<?>) chart.getAccountingFlags()));
+      obj.add(
+          "extDimensionAccountingFlags",
+          extDimensionAccountingFlagsArray(
+              (List<ExtDimensionAccountingFlag>) (List<?>) chart.getExtDimensionAccountingFlags()));
+    } else if (md instanceof ChartOfCalculationTypes chart) {
+      obj.add("attributes", attributesArray((List<Attribute>) (List<?>) chart.getAttributes()));
+      obj.add("tabularSections", tabularSectionsArray((List<?>) chart.getTabularSections()));
+    } else if (md instanceof BusinessProcess bp) {
+      obj.add("attributes", attributesArray((List<Attribute>) (List<?>) bp.getAttributes()));
+      obj.add("tabularSections", tabularSectionsArray((List<?>) bp.getTabularSections()));
+      MdoReference taskRef = bp.getTask();
+      if (taskRef != null && !taskRef.isEmpty()) {
+        String mdoRef = taskRef.getMdoRef();
+        if (mdoRef != null && !mdoRef.isBlank()) {
+          obj.addProperty("task", mdoRef);
+        }
+      }
+    } else if (md instanceof Task task) {
+      obj.add("attributes", attributesArray((List<Attribute>) (List<?>) task.getAttributes()));
+      obj.add("tabularSections", tabularSectionsArray((List<?>) task.getTabularSections()));
+      obj.add(
+          "addressingAttributes",
+          addressingAttributesArray(
+              (List<TaskAddressingAttribute>) (List<?>) task.getAddressingAttributes()));
+    } else if (md instanceof ExchangePlan plan) {
+      obj.add("attributes", attributesArray((List<Attribute>) (List<?>) plan.getAttributes()));
+      obj.add("tabularSections", tabularSectionsArray((List<?>) plan.getTabularSections()));
+      obj.add("content", exchangePlanContentArray(plan.getContent()));
+    } else if (md instanceof DocumentJournal journal) {
+      obj.add(
+          "columns",
+          journalColumnsArray(
+              (List<DocumentJournalColumn>) (List<?>) journal.getColumns()));
+      JsonArray docs = new JsonArray();
+      List<MdoReference> registered = journal.getRegisteredDocuments();
+      if (registered != null) {
+        for (MdoReference ref : registered) {
+          if (ref == null || ref.isEmpty()) {
+            continue;
+          }
+          String mdoRef = ref.getMdoRef();
+          if (mdoRef != null && !mdoRef.isBlank()) {
+            docs.add(mdoRef);
+          }
+        }
+      }
+      obj.add("registeredDocuments", docs);
     } else if (md instanceof Enum enumeration) {
       obj.add("values", enumValuesArray((List<EnumValue>) (List<?>) enumeration.getEnumValues()));
     } else if (md instanceof InformationRegister register) {
@@ -232,6 +352,15 @@ public final class Main {
     } else if (md instanceof AccumulationRegister register) {
       obj.add("dimensions", attributesArray((List<Attribute>) (List<?>) register.getDimensions()));
       obj.add("resources", attributesArray((List<Attribute>) (List<?>) register.getResources()));
+    } else if (md instanceof AccountingRegister register) {
+      // MDClasses 0.20.0 gap: chartOfAccounts not exposed on AccountingRegister.
+      obj.add("dimensions", attributesArray((List<Attribute>) (List<?>) register.getDimensions()));
+      obj.add("resources", attributesArray((List<Attribute>) (List<?>) register.getResources()));
+    } else if (md instanceof CalculationRegister register) {
+      // MDClasses 0.20.0 gap: chartOfCalculationTypes not exposed.
+      obj.add("dimensions", attributesArray((List<Attribute>) (List<?>) register.getDimensions()));
+      obj.add("resources", attributesArray((List<Attribute>) (List<?>) register.getResources()));
+      obj.addProperty("periodicity", calculationPeriodicityOf(register.getPeriodicity()));
     } else if (md instanceof CommonModule module) {
       obj.addProperty("server", module.isServer());
       obj.addProperty("clientManagedApplication", module.isClientManagedApplication());
@@ -267,8 +396,172 @@ public final class Main {
       }
       obj.add("children", children);
       obj.addProperty("includeInCommandInterface", subsystem.isIncludeInCommandInterface());
+    } else if (md instanceof Constant constant) {
+      obj.add("valueType", valueTypeToJson(constant.getValueType()));
+    } else if (md instanceof DefinedType definedType) {
+      obj.add("valueTypes", valueTypesArray(definedType.getValueType()));
+    } else if (md instanceof ScheduledJob job) {
+      Handler method = job.getMethodName();
+      if (method != null && !method.isEmpty()) {
+        obj.addProperty("methodName", method.getMethodPath());
+      }
+      obj.addProperty("use", job.isUse());
+      String description = job.getDescription();
+      if (description != null && !description.isBlank()) {
+        obj.addProperty("description", description);
+      }
+      String key = job.getKey();
+      if (key != null && !key.isBlank()) {
+        obj.addProperty("key", key);
+      }
+      obj.addProperty("predefined", job.isPredefined());
+      obj.addProperty("restartCountOnFailure", job.getRestartCountOnFailure());
+      obj.addProperty("restartIntervalOnFailure", job.getRestartIntervalOnFailure());
+    } else if (md instanceof EventSubscription subscription) {
+      Handler handler = subscription.getHandler();
+      if (handler != null && !handler.isEmpty()) {
+        obj.addProperty("handler", handler.getMethodPath());
+      }
+      String event = subscription.getEvent();
+      if (event != null && !event.isBlank()) {
+        obj.addProperty("event", event);
+      }
+      obj.add("source", eventSubscriptionSourceArray(subscription.getValueType()));
+    } else if (md instanceof HTTPService httpService) {
+      // MDClasses 0.20.0 gap: rootURL / reuseSessions / sessionMaxAge not exposed.
+      obj.add("urlTemplates", httpUrlTemplatesObject(httpService.getUrlTemplates()));
+    } else if (md instanceof WebService webService) {
+      String namespace = webService.getNamespace();
+      if (namespace != null && !namespace.isBlank()) {
+        obj.addProperty("namespace", namespace);
+      }
+      // MDClasses 0.20.0 gap: xdtoPackages not exposed.
+      obj.addProperty("reuseSessions", reuseSessionsOf(webService.getReuseSessions()));
+      obj.addProperty("sessionMaxAge", webService.getSessionMaxAge());
+      obj.add("operations", webOperationsObject(webService.getOperations()));
     }
     return obj;
+  }
+
+  private static JsonObject httpUrlTemplatesObject(
+      List<HTTPServiceURLTemplate> templates) {
+    JsonObject map = new JsonObject();
+    if (templates == null) {
+      return map;
+    }
+    for (HTTPServiceURLTemplate template : templates) {
+      if (template == null || template.getName() == null || template.getName().isBlank()) {
+        continue;
+      }
+      JsonObject entry = new JsonObject();
+      String path = template.getTemplate();
+      if (path != null && !path.isBlank()) {
+        entry.addProperty("template", path);
+      }
+      // MDClasses gap: HTTP verb (GET/POST/…) not exposed — emit handler instead.
+      JsonObject methods = new JsonObject();
+      List<HTTPServiceMethod> methodList = template.getMethods();
+      if (methodList != null) {
+        for (HTTPServiceMethod method : methodList) {
+          if (method == null || method.getName() == null || method.getName().isBlank()) {
+            continue;
+          }
+          String handler = method.getHandler();
+          methods.addProperty(
+              method.getName(),
+              handler == null || handler.isBlank() ? "" : handler);
+        }
+      }
+      entry.add("methods", methods);
+      map.add(template.getName(), entry);
+    }
+    return map;
+  }
+
+  private static JsonObject webOperationsObject(List<WebServiceOperation> operations) {
+    JsonObject map = new JsonObject();
+    if (operations == null) {
+      return map;
+    }
+    for (WebServiceOperation operation : operations) {
+      if (operation == null || operation.getName() == null || operation.getName().isBlank()) {
+        continue;
+      }
+      JsonObject entry = new JsonObject();
+      // MDClasses gap: returnType not exposed.
+      String handler = operation.getProcedureName();
+      if (handler != null && !handler.isBlank()) {
+        entry.addProperty("handler", handler);
+      }
+      entry.addProperty("nillable", operation.isNillable());
+      entry.addProperty("transactioned", operation.isTransactioned());
+      JsonObject parameters = new JsonObject();
+      List<WebServiceOperationParameter> params = operation.getParameters();
+      if (params != null) {
+        for (WebServiceOperationParameter param : params) {
+          if (param == null || param.getName() == null || param.getName().isBlank()) {
+            continue;
+          }
+          JsonObject pEntry = new JsonObject();
+          // MDClasses gap: parameter type not exposed.
+          pEntry.addProperty("nillable", param.isNillable());
+          putDirection(pEntry, param.getTransferDirection());
+          parameters.add(param.getName(), pEntry);
+        }
+      }
+      entry.add("parameters", parameters);
+      map.add(operation.getName(), entry);
+    }
+    return map;
+  }
+
+  private static String reuseSessionsOf(ReuseSessions reuse) {
+    if (reuse == null || reuse == ReuseSessions.UNKNOWN) {
+      return "DontUse";
+    }
+    String en = reuse.nameEn();
+    return en == null || en.isBlank() ? "DontUse" : en;
+  }
+
+  private static String transferDirectionOf(TransferDirection direction) {
+    // MDClasses may yield UNKNOWN when XML has Designer synonym "Output"
+    // (xml-gen) instead of enum key "Out" — omit rather than invent "In".
+    if (direction == null || direction == TransferDirection.UNKNOWN) {
+      return null;
+    }
+    String en = direction.nameEn();
+    return en == null || en.isBlank() ? null : en;
+  }
+
+  private static void putDirection(JsonObject target, TransferDirection direction) {
+    String value = transferDirectionOf(direction);
+    if (value != null) {
+      target.addProperty("direction", value);
+    }
+  }
+
+  private static JsonArray eventSubscriptionSourceArray(ValueTypeDescription description) {
+    JsonArray arr = new JsonArray();
+    if (description == null || description.isEmpty()) {
+      return arr;
+    }
+    List<ValueType> types = description.getTypes();
+    if (types == null) {
+      return arr;
+    }
+    for (ValueType type : types) {
+      if (type == null) {
+        continue;
+      }
+      String en = type.nameEn();
+      if (en == null || en.isBlank() || !en.contains(".")) {
+        continue;
+      }
+      // Prefer Designer QName (Catalog.Products); also accept CatalogRef.Products.
+      String refQname = refQnameFromTypeName(en);
+      arr.add(refQname != null ? refQname : en);
+    }
+    return arr;
   }
 
   private static String returnValuesReuseOf(ReturnValueReuse reuse) {
@@ -279,6 +572,14 @@ public final class Main {
     return en == null || en.isBlank() ? "DontUse" : en;
   }
 
+  private static String calculationPeriodicityOf(CalculationRegisterPeriodicity periodicity) {
+    if (periodicity == null || periodicity == CalculationRegisterPeriodicity.UNKNOWN) {
+      return "Month";
+    }
+    String en = periodicity.nameEn();
+    return en == null || en.isBlank() ? "Month" : en;
+  }
+
   private static JsonArray attributesArray(List<? extends Attribute> attributes) {
     JsonArray arr = new JsonArray();
     if (attributes == null) {
@@ -286,6 +587,89 @@ public final class Main {
     }
     for (Attribute attribute : attributes) {
       arr.add(attributeToJson(attribute));
+    }
+    return arr;
+  }
+
+  private static JsonArray accountingFlagsArray(List<AccountingFlag> flags) {
+    JsonArray arr = new JsonArray();
+    if (flags == null) {
+      return arr;
+    }
+    for (AccountingFlag flag : flags) {
+      arr.add(attributeToJson(flag));
+    }
+    return arr;
+  }
+
+  private static JsonArray extDimensionAccountingFlagsArray(
+      List<ExtDimensionAccountingFlag> flags) {
+    JsonArray arr = new JsonArray();
+    if (flags == null) {
+      return arr;
+    }
+    for (ExtDimensionAccountingFlag flag : flags) {
+      arr.add(attributeToJson(flag));
+    }
+    return arr;
+  }
+
+  private static JsonArray addressingAttributesArray(List<TaskAddressingAttribute> attrs) {
+    JsonArray arr = new JsonArray();
+    if (attrs == null) {
+      return arr;
+    }
+    for (TaskAddressingAttribute attr : attrs) {
+      arr.add(attributeToJson(attr));
+    }
+    return arr;
+  }
+
+  private static JsonArray journalColumnsArray(List<DocumentJournalColumn> columns) {
+    JsonArray arr = new JsonArray();
+    if (columns == null) {
+      return arr;
+    }
+    for (DocumentJournalColumn column : columns) {
+      JsonObject item = attributeToJson(column);
+      JsonArray refs = new JsonArray();
+      List<MdoReference> references = column.getReferences();
+      if (references != null) {
+        for (MdoReference ref : references) {
+          if (ref == null || ref.isEmpty()) {
+            continue;
+          }
+          String mdoRef = ref.getMdoRef();
+          if (mdoRef != null && !mdoRef.isBlank()) {
+            refs.add(mdoRef);
+          }
+        }
+      }
+      item.add("references", refs);
+      arr.add(item);
+    }
+    return arr;
+  }
+
+  private static JsonArray exchangePlanContentArray(List<ExchangePlan.RecordContent> items) {
+    JsonArray arr = new JsonArray();
+    if (items == null) {
+      return arr;
+    }
+    for (ExchangePlan.RecordContent item : items) {
+      if (item == null) {
+        continue;
+      }
+      JsonObject entry = new JsonObject();
+      MdoReference meta = item.getMetadata();
+      if (meta != null && !meta.isEmpty()) {
+        String mdoRef = meta.getMdoRef();
+        if (mdoRef != null && !mdoRef.isBlank()) {
+          entry.addProperty("metadata", mdoRef);
+        }
+      }
+      entry.addProperty("autoRecord", item.isAllow() ? "Allow" : "Deny");
+      arr.add(entry);
     }
     return arr;
   }
@@ -351,20 +735,81 @@ public final class Main {
     return obj;
   }
 
+  private static JsonObject valueTypeToJson(ValueTypeDescription description) {
+    JsonObject obj = new JsonObject();
+    Map<String, Object> mapped = mapValueType(description);
+    for (Map.Entry<String, Object> entry : mapped.entrySet()) {
+      Object val = entry.getValue();
+      if (val instanceof Number number) {
+        obj.addProperty(entry.getKey(), number);
+      } else if (val instanceof Boolean bool) {
+        obj.addProperty(entry.getKey(), bool);
+      } else if (val != null) {
+        obj.addProperty(entry.getKey(), String.valueOf(val));
+      }
+    }
+    return obj;
+  }
+
+  /**
+   * Map all composite value types for DefinedType (not just chooseType preference).
+   */
+  private static JsonArray valueTypesArray(ValueTypeDescription description) {
+    JsonArray arr = new JsonArray();
+    if (description == null || description.isEmpty()) {
+      arr.add(valueTypeToJson(description));
+      return arr;
+    }
+    List<ValueType> types = description.getTypes();
+    if (types == null || types.isEmpty()) {
+      arr.add(valueTypeToJson(description));
+      return arr;
+    }
+    if (types.size() == 1 || !description.isComposite()) {
+      arr.add(valueTypeToJson(description));
+      return arr;
+    }
+    for (ValueType type : types) {
+      arr.add(singleValueTypeToJson(description, type));
+    }
+    return arr;
+  }
+
+  private static JsonObject singleValueTypeToJson(
+      ValueTypeDescription description, ValueType chosen) {
+    JsonObject obj = new JsonObject();
+    Map<String, Object> mapped = mapChosenValueType(description, chosen);
+    for (Map.Entry<String, Object> entry : mapped.entrySet()) {
+      Object val = entry.getValue();
+      if (val instanceof Number number) {
+        obj.addProperty(entry.getKey(), number);
+      } else if (val instanceof Boolean bool) {
+        obj.addProperty(entry.getKey(), bool);
+      } else if (val != null) {
+        obj.addProperty(entry.getKey(), String.valueOf(val));
+      }
+    }
+    return obj;
+  }
+
   /**
    * Map MDClasses ValueTypeDescription → IR v1 attribute type fields.
    * Composite: prefer Ref, else first primitive.
    */
   private static Map<String, Object> mapValueType(ValueTypeDescription description) {
-    Map<String, Object> result = new LinkedHashMap<>();
     if (description == null || description.isEmpty()) {
+      Map<String, Object> result = new LinkedHashMap<>();
       result.put("type", "String");
       result.put("length", 10);
       return result;
     }
+    ValueType chosen = chooseType(description.getTypes());
+    return mapChosenValueType(description, chosen);
+  }
 
-    List<ValueType> types = description.getTypes();
-    ValueType chosen = chooseType(types);
+  private static Map<String, Object> mapChosenValueType(
+      ValueTypeDescription description, ValueType chosen) {
+    Map<String, Object> result = new LinkedHashMap<>();
     if (chosen == null) {
       result.put("type", "String");
       result.put("length", 10);

@@ -191,6 +191,11 @@ def create_metadata(
                 catalog,
                 followup_fn=followup_fn,
             )
+            _apply_exchange_plan_content(
+                object_file,
+                catalog,
+                followup_fn=followup_fn,
+            )
     except XmlGenError as exc:
         diag_kw: dict[str, Any] = {
             "code": exc.code,
@@ -248,6 +253,35 @@ def _apply_tabular_synonyms(
     ]
     if not ops:
         return
+    _run_followup_edits(object_file, ops, followup_fn=followup_fn)
+
+
+def _apply_exchange_plan_content(
+    object_file: Path,
+    catalog: CatalogObject,
+    *,
+    followup_fn: FollowupFn | None,
+) -> None:
+    """Apply ExchangePlan content via add-exchange-content.
+
+    xml-gen ``meta compile`` writes an empty Content.xml stub and ignores DSL
+    ``content``; AutoRecord is always Deny in the pinned xml-gen (#69 gap).
+    """
+    if catalog.type != "ExchangePlan" or not catalog.content:
+        return
+    ops = [
+        EditOp(op="add-exchange-content", value=qname)
+        for qname in catalog.content
+    ]
+    _run_followup_edits(object_file, ops, followup_fn=followup_fn)
+
+
+def _run_followup_edits(
+    object_file: Path,
+    ops: list[EditOp],
+    *,
+    followup_fn: FollowupFn | None,
+) -> None:
     if followup_fn is not None:
         followup_fn(object_file, ops)
         return

@@ -14,7 +14,7 @@ from adapters.platform.discovery import discover_environment, version_from_path
 from cli.main import app
 from core.doctor import run_doctor
 from core.exit_codes import ENV_UNAVAILABLE, SUCCESS
-from core.metadata.types import WRITE_OBJECT_TYPES
+from core.metadata.types import WRITE_OBJECT_TYPES_SORTED
 
 runner = CliRunner()
 SCHEMA_PATH = Path(__file__).resolve().parents[1] / "schemas" / "doctor.schema.json"
@@ -125,9 +125,9 @@ def test_run_doctor_supported_write_types(
     create = payload["capabilities"]["metadata.create"]
     update = payload["capabilities"]["metadata.update"]
     delete = payload["capabilities"]["metadata.delete"]
-    assert create["supportedTypes"] == sorted(WRITE_OBJECT_TYPES)
-    assert update["supportedTypes"] == sorted(WRITE_OBJECT_TYPES)
-    assert delete["supportedTypes"] == sorted(WRITE_OBJECT_TYPES)
+    assert create["supportedTypes"] == list(WRITE_OBJECT_TYPES_SORTED)
+    assert update["supportedTypes"] == list(WRITE_OBJECT_TYPES_SORTED)
+    assert delete["supportedTypes"] == list(WRITE_OBJECT_TYPES_SORTED)
     assert "supportedTypes" not in payload["capabilities"]["build"]
     assert "supportedTypes" not in payload["capabilities"]["check"]
     assert "supportedTypes" not in payload["capabilities"]["project.import"]
@@ -308,7 +308,7 @@ def test_cli_doctor_text_ok(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
     assert "bsl-language-server:" in result.stdout
     assert "docs-facade:" in result.stdout
     assert "cli:" in result.stdout
-    expected_types = "types: " + ", ".join(sorted(WRITE_OBJECT_TYPES))
+    expected_types = "types: " + ", ".join(WRITE_OBJECT_TYPES_SORTED)
     assert expected_types in result.stdout
 
 

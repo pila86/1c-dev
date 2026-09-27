@@ -41,6 +41,10 @@ META_DSL_OBJECT_TYPES: frozenset[str] = frozenset(
 # ADR-018 write coverage: Meta DSL 23 + Subsystem (subsystem compile/edit).
 WRITE_OBJECT_TYPES: frozenset[str] = META_DSL_OBJECT_TYPES | frozenset({"Subsystem"})
 
+# Sorted list for doctor / CLI / MCP surface (#70).
+WRITE_OBJECT_TYPES_SORTED: tuple[str, ...] = tuple(sorted(WRITE_OBJECT_TYPES))
+WRITE_OBJECT_TYPES_HELP: str = ", ".join(WRITE_OBJECT_TYPES_SORTED)
+
 # Unified write allowlists (doctor + QName / create / update / delete gates).
 CREATE_OBJECT_TYPES: frozenset[str] = WRITE_OBJECT_TYPES
 UPDATE_OBJECT_TYPES: frozenset[str] = WRITE_OBJECT_TYPES
