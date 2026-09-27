@@ -317,6 +317,58 @@ def test_subsystem_from_parts_and_json() -> None:
     assert bad_content.value.code == "1CM004"
 
 
+def test_constant_and_defined_type_from_parts_and_json() -> None:
+    const = catalog_from_parts(
+        qualified_name="Constant.VATRate",
+        synonym="СтавкаНДС",
+        value_type_specs=["Number:5.2"],
+    )
+    assert const.qualified_name == "Constant.VATRate"
+    assert const.value_type is not None
+    assert const.value_type.type == "Number"
+    assert const.value_type.precision == 5
+    assert const.value_type.scale == 2
+    dsl = ir_to_xmlgen_dsl(const.to_dict())
+    assert dsl == {
+        "type": "Constant",
+        "name": "VATRate",
+        "synonym": "СтавкаНДС",
+        "valueType": "Number(5,2)",
+    }
+    assert "attributes" not in dsl
+
+    defined = catalog_from_parts(
+        qualified_name="DefinedType.CounterpartyRef",
+        value_type_specs=["String:50", "Number:10.0"],
+    )
+    assert defined.value_types[0].type == "String"
+    assert defined.value_types[0].length == 50
+    defined_dsl = ir_to_xmlgen_dsl(defined.to_dict())
+    assert defined_dsl["type"] == "DefinedType"
+    assert defined_dsl["valueTypes"] == ["String(50)", "Number(10,0)"]
+
+    from_json = catalog_from_json(
+        {
+            "type": "DefinedType",
+            "name": "Money",
+            "valueType": {"type": "Number", "precision": 15, "scale": 2},
+        }
+    )
+    assert len(from_json.value_types) == 1
+    assert from_json.value_types[0].precision == 15
+
+    with pytest.raises(IrError) as shape:
+        catalog_from_parts(
+            qualified_name="Constant.Bad",
+            attr_specs=["X:String:10"],
+        )
+    assert shape.value.code == "1CM004"
+
+    with pytest.raises(IrError) as required:
+        catalog_from_parts(qualified_name="DefinedType.Bad")
+    assert required.value.code == "1CM004"
+
+
 def test_create_metadata_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
@@ -548,6 +600,51 @@ def test_create_subsystem_mock(tmp_path: Path) -> None:
     assert result.status == "ok", result.diagnostics
     assert result.object == "Subsystem.Main"
     assert any("Subsystems/Main.xml" in p for p in result.created)
+
+
+def test_create_constant_and_defined_type_mock(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+
+    def fake_compile_const(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "Constant"
+        assert dsl["valueType"] == "Number(5,2)"
+        folder = source_dir / "Constants"
+        folder.mkdir(parents=True)
+        (folder / "VATRate.xml").write_text("<Constant/>", encoding="utf-8")
+        return ["Constants/VATRate.xml"]
+
+    result = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Constant.VATRate",
+            synonym="СтавкаНДС",
+            value_type_specs=["Number:5.2"],
+        ),
+        compile_fn=fake_compile_const,
+    )
+    assert result.status == "ok"
+    assert result.object == "Constant.VATRate"
+
+    def fake_compile_defined(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "DefinedType"
+        assert dsl["valueTypes"] == ["String(50)"]
+        folder = source_dir / "DefinedTypes"
+        folder.mkdir(parents=True)
+        (folder / "MoneyCode.xml").write_text("<DefinedType/>", encoding="utf-8")
+        return ["DefinedTypes/MoneyCode.xml"]
+
+    result2 = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="DefinedType.MoneyCode",
+            value_type_specs=["String:50"],
+        ),
+        compile_fn=fake_compile_defined,
+    )
+    assert result2.status == "ok"
+    assert result2.object == "DefinedType.MoneyCode"
 
 
 def test_create_duplicate(tmp_path: Path) -> None:
@@ -1031,6 +1128,55 @@ def test_create_subsystem_with_real_xmlgen(tmp_path: Path) -> None:
     assert "<IncludeInCommandInterface>true</IncludeInCommandInterface>" in text
     cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
     assert "<Subsystem>Main</Subsystem>" in cfg
+
+    from core.project import validate_project
+
+    assert validate_project(target).status == "ok"
+
+
+@pytest.mark.integration
+def test_create_constant_and_defined_type_with_real_xmlgen(tmp_path: Path) -> None:
+    jar = resolve_jar()
+    java = resolve_java()
+    if not jar.found or not java.found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    const = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Constant.VATRate",
+            synonym="СтавкаНДС",
+            value_type_specs=["Number:5.2"],
+        ),
+    )
+    assert const.status == "ok", const.diagnostics
+    const_xml = target / "src" / "cf" / "Constants" / "VATRate.xml"
+    assert const_xml.is_file()
+    const_text = const_xml.read_text(encoding="utf-8-sig")
+    assert "xs:decimal" in const_text
+    assert "<v8:Digits>5</v8:Digits>" in const_text
+
+    defined = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="DefinedType.MoneyCode",
+            value_type_specs=["String:50"],
+        ),
+    )
+    assert defined.status == "ok", defined.diagnostics
+    defined_xml = target / "src" / "cf" / "DefinedTypes" / "MoneyCode.xml"
+    assert defined_xml.is_file()
+    defined_text = defined_xml.read_text(encoding="utf-8-sig")
+    assert "xs:string" in defined_text
+    assert "<v8:Length>50</v8:Length>" in defined_text
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<Constant>VATRate</Constant>" in cfg
+    assert "<DefinedType>MoneyCode</DefinedType>" in cfg
 
     from core.project import validate_project
 

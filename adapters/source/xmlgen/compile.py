@@ -35,11 +35,11 @@ def attr_ir_to_xmlgen_type(attr: dict[str, Any]) -> str:
     """Map one IR attribute dict to xml-gen type shorthand (String(10), CatalogRef.X, …)."""
     atype = str(attr.get("type", "String"))
     if atype == "String":
-        length = int(attr.get("length") or 10)
+        length = int(attr["length"]) if attr.get("length") is not None else 10
         return f"String({length})"
     if atype == "Number":
-        precision = int(attr.get("precision") or 15)
-        scale = int(attr.get("scale") or 2)
+        precision = int(attr["precision"]) if attr.get("precision") is not None else 15
+        scale = int(attr["scale"]) if attr.get("scale") is not None else 2
         return f"Number({precision},{scale})"
     if atype == "Boolean":
         return "Boolean"
@@ -90,6 +90,10 @@ def ir_to_xmlgen_dsl(ir: dict[str, Any]) -> dict[str, Any]:
         for key in _COMMON_MODULE_DSL_KEYS:
             if key in ir and ir[key] is not None:
                 dsl[key] = ir[key]
+        return dsl
+
+    if ir.get("type") in ("Constant", "DefinedType"):
+        _apply_value_type_dsl(dsl, ir)
         return dsl
 
     attrs_out = [
@@ -154,6 +158,47 @@ def ir_to_xmlgen_dsl(ir: dict[str, Any]) -> dict[str, Any]:
         dsl["tabularSections"] = ts_map
 
     return dsl
+
+
+def _value_type_to_shorthand(raw: Any) -> str | None:
+    """Map IR valueType object/string → xml-gen shorthand."""
+    if isinstance(raw, str) and raw.strip():
+        cleaned = raw.strip()
+        # Already xml-gen shorthand: String(10), Number(15,2), CatalogRef.X, …
+        if cleaned in ("Boolean", "Date"):
+            return cleaned
+        if cleaned.startswith("String(") or cleaned.startswith("Number("):
+            return cleaned
+        if "Ref." in cleaned:
+            return cleaned
+        if cleaned == "String":
+            return "String(10)"
+        if cleaned == "Number":
+            return "Number(15,2)"
+        # CLI-like Type[:Qual] (Number:5.2, String:50, Ref:Catalog.X)
+        from core.metadata.ir import parse_value_type_spec
+
+        return attr_ir_to_xmlgen_type(parse_value_type_spec(cleaned).to_dict())
+    if isinstance(raw, dict):
+        return attr_ir_to_xmlgen_type(raw)
+    return None
+
+
+def _apply_value_type_dsl(dsl: dict[str, Any], ir: dict[str, Any]) -> None:
+    """Attach valueType / valueTypes for Constant and DefinedType."""
+    if "valueTypes" in ir and ir["valueTypes"] is not None:
+        raw_list = ir["valueTypes"]
+        if isinstance(raw_list, list):
+            shorthands = [
+                s for s in (_value_type_to_shorthand(item) for item in raw_list) if s
+            ]
+            if shorthands:
+                dsl["valueTypes"] = shorthands
+                return
+    if "valueType" in ir and ir["valueType"] is not None:
+        shorthand = _value_type_to_shorthand(ir["valueType"])
+        if shorthand:
+            dsl["valueType"] = shorthand
 
 
 def _enum_values_to_xmlgen(raw: Any) -> list[dict[str, Any]]:

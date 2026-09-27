@@ -114,6 +114,31 @@ class EnumValue:
 _REGISTER_TYPES: frozenset[str] = frozenset(
     {"InformationRegister", "AccumulationRegister"}
 )
+_VALUE_TYPE_OBJECT_TYPES: frozenset[str] = frozenset({"Constant", "DefinedType"})
+
+
+@dataclass
+class ValueType:
+    """Тип значения Constant / DefinedType (IR без имени реквизита)."""
+
+    type: AttrType
+    length: int | None = None
+    precision: int | None = None
+    scale: int | None = None
+    reference: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        data: dict[str, Any] = {"type": self.type}
+        if self.type == "String" and self.length is not None:
+            data["length"] = self.length
+        if self.type == "Number":
+            if self.precision is not None:
+                data["precision"] = self.precision
+            if self.scale is not None:
+                data["scale"] = self.scale
+        if self.type == "Ref" and self.reference:
+            data["reference"] = self.reference
+        return data
 
 
 @dataclass
@@ -139,6 +164,9 @@ class CatalogObject:
     content: list[str] = field(default_factory=list)
     children: list[str] = field(default_factory=list)
     include_in_command_interface: bool | None = None
+    # Constant / DefinedType (ADR-018 / #63).
+    value_type: ValueType | None = None
+    value_types: list[ValueType] = field(default_factory=list)
 
     @property
     def qualified_name(self) -> str:
@@ -172,11 +200,22 @@ class CatalogObject:
             if self.include_in_command_interface is not None:
                 data["includeInCommandInterface"] = self.include_in_command_interface
             return data
+        if self.type == "Constant":
+            if self.value_type is not None:
+                data["valueType"] = self.value_type.to_dict()
+            elif self.value_types:
+                data["valueTypes"] = [v.to_dict() for v in self.value_types]
+            return data
+        if self.type == "DefinedType":
+            if self.value_types:
+                data["valueTypes"] = [v.to_dict() for v in self.value_types]
+            elif self.value_type is not None:
+                data["valueType"] = self.value_type.to_dict()
+            return data
         data["attributes"] = [a.to_dict() for a in self.attributes]
         if self.tabular_sections:
             data["tabularSections"] = [t.to_dict() for t in self.tabular_sections]
         return data
-
 
 @dataclass
 class MetadataSummary:
@@ -313,6 +352,22 @@ def parse_enum_value_spec(spec: str) -> EnumValue:
     return EnumValue(name=_check_name(name_part, what="значения перечисления"), synonym=synonym)
 
 
+def parse_value_type_spec(spec: str) -> ValueType:
+    """Parse CLI --value-type: Type[:Qual] (без имени реквизита)."""
+    raw = spec.strip()
+    if not raw:
+        raise IrError("Пустой --value-type")
+    # Reuse attribute parser with a placeholder name.
+    attr = parse_attr_spec(f"_:{raw}")
+    return ValueType(
+        type=attr.type,
+        length=attr.length,
+        precision=attr.precision,
+        scale=attr.scale,
+        reference=attr.reference,
+    )
+
+
 def catalog_from_parts(
     *,
     qualified_name: str,
@@ -335,8 +390,9 @@ def catalog_from_parts(
     content: list[str] | None = None,
     children: list[str] | None = None,
     include_in_command_interface: bool | None = None,
+    value_type_specs: list[str] | None = None,
 ) -> CatalogObject:
-    """Build create IR from CLI pieces (ADR-011 / #23 / #24 / #28 / #62)."""
+    """Build create IR from CLI pieces (ADR-011 / #23 / #24 / #28 / #62 / #63)."""
     obj_type, name = parse_qualified_name(qualified_name)
     if obj_type not in CREATE_OBJECT_TYPES:
         raise IrError(
@@ -365,6 +421,9 @@ def catalog_from_parts(
     )
     content_list = _subsystem_qnames_from_list(content, what="content")
     children_list = _subsystem_names_from_list(children, what="children")
+    value_type, value_types = _value_types_from_specs(
+        obj_type, list(value_type_specs or [])
+    )
     obj = CatalogObject(
         name=name,
         synonym=synonym,
@@ -377,11 +436,12 @@ def catalog_from_parts(
         content=content_list,
         children=children_list,
         include_in_command_interface=include_in_command_interface,
+        value_type=value_type,
+        value_types=value_types,
         **flags,
     )
     _validate_create_shape(obj)
     return obj
-
 
 def catalog_from_json(
     data: dict[str, Any],
@@ -434,6 +494,7 @@ def catalog_from_json(
         data.get("includeInCommandInterface"),
         field="includeInCommandInterface",
     )
+    value_type, value_types = _value_types_from_json(obj_type, data)
     obj = CatalogObject(
         name=name,
         synonym=synonym_s,
@@ -446,6 +507,8 @@ def catalog_from_json(
         content=content_list,
         children=children_list,
         include_in_command_interface=include_ci,
+        value_type=value_type,
+        value_types=value_types,
         **flags,
     )
     _validate_create_shape(obj)
@@ -549,6 +612,7 @@ def _validate_create_shape(obj: CatalogObject) -> None:
             )
         _reject_common_module_flags(obj, type_name="Enum")
         _reject_subsystem_fields(obj, type_name="Enum")
+        _reject_value_type_fields(obj, type_name="Enum")
         return
     if obj.type in _REGISTER_TYPES:
         if obj.attributes or obj.tabular_sections or obj.values:
@@ -558,6 +622,7 @@ def _validate_create_shape(obj: CatalogObject) -> None:
             )
         _reject_common_module_flags(obj, type_name=obj.type)
         _reject_subsystem_fields(obj, type_name=obj.type)
+        _reject_value_type_fields(obj, type_name=obj.type)
         return
     if obj.type == "CommonModule":
         if (
@@ -573,6 +638,7 @@ def _validate_create_shape(obj: CatalogObject) -> None:
                 code="1CM004",
             )
         _reject_subsystem_fields(obj, type_name="CommonModule")
+        _reject_value_type_fields(obj, type_name="CommonModule")
         if (
             obj.return_values_reuse is not None
             and obj.return_values_reuse not in _RETURN_VALUES_REUSE
@@ -596,6 +662,28 @@ def _validate_create_shape(obj: CatalogObject) -> None:
                 code="1CM004",
             )
         _reject_common_module_flags(obj, type_name="Subsystem")
+        _reject_value_type_fields(obj, type_name="Subsystem")
+        return
+    if obj.type in _VALUE_TYPE_OBJECT_TYPES:
+        if (
+            obj.attributes
+            or obj.tabular_sections
+            or obj.values
+            or obj.dimensions
+            or obj.resources
+        ):
+            raise IrError(
+                f"{obj.type} не поддерживает attributes / tabularSections / "
+                "values / dimensions / resources",
+                code="1CM004",
+            )
+        _reject_common_module_flags(obj, type_name=obj.type)
+        _reject_subsystem_fields(obj, type_name=obj.type)
+        if obj.type == "DefinedType" and obj.value_type is None and not obj.value_types:
+            raise IrError(
+                "DefinedType требует valueType или valueTypes",
+                code="1CM004",
+            )
         return
     # Catalog / Document
     if obj.values or obj.dimensions or obj.resources:
@@ -605,6 +693,7 @@ def _validate_create_shape(obj: CatalogObject) -> None:
         )
     _reject_common_module_flags(obj, type_name=obj.type)
     _reject_subsystem_fields(obj, type_name=obj.type)
+    _reject_value_type_fields(obj, type_name=obj.type)
 
 
 def _reject_common_module_flags(obj: CatalogObject, *, type_name: str) -> None:
@@ -630,6 +719,101 @@ def _reject_subsystem_fields(obj: CatalogObject, *, type_name: str) -> None:
             "(content / children / includeInCommandInterface)",
             code="1CM004",
         )
+
+
+def _reject_value_type_fields(obj: CatalogObject, *, type_name: str) -> None:
+    if obj.value_type is not None or obj.value_types:
+        raise IrError(
+            f"{type_name} не поддерживает valueType / valueTypes",
+            code="1CM004",
+        )
+
+
+def _value_types_from_specs(
+    obj_type: ObjectType,
+    specs: list[str],
+) -> tuple[ValueType | None, list[ValueType]]:
+    """Map CLI --value-type specs onto CatalogObject fields."""
+    if not specs:
+        return None, []
+    parsed = [parse_value_type_spec(s) for s in specs]
+    if obj_type == "Constant":
+        if len(parsed) == 1:
+            return parsed[0], []
+        return None, parsed
+    if obj_type == "DefinedType":
+        return None, parsed
+    raise IrError(
+        f"{obj_type} не поддерживает --value-type",
+        code="1CM004",
+    )
+
+
+def _value_types_from_json(
+    obj_type: ObjectType,
+    data: dict[str, Any],
+) -> tuple[ValueType | None, list[ValueType]]:
+    """Parse valueType / valueTypes from JSON IR."""
+    raw_single = data.get("valueType")
+    raw_multi = data.get("valueTypes")
+    if raw_single is None and raw_multi is None:
+        return None, []
+    if obj_type not in _VALUE_TYPE_OBJECT_TYPES:
+        raise IrError(
+            f"{obj_type} не поддерживает valueType / valueTypes",
+            code="1CM004",
+        )
+    single = _value_type_from_raw(raw_single) if raw_single is not None else None
+    multi: list[ValueType] = []
+    if raw_multi is not None:
+        if not isinstance(raw_multi, list):
+            raise IrError("valueTypes должен быть массивом", code="1CM004")
+        multi = [_value_type_from_raw(item) for item in raw_multi]
+    if obj_type == "Constant":
+        if single is not None and multi:
+            raise IrError(
+                "Constant: задайте либо valueType, либо valueTypes",
+                code="1CM004",
+            )
+        if single is not None:
+            return single, []
+        if len(multi) == 1:
+            return multi[0], []
+        return None, multi
+    # DefinedType: prefer valueTypes; single valueType → valueTypes[1]
+    if multi:
+        if single is not None:
+            raise IrError(
+                "DefinedType: задайте либо valueType, либо valueTypes",
+                code="1CM004",
+            )
+        return None, multi
+    if single is not None:
+        return None, [single]
+    return None, []
+
+
+def _value_type_from_raw(raw: Any) -> ValueType:
+    """Parse one value type from string shorthand or IR object."""
+    if isinstance(raw, str):
+        return parse_value_type_spec(raw)
+    if not isinstance(raw, dict):
+        raise IrError(
+            "valueType должен быть объектом или строкой Type[:Qual]",
+            code="1CM004",
+        )
+    # Reuse attribute dict parser with placeholder name.
+    item = dict(raw)
+    if "name" not in item:
+        item["name"] = "_"
+    attr = _attribute_from_dict(item)
+    return ValueType(
+        type=attr.type,
+        length=attr.length,
+        precision=attr.precision,
+        scale=attr.scale,
+        reference=attr.reference,
+    )
 
 
 def _subsystem_qnames_from_list(raw: Any, *, what: str) -> list[str]:

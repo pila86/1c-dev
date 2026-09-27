@@ -311,7 +311,7 @@ def update_command(
         help=(
             "Qualified name, например Catalog.Products, Enum.Statuses, "
             "InformationRegister.Prices, CommonModule.SalesServer, "
-            "Subsystem.Main."
+            "Subsystem.Main, Constant.VATRate, DefinedType.CounterpartyRef."
         ),
     ),
     op: list[str] | None = typer.Option(
@@ -474,7 +474,7 @@ def create_command(
         help=(
             "Qualified name, например Catalog.Products, Document.Sales, "
             "Enum.Statuses, InformationRegister.Prices, CommonModule.SalesServer, "
-            "Subsystem.Main."
+            "Subsystem.Main, Constant.VATRate, DefinedType.CounterpartyRef."
         ),
     ),
     synonym: str | None = typer.Option(
@@ -567,6 +567,14 @@ def create_command(
         "--include-in-command-interface/--no-include-in-command-interface",
         help="IncludeInCommandInterface (Subsystem).",
     ),
+    value_type: list[str] | None = typer.Option(
+        None,
+        "--value-type",
+        help=(
+            "Тип значения Type[:Qual] для Constant / DefinedType "
+            "(например Number:5.2, String:50); можно повторять."
+        ),
+    ),
     from_json: str | None = typer.Option(
         None,
         "--from-json",
@@ -605,6 +613,12 @@ def create_command(
                 existing_ch = list(data.get("children") or [])
                 existing_ch.extend(child)
                 data["children"] = existing_ch
+            if value_type:
+                existing_vt = list(data.get("valueTypes") or [])
+                if "valueType" in data and data["valueType"] is not None:
+                    existing_vt.insert(0, data.pop("valueType"))
+                existing_vt.extend(value_type)
+                data["valueTypes"] = existing_vt
             if (
                 include_in_command_interface is not None
                 and "includeInCommandInterface" not in data
@@ -665,6 +679,7 @@ def create_command(
                 content=list(content or []),
                 children=list(child or []),
                 include_in_command_interface=include_in_command_interface,
+                value_type_specs=list(value_type or []),
             )
     except IrError as exc:
         result = _ir_error_result(exc)

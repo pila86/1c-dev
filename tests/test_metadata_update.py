@@ -544,6 +544,43 @@ def test_update_subsystem_ops_mock(tmp_path: Path) -> None:
     ]
 
 
+def test_update_constant_modify_property_mock(tmp_path: Path) -> None:
+    target = _init_shop(tmp_path)
+    consts = target / "src" / "cf" / "Constants"
+    consts.mkdir(parents=True)
+    (consts / "VATRate.xml").write_text("<Constant/>", encoding="utf-8")
+    calls: list[EditOp] = []
+
+    def fake_edit(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "VATRate.xml"
+        calls.extend(operations)
+        return EditResult(changed_paths=["Constants/VATRate.xml"], modified=1)
+
+    def fake_get(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "Constant",
+                "name": "VATRate",
+                "synonym": "НоваяСтавка",
+                "valueType": {"type": "Number", "precision": 5, "scale": 2},
+            },
+        )
+
+    result = update_metadata(
+        target,
+        "Constant.VATRate",
+        [EditOp("modify-property", "Synonym=НоваяСтавка")],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert result.ir["synonym"] == "НоваяСтавка"
+    assert calls == [EditOp("modify-property", "Synonym=НоваяСтавка")]
+
+
 def test_update_enum_duplicate_warning(tmp_path: Path) -> None:
     target = _init_shop(tmp_path)
     enums = target / "src" / "cf" / "Enums"

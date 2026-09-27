@@ -214,10 +214,11 @@ def register_tools(server: FastMCP) -> None:
             "Create a new metadata object in XML source (does not modify existing "
             "objects — use metadata.update for that). "
             "Types: Catalog, Document, Enum, InformationRegister, "
-            "AccumulationRegister, CommonModule, Subsystem (plus other Meta DSL "
-            "types from the write allowlist). Pass qualified_name "
+            "AccumulationRegister, CommonModule, Subsystem, Constant, "
+            "DefinedType (plus other Meta DSL types from the write allowlist). "
+            "Pass qualified_name "
             "(e.g. Catalog.Products, Enum.Statuses, CommonModule.SalesServer, "
-            "Subsystem.Main); "
+            "Subsystem.Main, Constant.VATRate, DefinedType.CounterpartyRef); "
             "optional synonym; "
             "for Catalog/Document: attributes and tabular_sections; "
             "for Enum: values [{name, synonym?}]; "
@@ -228,7 +229,10 @@ def register_tools(server: FastMCP) -> None:
             "return_values_reuse (DontUse|DuringRequest|DuringSession). "
             "BSL body is not written (empty Module.bsl). "
             "for Subsystem: optional content [Type.Name], children [Name], "
-            "include_in_command_interface."
+            "include_in_command_interface; "
+            "for Constant: optional value_type {type, length?/precision?/…}; "
+            "for DefinedType: value_type or value_types "
+            "[{type, …}, …] (required)."
             + _NO_SHELL
         ),
     )
@@ -251,6 +255,8 @@ def register_tools(server: FastMCP) -> None:
         content: list[str] | None = None,
         children: list[str] | None = None,
         include_in_command_interface: bool | None = None,
+        value_type: dict[str, Any] | str | None = None,
+        value_types: list[dict[str, Any] | str] | None = None,
         path: str | None = None,
     ) -> dict[str, Any]:
         try:
@@ -289,6 +295,10 @@ def register_tools(server: FastMCP) -> None:
                 data["children"] = list(children)
             if include_in_command_interface is not None:
                 data["includeInCommandInterface"] = include_in_command_interface
+            if value_type is not None:
+                data["valueType"] = value_type
+            if value_types:
+                data["valueTypes"] = list(value_types)
             # type/name come from qualified_name (validated inside catalog_from_json)
             catalog = catalog_from_json(data, qualified_name=qualified_name)
             if synonym and not catalog.synonym:

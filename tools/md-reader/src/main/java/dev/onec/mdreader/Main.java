@@ -6,6 +6,8 @@ import com.github._1c_syntax.bsl.mdo.AccumulationRegister;
 import com.github._1c_syntax.bsl.mdo.Attribute;
 import com.github._1c_syntax.bsl.mdo.Catalog;
 import com.github._1c_syntax.bsl.mdo.CommonModule;
+import com.github._1c_syntax.bsl.mdo.Constant;
+import com.github._1c_syntax.bsl.mdo.DefinedType;
 import com.github._1c_syntax.bsl.mdo.Document;
 import com.github._1c_syntax.bsl.mdo.Enum;
 import com.github._1c_syntax.bsl.mdo.InformationRegister;
@@ -54,7 +56,9 @@ public final class Main {
       "InformationRegister",
       "AccumulationRegister",
       "CommonModule",
-      "Subsystem"
+      "Subsystem",
+      "Constant",
+      "DefinedType"
   );
 
   private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
@@ -267,6 +271,10 @@ public final class Main {
       }
       obj.add("children", children);
       obj.addProperty("includeInCommandInterface", subsystem.isIncludeInCommandInterface());
+    } else if (md instanceof Constant constant) {
+      obj.add("valueType", valueTypeToJson(constant.getValueType()));
+    } else if (md instanceof DefinedType definedType) {
+      obj.add("valueTypes", valueTypesArray(definedType.getValueType()));
     }
     return obj;
   }
@@ -351,20 +359,81 @@ public final class Main {
     return obj;
   }
 
+  private static JsonObject valueTypeToJson(ValueTypeDescription description) {
+    JsonObject obj = new JsonObject();
+    Map<String, Object> mapped = mapValueType(description);
+    for (Map.Entry<String, Object> entry : mapped.entrySet()) {
+      Object val = entry.getValue();
+      if (val instanceof Number number) {
+        obj.addProperty(entry.getKey(), number);
+      } else if (val instanceof Boolean bool) {
+        obj.addProperty(entry.getKey(), bool);
+      } else if (val != null) {
+        obj.addProperty(entry.getKey(), String.valueOf(val));
+      }
+    }
+    return obj;
+  }
+
+  /**
+   * Map all composite value types for DefinedType (not just chooseType preference).
+   */
+  private static JsonArray valueTypesArray(ValueTypeDescription description) {
+    JsonArray arr = new JsonArray();
+    if (description == null || description.isEmpty()) {
+      arr.add(valueTypeToJson(description));
+      return arr;
+    }
+    List<ValueType> types = description.getTypes();
+    if (types == null || types.isEmpty()) {
+      arr.add(valueTypeToJson(description));
+      return arr;
+    }
+    if (types.size() == 1 || !description.isComposite()) {
+      arr.add(valueTypeToJson(description));
+      return arr;
+    }
+    for (ValueType type : types) {
+      arr.add(singleValueTypeToJson(description, type));
+    }
+    return arr;
+  }
+
+  private static JsonObject singleValueTypeToJson(
+      ValueTypeDescription description, ValueType chosen) {
+    JsonObject obj = new JsonObject();
+    Map<String, Object> mapped = mapChosenValueType(description, chosen);
+    for (Map.Entry<String, Object> entry : mapped.entrySet()) {
+      Object val = entry.getValue();
+      if (val instanceof Number number) {
+        obj.addProperty(entry.getKey(), number);
+      } else if (val instanceof Boolean bool) {
+        obj.addProperty(entry.getKey(), bool);
+      } else if (val != null) {
+        obj.addProperty(entry.getKey(), String.valueOf(val));
+      }
+    }
+    return obj;
+  }
+
   /**
    * Map MDClasses ValueTypeDescription → IR v1 attribute type fields.
    * Composite: prefer Ref, else first primitive.
    */
   private static Map<String, Object> mapValueType(ValueTypeDescription description) {
-    Map<String, Object> result = new LinkedHashMap<>();
     if (description == null || description.isEmpty()) {
+      Map<String, Object> result = new LinkedHashMap<>();
       result.put("type", "String");
       result.put("length", 10);
       return result;
     }
+    ValueType chosen = chooseType(description.getTypes());
+    return mapChosenValueType(description, chosen);
+  }
 
-    List<ValueType> types = description.getTypes();
-    ValueType chosen = chooseType(types);
+  private static Map<String, Object> mapChosenValueType(
+      ValueTypeDescription description, ValueType chosen) {
+    Map<String, Object> result = new LinkedHashMap<>();
     if (chosen == null) {
       result.put("type", "String");
       result.put("length", 10);

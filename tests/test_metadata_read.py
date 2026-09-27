@@ -398,6 +398,160 @@ def test_subsystem_get_full_ir_roundtrip(
     assert "<Subsystem>Main</Subsystem>" not in cfg
 
 
+def test_get_constant_and_defined_type_full_ir_mock(tmp_path: Path) -> None:
+    """Smoke: md-reader full IR for Constant / DefinedType (#63)."""
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    def fake_read_const(
+        command: str, source_dir: Path, args: tuple[str, ...]
+    ) -> dict[str, Any]:
+        assert command == "get"
+        assert args == ("Constant.VATRate",)
+        return {
+            "status": "ok",
+            "object": {
+                "type": "Constant",
+                "name": "VATRate",
+                "qname": "Constant.VATRate",
+                "synonym": "СтавкаНДС",
+                "valueType": {"type": "Number", "precision": 5, "scale": 2},
+            },
+        }
+
+    result = get_metadata(target, "Constant.VATRate", read_fn=fake_read_const)
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert result.ir["valueType"]["type"] == "Number"
+    assert result.ir["valueType"]["precision"] == 5
+
+    def fake_read_defined(
+        command: str, source_dir: Path, args: tuple[str, ...]
+    ) -> dict[str, Any]:
+        assert args == ("DefinedType.MoneyCode",)
+        return {
+            "status": "ok",
+            "object": {
+                "type": "DefinedType",
+                "name": "MoneyCode",
+                "qname": "DefinedType.MoneyCode",
+                "valueTypes": [
+                    {"type": "String", "length": 50},
+                    {"type": "Number", "precision": 10, "scale": 0},
+                ],
+            },
+        }
+
+    result2 = get_metadata(target, "DefinedType.MoneyCode", read_fn=fake_read_defined)
+    assert result2.status == "ok"
+    assert result2.ir is not None
+    assert len(result2.ir["valueTypes"]) == 2
+
+
+@pytest.mark.integration
+def test_constant_defined_type_get_update_delete_roundtrip(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """create → get full IR → update synonym → get → delete (#63)."""
+    from adapters.source.xmlgen import EditOp
+    from adapters.source.xmlgen.resolve import resolve_jar as resolve_xmlgen
+    from adapters.source.xmlgen.resolve import resolve_java as resolve_java_xml
+    from core.metadata import (
+        catalog_from_parts,
+        create_metadata,
+        delete_metadata,
+        update_metadata,
+    )
+
+    local_jar = _local_md_reader_jar()
+    if local_jar is not None:
+        monkeypatch.setenv("ONEC_MDREADER_JAR", str(local_jar))
+
+    java = resolve_java()
+    jar = resolve_jar()
+    if not java.found or not jar.found:
+        pytest.skip(
+            "md-reader jar / Java 21+ недоступны (запустите scripts/fetch-md-reader.sh)"
+        )
+    xmlgen = resolve_xmlgen()
+    if not xmlgen.found or not resolve_java_xml().found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    created = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Constant.VATRate",
+            synonym="СтавкаНДС",
+            value_type_specs=["Number:5.2"],
+        ),
+    )
+    assert created.status == "ok", created.diagnostics
+
+    got = get_metadata(target, "Constant.VATRate")
+    assert got.status == "ok", got.diagnostics
+    assert got.ir is not None
+    assert got.ir["type"] == "Constant"
+    assert got.ir["name"] == "VATRate"
+    assert got.ir["valueType"]["type"] == "Number"
+    assert got.ir["valueType"]["precision"] == 5
+    assert got.ir["valueType"]["scale"] == 2
+
+    updated = update_metadata(
+        target,
+        "Constant.VATRate",
+        [EditOp("modify-property", "Synonym=НоваяСтавка")],
+    )
+    assert updated.status == "ok", updated.diagnostics
+
+    got2 = get_metadata(target, "Constant.VATRate")
+    assert got2.status == "ok", got2.diagnostics
+    assert got2.ir is not None
+    assert got2.ir.get("synonym") == "НоваяСтавка"
+
+    defined = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="DefinedType.MoneyCode",
+            synonym="КодДенег",
+            value_type_specs=["String:50"],
+        ),
+    )
+    assert defined.status == "ok", defined.diagnostics
+
+    got_d = get_metadata(target, "DefinedType.MoneyCode")
+    assert got_d.status == "ok", got_d.diagnostics
+    assert got_d.ir is not None
+    assert got_d.ir["type"] == "DefinedType"
+    types = got_d.ir.get("valueTypes") or [got_d.ir.get("valueType")]
+    assert types[0]["type"] == "String"
+    assert types[0]["length"] == 50
+
+    updated_d = update_metadata(
+        target,
+        "DefinedType.MoneyCode",
+        [EditOp("modify-property", "Synonym=КодСуммы")],
+    )
+    assert updated_d.status == "ok", updated_d.diagnostics
+
+    deleted_c = delete_metadata(target, "Constant.VATRate")
+    assert deleted_c.status == "ok", deleted_c.diagnostics
+    assert not (target / "src" / "cf" / "Constants" / "VATRate.xml").is_file()
+
+    deleted_d = delete_metadata(target, "DefinedType.MoneyCode")
+    assert deleted_d.status == "ok", deleted_d.diagnostics
+    assert not (target / "src" / "cf" / "DefinedTypes" / "MoneyCode.xml").is_file()
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<Constant>VATRate</Constant>" not in cfg
+    assert "<DefinedType>MoneyCode</DefinedType>" not in cfg
+
+
 @pytest.mark.integration
 def test_read_with_real_md_reader(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     java = resolve_java()
