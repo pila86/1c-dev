@@ -20,6 +20,7 @@ from core.runtime import (
     CODE_CLIENT_FAILED,
     CODE_IB_MISSING,
     CODE_ONECV8_MISSING,
+    CODE_ONECV8C_MISSING,
     CODE_PROJECT,
     run_start,
     run_status,
@@ -30,11 +31,16 @@ from core.runtime.state import clear_state, read_meta, read_pid, write_state
 runner = CliRunner()
 
 
-def _fake_discovery(*, onecv8: Path | None) -> DiscoveryResult:
+def _fake_discovery(
+    *,
+    onecv8: Path | None,
+    onecv8c: Path | None = None,
+) -> DiscoveryResult:
     return DiscoveryResult(
         platform=PlatformInfo(found=True, version="8.3.25.1560", path=Path("/opt/1cv8")),
         ibcmd=ToolInfo(found=True, path=Path("/fake/ibcmd")),
         onecv8=ToolInfo(found=onecv8 is not None, path=onecv8),
+        onecv8c=ToolInfo(found=onecv8c is not None, path=onecv8c),
     )
 
 
@@ -122,9 +128,11 @@ def test_run_start_stop_status_happy(tmp_path: Path) -> None:
     assert result.pid == 4242
     assert result.debug_enabled is True
     assert result.mode == "enterprise"
+    assert result.client == "thick"
     assert "/Debug" in spawned[0]
     assert read_pid(target) == 4242
     assert read_meta(target)["debug"]["enabled"] is True
+    assert read_meta(target)["client"] == "thick"
 
     again = run_start(
         target,
@@ -141,6 +149,7 @@ def test_run_start_stop_status_happy(tmp_path: Path) -> None:
     status = run_status(target, is_alive=lambda pid: alive.get(pid, False))
     assert status.running is True
     assert status.debug_enabled is True
+    assert status.client == "thick"
 
     stop = run_stop(
         target,
@@ -169,6 +178,84 @@ def test_run_start_immediate_exit(tmp_path: Path) -> None:
     assert any(d.get("code") == CODE_CLIENT_FAILED for d in result.diagnostics)
 
 
+def test_run_start_thin_happy(tmp_path: Path) -> None:
+    target = _init_with_ib(tmp_path)
+    alive: dict[int, bool] = {}
+    spawned: list[list[str]] = []
+
+    def spawn(argv: list[str]) -> int:
+        spawned.append(list(argv))
+        alive[5555] = True
+        return 5555
+
+    result = run_start(
+        target,
+        client="thin",
+        discover=lambda: _fake_discovery(
+            onecv8=Path("/fake/1cv8"),
+            onecv8c=Path("/fake/1cv8c"),
+        ),
+        spawn=spawn,
+        is_alive=lambda pid: alive.get(pid, False),
+        settle_seconds=0,
+    )
+    assert result.status == "ok"
+    assert result.client == "thin"
+    assert result.pid == 5555
+    assert spawned[0][0] == "/fake/1cv8c"
+    assert read_meta(target)["client"] == "thin"
+
+    again = run_start(
+        target,
+        client="thin",
+        discover=lambda: _fake_discovery(
+            onecv8=Path("/fake/1cv8"),
+            onecv8c=Path("/fake/1cv8c"),
+        ),
+        spawn=spawn,
+        is_alive=lambda pid: alive.get(pid, False),
+        settle_seconds=0,
+    )
+    assert again.status == "ok"
+    assert again.pid == 5555
+    assert len(spawned) == 1
+
+
+def test_run_start_missing_onecv8c(tmp_path: Path) -> None:
+    target = _init_with_ib(tmp_path)
+    result = run_start(
+        target,
+        client="thin",
+        discover=lambda: _fake_discovery(onecv8=Path("/fake/1cv8"), onecv8c=None),
+        settle_seconds=0,
+    )
+    assert result.status == "failed"
+    assert any(d.get("code") == CODE_ONECV8C_MISSING for d in result.diagnostics)
+
+
+def test_run_start_client_mismatch(tmp_path: Path) -> None:
+    target = _init_with_ib(tmp_path)
+    alive = {4242: True}
+    write_state(target, pid=4242, debug=False, client="thick")
+
+    result = run_start(
+        target,
+        client="thin",
+        discover=lambda: _fake_discovery(
+            onecv8=Path("/fake/1cv8"),
+            onecv8c=Path("/fake/1cv8c"),
+        ),
+        spawn=lambda _argv: 9999,
+        is_alive=lambda pid: alive.get(pid, False),
+        settle_seconds=0,
+    )
+    assert result.status == "failed"
+    assert result.running is True
+    assert result.client == "thick"
+    assert any(d.get("code") == CODE_CLIENT_FAILED for d in result.diagnostics)
+    assert any("stop" in (d.get("suggestion") or "") for d in result.diagnostics)
+
+
 def test_stale_pid_cleared_on_status(tmp_path: Path) -> None:
     target = _init_with_ib(tmp_path)
     write_state(target, pid=777, debug=True)
@@ -191,15 +278,20 @@ def test_cli_runtime_start_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
             running=True,
             pid=111,
             mode="enterprise",
+            client="thin",
             debug_enabled=True,
         )
 
     monkeypatch.setattr("cli.runtime.run_start", fake_start)
-    result = runner.invoke(app, ["runtime", "start", "--debug", "--output", "json"])
+    result = runner.invoke(
+        app,
+        ["runtime", "start", "--client", "thin", "--debug", "--output", "json"],
+    )
     assert result.exit_code == SUCCESS, result.output
     payload = json.loads(result.stdout)
     assert payload["running"] is True
     assert payload["pid"] == 111
+    assert payload["client"] == "thin"
     assert payload["debug"]["enabled"] is True
 
 
@@ -229,6 +321,17 @@ def test_cli_exit_onecv8_unavailable(tmp_path: Path, monkeypatch: pytest.MonkeyP
         lambda: _fake_discovery(onecv8=None),
     )
     result = runner.invoke(app, ["runtime", "start", "--output", "json"])
+    assert result.exit_code == ENV_UNAVAILABLE
+
+
+def test_cli_exit_onecv8c_unavailable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    target = _init_with_ib(tmp_path)
+    monkeypatch.chdir(target)
+    monkeypatch.setattr(
+        "core.runtime.run.discover_environment",
+        lambda: _fake_discovery(onecv8=Path("/fake/1cv8"), onecv8c=None),
+    )
+    result = runner.invoke(app, ["runtime", "start", "--client", "thin", "--output", "json"])
     assert result.exit_code == ENV_UNAVAILABLE
 
 

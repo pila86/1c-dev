@@ -23,6 +23,7 @@ class RuntimeResult:
     running: bool = False
     pid: int | None = None
     mode: str | None = None
+    client: str | None = None
     debug_enabled: bool = False
 
     def to_payload(self) -> dict[str, Any]:
@@ -41,6 +42,8 @@ class RuntimeResult:
             payload["pid"] = self.pid
         if self.mode is not None:
             payload["mode"] = self.mode
+        if self.client is not None:
+            payload["client"] = self.client
         if self.diagnostics:
             payload["diagnostics"] = list(self.diagnostics)
         return payload

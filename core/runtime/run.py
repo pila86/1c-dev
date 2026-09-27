@@ -6,7 +6,7 @@ import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from adapters.platform import DiscoveryResult, discover_environment
 from adapters.platform_1cv8 import (
@@ -17,7 +17,11 @@ from adapters.platform_1cv8 import (
     start_enterprise_client,
     stop_client,
 )
-from adapters.platform_1cv8.constants import MODE_ENTERPRISE
+from adapters.platform_1cv8.constants import (
+    CLIENT_THICK,
+    CLIENT_THIN,
+    MODE_ENTERPRISE,
+)
 from adapters.platform_ibcmd import infobase_exists
 from core.diagnostics import error
 from core.project.detect import detect_manifest
@@ -26,10 +30,13 @@ from core.runtime.constants import (
     CODE_CLIENT_FAILED,
     CODE_IB_MISSING,
     CODE_ONECV8_MISSING,
+    CODE_ONECV8C_MISSING,
     CODE_PROJECT,
 )
 from core.runtime.result import RuntimeResult
 from core.runtime.state import clear_state, read_meta, read_pid, write_state
+
+ClientKind = Literal["thick", "thin"]
 
 
 def _gui_suggestion() -> str:
@@ -39,6 +46,13 @@ def _gui_suggestion() -> str:
         "Нужен графический дисплей (DISPLAY). "
         "На headless-хосте запустите клиент в сессии с GUI."
     )
+
+
+def _normalize_client(client: str) -> ClientKind:
+    value = client.strip().lower()
+    if value == CLIENT_THIN:
+        return "thin"
+    return "thick"
 
 
 def _resolve_project(
@@ -99,21 +113,22 @@ def _alive_snapshot(
     root: Path,
     *,
     is_alive: IsRunningFn,
-) -> tuple[bool, int | None, str, bool]:
-    """Return (running, pid, mode, debug_enabled); clear stale state."""
+) -> tuple[bool, int | None, str, str, bool]:
+    """Return (running, pid, mode, client, debug_enabled); clear stale state."""
     pid = read_pid(root)
     meta = read_meta(root)
     mode = str(meta.get("mode") or MODE_ENTERPRISE)
+    client = str(meta.get("client") or CLIENT_THICK)
     debug_raw = meta.get("debug")
     debug_enabled = bool(
         debug_raw.get("enabled") if isinstance(debug_raw, dict) else False
     )
     if pid is None:
-        return False, None, mode, debug_enabled
+        return False, None, mode, client, debug_enabled
     if is_alive(pid):
-        return True, pid, mode, debug_enabled
+        return True, pid, mode, client, debug_enabled
     clear_state(root)
-    return False, None, MODE_ENTERPRISE, False
+    return False, None, MODE_ENTERPRISE, CLIENT_THICK, False
 
 
 def run_status(
@@ -130,7 +145,7 @@ def run_status(
     if err is not None:
         return err
 
-    running, pid, mode, debug_enabled = _alive_snapshot(root, is_alive=alive)
+    running, pid, mode, client, debug_enabled = _alive_snapshot(root, is_alive=alive)
     return RuntimeResult(
         status="ok",
         duration=time.perf_counter() - started,
@@ -139,6 +154,7 @@ def run_status(
         running=running,
         pid=pid,
         mode=mode if running else None,
+        client=client if running else None,
         debug_enabled=debug_enabled if running else False,
     )
 
@@ -158,7 +174,7 @@ def run_stop(
     if err is not None:
         return err
 
-    running, pid, mode, debug_enabled = _alive_snapshot(root, is_alive=alive)
+    running, pid, mode, client, debug_enabled = _alive_snapshot(root, is_alive=alive)
     if not running or pid is None:
         clear_state(root)
         return RuntimeResult(
@@ -169,6 +185,7 @@ def run_stop(
             running=False,
             pid=None,
             mode=None,
+            client=None,
             debug_enabled=False,
         )
 
@@ -183,10 +200,11 @@ def run_stop(
             running=True,
             pid=pid,
             mode=mode,
+            client=client,
             debug_enabled=debug_enabled,
             diagnostics=[
                 error(
-                    f"Не удалось остановить процесс 1cv8 (pid={pid})",
+                    f"Не удалось остановить процесс клиента 1С (pid={pid})",
                     code=CODE_CLIENT_FAILED,
                     source="runtime",
                 )
@@ -201,6 +219,7 @@ def run_stop(
         running=False,
         pid=None,
         mode=None,
+        client=None,
         debug_enabled=False,
     )
 
@@ -208,32 +227,60 @@ def run_stop(
 def run_start(
     start: Path | None = None,
     *,
+    client: str = CLIENT_THICK,
     debug: bool = False,
     discover: Callable[[], DiscoveryResult] | None = None,
     spawn: SpawnFn | None = None,
     is_alive: IsRunningFn | None = None,
     settle_seconds: float = 0.3,
 ) -> RuntimeResult:
-    """Detach-start ENTERPRISE client against the project file IB."""
+    """Detach-start ENTERPRISE client (thick or thin) against the project file IB."""
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
     alive = is_alive or is_running
+    client_kind = _normalize_client(client)
 
     root, db_path, err = _resolve_project(start_path, started=started)
     if err is not None:
         return err
 
-    running, pid, mode, debug_enabled = _alive_snapshot(root, is_alive=alive)
+    running, pid, mode, running_client, debug_enabled = _alive_snapshot(
+        root, is_alive=alive
+    )
     if running and pid is not None:
+        if running_client == client_kind:
+            return RuntimeResult(
+                status="ok",
+                duration=time.perf_counter() - started,
+                root=root,
+                runtime_path=db_path,
+                running=True,
+                pid=pid,
+                mode=mode,
+                client=running_client,
+                debug_enabled=debug_enabled,
+            )
         return RuntimeResult(
-            status="ok",
+            status="failed",
             duration=time.perf_counter() - started,
             root=root,
             runtime_path=db_path,
             running=True,
             pid=pid,
             mode=mode,
+            client=running_client,
             debug_enabled=debug_enabled,
+            diagnostics=[
+                error(
+                    (
+                        f"Уже запущен клиент client={running_client} (pid={pid}); "
+                        f"запрошен client={client_kind}"
+                    ),
+                    code=CODE_CLIENT_FAILED,
+                    source="runtime",
+                    suggestion="Выполните 1c-dev runtime stop и повторите start",
+                )
+            ],
         )
 
     if not infobase_exists(db_path):
@@ -253,8 +300,24 @@ def run_start(
         )
 
     discovery = (discover or discover_environment)()
-    onecv8 = discovery.onecv8
-    if not onecv8.found or onecv8.path is None:
+    if client_kind == CLIENT_THIN:
+        tool = discovery.onecv8c
+        missing_code = CODE_ONECV8C_MISSING
+        missing_name = "1cv8c"
+        missing_suggestion = (
+            "Установите платформу 1С с тонким клиентом и добавьте 1cv8c в PATH "
+            "(обычно рядом с 1cv8 в каталоге установки)."
+        )
+    else:
+        tool = discovery.onecv8
+        missing_code = CODE_ONECV8_MISSING
+        missing_name = "1cv8"
+        missing_suggestion = (
+            "Установите платформу 1С и добавьте 1cv8 в PATH "
+            "(или в стандартный каталог установки)."
+        )
+
+    if not tool.found or tool.path is None:
         return RuntimeResult(
             status="failed",
             duration=time.perf_counter() - started,
@@ -262,20 +325,17 @@ def run_start(
             runtime_path=db_path,
             diagnostics=[
                 error(
-                    "1cv8 не найден",
-                    code=CODE_ONECV8_MISSING,
+                    f"{missing_name} не найден",
+                    code=missing_code,
                     source="platform",
-                    suggestion=(
-                        "Установите платформу 1С и добавьте 1cv8 в PATH "
-                        "(или в стандартный каталог установки)."
-                    ),
+                    suggestion=missing_suggestion,
                 )
             ],
         )
 
     try:
         new_pid, _argv = start_enterprise_client(
-            onecv8.path,
+            tool.path,
             ib_path=db_path,
             debug=debug,
             spawn=spawn,
@@ -307,7 +367,7 @@ def run_start(
             runtime_path=db_path,
             diagnostics=[
                 error(
-                    f"Не удалось запустить 1cv8: {exc}",
+                    f"Не удалось запустить {missing_name}: {exc}",
                     code=CODE_CLIENT_FAILED,
                     source="runtime",
                     suggestion=_gui_suggestion(),
@@ -315,7 +375,13 @@ def run_start(
             ],
         )
 
-    write_state(root, pid=new_pid, debug=debug, mode=MODE_ENTERPRISE)
+    write_state(
+        root,
+        pid=new_pid,
+        debug=debug,
+        mode=MODE_ENTERPRISE,
+        client=client_kind,
+    )
     return RuntimeResult(
         status="ok",
         duration=time.perf_counter() - started,
@@ -324,5 +390,6 @@ def run_start(
         running=True,
         pid=new_pid,
         mode=MODE_ENTERPRISE,
+        client=client_kind,
         debug_enabled=debug,
     )

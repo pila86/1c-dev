@@ -52,8 +52,21 @@ def test_discover_from_search_roots(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert result.platform.version == "8.3.27.1549"
     assert result.ibcmd.found is True
     assert result.onecv8.found is True
+    assert result.onecv8c.found is False
     assert result.ibcmd.path is not None
     assert result.ibcmd.path.name == "ibcmd"
+
+
+def test_discover_onecv8c_sibling(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_path(monkeypatch)
+    _make_install(tmp_path, "8.3.27.1549", tools=("ibcmd", "1cv8", "1cv8c"))
+    result = discover_environment(search_roots=[tmp_path])
+    assert result.onecv8.found is True
+    assert result.onecv8c.found is True
+    assert result.onecv8c.path is not None
+    assert result.onecv8c.path.name == "1cv8c"
+    assert result.onecv8.path is not None
+    assert result.onecv8c.path.parent == result.onecv8.path.parent
 
 
 def test_discover_picks_newest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -79,6 +92,7 @@ def test_discover_empty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert result.platform.found is False
     assert result.ibcmd.found is False
     assert result.onecv8.found is False
+    assert result.onecv8c.found is False
 
 
 def test_discover_via_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

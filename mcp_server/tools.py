@@ -371,16 +371,18 @@ def register_tools(server: FastMCP) -> None:
     @server.tool(
         name="runtime.start",
         description=(
-            "Detach-start the thick 1C client (ENTERPRISE) against the project file IB. "
+            "Detach-start the 1C ENTERPRISE client against the project file IB. "
+            "client=thick uses 1cv8; client=thin uses 1cv8c (default thick). "
             "Requires a prior build or runtime load. "
             "Set debug=true to pass /Debug (DAP attach is M6)." + _NO_SHELL
         ),
     )
     def runtime_start_tool(
         path: str | None = None,
+        client: str = "thick",
         debug: bool = False,
     ) -> dict[str, Any]:
-        result = run_start(resolve_path(path), debug=debug)
+        result = run_start(resolve_path(path), client=client, debug=debug)
         return result.to_payload()
 
     @server.tool(
@@ -398,7 +400,7 @@ def register_tools(server: FastMCP) -> None:
         name="runtime.status",
         description=(
             "Report whether the detached ENTERPRISE client is running "
-            "(pid, mode, debug.enabled)." + _NO_SHELL
+            "(pid, mode, client, debug.enabled)." + _NO_SHELL
         ),
     )
     def runtime_status_tool(path: str | None = None) -> dict[str, Any]:

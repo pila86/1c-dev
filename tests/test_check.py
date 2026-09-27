@@ -34,6 +34,7 @@ def _fake_discovery(*, ibcmd: Path | None) -> DiscoveryResult:
         platform=PlatformInfo(found=True, version="8.3.25.1560", path=Path("/opt/1cv8")),
         ibcmd=ToolInfo(found=ibcmd is not None, path=ibcmd),
         onecv8=ToolInfo(found=False, path=None),
+        onecv8c=ToolInfo(found=False, path=None),
     )
 
 

@@ -9,6 +9,7 @@ from typing import Any
 from adapters.platform_1cv8.constants import (
     CLIENT_META_REL,
     CLIENT_PID_REL,
+    CLIENT_THICK,
     MODE_ENTERPRISE,
 )
 
@@ -32,21 +33,34 @@ def read_pid(root: Path) -> int | None:
         return None
 
 
+def _default_meta() -> dict[str, Any]:
+    return {
+        "mode": MODE_ENTERPRISE,
+        "client": CLIENT_THICK,
+        "debug": {"enabled": False},
+    }
+
+
 def read_meta(root: Path) -> dict[str, Any]:
     path = meta_path(root)
     if not path.is_file():
-        return {"mode": MODE_ENTERPRISE, "debug": {"enabled": False}}
+        return _default_meta()
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return {"mode": MODE_ENTERPRISE, "debug": {"enabled": False}}
+        return _default_meta()
     if not isinstance(data, dict):
-        return {"mode": MODE_ENTERPRISE, "debug": {"enabled": False}}
+        return _default_meta()
     mode = data.get("mode") or MODE_ENTERPRISE
+    client = data.get("client") or CLIENT_THICK
     debug_raw = data.get("debug")
     debug: dict[str, Any] = debug_raw if isinstance(debug_raw, dict) else {}
     enabled = bool(debug.get("enabled", False))
-    return {"mode": str(mode), "debug": {"enabled": enabled}}
+    return {
+        "mode": str(mode),
+        "client": str(client),
+        "debug": {"enabled": enabled},
+    }
 
 
 def write_state(
@@ -55,12 +69,13 @@ def write_state(
     pid: int,
     debug: bool,
     mode: str = MODE_ENTERPRISE,
+    client: str = CLIENT_THICK,
 ) -> None:
     pid_file = pid_path(root)
     meta_file = meta_path(root)
     pid_file.parent.mkdir(parents=True, exist_ok=True)
     pid_file.write_text(f"{pid}\n", encoding="utf-8")
-    meta = {"mode": mode, "debug": {"enabled": debug}}
+    meta = {"mode": mode, "client": client, "debug": {"enabled": debug}}
     meta_file.write_text(
         json.dumps(meta, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",

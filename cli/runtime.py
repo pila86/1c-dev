@@ -27,6 +27,7 @@ from core.runtime import (
     CODE_CLIENT_FAILED,
     CODE_IB_MISSING,
     CODE_ONECV8_MISSING,
+    CODE_ONECV8C_MISSING,
     RuntimeResult,
     run_start,
     run_status,
@@ -69,7 +70,7 @@ def _exit_for_client(result: RuntimeResult) -> None:
     if result.status == "ok":
         raise typer.Exit(code=SUCCESS)
     codes = {d.get("code") for d in result.diagnostics}
-    if CODE_ONECV8_MISSING in codes:
+    if codes & {CODE_ONECV8_MISSING, CODE_ONECV8C_MISSING}:
         raise typer.Exit(code=ENV_UNAVAILABLE)
     if codes & {CODE_RUNTIME_PROJECT, CODE_IB_MISSING}:
         raise typer.Exit(code=PROJECT_ERROR)
@@ -123,6 +124,8 @@ def _client_text(result: RuntimeResult) -> list[str]:
         lines.append(f"pid: {result.pid}")
     if result.mode is not None:
         lines.append(f"mode: {result.mode}")
+    if result.client is not None:
+        lines.append(f"client: {result.client}")
     lines.append(f"debug: {str(result.debug_enabled).lower()}")
     if result.runtime_path is not None and result.root is not None:
         try:
@@ -158,6 +161,12 @@ def runtime_load(
 @app.command("start")
 def runtime_start(
     ctx: typer.Context,
+    client: str = typer.Option(
+        "thick",
+        "--client",
+        help="Тип клиента: thick (1cv8) или thin (1cv8c).",
+        case_sensitive=False,
+    ),
     debug: bool = typer.Option(
         False,
         "--debug",
@@ -165,8 +174,12 @@ def runtime_start(
     ),
     output: OutputOption = None,
 ) -> None:
-    """Запустить толстый клиент 1С (ENTERPRISE) к file IB (detach)."""
-    result = run_start(Path.cwd(), debug=debug)
+    """Запустить клиент 1С (ENTERPRISE) к file IB (detach)."""
+    client_norm = client.strip().lower()
+    if client_norm not in {"thick", "thin"}:
+        typer.echo("error: --client должен быть thick или thin", err=True)
+        raise typer.Exit(code=PROJECT_ERROR)
+    result = run_start(Path.cwd(), client=client_norm, debug=debug)
     _emit(result.to_payload(), resolve_output(ctx, output), text_lines=_client_text(result))
     _exit_for_client(result)
 

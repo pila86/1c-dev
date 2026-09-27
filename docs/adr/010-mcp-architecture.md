@@ -63,11 +63,11 @@ Cursor обычно стартует MCP из workspace root.
 
 | Tool | Core |
 |------|------|
-| `runtime.start` | `run_start` (`debug` → `/Debug`) |
+| `runtime.start` | `run_start` (`client` thick|thin, `debug` → `/Debug`) |
 | `runtime.stop` | `run_stop` |
 | `runtime.status` | `run_status` |
 
-Только file IB + ENTERPRISE, detach. DAP / `debug.*` — M6.
+Только file IB + ENTERPRISE, detach; client thick (`1cv8`) / thin (`1cv8c`). DAP / `debug.*` — M6.
 
 ### Вне M1–M2 / #6 / #26
 
