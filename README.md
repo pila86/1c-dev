@@ -64,7 +64,8 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 | `1c-dev uninstall --yes` | Cache + `uv tool uninstall 1c-dev` |
 | `1c-dev init --type configuration [--ide-target all\|cursor\|kilocode\|none]` | Bootstrap пустого проекта (+ IDE MCP) |
 | `1c-dev project detect\|validate\|info` | Манифест `1c.project.yaml` (`project init` = алиас `init`) |
-| `1c-dev project import --from <file.cf>` | Импорт `.cf` → XML source (`--force` перезаписывает) |
+| `1c-dev project import --from <file.cf>` | Импорт `.cf` → XML source (`--force` перезаписывает; `--break-support` снимает с поддержки) |
+| `1c-dev source break-support` | Удалить `ParentConfigurations*` из `source.path` (без повторного import) |
 | `1c-dev runtime load --from <file.cf>` | Загрузка `.cf` в file IB без export XML |
 | `1c-dev runtime start [--client thick|thin] [--debug]` | Запуск клиента (ENTERPRISE) к file IB |
 | `1c-dev runtime stop` | Остановка клиента |

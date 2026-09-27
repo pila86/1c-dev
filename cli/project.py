@@ -98,6 +98,15 @@ def _import_text(result: ImportResult) -> list[str]:
         lines.append("steps: " + ", ".join(result.steps))
     if result.created:
         lines.append("created: " + ", ".join(result.created))
+    if result.removed:
+        lines.append("removed: " + ", ".join(result.removed))
+    for diag in result.diagnostics:
+        if diag.get("severity") == "error":
+            continue
+        code = diag.get("code", "")
+        prefix = f"[{code}] " if code else ""
+        sev = diag.get("severity", "info")
+        lines.append(f"{sev}: {prefix}{diag.get('message', '')}")
     return lines
 
 
@@ -173,10 +182,24 @@ def project_import(
         "--force",
         help="Перезаписать существующий XML source (Configuration.xml).",
     ),
+    break_support: bool = typer.Option(
+        False,
+        "--break-support",
+        help=(
+            "После export удалить артефакты поддержки поставщика "
+            "(ParentConfigurations*) из source.path. "
+            "Теряется возможность штатного обновления от поставщика."
+        ),
+    ),
     output: OutputOption = None,
 ) -> None:
     """Импортировать .cf в XML source проекта (CF → IB → export)."""
-    result = run_import(Path.cwd(), from_path=from_path, force=force)
+    result = run_import(
+        Path.cwd(),
+        from_path=from_path,
+        force=force,
+        break_support=break_support,
+    )
     _emit(result.to_payload(), resolve_output(ctx, output), text_lines=_import_text(result))
     _import_exit_for(result)
 

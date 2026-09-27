@@ -150,6 +150,8 @@ def register_tools(server: FastMCP) -> None:
             "Import a .cf configuration into project XML source via ibcmd "
             "(load → apply → export). Creates 1c.project.yaml if missing. "
             "Refuses to overwrite existing Configuration.xml unless force=true. "
+            "Set break_support=true to strip ParentConfigurations* support "
+            "artifacts after export (vendor update will no longer be possible). "
             "Does not write AGENTS.md or IDE MCP configs (use ide.configure for that)."
             + _NO_SHELL
         ),
@@ -158,11 +160,13 @@ def register_tools(server: FastMCP) -> None:
         from_path: str,
         path: str | None = None,
         force: bool = False,
+        break_support: bool = False,
     ) -> dict[str, Any]:
         result = run_import(
             resolve_path(path),
             from_path=from_path,
             force=force,
+            break_support=break_support,
         )
         return result.to_payload()
 
