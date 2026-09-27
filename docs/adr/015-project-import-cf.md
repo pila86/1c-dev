@@ -67,5 +67,6 @@ ensure 1c.project.yaml (если нет — только манифест + .run
 ## Связанные решения
 
 - ADR-003, ADR-004, ADR-006, ADR-008, ADR-014
+- [ADR-020](020-break-support.md) (`--break-support` после export)
 - Issue #47
 - [M3 Product adopt](../milestones/m3-product-adopt.md)
