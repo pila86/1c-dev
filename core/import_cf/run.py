@@ -16,6 +16,7 @@ from adapters.platform_ibcmd import (
     load_cf_with_ibcmd,
 )
 from adapters.platform_ibcmd.constants import CODE_IBCMD_FAILED, IBCMD_DATA_REL
+from core.break_support.strip import strip_parent_configurations
 from core.diagnostics import error
 from core.import_cf.constants import (
     CODE_CF_MISSING,
@@ -104,6 +105,7 @@ def run_import(
     *,
     from_path: Path | str,
     force: bool = False,
+    break_support: bool = False,
     run: RunFn | None = None,
     import_fn: ImportFn | None = None,
     discover: Callable[[], DiscoveryResult] | None = None,
@@ -112,6 +114,7 @@ def run_import(
     Import .cf into project XML source (project.import).
 
     Creates manifest if missing; refuses dirty source without force.
+    break_support: strip ParentConfigurations* after export (ADR-020).
     run / import_fn / discover: injectable for tests.
     """
     started = time.perf_counter()
@@ -317,13 +320,20 @@ def run_import(
             ],
         )
 
-    validation = validate_project(root)
+    removed: list[str] = []
     diags: list[Any] = []
+    if break_support:
+        removed, strip_diags = strip_parent_configurations(source_dir, root=root)
+        diags.extend(strip_diags)
+
+    validation = validate_project(root)
     if validation.status != "ok":
         diags.extend(validation.diagnostics)
 
+    # Strip warnings (already off support) do not fail import.
+    hard_diags = [d for d in diags if d.get("severity") == "error"]
     return ImportResult(
-        status="ok" if not diags else "failed",
+        status="ok" if not hard_diags else "failed",
         duration=time.perf_counter() - started,
         root=root,
         from_path=cf_path,
@@ -331,6 +341,7 @@ def run_import(
         runtime_path=db_path,
         created=created,
         steps=list(steps),
+        removed=removed,
         diagnostics=diags,
     )
 

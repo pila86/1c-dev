@@ -127,10 +127,12 @@ def test_project_import_mocked(tmp_path: Path, monkeypatch: Any) -> None:
         *,
         from_path: Path | str,
         force: bool = False,
+        break_support: bool = False,
         **kwargs: Any,
     ) -> ImportResult:
         assert Path(from_path) == cf_path.resolve() or Path(from_path).name == "configuration.cf"
         assert force is False
+        assert break_support is False
         return ImportResult(
             status="ok",
             root=start,
@@ -146,6 +148,44 @@ def test_project_import_mocked(tmp_path: Path, monkeypatch: Any) -> None:
     )
     assert payload["status"] == "ok"
     assert payload["steps"] == ["create", "load", "apply", "export"]
+
+
+def test_project_import_break_support_mocked(tmp_path: Path, monkeypatch: Any) -> None:
+    target = tmp_path / "imported"
+    target.mkdir()
+    cf_path = tmp_path / "configuration.cf"
+    cf_path.write_bytes(b"CF")
+
+    from core.import_cf import ImportResult
+
+    def fake_import(
+        start: Path | None = None,
+        *,
+        from_path: Path | str,
+        force: bool = False,
+        break_support: bool = False,
+        **kwargs: Any,
+    ) -> ImportResult:
+        assert break_support is True
+        return ImportResult(
+            status="ok",
+            root=start,
+            from_path=Path(from_path),
+            steps=["create", "load", "apply", "export"],
+            removed=["src/cf/Ext/ParentConfigurations.bin"],
+        )
+
+    monkeypatch.setattr("mcp_server.tools.run_import", fake_import)
+    payload = _call(
+        "project.import",
+        {
+            "path": str(target),
+            "from_path": str(cf_path),
+            "break_support": True,
+        },
+    )
+    assert payload["status"] == "ok"
+    assert payload["removed"] == ["src/cf/Ext/ParentConfigurations.bin"]
 
 
 def test_metadata_create_ir_error() -> None:

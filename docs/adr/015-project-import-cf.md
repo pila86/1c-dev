@@ -29,6 +29,7 @@ ensure 1c.project.yaml (если нет — только манифест + .run
 
 - `--from` / MCP `from_path` — путь к `.cf`.
 - `--force` — перезаписать существующий XML source.
+- `--break-support` / MCP `break_support` — после export удалить `ParentConfigurations*` из `source.path` ([ADR-020](020-break-support.md)).
 - Не пишет `AGENTS.md` / IDE MCP (это `ide configure`, #50).
 - Пустой / отсутствующий `source.path` — import ок.
 
@@ -46,6 +47,8 @@ ensure 1c.project.yaml (если нет — только манифест + .run
 | Dirty source без `--force` | `1CI004` | `PROJECT_ERROR` (2) |
 | Ошибка шага ibcmd | `1CB005` | `BUILD_FAILURE` (6) |
 | После export нет `Configuration.xml` | `1CI005` | `BUILD_FAILURE` (6) |
+| Уже снята с поддержки (нет артефактов) | `1CI006` | success + warning |
+| Удалён артефакт поддержки | `1CI007` | success + info |
 
 `source` в diagnostics для платформы: `"platform"`; для product — `"runtime"`.
 
