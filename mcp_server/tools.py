@@ -23,7 +23,7 @@ from core.metadata import (
     update_metadata,
 )
 from core.metadata.types import WRITE_OBJECT_TYPES_HELP
-from core.project import configure_ide, init_project, validate_project
+from core.project import configure_ide, init_project, run_clean, validate_project
 from core.runtime import run_start, run_status, run_stop
 from mcp_server._path import resolve_path
 
@@ -150,6 +150,8 @@ def register_tools(server: FastMCP) -> None:
             "Import a .cf configuration into project XML source via ibcmd "
             "(load → apply → export). Creates 1c.project.yaml if missing. "
             "Refuses to overwrite existing Configuration.xml unless force=true. "
+            "Set break_support=true to strip ParentConfigurations* support "
+            "artifacts after export (vendor update will no longer be possible). "
             "Does not write AGENTS.md or IDE MCP configs (use ide.configure for that)."
             + _NO_SHELL
         ),
@@ -158,12 +160,32 @@ def register_tools(server: FastMCP) -> None:
         from_path: str,
         path: str | None = None,
         force: bool = False,
+        break_support: bool = False,
     ) -> dict[str, Any]:
         result = run_import(
             resolve_path(path),
             from_path=from_path,
             force=force,
+            break_support=break_support,
         )
+        return result.to_payload()
+
+    @server.tool(
+        name="project.clean",
+        description=(
+            "DESTRUCTIVE: wipe project XML source (source.path contents) and the "
+            "entire .runtime/ directory (file IB, ibcmd-data, client state). "
+            "Requires yes=true. Does not touch 1c.project.yaml, AGENTS.md, IDE MCP "
+            "configs, .gitignore, or git. Stops a live runtime client first. "
+            "Idempotent if already empty. Typical follow-up: project.import or init."
+            + _NO_SHELL
+        ),
+    )
+    def project_clean_tool(
+        yes: bool = False,
+        path: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_clean(resolve_path(path), yes=yes)
         return result.to_payload()
 
     @server.tool(
