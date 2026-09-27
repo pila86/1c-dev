@@ -31,6 +31,7 @@
 | [017](017-docs-bsl-context.md) | Accepted | Docs API via bsl-context (lazy index) |
 | [018](018-metadata-types-coverage.md) | Accepted | Metadata types coverage (23 meta + Subsystem) |
 | [019](019-runtime-client-lifecycle.md) | Accepted | Runtime client lifecycle (`start` / `stop` / `status`, `/Debug`) |
+| [020](020-break-support.md) | Accepted | Снятие конфигурации с поддержки (XML / `--break-support`) |
 
 ## Когда писать ADR
 

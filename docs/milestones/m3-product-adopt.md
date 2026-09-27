@@ -21,6 +21,7 @@
 | `ide configure` без `--force` | безопасный merge (см. трек C); `--force` = полная перезапись шаблонных артефактов |
 | `import` vs `ide configure` | раздельно: import = CF → XML + манифест; агентские файлы (`AGENTS.md`, MCP IDE) — только `ide configure` |
 | Dirty source | конфликт = в `source.path` уже есть `Configuration.xml`; без `--force` — отказ, source intact |
+| Break support | **must:** opt-in `--break-support` на `project.import` — source-level strip `ParentConfigurations*` после export ([ADR-020](../adr/020-break-support.md)); без флага артефакты сохраняются; should: `source break-support`; пообъектные правила / DESIGNER `/ManageCfgSupport` / vendor-update — later |
 | Docs index | **lazy-only** при первом `docs.search` / `docs.get`; явный `docs build-index` — later |
 | Тест import | round-trip: `build --artifact cf` → `project.import`; skip без platform; бинарный `.cf` в git не коммитим |
 
@@ -43,19 +44,29 @@ create IB (если нет)
   → config load <file.cf>
   → config apply
   → config export → source.path
+  → [если --break-support] strip ParentConfigurations* в source.path
 ```
 
 Публичный контракт (**must**):
 
 ```bash
 1c-dev project import --from configuration.cf
-# MCP: project.import
+1c-dev project import --from configuration.cf --break-support   # типовые на поддержке
+# MCP: project.import  (+ break_support: bool)
 ```
+
+Типовые `.cf` после export часто содержат настройки поддержки поставщика (`Ext/ParentConfigurations.bin`, каталог `ParentConfigurations`). Пока они есть, нельзя свободно править объекты и мешает загрузка конфигурации из файлов (`build`). `--break-support` (**must**, [ADR-020](../adr/020-break-support.md)) — идемпотентный source-level strip этих артефактов после export; объекты метаданных не трогает. Без флага артефакты сохраняются (сценарии vendor-update).
 
 Узкий шаг только CF → IB, без dump в source (**should**, CLI; MCP later):
 
 ```bash
 1c-dev runtime load --from configuration.cf
+```
+
+Отдельный strip для уже существующего XML (**should**):
+
+```bash
+1c-dev source break-support
 ```
 
 Конфликт без `--force`: в `source.path` уже есть `Configuration.xml` → structured diagnostic, source не затёрт. Пустой / отсутствующий `source.path` — import ок. После `init` (там уже есть `Configuration.xml`) нужен `--force`.
@@ -179,7 +190,7 @@ Out of this track: Role / Form / Command / SessionParameter / …; `xml-gen inte
 > Импортируй configuration.cf, покажи справочники, добавь реквизит.
 
 ```
-1. project.import(from=configuration.cf)
+1. project.import(from=configuration.cf, break_support=true)   # типовые на поддержке
 2. metadata.list / metadata.find
 3. metadata.update / create
 4. build / check
@@ -209,6 +220,11 @@ Out of this track: Role / Form / Command / SessionParameter / …; `xml-gen inte
 - [ ] MCP: `project.import` без shell.exec
 - [ ] Integration-тест: `build --artifact cf` → `project.import` (round-trip); skip с сообщением, если нет platform
 - [ ] should: CLI `runtime load --from <file.cf>` (MCP — later)
+- [ ] `project import --break-support` удаляет артефакты поддержки (`ParentConfigurations*`) из `source.path` после export; без флага — сохраняет
+- [ ] Повторный `--break-support` идемпотентен (нет артефактов → ok + diagnostic)
+- [ ] MCP: `project.import` принимает `break_support`
+- [ ] Unit-тест: fixture с `ParentConfigurations.bin` → strip без platform
+- [ ] should: CLI `source break-support` (та же strip-логика без повторного import)
 
 ### Install
 
@@ -249,6 +265,7 @@ Out of this track: Role / Form / Command / SessionParameter / …; `xml-gen inte
 - MCP для `runtime.load` (CLI — should)
 - Must-поддержка «голого» VS Code без Kilocode
 - Типы вне xml-gen Meta DSL + Subsystem (Role, Form, Command, SessionParameter, …); `interface edit` / CommandInterface — later (трек E не = «вся платформа»)
+- Пообъектные правила поддержки («на замке» / «редактируется»); DESIGNER `/ManageCfgSupport`; штатный vendor-update от поставщика
 
 ## Manual verification
 
@@ -259,8 +276,8 @@ uv tool install git+https://github.com/pila86/1c-dev
 1c-dev tools sync --output json       # xml-gen, md-reader/MDClasses, bsl-ls, docs-facade
 1c-dev doctor --output json
 
-# 1. Import
-1c-dev project import --from /path/to/configuration.cf --output json
+# 1. Import (типовые: --break-support)
+1c-dev project import --from /path/to/configuration.cf --break-support --output json
 1c-dev metadata list --output json
 
 # 2. IDE configure
@@ -286,6 +303,7 @@ uv tool install git+https://github.com/pila86/1c-dev
 - [ADR-013](../adr/013-packaging-toolchain-cache.md) (uv tool / cache / pin toolchain)
 - [ADR-010](../adr/010-mcp-architecture.md)
 - [ADR-018](../adr/018-metadata-types-coverage.md) (трек E: metadata types coverage)
+- [ADR-020](../adr/020-break-support.md) (`--break-support` / strip ParentConfigurations*)
 - [PRD §20 Documentation API](../../1c-dev-runtime-PRD-v0.1.md), [§19 BSL](../../1c-dev-runtime-PRD-v0.1.md), [§64 bsl-context / BSL LS](../../1c-dev-runtime-PRD-v0.1.md)
 - [bsl-context](https://github.com/1c-syntax/bsl-context)
 - [BSL LS MCP mode](https://1c-syntax.github.io/bsl-language-server/dev/features/McpMode/)
@@ -297,11 +315,12 @@ uv tool install git+https://github.com/pila86/1c-dev
 | [#45](https://github.com/pila86/1c-dev/issues/45) | ADR: packaging (`uv tool`) / user cache layout + pin toolchain | — |
 | [#46](https://github.com/pila86/1c-dev/issues/46) | Platform: ibcmd `config load` + `config export` | — |
 | [#47](https://github.com/pila86/1c-dev/issues/47) | CLI/MCP `project.import` (+ should: CLI `runtime.load`) | #46 |
+| [#74](https://github.com/pila86/1c-dev/issues/74) | `project.import --break-support` (+ should: `source break-support`); ADR-020 | #47 |
 | [#48](https://github.com/pila86/1c-dev/issues/48) | `1c-dev tools sync`: bootstrap toolchain jars (+ uninstall) | #45 |
 | [#49](https://github.com/pila86/1c-dev/issues/49) | Doctor: jar self-checks + `--fix`; README `uv tool` quick start | #48 |
 | [#50](https://github.com/pila86/1c-dev/issues/50) | CLI `ide configure --target cursor\|kilocode` + merge + MCP/AGENTS templates | #48 |
 | [#51](https://github.com/pila86/1c-dev/issues/51) | `docs.search` / `docs.get` via bsl-context, lazy index | #48 |
-| [#52](https://github.com/pila86/1c-dev/issues/52) | Acceptance: E2E import round-trip + ide configure + docs | #47, #50, #51 |
+| [#52](https://github.com/pila86/1c-dev/issues/52) | Acceptance: E2E import round-trip + ide configure + docs | #47, #50, #51, #74 |
 | [#60](https://github.com/pila86/1c-dev/issues/60) | **E-found:** Metadata coverage foundation (allowlists, TYPE_DIRS, xml-gen pin, doctor) | — |
 | [#61](https://github.com/pila86/1c-dev/issues/61) | **E0:** CommonModule full IR get parity | #60 |
 | [#62](https://github.com/pila86/1c-dev/issues/62) | **E1:** Subsystem create/get/update/delete (priority) | #60, #61 |
