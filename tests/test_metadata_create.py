@@ -516,6 +516,117 @@ def test_scheduled_job_and_event_subscription_from_parts_and_json() -> None:
     assert bad_source.value.code == "1CM004"
 
 
+def test_http_service_and_web_service_from_parts_and_json() -> None:
+    http = catalog_from_parts(
+        qualified_name="HTTPService.API",
+        synonym="API",
+        root_url="api",
+        reuse_sessions="DontUse",
+        session_max_age=20,
+        url_templates={
+            "Users": {
+                "template": "/v1/users",
+                "methods": {"Get": "GET", "Create": "POST"},
+            }
+        },
+    )
+    assert http.qualified_name == "HTTPService.API"
+    assert http.type == "HTTPService"
+    assert http.root_url == "api"
+    assert http.reuse_sessions == "DontUse"
+    assert http.session_max_age == 20
+    assert http.url_templates["Users"]["template"] == "/v1/users"
+    assert http.url_templates["Users"]["methods"]["Get"] == "GET"
+    dsl = ir_to_xmlgen_dsl(http.to_dict())
+    assert dsl == {
+        "type": "HTTPService",
+        "name": "API",
+        "synonym": "API",
+        "rootURL": "api",
+        "reuseSessions": "DontUse",
+        "sessionMaxAge": 20,
+        "urlTemplates": {
+            "Users": {
+                "template": "/v1/users",
+                "methods": {"Get": "GET", "Create": "POST"},
+            }
+        },
+    }
+    assert "attributes" not in dsl
+
+    web = catalog_from_parts(
+        qualified_name="WebService.DataExchange",
+        synonym="Обмен",
+        namespace="http://www.1c.ru/DataExchange",
+        reuse_sessions="DontUse",
+        session_max_age=20,
+        operations={
+            "TestConnection": {
+                "returnType": "xs:boolean",
+                "handler": "ПроверкаПодключения",
+                "parameters": {
+                    "ErrorMessage": {"type": "xs:string", "direction": "Out"}
+                },
+            }
+        },
+    )
+    assert web.qualified_name == "WebService.DataExchange"
+    assert web.namespace == "http://www.1c.ru/DataExchange"
+    assert web.operations["TestConnection"]["handler"] == "ПроверкаПодключения"
+    web_dsl = ir_to_xmlgen_dsl(web.to_dict())
+    assert web_dsl["type"] == "WebService"
+    assert web_dsl["namespace"] == "http://www.1c.ru/DataExchange"
+    assert web_dsl["operations"]["TestConnection"]["returnType"] == "xs:boolean"
+    assert web_dsl["operations"]["TestConnection"]["parameters"]["ErrorMessage"][
+        "direction"
+    ] == "Out"
+
+    from_json = catalog_from_json(
+        {
+            "type": "HTTPService",
+            "name": "Public",
+            "rootURL": "public",
+            "urlTemplates": {"Ping": "/ping"},
+        }
+    )
+    assert from_json.type == "HTTPService"
+    assert from_json.root_url == "public"
+    assert from_json.url_templates["Ping"]["template"] == "/ping"
+
+    from_json_ws = catalog_from_json(
+        {
+            "type": "WebService",
+            "name": "Exchange",
+            "namespace": "http://example.com",
+            "operations": {
+                "Echo": {"handler": "EchoHandler", "returnType": "xs:string"}
+            },
+        }
+    )
+    assert from_json_ws.operations["Echo"]["handler"] == "EchoHandler"
+
+    with pytest.raises(IrError) as shape:
+        catalog_from_parts(
+            qualified_name="HTTPService.Bad",
+            attr_specs=["X:String:10"],
+        )
+    assert shape.value.code == "1CM004"
+
+    with pytest.raises(IrError) as bad_verb:
+        catalog_from_parts(
+            qualified_name="HTTPService.Bad",
+            url_templates={"T": {"template": "/t", "methods": {"X": "FOO"}}},
+        )
+    assert bad_verb.value.code == "1CM004"
+
+    with pytest.raises(IrError) as cross:
+        catalog_from_parts(
+            qualified_name="WebService.Bad",
+            root_url="api",
+        )
+    assert cross.value.code == "1CM004"
+
+
 def test_create_metadata_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
@@ -894,6 +1005,68 @@ def test_create_scheduled_job_and_event_subscription_mock(tmp_path: Path) -> Non
     )
     assert result2.status == "ok"
     assert result2.object == "EventSubscription.ProductsBeforeWrite"
+
+
+def test_create_http_service_and_web_service_mock(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+
+    def fake_compile_http(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "HTTPService"
+        assert dsl["rootURL"] == "api"
+        assert dsl["urlTemplates"]["Users"]["methods"]["Get"] == "GET"
+        folder = source_dir / "HTTPServices"
+        folder.mkdir(parents=True)
+        (folder / "API.xml").write_text("<HTTPService/>", encoding="utf-8")
+        return ["HTTPServices/API.xml"]
+
+    result = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="HTTPService.API",
+            synonym="API",
+            root_url="api",
+            url_templates={
+                "Users": {
+                    "template": "/v1/users",
+                    "methods": {"Get": "GET", "Create": "POST"},
+                }
+            },
+        ),
+        compile_fn=fake_compile_http,
+    )
+    assert result.status == "ok"
+    assert result.object == "HTTPService.API"
+
+    def fake_compile_web(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "WebService"
+        assert dsl["namespace"] == "http://www.1c.ru/DataExchange"
+        assert dsl["operations"]["TestConnection"]["handler"] == "ПроверкаПодключения"
+        folder = source_dir / "WebServices"
+        folder.mkdir(parents=True)
+        (folder / "DataExchange.xml").write_text("<WebService/>", encoding="utf-8")
+        return ["WebServices/DataExchange.xml"]
+
+    result2 = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="WebService.DataExchange",
+            namespace="http://www.1c.ru/DataExchange",
+            operations={
+                "TestConnection": {
+                    "returnType": "xs:boolean",
+                    "handler": "ПроверкаПодключения",
+                    "parameters": {
+                        "ErrorMessage": {"type": "xs:string", "direction": "Out"}
+                    },
+                }
+            },
+        ),
+        compile_fn=fake_compile_web,
+    )
+    assert result2.status == "ok"
+    assert result2.object == "WebService.DataExchange"
 
 
 def test_create_duplicate(tmp_path: Path) -> None:
@@ -1559,6 +1732,78 @@ def test_create_scheduled_job_and_event_subscription_with_real_xmlgen(
     cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
     assert "<ScheduledJob>Cleanup</ScheduledJob>" in cfg
     assert "<EventSubscription>ProductsBeforeWrite</EventSubscription>" in cfg
+
+    from core.project import validate_project
+
+    assert validate_project(target).status == "ok"
+
+
+@pytest.mark.integration
+def test_create_http_service_and_web_service_with_real_xmlgen(tmp_path: Path) -> None:
+    jar = resolve_jar()
+    java = resolve_java()
+    if not jar.found or not java.found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    http = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="HTTPService.API",
+            synonym="API",
+            root_url="api",
+            reuse_sessions="DontUse",
+            session_max_age=20,
+            url_templates={
+                "Users": {
+                    "template": "/v1/users",
+                    "methods": {"Get": "GET", "Create": "POST"},
+                }
+            },
+        ),
+    )
+    assert http.status == "ok", http.diagnostics
+    http_xml = target / "src" / "cf" / "HTTPServices" / "API.xml"
+    assert http_xml.is_file()
+    http_text = http_xml.read_text(encoding="utf-8-sig")
+    assert "<RootURL>api</RootURL>" in http_text
+    assert "<Template>/v1/users</Template>" in http_text
+    assert "<HTTPMethod>GET</HTTPMethod>" in http_text
+    assert (target / "src" / "cf" / "HTTPServices" / "API" / "Ext" / "Module.bsl").is_file()
+
+    web = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="WebService.DataExchange",
+            synonym="Обмен",
+            namespace="http://www.1c.ru/DataExchange",
+            reuse_sessions="DontUse",
+            session_max_age=20,
+            operations={
+                "TestConnection": {
+                    "returnType": "xs:boolean",
+                    "handler": "ПроверкаПодключения",
+                    "parameters": {
+                        "ErrorMessage": {"type": "xs:string", "direction": "Out"}
+                    },
+                }
+            },
+        ),
+    )
+    assert web.status == "ok", web.diagnostics
+    web_xml = target / "src" / "cf" / "WebServices" / "DataExchange.xml"
+    assert web_xml.is_file()
+    web_text = web_xml.read_text(encoding="utf-8-sig")
+    assert "<Namespace>http://www.1c.ru/DataExchange</Namespace>" in web_text
+    assert "<ProcedureName>ПроверкаПодключения</ProcedureName>" in web_text
+    assert (target / "src" / "cf" / "WebServices" / "DataExchange" / "Ext" / "Module.bsl").is_file()
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<HTTPService>API</HTTPService>" in cfg
+    assert "<WebService>DataExchange</WebService>" in cfg
 
     from core.project import validate_project
 

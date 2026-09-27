@@ -712,6 +712,86 @@ def test_update_scheduled_job_and_event_subscription_modify_property_mock(
     assert calls_es == [EditOp("modify-property", "Event=OnWrite")]
 
 
+def test_update_http_service_and_web_service_modify_property_mock(
+    tmp_path: Path,
+) -> None:
+    target = _init_shop(tmp_path)
+    https = target / "src" / "cf" / "HTTPServices"
+    https.mkdir(parents=True)
+    (https / "API.xml").write_text("<HTTPService/>", encoding="utf-8")
+    calls: list[EditOp] = []
+
+    def fake_edit(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "API.xml"
+        calls.extend(operations)
+        return EditResult(changed_paths=["HTTPServices/API.xml"], modified=1)
+
+    def fake_get(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "HTTPService",
+                "name": "API",
+                "urlTemplates": {
+                    "Users": {"template": "/v1/users", "methods": {"Get": "UsersGet"}}
+                },
+            },
+        )
+
+    result = update_metadata(
+        target,
+        "HTTPService.API",
+        [EditOp("modify-property", "RootURL=v2")],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert calls == [EditOp("modify-property", "RootURL=v2")]
+
+    webs = target / "src" / "cf" / "WebServices"
+    webs.mkdir(parents=True)
+    (webs / "DataExchange.xml").write_text("<WebService/>", encoding="utf-8")
+    calls_ws: list[EditOp] = []
+
+    def fake_edit_ws(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "DataExchange.xml"
+        calls_ws.extend(operations)
+        return EditResult(
+            changed_paths=["WebServices/DataExchange.xml"],
+            modified=1,
+        )
+
+    def fake_get_ws(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "WebService",
+                "name": "DataExchange",
+                "namespace": "http://example.com/exchange",
+                "reuseSessions": "DontUse",
+                "sessionMaxAge": 20,
+                "operations": {},
+            },
+        )
+
+    result2 = update_metadata(
+        target,
+        "WebService.DataExchange",
+        [EditOp("modify-property", "Namespace=http://example.com/exchange")],
+        edit_fn=fake_edit_ws,
+        get_fn=fake_get_ws,
+    )
+    assert result2.status == "ok"
+    assert result2.ir is not None
+    assert result2.ir["namespace"] == "http://example.com/exchange"
+    assert calls_ws == [
+        EditOp("modify-property", "Namespace=http://example.com/exchange")
+    ]
+
+
 def test_update_enum_duplicate_warning(tmp_path: Path) -> None:
     target = _init_shop(tmp_path)
     enums = target / "src" / "cf" / "Enums"

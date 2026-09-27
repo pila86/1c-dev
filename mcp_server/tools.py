@@ -216,13 +216,14 @@ def register_tools(server: FastMCP) -> None:
             "Types: Catalog, Document, Enum, InformationRegister, "
             "AccumulationRegister, CommonModule, Subsystem, Constant, "
             "DefinedType, Report, DataProcessor, ScheduledJob, "
-            "EventSubscription "
+            "EventSubscription, HTTPService, WebService "
             "(plus other Meta DSL types from the write allowlist). "
             "Pass qualified_name "
             "(e.g. Catalog.Products, Enum.Statuses, CommonModule.SalesServer, "
             "Subsystem.Main, Constant.VATRate, DefinedType.CounterpartyRef, "
             "Report.Sales, DataProcessor.ImportData, ScheduledJob.Cleanup, "
-            "EventSubscription.ProductsBeforeWrite); "
+            "EventSubscription.ProductsBeforeWrite, HTTPService.API, "
+            "WebService.DataExchange); "
             "optional synonym; "
             "for Catalog/Document/Report/DataProcessor: "
             "attributes and tabular_sections; "
@@ -242,7 +243,13 @@ def register_tools(server: FastMCP) -> None:
             "(CommonModule.Name.Method), use, description, key, predefined, "
             "restart_count_on_failure, restart_interval_on_failure; "
             "for EventSubscription: optional handler "
-            "(CommonModule.Name.Method), event, source [Type.Name, …]."
+            "(CommonModule.Name.Method), event, source [Type.Name, …]; "
+            "for HTTPService: optional root_url, reuse_sessions "
+            "(DontUse|Use|AutoUse), session_max_age, url_templates "
+            "{Name: {template, methods{Name: GET|POST|…}}}; "
+            "for WebService: optional namespace, xdto_packages, reuse_sessions, "
+            "session_max_age, operations "
+            "{Name: {returnType?, handler?, parameters?}}."
             + _NO_SHELL
         ),
     )
@@ -277,6 +284,13 @@ def register_tools(server: FastMCP) -> None:
         handler: str | None = None,
         event: str | None = None,
         source: list[str] | None = None,
+        root_url: str | None = None,
+        reuse_sessions: str | None = None,
+        session_max_age: int | None = None,
+        url_templates: dict[str, Any] | None = None,
+        namespace: str | None = None,
+        xdto_packages: str | None = None,
+        operations: dict[str, Any] | None = None,
         path: str | None = None,
     ) -> dict[str, Any]:
         try:
@@ -339,6 +353,20 @@ def register_tools(server: FastMCP) -> None:
                 data["event"] = event
             if source:
                 data["source"] = list(source)
+            if root_url is not None:
+                data["rootURL"] = root_url
+            if reuse_sessions is not None:
+                data["reuseSessions"] = reuse_sessions
+            if session_max_age is not None:
+                data["sessionMaxAge"] = session_max_age
+            if url_templates:
+                data["urlTemplates"] = dict(url_templates)
+            if namespace is not None:
+                data["namespace"] = namespace
+            if xdto_packages is not None:
+                data["xdtoPackages"] = xdto_packages
+            if operations:
+                data["operations"] = dict(operations)
             # type/name come from qualified_name (validated inside catalog_from_json)
             catalog = catalog_from_json(data, qualified_name=qualified_name)
             if synonym and not catalog.synonym:

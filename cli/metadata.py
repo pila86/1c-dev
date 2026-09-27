@@ -313,7 +313,8 @@ def update_command(
             "InformationRegister.Prices, CommonModule.SalesServer, "
             "Subsystem.Main, Constant.VATRate, DefinedType.CounterpartyRef, "
             "Report.Sales, DataProcessor.ImportData, ScheduledJob.Cleanup, "
-            "EventSubscription.ProductsBeforeWrite."
+            "EventSubscription.ProductsBeforeWrite, HTTPService.API, "
+            "WebService.DataExchange."
         ),
     ),
     op: list[str] | None = typer.Option(
@@ -478,7 +479,8 @@ def create_command(
             "Enum.Statuses, InformationRegister.Prices, CommonModule.SalesServer, "
             "Subsystem.Main, Constant.VATRate, DefinedType.CounterpartyRef, "
             "Report.Sales, DataProcessor.ImportData, ScheduledJob.Cleanup, "
-            "EventSubscription.ProductsBeforeWrite."
+            "EventSubscription.ProductsBeforeWrite, HTTPService.API, "
+            "WebService.DataExchange."
         ),
     ),
     synonym: str | None = typer.Option(
@@ -629,10 +631,38 @@ def create_command(
         "--source",
         help="Источник Type.Name (EventSubscription), можно повторять.",
     ),
+    root_url: str | None = typer.Option(
+        None,
+        "--root-url",
+        help="RootURL (HTTPService).",
+    ),
+    reuse_sessions: str | None = typer.Option(
+        None,
+        "--reuse-sessions",
+        help="DontUse | Use | AutoUse (HTTPService / WebService).",
+    ),
+    session_max_age: int | None = typer.Option(
+        None,
+        "--session-max-age",
+        help="SessionMaxAge (HTTPService / WebService).",
+    ),
+    namespace: str | None = typer.Option(
+        None,
+        "--namespace",
+        help="Namespace URI (WebService).",
+    ),
+    xdto_packages: str | None = typer.Option(
+        None,
+        "--xdto-packages",
+        help="XDTOPackages (WebService).",
+    ),
     from_json: str | None = typer.Option(
         None,
         "--from-json",
-        help="Путь к JSON IR или '-' для stdin.",
+        help=(
+            "Путь к JSON IR или '-' для stdin "
+            "(вложенные urlTemplates / operations — через JSON)."
+        ),
     ),
     output: OutputOption = None,
 ) -> None:
@@ -705,6 +735,14 @@ def create_command(
                 event=event,
                 source=source,
             )
+            _merge_http_web_cli_fields(
+                data,
+                root_url=root_url,
+                reuse_sessions=reuse_sessions,
+                session_max_age=session_max_age,
+                namespace=namespace,
+                xdto_packages=xdto_packages,
+            )
             catalog = catalog_from_json(data, qualified_name=qualified_name)
             if synonym and not catalog.synonym:
                 catalog.synonym = synonym
@@ -760,6 +798,11 @@ def create_command(
                 handler=handler,
                 event=event,
                 source=list(source or []),
+                root_url=root_url,
+                reuse_sessions=reuse_sessions,
+                session_max_age=session_max_age,
+                namespace=namespace,
+                xdto_packages=xdto_packages,
             )
     except IrError as exc:
         result = _ir_error_result(exc)
@@ -866,3 +909,25 @@ def _merge_event_subscription_cli_fields(
         existing = list(data.get("source") or [])
         existing.extend(source)
         data["source"] = existing
+
+
+def _merge_http_web_cli_fields(
+    data: dict[str, Any],
+    *,
+    root_url: str | None,
+    reuse_sessions: str | None,
+    session_max_age: int | None,
+    namespace: str | None,
+    xdto_packages: str | None,
+) -> None:
+    """Fill HTTPService / WebService scalar keys from CLI when absent in JSON."""
+    if root_url is not None and "rootURL" not in data:
+        data["rootURL"] = root_url
+    if reuse_sessions is not None and "reuseSessions" not in data:
+        data["reuseSessions"] = reuse_sessions
+    if session_max_age is not None and "sessionMaxAge" not in data:
+        data["sessionMaxAge"] = session_max_age
+    if namespace is not None and "namespace" not in data:
+        data["namespace"] = namespace
+    if xdto_packages is not None and "xdtoPackages" not in data:
+        data["xdtoPackages"] = xdto_packages

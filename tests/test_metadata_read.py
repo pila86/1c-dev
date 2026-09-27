@@ -570,6 +570,80 @@ def test_get_scheduled_job_and_event_subscription_full_ir_mock(tmp_path: Path) -
     assert result2.ir["source"] == ["Catalog.Products"]
 
 
+def test_get_http_service_and_web_service_full_ir_mock(tmp_path: Path) -> None:
+    """Smoke: md-reader full IR for HTTPService / WebService (#66)."""
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    def fake_read_http(
+        command: str, source_dir: Path, args: tuple[str, ...]
+    ) -> dict[str, Any]:
+        assert command == "get"
+        assert args == ("HTTPService.API",)
+        return {
+            "status": "ok",
+            "object": {
+                "type": "HTTPService",
+                "name": "API",
+                "qname": "HTTPService.API",
+                "synonym": "API",
+                "urlTemplates": {
+                    "Users": {
+                        "template": "/v1/users",
+                        "methods": {"Get": "UsersGet", "Create": "UsersCreate"},
+                    }
+                },
+            },
+        }
+
+    result = get_metadata(target, "HTTPService.API", read_fn=fake_read_http)
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert result.ir["urlTemplates"]["Users"]["template"] == "/v1/users"
+    assert result.ir["urlTemplates"]["Users"]["methods"]["Get"] == "UsersGet"
+
+    def fake_read_web(
+        command: str, source_dir: Path, args: tuple[str, ...]
+    ) -> dict[str, Any]:
+        assert args == ("WebService.DataExchange",)
+        return {
+            "status": "ok",
+            "object": {
+                "type": "WebService",
+                "name": "DataExchange",
+                "qname": "WebService.DataExchange",
+                "namespace": "http://www.1c.ru/DataExchange",
+                "reuseSessions": "DontUse",
+                "sessionMaxAge": 20,
+                "operations": {
+                    "TestConnection": {
+                        "handler": "ПроверкаПодключения",
+                        "nillable": False,
+                        "transactioned": False,
+                        "parameters": {
+                            "ErrorMessage": {"nillable": False, "direction": "Out"}
+                        },
+                    }
+                },
+            },
+        }
+
+    result2 = get_metadata(
+        target, "WebService.DataExchange", read_fn=fake_read_web
+    )
+    assert result2.status == "ok"
+    assert result2.ir is not None
+    assert result2.ir["namespace"] == "http://www.1c.ru/DataExchange"
+    assert result2.ir["operations"]["TestConnection"]["handler"] == "ПроверкаПодключения"
+    assert (
+        result2.ir["operations"]["TestConnection"]["parameters"]["ErrorMessage"][
+            "direction"
+        ]
+        == "Out"
+    )
+
+
 @pytest.mark.integration
 def test_constant_defined_type_get_update_delete_roundtrip(
     tmp_path: Path,
@@ -974,6 +1048,159 @@ def test_scheduled_job_event_subscription_get_update_delete_roundtrip(
     cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
     assert "<ScheduledJob>Cleanup</ScheduledJob>" not in cfg
     assert "<EventSubscription>ProductsBeforeWrite</EventSubscription>" not in cfg
+
+
+@pytest.mark.integration
+def test_http_service_web_service_get_update_delete_roundtrip(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """create → get full IR → update properties → delete (#66).
+
+    MDClasses gaps (documented):
+    - HTTPService: rootURL / reuseSessions / sessionMaxAge not exposed;
+      HTTP method verbs missing (get returns handler name).
+    - WebService: xdtoPackages / operation returnType / parameter type not
+      exposed; TransferDirection from xml-gen (``Output``) often UNKNOWN.
+    """
+    from adapters.source.xmlgen import EditOp
+    from adapters.source.xmlgen.resolve import resolve_jar as resolve_xmlgen
+    from adapters.source.xmlgen.resolve import resolve_java as resolve_java_xml
+    from core.metadata import (
+        catalog_from_parts,
+        create_metadata,
+        delete_metadata,
+        update_metadata,
+    )
+
+    local_jar = _local_md_reader_jar()
+    if local_jar is not None:
+        monkeypatch.setenv("ONEC_MDREADER_JAR", str(local_jar))
+
+    java = resolve_java()
+    jar = resolve_jar()
+    if not java.found or not jar.found:
+        pytest.skip(
+            "md-reader jar / Java 21+ недоступны (запустите scripts/fetch-md-reader.sh)"
+        )
+    xmlgen = resolve_xmlgen()
+    if not xmlgen.found or not resolve_java_xml().found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    created = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="HTTPService.API",
+            synonym="API",
+            root_url="api",
+            reuse_sessions="DontUse",
+            session_max_age=20,
+            url_templates={
+                "Users": {
+                    "template": "/v1/users",
+                    "methods": {"Get": "GET", "Create": "POST"},
+                }
+            },
+        ),
+    )
+    assert created.status == "ok", created.diagnostics
+
+    got = get_metadata(target, "HTTPService.API")
+    assert got.status == "ok", got.diagnostics
+    assert got.ir is not None
+    assert got.ir["type"] == "HTTPService"
+    assert got.ir["name"] == "API"
+    assert "urlTemplates" in got.ir
+    assert got.ir["urlTemplates"]["Users"]["template"] == "/v1/users"
+    assert "Get" in got.ir["urlTemplates"]["Users"]["methods"]
+    # Gap: method value is handler name (UsersGet), not HTTP verb GET.
+    assert got.ir["urlTemplates"]["Users"]["methods"]["Get"]
+
+    updated = update_metadata(
+        target,
+        "HTTPService.API",
+        [
+            EditOp("modify-property", "RootURL=v2"),
+            EditOp("modify-property", "Synonym=PublicAPI"),
+        ],
+    )
+    assert updated.status == "ok", updated.diagnostics
+
+    # RootURL not in MDClasses IR — verify XML side-effect; synonym via get.
+    http_xml = (target / "src" / "cf" / "HTTPServices" / "API.xml").read_text(
+        encoding="utf-8-sig"
+    )
+    assert "<RootURL>v2</RootURL>" in http_xml
+
+    got2 = get_metadata(target, "HTTPService.API")
+    assert got2.status == "ok", got2.diagnostics
+    assert got2.ir is not None
+    assert got2.ir.get("synonym") == "PublicAPI"
+
+    web = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="WebService.DataExchange",
+            synonym="Обмен",
+            namespace="http://www.1c.ru/DataExchange",
+            reuse_sessions="DontUse",
+            session_max_age=20,
+            operations={
+                "TestConnection": {
+                    "returnType": "xs:boolean",
+                    "handler": "ПроверкаПодключения",
+                    "parameters": {
+                        "ErrorMessage": {"type": "xs:string", "direction": "Out"}
+                    },
+                }
+            },
+        ),
+    )
+    assert web.status == "ok", web.diagnostics
+
+    got_w = get_metadata(target, "WebService.DataExchange")
+    assert got_w.status == "ok", got_w.diagnostics
+    assert got_w.ir is not None
+    assert got_w.ir["type"] == "WebService"
+    assert got_w.ir["namespace"] == "http://www.1c.ru/DataExchange"
+    assert got_w.ir["reuseSessions"] == "DontUse"
+    assert got_w.ir["sessionMaxAge"] == 20
+    assert got_w.ir["operations"]["TestConnection"]["handler"] == "ПроверкаПодключения"
+    # Gap: xml-gen writes TransferDirection=Output; MDClasses 0.20.0 expects Out
+    # and often yields UNKNOWN — direction may be absent.
+    assert "ErrorMessage" in got_w.ir["operations"]["TestConnection"]["parameters"]
+
+    updated_w = update_metadata(
+        target,
+        "WebService.DataExchange",
+        [
+            EditOp("modify-property", "Namespace=http://example.com/exchange"),
+            EditOp("modify-property", "Synonym=Exchange"),
+        ],
+    )
+    assert updated_w.status == "ok", updated_w.diagnostics
+
+    got_w2 = get_metadata(target, "WebService.DataExchange")
+    assert got_w2.status == "ok", got_w2.diagnostics
+    assert got_w2.ir is not None
+    assert got_w2.ir["namespace"] == "http://example.com/exchange"
+    assert got_w2.ir.get("synonym") == "Exchange"
+
+    deleted_h = delete_metadata(target, "HTTPService.API")
+    assert deleted_h.status == "ok", deleted_h.diagnostics
+    assert not (target / "src" / "cf" / "HTTPServices" / "API.xml").is_file()
+
+    deleted_w = delete_metadata(target, "WebService.DataExchange")
+    assert deleted_w.status == "ok", deleted_w.diagnostics
+    assert not (target / "src" / "cf" / "WebServices" / "DataExchange.xml").is_file()
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<HTTPService>API</HTTPService>" not in cfg
+    assert "<WebService>DataExchange</WebService>" not in cfg
 
 
 @pytest.mark.integration

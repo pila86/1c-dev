@@ -12,15 +12,23 @@ import com.github._1c_syntax.bsl.mdo.DefinedType;
 import com.github._1c_syntax.bsl.mdo.Document;
 import com.github._1c_syntax.bsl.mdo.Enum;
 import com.github._1c_syntax.bsl.mdo.EventSubscription;
+import com.github._1c_syntax.bsl.mdo.HTTPService;
 import com.github._1c_syntax.bsl.mdo.InformationRegister;
 import com.github._1c_syntax.bsl.mdo.MD;
 import com.github._1c_syntax.bsl.mdo.Report;
 import com.github._1c_syntax.bsl.mdo.ScheduledJob;
 import com.github._1c_syntax.bsl.mdo.Subsystem;
 import com.github._1c_syntax.bsl.mdo.TabularSection;
+import com.github._1c_syntax.bsl.mdo.WebService;
 import com.github._1c_syntax.bsl.mdo.children.EnumValue;
+import com.github._1c_syntax.bsl.mdo.children.HTTPServiceMethod;
+import com.github._1c_syntax.bsl.mdo.children.HTTPServiceURLTemplate;
+import com.github._1c_syntax.bsl.mdo.children.WebServiceOperation;
+import com.github._1c_syntax.bsl.mdo.children.WebServiceOperationParameter;
 import com.github._1c_syntax.bsl.mdo.support.Handler;
 import com.github._1c_syntax.bsl.mdo.support.ReturnValueReuse;
+import com.github._1c_syntax.bsl.mdo.support.ReuseSessions;
+import com.github._1c_syntax.bsl.mdo.support.TransferDirection;
 import com.github._1c_syntax.bsl.types.MdoReference;
 import com.github._1c_syntax.bsl.types.MultiLanguageString;
 import com.github._1c_syntax.bsl.types.ValueType;
@@ -67,7 +75,9 @@ public final class Main {
       "Report",
       "DataProcessor",
       "ScheduledJob",
-      "EventSubscription"
+      "EventSubscription",
+      "HTTPService",
+      "WebService"
   );
 
   private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
@@ -321,8 +331,117 @@ public final class Main {
         obj.addProperty("event", event);
       }
       obj.add("source", eventSubscriptionSourceArray(subscription.getValueType()));
+    } else if (md instanceof HTTPService httpService) {
+      // MDClasses 0.20.0 gap: rootURL / reuseSessions / sessionMaxAge not exposed.
+      obj.add("urlTemplates", httpUrlTemplatesObject(httpService.getUrlTemplates()));
+    } else if (md instanceof WebService webService) {
+      String namespace = webService.getNamespace();
+      if (namespace != null && !namespace.isBlank()) {
+        obj.addProperty("namespace", namespace);
+      }
+      // MDClasses 0.20.0 gap: xdtoPackages not exposed.
+      obj.addProperty("reuseSessions", reuseSessionsOf(webService.getReuseSessions()));
+      obj.addProperty("sessionMaxAge", webService.getSessionMaxAge());
+      obj.add("operations", webOperationsObject(webService.getOperations()));
     }
     return obj;
+  }
+
+  private static JsonObject httpUrlTemplatesObject(
+      List<HTTPServiceURLTemplate> templates) {
+    JsonObject map = new JsonObject();
+    if (templates == null) {
+      return map;
+    }
+    for (HTTPServiceURLTemplate template : templates) {
+      if (template == null || template.getName() == null || template.getName().isBlank()) {
+        continue;
+      }
+      JsonObject entry = new JsonObject();
+      String path = template.getTemplate();
+      if (path != null && !path.isBlank()) {
+        entry.addProperty("template", path);
+      }
+      // MDClasses gap: HTTP verb (GET/POST/…) not exposed — emit handler instead.
+      JsonObject methods = new JsonObject();
+      List<HTTPServiceMethod> methodList = template.getMethods();
+      if (methodList != null) {
+        for (HTTPServiceMethod method : methodList) {
+          if (method == null || method.getName() == null || method.getName().isBlank()) {
+            continue;
+          }
+          String handler = method.getHandler();
+          methods.addProperty(
+              method.getName(),
+              handler == null || handler.isBlank() ? "" : handler);
+        }
+      }
+      entry.add("methods", methods);
+      map.add(template.getName(), entry);
+    }
+    return map;
+  }
+
+  private static JsonObject webOperationsObject(List<WebServiceOperation> operations) {
+    JsonObject map = new JsonObject();
+    if (operations == null) {
+      return map;
+    }
+    for (WebServiceOperation operation : operations) {
+      if (operation == null || operation.getName() == null || operation.getName().isBlank()) {
+        continue;
+      }
+      JsonObject entry = new JsonObject();
+      // MDClasses gap: returnType not exposed.
+      String handler = operation.getProcedureName();
+      if (handler != null && !handler.isBlank()) {
+        entry.addProperty("handler", handler);
+      }
+      entry.addProperty("nillable", operation.isNillable());
+      entry.addProperty("transactioned", operation.isTransactioned());
+      JsonObject parameters = new JsonObject();
+      List<WebServiceOperationParameter> params = operation.getParameters();
+      if (params != null) {
+        for (WebServiceOperationParameter param : params) {
+          if (param == null || param.getName() == null || param.getName().isBlank()) {
+            continue;
+          }
+          JsonObject pEntry = new JsonObject();
+          // MDClasses gap: parameter type not exposed.
+          pEntry.addProperty("nillable", param.isNillable());
+          putDirection(pEntry, param.getTransferDirection());
+          parameters.add(param.getName(), pEntry);
+        }
+      }
+      entry.add("parameters", parameters);
+      map.add(operation.getName(), entry);
+    }
+    return map;
+  }
+
+  private static String reuseSessionsOf(ReuseSessions reuse) {
+    if (reuse == null || reuse == ReuseSessions.UNKNOWN) {
+      return "DontUse";
+    }
+    String en = reuse.nameEn();
+    return en == null || en.isBlank() ? "DontUse" : en;
+  }
+
+  private static String transferDirectionOf(TransferDirection direction) {
+    // MDClasses may yield UNKNOWN when XML has Designer synonym "Output"
+    // (xml-gen) instead of enum key "Out" — omit rather than invent "In".
+    if (direction == null || direction == TransferDirection.UNKNOWN) {
+      return null;
+    }
+    String en = direction.nameEn();
+    return en == null || en.isBlank() ? null : en;
+  }
+
+  private static void putDirection(JsonObject target, TransferDirection direction) {
+    String value = transferDirectionOf(direction);
+    if (value != null) {
+      target.addProperty("direction", value);
+    }
   }
 
   private static JsonArray eventSubscriptionSourceArray(ValueTypeDescription description) {

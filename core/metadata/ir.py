@@ -132,6 +132,22 @@ _SCHEDULED_JOB_DSL_KEYS: tuple[tuple[str, str], ...] = (
     ("restart_count_on_failure", "restartCountOnFailure"),
     ("restart_interval_on_failure", "restartIntervalOnFailure"),
 )
+_HTTP_SERVICE_SCALAR_KEYS: tuple[tuple[str, str], ...] = (
+    ("root_url", "rootURL"),
+    ("reuse_sessions", "reuseSessions"),
+    ("session_max_age", "sessionMaxAge"),
+)
+_WEB_SERVICE_SCALAR_KEYS: tuple[tuple[str, str], ...] = (
+    ("namespace", "namespace"),
+    ("xdto_packages", "xdtoPackages"),
+    ("reuse_sessions", "reuseSessions"),
+    ("session_max_age", "sessionMaxAge"),
+)
+_REUSE_SESSIONS: frozenset[str] = frozenset({"DontUse", "Use", "AutoUse"})
+_HTTP_METHOD_VERBS: frozenset[str] = frozenset(
+    {"GET", "POST", "PUT", "DELETE", "PATCH"}
+)
+_WS_PARAM_DIRECTIONS: frozenset[str] = frozenset({"In", "Out", "InOut"})
 
 @dataclass
 class ValueType:
@@ -195,6 +211,14 @@ class CatalogObject:
     handler: str | None = None
     event: str | None = None
     source: list[str] = field(default_factory=list)
+    # HTTPService / WebService (ADR-018 / #66).
+    root_url: str | None = None
+    reuse_sessions: str | None = None
+    session_max_age: int | None = None
+    url_templates: dict[str, Any] = field(default_factory=dict)
+    namespace: str | None = None
+    xdto_packages: str | None = None
+    operations: dict[str, Any] = field(default_factory=dict)
 
     @property
     def qualified_name(self) -> str:
@@ -252,6 +276,20 @@ class CatalogObject:
             if self.event is not None:
                 data["event"] = self.event
             data["source"] = list(self.source)
+            return data
+        if self.type == "HTTPService":
+            for attr_name, json_key in _HTTP_SERVICE_SCALAR_KEYS:
+                value = getattr(self, attr_name)
+                if value is not None:
+                    data[json_key] = value
+            data["urlTemplates"] = dict(self.url_templates)
+            return data
+        if self.type == "WebService":
+            for attr_name, json_key in _WEB_SERVICE_SCALAR_KEYS:
+                value = getattr(self, attr_name)
+                if value is not None:
+                    data[json_key] = value
+            data["operations"] = dict(self.operations)
             return data
         data["attributes"] = [a.to_dict() for a in self.attributes]
         if self.tabular_sections:
@@ -441,8 +479,15 @@ def catalog_from_parts(
     handler: str | None = None,
     event: str | None = None,
     source: list[str] | None = None,
+    root_url: str | None = None,
+    reuse_sessions: str | None = None,
+    session_max_age: int | None = None,
+    url_templates: dict[str, Any] | None = None,
+    namespace: str | None = None,
+    xdto_packages: str | None = None,
+    operations: dict[str, Any] | None = None,
 ) -> CatalogObject:
-    """Build create IR from CLI pieces (ADR-011 / #23 / #24 / #28 / #62 / #63 / #64 / #65)."""
+    """Build create IR from CLI pieces (ADR-011 / #23 / #24 / #28 / #62 / #63 / #64 / #65 / #66)."""
     obj_type, name = parse_qualified_name(qualified_name)
     if obj_type not in CREATE_OBJECT_TYPES:
         raise IrError(
@@ -488,6 +533,26 @@ def catalog_from_parts(
         event=event,
         source=source,
     )
+    http_fields = _http_service_fields_from_parts(
+        root_url=root_url,
+        reuse_sessions=reuse_sessions,
+        session_max_age=session_max_age,
+        url_templates=url_templates,
+    )
+    web_fields = _web_service_fields_from_parts(
+        namespace=namespace,
+        xdto_packages=xdto_packages,
+        reuse_sessions=reuse_sessions,
+        session_max_age=session_max_age,
+        operations=operations,
+    )
+    # Shared session fields: prefer HTTP/Web parsers (identical); merge once.
+    session_fields = {
+        "reuse_sessions": http_fields.pop("reuse_sessions"),
+        "session_max_age": http_fields.pop("session_max_age"),
+    }
+    web_fields.pop("reuse_sessions")
+    web_fields.pop("session_max_age")
     obj = CatalogObject(
         name=name,
         synonym=synonym,
@@ -505,6 +570,9 @@ def catalog_from_parts(
         **flags,
         **job_fields,
         **sub_fields,
+        **session_fields,
+        **http_fields,
+        **web_fields,
     )
     _validate_create_shape(obj)
     return obj
@@ -562,6 +630,21 @@ def catalog_from_json(
     value_type, value_types = _value_types_from_json(obj_type, data)
     job_fields = _scheduled_job_fields_from_json(data)
     sub_fields = _event_subscription_fields_from_json(data)
+    http_fields = _http_service_fields_from_json(data)
+    web_fields = _web_service_fields_from_json(data)
+    session_fields = {
+        "reuse_sessions": http_fields.pop("reuse_sessions"),
+        "session_max_age": http_fields.pop("session_max_age"),
+    }
+    # Prefer explicit values from either parser (identical keys).
+    if session_fields["reuse_sessions"] is None:
+        session_fields["reuse_sessions"] = web_fields.pop("reuse_sessions")
+    else:
+        web_fields.pop("reuse_sessions")
+    if session_fields["session_max_age"] is None:
+        session_fields["session_max_age"] = web_fields.pop("session_max_age")
+    else:
+        web_fields.pop("session_max_age")
     obj = CatalogObject(
         name=name,
         synonym=synonym_s,
@@ -579,6 +662,9 @@ def catalog_from_json(
         **flags,
         **job_fields,
         **sub_fields,
+        **session_fields,
+        **http_fields,
+        **web_fields,
     )
     _validate_create_shape(obj)
     return obj
@@ -718,6 +804,220 @@ def _event_subscription_source_from_list(raw: Any) -> list[str]:
     return out
 
 
+def _parse_reuse_sessions(raw: str | None) -> str | None:
+    if raw is None:
+        return None
+    cleaned = str(raw).strip()
+    if not cleaned:
+        raise IrError("Пустой reuseSessions", code="1CM004")
+    if cleaned not in _REUSE_SESSIONS:
+        raise IrError(
+            "reuseSessions должен быть одним из: "
+            f"{', '.join(sorted(_REUSE_SESSIONS))}, получено: {raw!r}",
+            code="1CM004",
+        )
+    return cleaned
+
+
+def _http_service_fields_from_parts(
+    *,
+    root_url: str | None = None,
+    reuse_sessions: str | None = None,
+    session_max_age: int | None = None,
+    url_templates: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return {
+        "root_url": root_url.strip() if isinstance(root_url, str) else root_url,
+        "reuse_sessions": _parse_reuse_sessions(reuse_sessions),
+        "session_max_age": session_max_age,
+        "url_templates": _url_templates_from_raw(url_templates),
+    }
+
+
+def _http_service_fields_from_json(data: dict[str, Any]) -> dict[str, Any]:
+    root = data.get("rootURL")
+    reuse = data.get("reuseSessions")
+    return {
+        "root_url": str(root) if root is not None else None,
+        "reuse_sessions": _parse_reuse_sessions(
+            str(reuse) if reuse is not None else None
+        ),
+        "session_max_age": _optional_int(
+            data.get("sessionMaxAge"), field="sessionMaxAge"
+        ),
+        "url_templates": _url_templates_from_raw(data.get("urlTemplates")),
+    }
+
+
+def _web_service_fields_from_parts(
+    *,
+    namespace: str | None = None,
+    xdto_packages: str | None = None,
+    reuse_sessions: str | None = None,
+    session_max_age: int | None = None,
+    operations: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return {
+        "namespace": namespace.strip() if isinstance(namespace, str) else namespace,
+        "xdto_packages": (
+            xdto_packages.strip() if isinstance(xdto_packages, str) else xdto_packages
+        ),
+        "reuse_sessions": _parse_reuse_sessions(reuse_sessions),
+        "session_max_age": session_max_age,
+        "operations": _operations_from_raw(operations),
+    }
+
+
+def _web_service_fields_from_json(data: dict[str, Any]) -> dict[str, Any]:
+    namespace = data.get("namespace")
+    xdto = data.get("xdtoPackages")
+    reuse = data.get("reuseSessions")
+    return {
+        "namespace": str(namespace) if namespace is not None else None,
+        "xdto_packages": str(xdto) if xdto is not None else None,
+        "reuse_sessions": _parse_reuse_sessions(
+            str(reuse) if reuse is not None else None
+        ),
+        "session_max_age": _optional_int(
+            data.get("sessionMaxAge"), field="sessionMaxAge"
+        ),
+        "operations": _operations_from_raw(data.get("operations")),
+    }
+
+
+def _url_templates_from_raw(raw: Any) -> dict[str, Any]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise IrError(
+            "urlTemplates должен быть объектом {Name: {template, methods} | string}",
+            code="1CM004",
+        )
+    out: dict[str, Any] = {}
+    for name, body in raw.items():
+        tpl_name = _check_name(str(name), what="urlTemplate")
+        if isinstance(body, str):
+            out[tpl_name] = {"template": body}
+            continue
+        if not isinstance(body, dict):
+            raise IrError(
+                f"urlTemplates.{tpl_name} должен быть объектом или строкой",
+                code="1CM004",
+            )
+        entry: dict[str, Any] = {}
+        if "template" in body and body["template"] is not None:
+            entry["template"] = str(body["template"])
+        methods_raw = body.get("methods")
+        if methods_raw is not None:
+            entry["methods"] = _http_methods_from_raw(methods_raw, tpl_name=tpl_name)
+        out[tpl_name] = entry
+    return out
+
+
+def _http_methods_from_raw(raw: Any, *, tpl_name: str) -> dict[str, str]:
+    if not isinstance(raw, dict):
+        raise IrError(
+            f"urlTemplates.{tpl_name}.methods должен быть объектом "
+            "{MethodName: GET|POST|…}",
+            code="1CM004",
+        )
+    out: dict[str, str] = {}
+    for method_name, verb in raw.items():
+        m_name = _check_name(str(method_name), what="HTTP method")
+        if not isinstance(verb, str) or not verb.strip():
+            raise IrError(
+                f"urlTemplates.{tpl_name}.methods.{m_name} должен быть "
+                "HTTP-глаголом (GET/POST/…)",
+                code="1CM004",
+            )
+        cleaned = verb.strip().upper()
+        if cleaned not in _HTTP_METHOD_VERBS:
+            raise IrError(
+                f"urlTemplates.{tpl_name}.methods.{m_name}: неизвестный HTTP-метод "
+                f"{verb!r} (ожидается {', '.join(sorted(_HTTP_METHOD_VERBS))})",
+                code="1CM004",
+            )
+        out[m_name] = cleaned
+    return out
+
+
+def _operations_from_raw(raw: Any) -> dict[str, Any]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise IrError(
+            "operations должен быть объектом {Name: {returnType?, handler?, …}}",
+            code="1CM004",
+        )
+    out: dict[str, Any] = {}
+    for name, body in raw.items():
+        op_name = _check_name(str(name), what="operation")
+        if not isinstance(body, dict):
+            raise IrError(
+                f"operations.{op_name} должен быть объектом",
+                code="1CM004",
+            )
+        entry: dict[str, Any] = {}
+        if "returnType" in body and body["returnType"] is not None:
+            entry["returnType"] = str(body["returnType"])
+        if "handler" in body and body["handler"] is not None:
+            handler = str(body["handler"]).strip()
+            if not handler:
+                raise IrError(
+                    f"operations.{op_name}.handler не может быть пустым",
+                    code="1CM004",
+                )
+            entry["handler"] = handler
+        if "nillable" in body and body["nillable"] is not None:
+            entry["nillable"] = _optional_bool(body["nillable"], field="nillable")
+        if "transactioned" in body and body["transactioned"] is not None:
+            entry["transactioned"] = _optional_bool(
+                body["transactioned"], field="transactioned"
+            )
+        params_raw = body.get("parameters")
+        if params_raw is not None:
+            entry["parameters"] = _ws_parameters_from_raw(params_raw, op_name=op_name)
+        out[op_name] = entry
+    return out
+
+
+def _ws_parameters_from_raw(raw: Any, *, op_name: str) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        raise IrError(
+            f"operations.{op_name}.parameters должен быть объектом",
+            code="1CM004",
+        )
+    out: dict[str, Any] = {}
+    for name, body in raw.items():
+        p_name = _check_name(str(name), what="parameter")
+        if isinstance(body, str):
+            out[p_name] = {"type": body}
+            continue
+        if not isinstance(body, dict):
+            raise IrError(
+                f"operations.{op_name}.parameters.{p_name} должен быть "
+                "объектом или строкой типа",
+                code="1CM004",
+            )
+        entry: dict[str, Any] = {}
+        if "type" in body and body["type"] is not None:
+            entry["type"] = str(body["type"])
+        if "direction" in body and body["direction"] is not None:
+            direction = str(body["direction"]).strip()
+            if direction not in _WS_PARAM_DIRECTIONS:
+                raise IrError(
+                    f"operations.{op_name}.parameters.{p_name}.direction "
+                    f"должен быть одним из: {', '.join(sorted(_WS_PARAM_DIRECTIONS))}, "
+                    f"получено: {body['direction']!r}",
+                    code="1CM004",
+                )
+            entry["direction"] = direction
+        if "nillable" in body and body["nillable"] is not None:
+            entry["nillable"] = _optional_bool(body["nillable"], field="nillable")
+        out[p_name] = entry
+    return out
+
+
 def _common_module_flags_from_parts(
     *,
     server: bool | None = None,
@@ -810,6 +1110,9 @@ def _validate_create_shape(obj: CatalogObject) -> None:
         _reject_value_type_fields(obj, type_name="Enum")
         _reject_scheduled_job_fields(obj, type_name="Enum")
         _reject_event_subscription_fields(obj, type_name="Enum")
+        _reject_http_service_fields(obj, type_name="Enum")
+        _reject_web_service_fields(obj, type_name="Enum")
+        _reject_session_reuse_fields(obj, type_name="Enum")
         return
     if obj.type in _REGISTER_TYPES:
         if obj.attributes or obj.tabular_sections or obj.values:
@@ -822,6 +1125,9 @@ def _validate_create_shape(obj: CatalogObject) -> None:
         _reject_value_type_fields(obj, type_name=obj.type)
         _reject_scheduled_job_fields(obj, type_name=obj.type)
         _reject_event_subscription_fields(obj, type_name=obj.type)
+        _reject_http_service_fields(obj, type_name=obj.type)
+        _reject_web_service_fields(obj, type_name=obj.type)
+        _reject_session_reuse_fields(obj, type_name=obj.type)
         return
     if obj.type == "CommonModule":
         if (
@@ -840,6 +1146,9 @@ def _validate_create_shape(obj: CatalogObject) -> None:
         _reject_value_type_fields(obj, type_name="CommonModule")
         _reject_scheduled_job_fields(obj, type_name="CommonModule")
         _reject_event_subscription_fields(obj, type_name="CommonModule")
+        _reject_http_service_fields(obj, type_name="CommonModule")
+        _reject_web_service_fields(obj, type_name="CommonModule")
+        _reject_session_reuse_fields(obj, type_name="CommonModule")
         if (
             obj.return_values_reuse is not None
             and obj.return_values_reuse not in _RETURN_VALUES_REUSE
@@ -866,6 +1175,9 @@ def _validate_create_shape(obj: CatalogObject) -> None:
         _reject_value_type_fields(obj, type_name="Subsystem")
         _reject_scheduled_job_fields(obj, type_name="Subsystem")
         _reject_event_subscription_fields(obj, type_name="Subsystem")
+        _reject_http_service_fields(obj, type_name="Subsystem")
+        _reject_web_service_fields(obj, type_name="Subsystem")
+        _reject_session_reuse_fields(obj, type_name="Subsystem")
         return
     if obj.type in _VALUE_TYPE_OBJECT_TYPES:
         if (
@@ -884,6 +1196,9 @@ def _validate_create_shape(obj: CatalogObject) -> None:
         _reject_subsystem_fields(obj, type_name=obj.type)
         _reject_scheduled_job_fields(obj, type_name=obj.type)
         _reject_event_subscription_fields(obj, type_name=obj.type)
+        _reject_http_service_fields(obj, type_name=obj.type)
+        _reject_web_service_fields(obj, type_name=obj.type)
+        _reject_session_reuse_fields(obj, type_name=obj.type)
         if obj.type == "DefinedType" and obj.value_type is None and not obj.value_types:
             raise IrError(
                 "DefinedType требует valueType или valueTypes",
@@ -907,6 +1222,9 @@ def _validate_create_shape(obj: CatalogObject) -> None:
         _reject_subsystem_fields(obj, type_name="ScheduledJob")
         _reject_value_type_fields(obj, type_name="ScheduledJob")
         _reject_event_subscription_fields(obj, type_name="ScheduledJob")
+        _reject_http_service_fields(obj, type_name="ScheduledJob")
+        _reject_web_service_fields(obj, type_name="ScheduledJob")
+        _reject_session_reuse_fields(obj, type_name="ScheduledJob")
         return
     if obj.type == "EventSubscription":
         if (
@@ -925,6 +1243,65 @@ def _validate_create_shape(obj: CatalogObject) -> None:
         _reject_subsystem_fields(obj, type_name="EventSubscription")
         _reject_value_type_fields(obj, type_name="EventSubscription")
         _reject_scheduled_job_fields(obj, type_name="EventSubscription")
+        _reject_http_service_fields(obj, type_name="EventSubscription")
+        _reject_web_service_fields(obj, type_name="EventSubscription")
+        _reject_session_reuse_fields(obj, type_name="EventSubscription")
+        return
+    if obj.type == "HTTPService":
+        if (
+            obj.attributes
+            or obj.tabular_sections
+            or obj.values
+            or obj.dimensions
+            or obj.resources
+        ):
+            raise IrError(
+                "HTTPService не поддерживает attributes / tabularSections / "
+                "values / dimensions / resources",
+                code="1CM004",
+            )
+        _reject_common_module_flags(obj, type_name="HTTPService")
+        _reject_subsystem_fields(obj, type_name="HTTPService")
+        _reject_value_type_fields(obj, type_name="HTTPService")
+        _reject_scheduled_job_fields(obj, type_name="HTTPService")
+        _reject_event_subscription_fields(obj, type_name="HTTPService")
+        _reject_web_service_fields(obj, type_name="HTTPService")
+        if (
+            obj.reuse_sessions is not None
+            and obj.reuse_sessions not in _REUSE_SESSIONS
+        ):
+            raise IrError(
+                f"Некорректный reuseSessions: {obj.reuse_sessions!r}",
+                code="1CM004",
+            )
+        return
+    if obj.type == "WebService":
+        if (
+            obj.attributes
+            or obj.tabular_sections
+            or obj.values
+            or obj.dimensions
+            or obj.resources
+        ):
+            raise IrError(
+                "WebService не поддерживает attributes / tabularSections / "
+                "values / dimensions / resources",
+                code="1CM004",
+            )
+        _reject_common_module_flags(obj, type_name="WebService")
+        _reject_subsystem_fields(obj, type_name="WebService")
+        _reject_value_type_fields(obj, type_name="WebService")
+        _reject_scheduled_job_fields(obj, type_name="WebService")
+        _reject_event_subscription_fields(obj, type_name="WebService")
+        _reject_http_service_fields(obj, type_name="WebService")
+        if (
+            obj.reuse_sessions is not None
+            and obj.reuse_sessions not in _REUSE_SESSIONS
+        ):
+            raise IrError(
+                f"Некорректный reuseSessions: {obj.reuse_sessions!r}",
+                code="1CM004",
+            )
         return
     # Catalog / Document / Report / DataProcessor (attr + tabularSections).
     if obj.type not in _ATTR_TABULAR_OBJECT_TYPES:
@@ -951,6 +1328,10 @@ def _validate_create_shape(obj: CatalogObject) -> None:
     _reject_value_type_fields(obj, type_name=obj.type)
     _reject_scheduled_job_fields(obj, type_name=obj.type)
     _reject_event_subscription_fields(obj, type_name=obj.type)
+    _reject_http_service_fields(obj, type_name=obj.type)
+    _reject_web_service_fields(obj, type_name=obj.type)
+    _reject_session_reuse_fields(obj, type_name=obj.type)
+
 
 def _reject_common_module_flags(obj: CatalogObject, *, type_name: str) -> None:
     if any(
@@ -1002,6 +1383,36 @@ def _reject_event_subscription_fields(obj: CatalogObject, *, type_name: str) -> 
         raise IrError(
             f"{type_name} не поддерживает поля EventSubscription "
             "(handler / event / source)",
+            code="1CM004",
+        )
+
+
+def _reject_http_service_fields(obj: CatalogObject, *, type_name: str) -> None:
+    if obj.root_url is not None or obj.url_templates:
+        raise IrError(
+            f"{type_name} не поддерживает поля HTTPService "
+            "(rootURL / urlTemplates)",
+            code="1CM004",
+        )
+
+
+def _reject_web_service_fields(obj: CatalogObject, *, type_name: str) -> None:
+    if (
+        obj.namespace is not None
+        or obj.xdto_packages is not None
+        or obj.operations
+    ):
+        raise IrError(
+            f"{type_name} не поддерживает поля WebService "
+            "(namespace / xdtoPackages / operations)",
+            code="1CM004",
+        )
+
+
+def _reject_session_reuse_fields(obj: CatalogObject, *, type_name: str) -> None:
+    if obj.reuse_sessions is not None or obj.session_max_age is not None:
+        raise IrError(
+            f"{type_name} не поддерживает reuseSessions / sessionMaxAge",
             code="1CM004",
         )
 

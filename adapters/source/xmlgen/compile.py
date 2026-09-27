@@ -37,6 +37,21 @@ _EVENT_SUBSCRIPTION_DSL_KEYS: tuple[str, ...] = (
     "source",
 )
 
+_HTTP_SERVICE_DSL_KEYS: tuple[str, ...] = (
+    "rootURL",
+    "reuseSessions",
+    "sessionMaxAge",
+    "urlTemplates",
+)
+
+_WEB_SERVICE_DSL_KEYS: tuple[str, ...] = (
+    "namespace",
+    "xdtoPackages",
+    "reuseSessions",
+    "sessionMaxAge",
+    "operations",
+)
+
 class XmlGenError(Exception):
     """xml-gen subprocess or environment failure."""
 
@@ -119,6 +134,18 @@ def ir_to_xmlgen_dsl(ir: dict[str, Any]) -> dict[str, Any]:
 
     if ir.get("type") == "EventSubscription":
         for key in _EVENT_SUBSCRIPTION_DSL_KEYS:
+            if key in ir and ir[key] is not None:
+                dsl[key] = ir[key]
+        return dsl
+
+    if ir.get("type") == "HTTPService":
+        for key in _HTTP_SERVICE_DSL_KEYS:
+            if key in ir and ir[key] is not None:
+                dsl[key] = ir[key]
+        return dsl
+
+    if ir.get("type") == "WebService":
+        for key in _WEB_SERVICE_DSL_KEYS:
             if key in ir and ir[key] is not None:
                 dsl[key] = ir[key]
         return dsl
