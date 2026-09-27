@@ -315,7 +315,8 @@ def update_command(
             "Report.Sales, DataProcessor.ImportData, ScheduledJob.Cleanup, "
             "EventSubscription.ProductsBeforeWrite, HTTPService.API, "
             "WebService.DataExchange, AccountingRegister.Accounting, "
-            "CalculationRegister.Salary."
+            "CalculationRegister.Salary, ChartOfCharacteristicTypes.Properties, "
+            "ChartOfAccounts.MainAccounts, ChartOfCalculationTypes.MainCalcs."
         ),
     ),
     op: list[str] | None = typer.Option(
@@ -482,7 +483,8 @@ def create_command(
             "Report.Sales, DataProcessor.ImportData, ScheduledJob.Cleanup, "
             "EventSubscription.ProductsBeforeWrite, HTTPService.API, "
             "WebService.DataExchange, AccountingRegister.Accounting, "
-            "CalculationRegister.Salary."
+            "CalculationRegister.Salary, ChartOfCharacteristicTypes.Properties, "
+            "ChartOfAccounts.MainAccounts, ChartOfCalculationTypes.MainCalcs."
         ),
     ),
     synonym: str | None = typer.Option(

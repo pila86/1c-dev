@@ -870,6 +870,101 @@ def test_update_accounting_and_calculation_register_ops_mock(tmp_path: Path) -> 
     assert calls_c == [EditOp("modify-property", "Synonym=Зарплата")]
 
 
+def test_update_charts_attr_and_ts_mock(tmp_path: Path) -> None:
+    target = _init_shop(tmp_path)
+    charts = target / "src" / "cf" / "ChartsOfCharacteristicTypes"
+    charts.mkdir(parents=True)
+    (charts / "Properties.xml").write_text(
+        "<ChartOfCharacteristicTypes/>", encoding="utf-8"
+    )
+    calls: list[EditOp] = []
+
+    def fake_edit(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "Properties.xml"
+        calls.extend(operations)
+        return EditResult(
+            changed_paths=["ChartsOfCharacteristicTypes/Properties.xml"],
+            modified=len(operations),
+        )
+
+    def fake_get(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "ChartOfCharacteristicTypes",
+                "name": "Properties",
+                "valueType": {"type": "String", "length": 50},
+                "attributes": [
+                    {"name": "CodeExtra", "type": "String", "length": 10},
+                    {"name": "Cutoff", "type": "Number", "precision": 10, "scale": 2},
+                ],
+                "tabularSections": [
+                    {
+                        "name": "Extra",
+                        "attributes": [
+                            {"name": "Note", "type": "String", "length": 20},
+                            {"name": "Qty", "type": "Number", "precision": 15, "scale": 3},
+                        ],
+                    }
+                ],
+            },
+        )
+
+    result = update_metadata(
+        target,
+        "ChartOfCharacteristicTypes.Properties",
+        [
+            EditOp("add-attribute", "Cutoff:Number(10,2)"),
+            EditOp("add-ts-attribute", "Extra.Qty:Number(15,3)"),
+        ],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert {a["name"] for a in result.ir["attributes"]} == {"CodeExtra", "Cutoff"}
+    assert calls == [
+        EditOp("add-attribute", "Cutoff:Number(10,2)"),
+        EditOp("add-ts-attribute", "Extra.Qty:Number(15,3)"),
+    ]
+
+    accts = target / "src" / "cf" / "ChartsOfAccounts"
+    accts.mkdir(parents=True)
+    (accts / "MainAccounts.xml").write_text("<ChartOfAccounts/>", encoding="utf-8")
+    calls_a: list[EditOp] = []
+
+    def fake_edit_a(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "MainAccounts.xml"
+        calls_a.extend(operations)
+        return EditResult(changed_paths=["ChartsOfAccounts/MainAccounts.xml"], added=1)
+
+    def fake_get_a(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "ChartOfAccounts",
+                "name": "MainAccounts",
+                "attributes": [
+                    {"name": "Extra", "type": "String"},
+                    {"name": "Comment", "type": "String"},
+                ],
+                "accountingFlags": [{"name": "Currency", "type": "Boolean"}],
+            },
+        )
+
+    result_a = update_metadata(
+        target,
+        "ChartOfAccounts.MainAccounts",
+        [EditOp("add-attribute", "Comment:String(100)")],
+        edit_fn=fake_edit_a,
+        get_fn=fake_get_a,
+    )
+    assert result_a.status == "ok"
+    assert calls_a == [EditOp("add-attribute", "Comment:String(100)")]
+
+
 def test_update_enum_duplicate_warning(tmp_path: Path) -> None:
     target = _init_shop(tmp_path)
     enums = target / "src" / "cf" / "Enums"

@@ -121,7 +121,19 @@ _REGISTER_TYPES: frozenset[str] = frozenset(
 )
 _VALUE_TYPE_OBJECT_TYPES: frozenset[str] = frozenset({"Constant", "DefinedType"})
 _ATTR_TABULAR_OBJECT_TYPES: frozenset[str] = frozenset(
-    {"Catalog", "Document", "Report", "DataProcessor"}
+    {
+        "Catalog",
+        "Document",
+        "Report",
+        "DataProcessor",
+        "ChartOfCharacteristicTypes",
+        "ChartOfAccounts",
+        "ChartOfCalculationTypes",
+    }
+)
+# ChartOfCharacteristicTypes shares valueType/valueTypes with Constant/DefinedType.
+_VALUE_TYPE_CREATE_TYPES: frozenset[str] = _VALUE_TYPE_OBJECT_TYPES | frozenset(
+    {"ChartOfCharacteristicTypes"}
 )
 _METHOD_PATH_RE = re.compile(
     r"^[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]*"
@@ -227,6 +239,9 @@ class CatalogObject:
     # AccountingRegister / CalculationRegister (ADR-018 / #67).
     chart_of_accounts: str | None = None
     chart_of_calculation_types: str | None = None
+    # ChartOfAccounts (ADR-018 / #68).
+    accounting_flags: list[Attribute] = field(default_factory=list)
+    ext_dimension_accounting_flags: list[Attribute] = field(default_factory=list)
 
     @property
     def qualified_name(self) -> str:
@@ -309,6 +324,18 @@ class CatalogObject:
         data["attributes"] = [a.to_dict() for a in self.attributes]
         if self.tabular_sections:
             data["tabularSections"] = [t.to_dict() for t in self.tabular_sections]
+        if self.type == "ChartOfCharacteristicTypes":
+            if self.value_type is not None:
+                data["valueType"] = self.value_type.to_dict()
+            elif self.value_types:
+                data["valueTypes"] = [v.to_dict() for v in self.value_types]
+        if self.type == "ChartOfAccounts":
+            if self.accounting_flags:
+                data["accountingFlags"] = [a.to_dict() for a in self.accounting_flags]
+            if self.ext_dimension_accounting_flags:
+                data["extDimensionAccountingFlags"] = [
+                    a.to_dict() for a in self.ext_dimension_accounting_flags
+                ]
         return data
 @dataclass
 class MetadataSummary:
@@ -503,8 +530,10 @@ def catalog_from_parts(
     operations: dict[str, Any] | None = None,
     chart_of_accounts: str | None = None,
     chart_of_calculation_types: str | None = None,
+    accounting_flag_specs: list[str] | None = None,
+    ext_dimension_accounting_flag_specs: list[str] | None = None,
 ) -> CatalogObject:
-    """Build create IR from CLI pieces (ADR-011 / #23–#28 / #62–#67)."""
+    """Build create IR from CLI pieces (ADR-011 / #23–#28 / #62–#68)."""
     obj_type, name = parse_qualified_name(qualified_name)
     if obj_type not in CREATE_OBJECT_TYPES:
         raise IrError(
@@ -520,6 +549,10 @@ def catalog_from_parts(
     values = [parse_enum_value_spec(s) for s in (value_specs or [])]
     dimensions = [parse_attr_spec(s) for s in (dimension_specs or [])]
     resources = [parse_attr_spec(s) for s in (resource_specs or [])]
+    accounting_flags = [parse_attr_spec(s) for s in (accounting_flag_specs or [])]
+    ext_dimension_accounting_flags = [
+        parse_attr_spec(s) for s in (ext_dimension_accounting_flag_specs or [])
+    ]
     flags = _common_module_flags_from_parts(
         server=server,
         client=client,
@@ -589,6 +622,8 @@ def catalog_from_parts(
         include_in_command_interface=include_in_command_interface,
         value_type=value_type,
         value_types=value_types,
+        accounting_flags=accounting_flags,
+        ext_dimension_accounting_flags=ext_dimension_accounting_flags,
         **flags,
         **job_fields,
         **sub_fields,
@@ -645,6 +680,12 @@ def catalog_from_json(
     values = _enum_values_from_json(data.get("values"))
     dimensions = _attributes_from_json_list(list(data.get("dimensions") or []))
     resources = _attributes_from_json_list(list(data.get("resources") or []))
+    accounting_flags = _attributes_from_json_list(
+        list(data.get("accountingFlags") or [])
+    )
+    ext_dimension_accounting_flags = _attributes_from_json_list(
+        list(data.get("extDimensionAccountingFlags") or [])
+    )
     flags = _common_module_flags_from_json(data)
     content_list = _subsystem_qnames_from_list(data.get("content"), what="content")
     children_list = _subsystem_names_from_list(data.get("children"), what="children")
@@ -685,6 +726,8 @@ def catalog_from_json(
         include_in_command_interface=include_ci,
         value_type=value_type,
         value_types=value_types,
+        accounting_flags=accounting_flags,
+        ext_dimension_accounting_flags=ext_dimension_accounting_flags,
         **flags,
         **job_fields,
         **sub_fields,
@@ -1127,6 +1170,8 @@ def _validate_create_shape(obj: CatalogObject) -> None:
     """Reject IR fields that do not belong to the object type (ADR-011)."""
     if obj.type not in _REGISTER_TYPES:
         _reject_register_chart_fields(obj, type_name=obj.type)
+    if obj.type not in ("ChartOfAccounts",):
+        _reject_chart_of_accounts_flags(obj, type_name=obj.type)
     if obj.type == "Enum":
         if obj.attributes or obj.tabular_sections or obj.dimensions or obj.resources:
             raise IrError(
@@ -1333,7 +1378,7 @@ def _validate_create_shape(obj: CatalogObject) -> None:
                 code="1CM004",
             )
         return
-    # Catalog / Document / Report / DataProcessor (attr + tabularSections).
+    # Catalog / Document / Report / DataProcessor / Charts (attr + tabularSections).
     if obj.type not in _ATTR_TABULAR_OBJECT_TYPES:
         # Other Meta DSL types without dedicated IR yet: only name/synonym.
         if (
@@ -1355,7 +1400,8 @@ def _validate_create_shape(obj: CatalogObject) -> None:
         )
     _reject_common_module_flags(obj, type_name=obj.type)
     _reject_subsystem_fields(obj, type_name=obj.type)
-    _reject_value_type_fields(obj, type_name=obj.type)
+    if obj.type != "ChartOfCharacteristicTypes":
+        _reject_value_type_fields(obj, type_name=obj.type)
     _reject_scheduled_job_fields(obj, type_name=obj.type)
     _reject_event_subscription_fields(obj, type_name=obj.type)
     _reject_http_service_fields(obj, type_name=obj.type)
@@ -1392,6 +1438,15 @@ def _reject_value_type_fields(obj: CatalogObject, *, type_name: str) -> None:
     if obj.value_type is not None or obj.value_types:
         raise IrError(
             f"{type_name} не поддерживает valueType / valueTypes",
+            code="1CM004",
+        )
+
+
+def _reject_chart_of_accounts_flags(obj: CatalogObject, *, type_name: str) -> None:
+    if obj.accounting_flags or obj.ext_dimension_accounting_flags:
+        raise IrError(
+            f"{type_name} не поддерживает accountingFlags / "
+            "extDimensionAccountingFlags",
             code="1CM004",
         )
 
@@ -1571,6 +1626,11 @@ def _value_types_from_specs(
         return None, parsed
     if obj_type == "DefinedType":
         return None, parsed
+    if obj_type == "ChartOfCharacteristicTypes":
+        # Same shape as Constant: single → valueType; multi → valueTypes.
+        if len(parsed) == 1:
+            return parsed[0], []
+        return None, parsed
     raise IrError(
         f"{obj_type} не поддерживает --value-type",
         code="1CM004",
@@ -1586,7 +1646,7 @@ def _value_types_from_json(
     raw_multi = data.get("valueTypes")
     if raw_single is None and raw_multi is None:
         return None, []
-    if obj_type not in _VALUE_TYPE_OBJECT_TYPES:
+    if obj_type not in _VALUE_TYPE_CREATE_TYPES:
         raise IrError(
             f"{obj_type} не поддерживает valueType / valueTypes",
             code="1CM004",
@@ -1597,10 +1657,10 @@ def _value_types_from_json(
         if not isinstance(raw_multi, list):
             raise IrError("valueTypes должен быть массивом", code="1CM004")
         multi = [_value_type_from_raw(item) for item in raw_multi]
-    if obj_type == "Constant":
+    if obj_type in ("Constant", "ChartOfCharacteristicTypes"):
         if single is not None and multi:
             raise IrError(
-                "Constant: задайте либо valueType, либо valueTypes",
+                f"{obj_type}: задайте либо valueType, либо valueTypes",
                 code="1CM004",
             )
         if single is not None:

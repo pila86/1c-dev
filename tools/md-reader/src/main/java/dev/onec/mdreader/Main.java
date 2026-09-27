@@ -7,6 +7,9 @@ import com.github._1c_syntax.bsl.mdo.AccumulationRegister;
 import com.github._1c_syntax.bsl.mdo.Attribute;
 import com.github._1c_syntax.bsl.mdo.CalculationRegister;
 import com.github._1c_syntax.bsl.mdo.Catalog;
+import com.github._1c_syntax.bsl.mdo.ChartOfAccounts;
+import com.github._1c_syntax.bsl.mdo.ChartOfCalculationTypes;
+import com.github._1c_syntax.bsl.mdo.ChartOfCharacteristicTypes;
 import com.github._1c_syntax.bsl.mdo.CommonModule;
 import com.github._1c_syntax.bsl.mdo.Constant;
 import com.github._1c_syntax.bsl.mdo.DataProcessor;
@@ -22,7 +25,9 @@ import com.github._1c_syntax.bsl.mdo.ScheduledJob;
 import com.github._1c_syntax.bsl.mdo.Subsystem;
 import com.github._1c_syntax.bsl.mdo.TabularSection;
 import com.github._1c_syntax.bsl.mdo.WebService;
+import com.github._1c_syntax.bsl.mdo.children.AccountingFlag;
 import com.github._1c_syntax.bsl.mdo.children.EnumValue;
+import com.github._1c_syntax.bsl.mdo.children.ExtDimensionAccountingFlag;
 import com.github._1c_syntax.bsl.mdo.children.HTTPServiceMethod;
 import com.github._1c_syntax.bsl.mdo.children.HTTPServiceURLTemplate;
 import com.github._1c_syntax.bsl.mdo.children.WebServiceOperation;
@@ -82,7 +87,10 @@ public final class Main {
       "ScheduledJob",
       "EventSubscription",
       "HTTPService",
-      "WebService"
+      "WebService",
+      "ChartOfCharacteristicTypes",
+      "ChartOfAccounts",
+      "ChartOfCalculationTypes"
   );
 
   private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
@@ -262,6 +270,30 @@ public final class Main {
       obj.add(
           "tabularSections",
           tabularSectionsArray((List<?>) dataProcessor.getTabularSections()));
+    } else if (md instanceof ChartOfCharacteristicTypes chart) {
+      obj.add("attributes", attributesArray((List<Attribute>) (List<?>) chart.getAttributes()));
+      obj.add("tabularSections", tabularSectionsArray((List<?>) chart.getTabularSections()));
+      // Prefer valueTypes array when composite; otherwise single valueType (Constant-like).
+      ValueTypeDescription chartVt = chart.getValueType();
+      if (chartVt != null && !chartVt.isEmpty() && chartVt.isComposite()
+          && chartVt.getTypes() != null && chartVt.getTypes().size() > 1) {
+        obj.add("valueTypes", valueTypesArray(chartVt));
+      } else {
+        obj.add("valueType", valueTypeToJson(chartVt));
+      }
+    } else if (md instanceof ChartOfAccounts chart) {
+      obj.add("attributes", attributesArray((List<Attribute>) (List<?>) chart.getAttributes()));
+      obj.add("tabularSections", tabularSectionsArray((List<?>) chart.getTabularSections()));
+      obj.add(
+          "accountingFlags",
+          accountingFlagsArray((List<AccountingFlag>) (List<?>) chart.getAccountingFlags()));
+      obj.add(
+          "extDimensionAccountingFlags",
+          extDimensionAccountingFlagsArray(
+              (List<ExtDimensionAccountingFlag>) (List<?>) chart.getExtDimensionAccountingFlags()));
+    } else if (md instanceof ChartOfCalculationTypes chart) {
+      obj.add("attributes", attributesArray((List<Attribute>) (List<?>) chart.getAttributes()));
+      obj.add("tabularSections", tabularSectionsArray((List<?>) chart.getTabularSections()));
     } else if (md instanceof Enum enumeration) {
       obj.add("values", enumValuesArray((List<EnumValue>) (List<?>) enumeration.getEnumValues()));
     } else if (md instanceof InformationRegister register) {
@@ -505,6 +537,29 @@ public final class Main {
     }
     for (Attribute attribute : attributes) {
       arr.add(attributeToJson(attribute));
+    }
+    return arr;
+  }
+
+  private static JsonArray accountingFlagsArray(List<AccountingFlag> flags) {
+    JsonArray arr = new JsonArray();
+    if (flags == null) {
+      return arr;
+    }
+    for (AccountingFlag flag : flags) {
+      arr.add(attributeToJson(flag));
+    }
+    return arr;
+  }
+
+  private static JsonArray extDimensionAccountingFlagsArray(
+      List<ExtDimensionAccountingFlag> flags) {
+    JsonArray arr = new JsonArray();
+    if (flags == null) {
+      return arr;
+    }
+    for (ExtDimensionAccountingFlag flag : flags) {
+      arr.add(attributeToJson(flag));
     }
     return arr;
   }

@@ -217,7 +217,9 @@ def register_tools(server: FastMCP) -> None:
             "AccumulationRegister, AccountingRegister, CalculationRegister, "
             "CommonModule, Subsystem, Constant, "
             "DefinedType, Report, DataProcessor, ScheduledJob, "
-            "EventSubscription, HTTPService, WebService "
+            "EventSubscription, HTTPService, WebService, "
+            "ChartOfCharacteristicTypes, ChartOfAccounts, "
+            "ChartOfCalculationTypes "
             "(plus other Meta DSL types from the write allowlist). "
             "Pass qualified_name "
             "(e.g. Catalog.Products, Enum.Statuses, CommonModule.SalesServer, "
@@ -225,9 +227,10 @@ def register_tools(server: FastMCP) -> None:
             "Report.Sales, DataProcessor.ImportData, ScheduledJob.Cleanup, "
             "EventSubscription.ProductsBeforeWrite, HTTPService.API, "
             "WebService.DataExchange, AccountingRegister.Accounting, "
-            "CalculationRegister.Salary); "
+            "CalculationRegister.Salary, ChartOfCharacteristicTypes.Properties, "
+            "ChartOfAccounts.MainAccounts, ChartOfCalculationTypes.MainCalcs); "
             "optional synonym; "
-            "for Catalog/Document/Report/DataProcessor: "
+            "for Catalog/Document/Report/DataProcessor/Charts: "
             "attributes and tabular_sections; "
             "for Enum: values [{name, synonym?}]; "
             "for registers: dimensions and resources (same shape as attributes); "
@@ -235,6 +238,9 @@ def register_tools(server: FastMCP) -> None:
             "(ChartOfAccounts.Name); "
             "for CalculationRegister: required chart_of_calculation_types "
             "(ChartOfCalculationTypes.Name); "
+            "for ChartOfCharacteristicTypes: optional value_type / value_types; "
+            "for ChartOfAccounts: optional accounting_flags and "
+            "ext_dimension_accounting_flags (same shape as attributes); "
             "for CommonModule: optional flags server, client "
             "(→ clientManagedApplication), client_ordinary_application, "
             "server_call, external_connection, privileged, global, "
@@ -299,6 +305,8 @@ def register_tools(server: FastMCP) -> None:
         operations: dict[str, Any] | None = None,
         chart_of_accounts: str | None = None,
         chart_of_calculation_types: str | None = None,
+        accounting_flags: list[dict[str, Any]] | None = None,
+        ext_dimension_accounting_flags: list[dict[str, Any]] | None = None,
         path: str | None = None,
     ) -> dict[str, Any]:
         try:
@@ -315,6 +323,12 @@ def register_tools(server: FastMCP) -> None:
                 data["dimensions"] = list(dimensions)
             if resources:
                 data["resources"] = list(resources)
+            if accounting_flags:
+                data["accountingFlags"] = list(accounting_flags)
+            if ext_dimension_accounting_flags:
+                data["extDimensionAccountingFlags"] = list(
+                    ext_dimension_accounting_flags
+                )
             if server is not None:
                 data["server"] = server
             if client is not None:

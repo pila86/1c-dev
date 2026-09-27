@@ -704,6 +704,76 @@ def test_accounting_and_calculation_register_from_parts_and_json() -> None:
     assert info_chart.value.code == "1CM004"
 
 
+def test_charts_from_parts_and_json() -> None:
+    char = catalog_from_parts(
+        qualified_name="ChartOfCharacteristicTypes.Properties",
+        synonym="Свойства",
+        value_type_specs=["String:50"],
+        attr_specs=["CodeExtra:String:10:ДопКод"],
+        ts_specs=["Extra:Доп"],
+        ts_attr_specs=["Extra.Note:String:20:Заметка"],
+    )
+    assert char.qualified_name == "ChartOfCharacteristicTypes.Properties"
+    assert char.type == "ChartOfCharacteristicTypes"
+    assert char.value_type is not None
+    assert char.value_type.type == "String"
+    assert char.value_type.length == 50
+    assert char.attributes[0].name == "CodeExtra"
+    assert char.tabular_sections[0].name == "Extra"
+    char_dsl = ir_to_xmlgen_dsl(char.to_dict())
+    assert char_dsl["type"] == "ChartOfCharacteristicTypes"
+    assert char_dsl["valueType"] == "String(50)"
+    assert "Extra" in char_dsl["tabularSections"]
+
+    accounts = catalog_from_parts(
+        qualified_name="ChartOfAccounts.MainAccounts",
+        synonym="Счета",
+        attr_specs=["Extra:String:10"],
+        accounting_flag_specs=["Currency:Boolean:Валютный"],
+        ext_dimension_accounting_flag_specs=["Amount:Boolean:Суммовой"],
+        ts_specs=["ExtraTS"],
+        ts_attr_specs=["ExtraTS.Note:String:20"],
+    )
+    assert accounts.type == "ChartOfAccounts"
+    assert accounts.accounting_flags[0].name == "Currency"
+    assert accounts.ext_dimension_accounting_flags[0].name == "Amount"
+    acc_dsl = ir_to_xmlgen_dsl(accounts.to_dict())
+    assert acc_dsl["accountingFlags"][0]["type"] == "Boolean"
+    assert acc_dsl["extDimensionAccountingFlags"][0]["name"] == "Amount"
+
+    calcs = catalog_from_parts(
+        qualified_name="ChartOfCalculationTypes.MainCalcs",
+        attr_specs=["Extra:String:10"],
+    )
+    assert calcs.type == "ChartOfCalculationTypes"
+    calc_dsl = ir_to_xmlgen_dsl(calcs.to_dict())
+    assert calc_dsl["attributes"][0]["type"] == "String(10)"
+
+    from_json = catalog_from_json(
+        {
+            "type": "ChartOfAccounts",
+            "name": "Plan",
+            "accountingFlags": [{"name": "Currency", "type": "Boolean"}],
+            "attributes": [{"name": "Extra", "type": "String", "length": 10}],
+        }
+    )
+    assert from_json.accounting_flags[0].name == "Currency"
+
+    with pytest.raises(IrError) as bad_vt:
+        catalog_from_parts(
+            qualified_name="ChartOfAccounts.Bad",
+            value_type_specs=["String:10"],
+        )
+    assert bad_vt.value.code == "1CM004"
+
+    with pytest.raises(IrError) as bad_flags:
+        catalog_from_parts(
+            qualified_name="Catalog.Bad",
+            accounting_flag_specs=["Currency:Boolean"],
+        )
+    assert bad_flags.value.code == "1CM004"
+
+
 def test_create_metadata_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
@@ -1194,6 +1264,78 @@ def test_create_accounting_and_calculation_register_mock(tmp_path: Path) -> None
     )
     assert result2.status == "ok"
     assert result2.object == "CalculationRegister.Salary"
+
+
+def test_create_charts_mock(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+
+    def fake_compile_char(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "ChartOfCharacteristicTypes"
+        assert dsl["valueType"] == "String(50)"
+        assert dsl["attributes"][0]["name"] == "CodeExtra"
+        assert "Extra" in dsl["tabularSections"]
+        folder = source_dir / "ChartsOfCharacteristicTypes"
+        folder.mkdir(parents=True)
+        (folder / "Properties.xml").write_text(
+            "<ChartOfCharacteristicTypes/>", encoding="utf-8"
+        )
+        return ["ChartsOfCharacteristicTypes/Properties.xml"]
+
+    result = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ChartOfCharacteristicTypes.Properties",
+            value_type_specs=["String:50"],
+            attr_specs=["CodeExtra:String:10"],
+            ts_specs=["Extra"],
+            ts_attr_specs=["Extra.Note:String:20"],
+        ),
+        compile_fn=fake_compile_char,
+    )
+    assert result.status == "ok"
+    assert result.object == "ChartOfCharacteristicTypes.Properties"
+
+    def fake_compile_acc(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "ChartOfAccounts"
+        assert dsl["accountingFlags"][0]["name"] == "Currency"
+        folder = source_dir / "ChartsOfAccounts"
+        folder.mkdir(parents=True)
+        (folder / "MainAccounts.xml").write_text("<ChartOfAccounts/>", encoding="utf-8")
+        return ["ChartsOfAccounts/MainAccounts.xml"]
+
+    result2 = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ChartOfAccounts.MainAccounts",
+            accounting_flag_specs=["Currency:Boolean"],
+            attr_specs=["Extra:String:10"],
+        ),
+        compile_fn=fake_compile_acc,
+    )
+    assert result2.status == "ok"
+    assert result2.object == "ChartOfAccounts.MainAccounts"
+
+    def fake_compile_calc(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "ChartOfCalculationTypes"
+        folder = source_dir / "ChartsOfCalculationTypes"
+        folder.mkdir(parents=True)
+        (folder / "MainCalcs.xml").write_text(
+            "<ChartOfCalculationTypes/>", encoding="utf-8"
+        )
+        return ["ChartsOfCalculationTypes/MainCalcs.xml"]
+
+    result3 = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ChartOfCalculationTypes.MainCalcs",
+            attr_specs=["Extra:String:10"],
+        ),
+        compile_fn=fake_compile_calc,
+    )
+    assert result3.status == "ok"
+    assert result3.object == "ChartOfCalculationTypes.MainCalcs"
 
 
 def test_create_duplicate(tmp_path: Path) -> None:
@@ -2004,6 +2146,84 @@ def test_create_accounting_and_calculation_register_with_real_xmlgen(
     cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
     assert "<AccountingRegister>Accounting</AccountingRegister>" in cfg
     assert "<CalculationRegister>Salary</CalculationRegister>" in cfg
+
+    from core.project import validate_project
+
+    assert validate_project(target).status == "ok"
+
+
+@pytest.mark.integration
+def test_create_charts_with_real_xmlgen(tmp_path: Path) -> None:
+    jar = resolve_jar()
+    java = resolve_java()
+    if not jar.found or not java.found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    char = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ChartOfCharacteristicTypes.Properties",
+            synonym="Свойства",
+            value_type_specs=["String:50"],
+            attr_specs=["CodeExtra:String:10:ДопКод"],
+            ts_specs=["Extra:Доп"],
+            ts_attr_specs=["Extra.Note:String:20:Заметка"],
+        ),
+    )
+    assert char.status == "ok", char.diagnostics
+    char_xml = target / "src" / "cf" / "ChartsOfCharacteristicTypes" / "Properties.xml"
+    assert char_xml.is_file()
+    char_text = char_xml.read_text(encoding="utf-8-sig")
+    assert "<Name>CodeExtra</Name>" in char_text
+    assert "<Name>Extra</Name>" in char_text
+    assert "<Name>Note</Name>" in char_text
+    assert "xs:string" in char_text
+
+    accounts = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ChartOfAccounts.MainAccounts",
+            synonym="Счета",
+            attr_specs=["Extra:String:10"],
+            accounting_flag_specs=["Currency:Boolean:Валютный"],
+            ext_dimension_accounting_flag_specs=["Amount:Boolean:Суммовой"],
+            ts_specs=["ExtraTS"],
+            ts_attr_specs=["ExtraTS.Note:String:20"],
+        ),
+    )
+    assert accounts.status == "ok", accounts.diagnostics
+    acc_xml = target / "src" / "cf" / "ChartsOfAccounts" / "MainAccounts.xml"
+    assert acc_xml.is_file()
+    acc_text = acc_xml.read_text(encoding="utf-8-sig")
+    assert "Currency" in acc_text
+    assert "<Name>Extra</Name>" in acc_text
+    assert "ExtraTS" in acc_text
+
+    calcs = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ChartOfCalculationTypes.MainCalcs",
+            synonym="ВидыРасчёта",
+            attr_specs=["Extra:String:10"],
+            ts_specs=["ExtraTS"],
+            ts_attr_specs=["ExtraTS.Note:String:20"],
+        ),
+    )
+    assert calcs.status == "ok", calcs.diagnostics
+    calc_xml = target / "src" / "cf" / "ChartsOfCalculationTypes" / "MainCalcs.xml"
+    assert calc_xml.is_file()
+    calc_text = calc_xml.read_text(encoding="utf-8-sig")
+    assert "<Name>Extra</Name>" in calc_text
+    assert "ExtraTS" in calc_text
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<ChartOfCharacteristicTypes>Properties</ChartOfCharacteristicTypes>" in cfg
+    assert "<ChartOfAccounts>MainAccounts</ChartOfAccounts>" in cfg
+    assert "<ChartOfCalculationTypes>MainCalcs</ChartOfCalculationTypes>" in cfg
 
     from core.project import validate_project
 

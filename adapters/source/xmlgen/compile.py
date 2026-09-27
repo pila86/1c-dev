@@ -183,6 +183,22 @@ def ir_to_xmlgen_dsl(ir: dict[str, Any]) -> dict[str, Any]:
     if ir.get("chartOfCalculationTypes"):
         dsl["chartOfCalculationTypes"] = str(ir["chartOfCalculationTypes"])
 
+    acct_flags_out = [
+        _attr_to_xmlgen_entry(attr)
+        for attr in (ir.get("accountingFlags") or [])
+        if isinstance(attr, dict)
+    ]
+    if acct_flags_out:
+        dsl["accountingFlags"] = acct_flags_out
+
+    ext_flags_out = [
+        _attr_to_xmlgen_entry(attr)
+        for attr in (ir.get("extDimensionAccountingFlags") or [])
+        if isinstance(attr, dict)
+    ]
+    if ext_flags_out:
+        dsl["extDimensionAccountingFlags"] = ext_flags_out
+
     ts_raw = ir.get("tabularSections")
     if isinstance(ts_raw, dict):
         # Already xml-gen map form (or mixed); normalize attribute entries.
@@ -215,6 +231,13 @@ def ir_to_xmlgen_dsl(ir: dict[str, Any]) -> dict[str, Any]:
                 if isinstance(attr, dict)
             ]
         dsl["tabularSections"] = ts_map
+
+    # ChartOfCharacteristicTypes (and any IR that carries valueType alongside attrs).
+    if ir.get("type") == "ChartOfCharacteristicTypes" or (
+        ir.get("valueType") is not None or ir.get("valueTypes") is not None
+    ):
+        if ir.get("type") not in ("Constant", "DefinedType"):
+            _apply_value_type_dsl(dsl, ir)
 
     return dsl
 

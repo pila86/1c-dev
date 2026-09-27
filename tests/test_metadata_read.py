@@ -302,7 +302,7 @@ def test_get_subsystem_full_ir_mock(tmp_path: Path) -> None:
 
 
 def _local_md_reader_jar() -> Path | None:
-    """Prefer freshly built md-reader jar from tools/ (Report/DataProcessor full IR)."""
+    """Prefer freshly built md-reader jar from tools/ (Charts / Report full IR)."""
     built = (
         Path(__file__).resolve().parents[1]
         / "tools"
@@ -507,6 +507,90 @@ def test_get_report_and_dataprocessor_full_ir_mock(tmp_path: Path) -> None:
     assert result2.status == "ok"
     assert result2.ir is not None
     assert result2.ir["attributes"][0]["length"] == 200
+
+
+def test_get_charts_full_ir_mock(tmp_path: Path) -> None:
+    """Smoke: md-reader full IR for Chart* types (#68)."""
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    def fake_read_char(
+        command: str, source_dir: Path, args: tuple[str, ...]
+    ) -> dict[str, Any]:
+        assert command == "get"
+        assert args == ("ChartOfCharacteristicTypes.Properties",)
+        return {
+            "status": "ok",
+            "object": {
+                "type": "ChartOfCharacteristicTypes",
+                "name": "Properties",
+                "qname": "ChartOfCharacteristicTypes.Properties",
+                "valueType": {"type": "String", "length": 50},
+                "attributes": [{"name": "CodeExtra", "type": "String", "length": 10}],
+                "tabularSections": [
+                    {
+                        "name": "Extra",
+                        "attributes": [{"name": "Note", "type": "String", "length": 20}],
+                    }
+                ],
+            },
+        }
+
+    result = get_metadata(
+        target, "ChartOfCharacteristicTypes.Properties", read_fn=fake_read_char
+    )
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert result.ir["type"] == "ChartOfCharacteristicTypes"
+    assert result.ir["valueType"]["length"] == 50
+    assert result.ir["attributes"][0]["name"] == "CodeExtra"
+
+    def fake_read_acc(
+        command: str, source_dir: Path, args: tuple[str, ...]
+    ) -> dict[str, Any]:
+        assert args == ("ChartOfAccounts.MainAccounts",)
+        return {
+            "status": "ok",
+            "object": {
+                "type": "ChartOfAccounts",
+                "name": "MainAccounts",
+                "qname": "ChartOfAccounts.MainAccounts",
+                "attributes": [{"name": "Extra", "type": "String", "length": 10}],
+                "accountingFlags": [{"name": "Currency", "type": "Boolean"}],
+                "extDimensionAccountingFlags": [{"name": "Amount", "type": "Boolean"}],
+                "tabularSections": [],
+            },
+        }
+
+    result2 = get_metadata(
+        target, "ChartOfAccounts.MainAccounts", read_fn=fake_read_acc
+    )
+    assert result2.status == "ok"
+    assert result2.ir is not None
+    assert result2.ir["accountingFlags"][0]["name"] == "Currency"
+
+    def fake_read_calc(
+        command: str, source_dir: Path, args: tuple[str, ...]
+    ) -> dict[str, Any]:
+        assert args == ("ChartOfCalculationTypes.MainCalcs",)
+        return {
+            "status": "ok",
+            "object": {
+                "type": "ChartOfCalculationTypes",
+                "name": "MainCalcs",
+                "qname": "ChartOfCalculationTypes.MainCalcs",
+                "attributes": [{"name": "Extra", "type": "String", "length": 10}],
+                "tabularSections": [],
+            },
+        }
+
+    result3 = get_metadata(
+        target, "ChartOfCalculationTypes.MainCalcs", read_fn=fake_read_calc
+    )
+    assert result3.status == "ok"
+    assert result3.ir is not None
+    assert result3.ir["attributes"][0]["name"] == "Extra"
 
 
 def test_get_scheduled_job_and_event_subscription_full_ir_mock(tmp_path: Path) -> None:
@@ -1413,6 +1497,195 @@ def test_accounting_calculation_register_get_update_delete_roundtrip(
     cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
     assert "<AccountingRegister>Accounting</AccountingRegister>" not in cfg
     assert "<CalculationRegister>Salary</CalculationRegister>" not in cfg
+
+
+@pytest.mark.integration
+def test_charts_get_update_delete_roundtrip(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """create → get full IR → update attrs/TS → delete (#68).
+
+    MDClasses 0.20.0: attributes/TS/valueType/accountingFlags exposed for Charts.
+    xml-gen meta edit: no dedicated add-accountingFlag ops — flags only on create;
+    update covers attributes / tabularSections / Synonym (same as Report).
+    """
+    from adapters.source.xmlgen import EditOp
+    from adapters.source.xmlgen.resolve import resolve_jar as resolve_xmlgen
+    from adapters.source.xmlgen.resolve import resolve_java as resolve_java_xml
+    from core.metadata import (
+        catalog_from_parts,
+        create_metadata,
+        delete_metadata,
+        update_metadata,
+    )
+
+    local_jar = _local_md_reader_jar()
+    if local_jar is not None:
+        monkeypatch.setenv("ONEC_MDREADER_JAR", str(local_jar))
+
+    java = resolve_java()
+    jar = resolve_jar()
+    if not java.found or not jar.found:
+        pytest.skip(
+            "md-reader jar / Java 21+ недоступны (запустите scripts/fetch-md-reader.sh)"
+        )
+    xmlgen = resolve_xmlgen()
+    if not xmlgen.found or not resolve_java_xml().found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    created_char = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ChartOfCharacteristicTypes.Properties",
+            synonym="Свойства",
+            value_type_specs=["String:50"],
+            attr_specs=["CodeExtra:String:10"],
+            ts_specs=["Extra"],
+            ts_attr_specs=["Extra.Note:String:20"],
+        ),
+    )
+    assert created_char.status == "ok", created_char.diagnostics
+
+    got = get_metadata(target, "ChartOfCharacteristicTypes.Properties")
+    assert got.status == "ok", got.diagnostics
+    assert got.ir is not None
+    assert got.ir["type"] == "ChartOfCharacteristicTypes"
+    assert got.ir["name"] == "Properties"
+    vt = got.ir.get("valueType") or (got.ir.get("valueTypes") or [None])[0]
+    assert vt is not None
+    assert vt.get("type") == "String"
+    attr_names = {a.get("name") for a in (got.ir.get("attributes") or [])}
+    assert "CodeExtra" in attr_names
+    sections = {s.get("name") for s in (got.ir.get("tabularSections") or [])}
+    assert "Extra" in sections
+
+    updated = update_metadata(
+        target,
+        "ChartOfCharacteristicTypes.Properties",
+        [
+            EditOp("add-attribute", "Cutoff:Number(10,2)"),
+            EditOp("add-ts-attribute", "Extra.Qty:Number(15,3)"),
+            EditOp("modify-property", "Synonym=СвойстваОбъектов"),
+        ],
+    )
+    assert updated.status == "ok", updated.diagnostics
+
+    got2 = get_metadata(target, "ChartOfCharacteristicTypes.Properties")
+    assert got2.status == "ok", got2.diagnostics
+    assert got2.ir is not None
+    assert got2.ir.get("synonym") == "СвойстваОбъектов"
+    assert {a.get("name") for a in (got2.ir.get("attributes") or [])} >= {
+        "CodeExtra",
+        "Cutoff",
+    }
+
+    created_acc = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ChartOfAccounts.MainAccounts",
+            synonym="Счета",
+            attr_specs=["Extra:String:10"],
+            accounting_flag_specs=["Currency:Boolean"],
+            ext_dimension_accounting_flag_specs=["Amount:Boolean"],
+        ),
+    )
+    assert created_acc.status == "ok", created_acc.diagnostics
+
+    got_a = get_metadata(target, "ChartOfAccounts.MainAccounts")
+    assert got_a.status == "ok", got_a.diagnostics
+    assert got_a.ir is not None
+    assert got_a.ir["type"] == "ChartOfAccounts"
+    flag_names = {f.get("name") for f in (got_a.ir.get("accountingFlags") or [])}
+    assert "Currency" in flag_names
+    ext_names = {
+        f.get("name") for f in (got_a.ir.get("extDimensionAccountingFlags") or [])
+    }
+    assert "Amount" in ext_names
+
+    updated_a = update_metadata(
+        target,
+        "ChartOfAccounts.MainAccounts",
+        [
+            EditOp("add-attribute", "Comment:String(100)"),
+            EditOp("modify-property", "Synonym=ПланСчетов"),
+        ],
+    )
+    assert updated_a.status == "ok", updated_a.diagnostics
+
+    got_a2 = get_metadata(target, "ChartOfAccounts.MainAccounts")
+    assert got_a2.status == "ok", got_a2.diagnostics
+    assert got_a2.ir is not None
+    assert got_a2.ir.get("synonym") == "ПланСчетов"
+    assert {a.get("name") for a in (got_a2.ir.get("attributes") or [])} >= {
+        "Extra",
+        "Comment",
+    }
+
+    created_c = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ChartOfCalculationTypes.MainCalcs",
+            attr_specs=["Extra:String:10"],
+            ts_specs=["ExtraTS"],
+            ts_attr_specs=["ExtraTS.Note:String:20"],
+        ),
+    )
+    assert created_c.status == "ok", created_c.diagnostics
+
+    got_c = get_metadata(target, "ChartOfCalculationTypes.MainCalcs")
+    assert got_c.status == "ok", got_c.diagnostics
+    assert got_c.ir is not None
+    assert got_c.ir["type"] == "ChartOfCalculationTypes"
+    assert {a.get("name") for a in (got_c.ir.get("attributes") or [])} >= {"Extra"}
+    assert {s.get("name") for s in (got_c.ir.get("tabularSections") or [])} >= {
+        "ExtraTS"
+    }
+
+    updated_c = update_metadata(
+        target,
+        "ChartOfCalculationTypes.MainCalcs",
+        [
+            EditOp("add-attribute", "Rate:Number(10,2)"),
+            EditOp("modify-property", "Synonym=ВидыРасчёта"),
+        ],
+    )
+    assert updated_c.status == "ok", updated_c.diagnostics
+
+    got_c2 = get_metadata(target, "ChartOfCalculationTypes.MainCalcs")
+    assert got_c2.status == "ok", got_c2.diagnostics
+    assert got_c2.ir is not None
+    assert got_c2.ir.get("synonym") == "ВидыРасчёта"
+    assert {a.get("name") for a in (got_c2.ir.get("attributes") or [])} >= {
+        "Extra",
+        "Rate",
+    }
+
+    for qname, folder, fname in (
+        (
+            "ChartOfCharacteristicTypes.Properties",
+            "ChartsOfCharacteristicTypes",
+            "Properties.xml",
+        ),
+        ("ChartOfAccounts.MainAccounts", "ChartsOfAccounts", "MainAccounts.xml"),
+        (
+            "ChartOfCalculationTypes.MainCalcs",
+            "ChartsOfCalculationTypes",
+            "MainCalcs.xml",
+        ),
+    ):
+        deleted = delete_metadata(target, qname)
+        assert deleted.status == "ok", deleted.diagnostics
+        assert not (target / "src" / "cf" / folder / fname).is_file()
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<ChartOfCharacteristicTypes>Properties</ChartOfCharacteristicTypes>" not in cfg
+    assert "<ChartOfAccounts>MainAccounts</ChartOfAccounts>" not in cfg
+    assert "<ChartOfCalculationTypes>MainCalcs</ChartOfCalculationTypes>" not in cfg
 
 
 @pytest.mark.integration
