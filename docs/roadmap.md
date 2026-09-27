@@ -19,11 +19,11 @@ M2 закрыт: Metadata API (list/get/find, update, create beyond Catalog, del
 | **M2** | Metadata API: list/get/find + update + create (Document, registers, …) + delete | Done |
 | **M3** | Product adopt: import `.cf`, user install/PATH **+ автозагрузка toolchain** (xml-gen, md-reader/MDClasses, …), `ide configure` (IDE/agents/MCP), BSL LS MCP wiring, docs/context (bsl-context); **should (temporary):** metadata types coverage (трек E — 23 meta + Subsystem) | In progress |
 | M4 | Source formats: EDT adapter + `source.convert` XML ↔ EDT | Planned |
-| M5 | Tests (YAxUnit / Vanessa) | Planned |
+| M5 | Tests (YAxUnit / Vanessa) | Planned (draft) |
 | M6 | Debug (DAP), semantic diff, verify; attach к клиенту после `runtime.start --debug` (ADR-019) | Planned |
 | M7 | Remote runtime, Docker, lockfile | Planned |
 
-Документы этапов: [M1](milestones/m1-catalog-via-agent.md) · [M2](milestones/m2-metadata-api.md) · [M3](milestones/m3-product-adopt.md) · [M4](milestones/m4-source-formats.md)
+Документы этапов: [M1](milestones/m1-catalog-via-agent.md) · [M2](milestones/m2-metadata-api.md) · [M3](milestones/m3-product-adopt.md) · [M4](milestones/m4-source-formats.md) · [M5](milestones/m5-tests.md)
 
 ## Принципы (из PRD)
 
