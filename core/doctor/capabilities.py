@@ -1,14 +1,10 @@
-"""Capability matrix for doctor (ADR-005, ADR-007, ADR-012, ADR-015, #25, #49)."""
+"""Capability matrix for doctor (ADR-005, ADR-007, ADR-012, ADR-015, ADR-018, #25, #49, #60)."""
 
 from __future__ import annotations
 
 from typing import NotRequired, TypedDict
 
-from core.metadata.ir import (
-    CREATE_OBJECT_TYPES,
-    M2_OBJECT_TYPES,
-    UPDATE_OBJECT_TYPES,
-)
+from core.metadata.types import WRITE_OBJECT_TYPES
 from core.toolchain.resolve import sync_suggestion
 
 # Capability → required tool names (keys in tools map).
@@ -22,11 +18,11 @@ CAPABILITY_REQUIREMENTS: dict[str, list[str]] = {
     "metadata.read": ["java", "md-reader"],
 }
 
-# Write capabilities → supported Metadata IR object types (ADR-011 / #25).
+# Write capabilities → ADR-018 coverage catalog (waves fill IR parity).
 _SUPPORTED_TYPES: dict[str, frozenset[str]] = {
-    "metadata.create": CREATE_OBJECT_TYPES,
-    "metadata.update": UPDATE_OBJECT_TYPES,
-    "metadata.delete": M2_OBJECT_TYPES,
+    "metadata.create": WRITE_OBJECT_TYPES,
+    "metadata.update": WRITE_OBJECT_TYPES,
+    "metadata.delete": WRITE_OBJECT_TYPES,
 }
 
 _TOOL_HINTS: dict[str, str] = {

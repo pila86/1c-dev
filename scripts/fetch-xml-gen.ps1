@@ -1,4 +1,5 @@
-# Build pinned xml-gen jar into the local 1c-dev tools cache (ADR-007).
+# Build pinned xml-gen jar into the local 1c-dev tools cache (ADR-007 / ADR-018).
+# Pin covers Meta DSL 23 + subsystem compile/edit.
 # Requires: JDK 17+, git, PowerShell 5.1+ / 7+
 $ErrorActionPreference = "Stop"
 

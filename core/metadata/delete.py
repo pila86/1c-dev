@@ -16,25 +16,16 @@ from adapters.source.xmlgen import (
 from core.diagnostics import error
 from core.metadata.ir import IrError, parse_qualified_name
 from core.metadata.result import MetadataResult
+from core.metadata.types import TYPE_DIRS
 from core.project.detect import detect_manifest
 from core.project.load import load_manifest
 
 RemoveFn = Callable[[Path, str], list[str]]
 
-# Designer XML folder names for M2 object types.
-_TYPE_DIRS: dict[str, str] = {
-    "Catalog": "Catalogs",
-    "Document": "Documents",
-    "Enum": "Enums",
-    "InformationRegister": "InformationRegisters",
-    "AccumulationRegister": "AccumulationRegisters",
-    "CommonModule": "CommonModules",
-}
-
 
 def object_xml_path(source_dir: Path, obj_type: str, name: str) -> Path:
     """Return expected object XML path under source_dir for a QName type."""
-    folder = _TYPE_DIRS.get(obj_type)
+    folder = TYPE_DIRS.get(obj_type)
     if folder is None:
         raise KeyError(obj_type)
     return source_dir / folder / f"{name}.xml"

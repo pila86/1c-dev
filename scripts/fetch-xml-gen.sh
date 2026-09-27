@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Build pinned xml-gen jar into the local 1c-dev tools cache (ADR-007).
+# Build pinned xml-gen jar into the local 1c-dev tools cache (ADR-007 / ADR-018).
+# Pin covers Meta DSL 23 + subsystem compile/edit.
 set -euo pipefail
 
 REPO_URL="https://github.com/SteelMorgan/1c-agent-based-dev-framework.git"

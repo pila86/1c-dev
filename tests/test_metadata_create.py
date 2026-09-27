@@ -31,8 +31,10 @@ runner = CliRunner()
 def test_parse_qualified_name() -> None:
     assert parse_qualified_name("Catalog.Products") == ("Catalog", "Products")
     assert parse_qualified_name("Document.Sales") == ("Document", "Sales")
+    assert parse_qualified_name("Report.Sales") == ("Report", "Sales")
+    assert parse_qualified_name("Subsystem.Main") == ("Subsystem", "Main")
     with pytest.raises(IrError) as exc:
-        parse_qualified_name("Report.Sales")
+        parse_qualified_name("Role.Admin")
     assert exc.value.code == "1CM002"
 
 
@@ -717,7 +719,7 @@ def test_cli_bad_type(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(target)
     result = runner.invoke(
         app,
-        ["metadata", "create", "BusinessProcess.Flow", "--output", "json"],
+        ["metadata", "create", "Role.Admin", "--output", "json"],
     )
     assert result.exit_code == PROJECT_ERROR
     payload = json.loads(result.output)

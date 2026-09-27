@@ -5,9 +5,6 @@ from __future__ import annotations
 from core.metadata.create import create_metadata
 from core.metadata.delete import delete_metadata
 from core.metadata.ir import (
-    CREATE_OBJECT_TYPES,
-    M2_OBJECT_TYPES,
-    UPDATE_OBJECT_TYPES,
     Attribute,
     CatalogObject,
     EnumValue,
@@ -26,6 +23,15 @@ from core.metadata.ir import (
 )
 from core.metadata.read import find_metadata, get_metadata, list_metadata
 from core.metadata.result import MetadataResult
+from core.metadata.types import (
+    CREATE_OBJECT_TYPES,
+    M2_OBJECT_TYPES,
+    META_DSL_OBJECT_TYPES,
+    TYPE_DIRS,
+    UPDATE_OBJECT_TYPES,
+    WRITE_OBJECT_TYPES,
+    ObjectType,
+)
 from core.metadata.update import (
     attr_to_xmlgen_shorthand,
     normalize_edit_ops,
@@ -43,7 +49,11 @@ from core.metadata.update import (
 __all__ = [
     "CREATE_OBJECT_TYPES",
     "M2_OBJECT_TYPES",
+    "META_DSL_OBJECT_TYPES",
+    "ObjectType",
+    "TYPE_DIRS",
     "UPDATE_OBJECT_TYPES",
+    "WRITE_OBJECT_TYPES",
     "Attribute",
     "CatalogObject",
     "EnumValue",

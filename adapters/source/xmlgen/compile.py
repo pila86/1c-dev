@@ -10,16 +10,6 @@ from typing import Any
 
 from adapters.source.xmlgen.resolve import ToolResolve, resolve_jar, resolve_java
 
-# Designer folder names for create-supported types.
-_TYPE_DIRS: dict[str, str] = {
-    "Catalog": "Catalogs",
-    "Document": "Documents",
-    "Enum": "Enums",
-    "InformationRegister": "InformationRegisters",
-    "AccumulationRegister": "AccumulationRegisters",
-    "CommonModule": "CommonModules",
-}
-
 _COMMON_MODULE_DSL_KEYS: tuple[str, ...] = (
     "server",
     "clientManagedApplication",
@@ -244,9 +234,11 @@ def compile_metadata(
     after = _snapshot(source_dir)
     created = sorted(after - before)
     # Always report main object file if present
+    from core.metadata.types import TYPE_DIRS
+
     name = str(dsl.get("name", ""))
     obj_type = str(dsl.get("type", ""))
-    folder = _TYPE_DIRS.get(obj_type)
+    folder = TYPE_DIRS.get(obj_type)
     if name and folder:
         object_xml = source_dir / folder / f"{name}.xml"
         if object_xml.is_file():
