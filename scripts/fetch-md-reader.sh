@@ -57,7 +57,16 @@ fi
 export JAVA_HOME="$(cd "$(dirname "${JAVA_BIN}")/.." && pwd)"
 
 mkdir -p "${CACHE_DIR}"
-if [[ -f "${PINNED_JAR}" ]]; then
+
+need_rebuild=1
+if [[ "${FORCE:-}" != "1" && -f "${PINNED_JAR}" && -f "${SRC}/src/main/java/dev/onec/mdreader/Main.java" ]]; then
+  # Skip Gradle when pin is newer than Main.java (FORCE=1 to rebuild always).
+  if [[ ! "${SRC}/src/main/java/dev/onec/mdreader/Main.java" -nt "${PINNED_JAR}" ]]; then
+    need_rebuild=0
+  fi
+fi
+
+if [[ "${need_rebuild}" -eq 0 ]]; then
   cp -f "${PINNED_JAR}" "${STABLE_JAR}"
   echo "md-reader already built: ${STABLE_JAR}"
   exit 0

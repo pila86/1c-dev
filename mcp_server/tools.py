@@ -214,8 +214,10 @@ def register_tools(server: FastMCP) -> None:
             "Create a new metadata object in XML source (does not modify existing "
             "objects — use metadata.update for that). "
             "Types: Catalog, Document, Enum, InformationRegister, "
-            "AccumulationRegister, CommonModule. Pass qualified_name "
-            "(e.g. Catalog.Products, Enum.Statuses, CommonModule.SalesServer); "
+            "AccumulationRegister, CommonModule, Subsystem (plus other Meta DSL "
+            "types from the write allowlist). Pass qualified_name "
+            "(e.g. Catalog.Products, Enum.Statuses, CommonModule.SalesServer, "
+            "Subsystem.Main); "
             "optional synonym; "
             "for Catalog/Document: attributes and tabular_sections; "
             "for Enum: values [{name, synonym?}]; "
@@ -224,7 +226,9 @@ def register_tools(server: FastMCP) -> None:
             "(→ clientManagedApplication), client_ordinary_application, "
             "server_call, external_connection, privileged, global, "
             "return_values_reuse (DontUse|DuringRequest|DuringSession). "
-            "BSL body is not written (empty Module.bsl)."
+            "BSL body is not written (empty Module.bsl). "
+            "for Subsystem: optional content [Type.Name], children [Name], "
+            "include_in_command_interface."
             + _NO_SHELL
         ),
     )
@@ -244,6 +248,9 @@ def register_tools(server: FastMCP) -> None:
         privileged: bool | None = None,
         global_: bool | None = None,
         return_values_reuse: str | None = None,
+        content: list[str] | None = None,
+        children: list[str] | None = None,
+        include_in_command_interface: bool | None = None,
         path: str | None = None,
     ) -> dict[str, Any]:
         try:
@@ -276,6 +283,12 @@ def register_tools(server: FastMCP) -> None:
                 data["global"] = global_
             if return_values_reuse is not None:
                 data["returnValuesReuse"] = return_values_reuse
+            if content:
+                data["content"] = list(content)
+            if children:
+                data["children"] = list(children)
+            if include_in_command_interface is not None:
+                data["includeInCommandInterface"] = include_in_command_interface
             # type/name come from qualified_name (validated inside catalog_from_json)
             catalog = catalog_from_json(data, qualified_name=qualified_name)
             if synonym and not catalog.synonym:
@@ -305,10 +318,13 @@ def register_tools(server: FastMCP) -> None:
             "add-enumValue / modify-enumValue / remove-enumValue; "
             "add-dimension / modify-dimension / remove-dimension; "
             "add-resource / modify-resource / remove-resource; "
-            "modify-property; set-flag (CommonModule sugar → modify-property). "
+            "modify-property; set-flag (CommonModule sugar → modify-property); "
+            "for Subsystem: add-content / remove-content / add-child / "
+            "remove-child / set-property. "
             "Examples: {op:'add-attribute', value:'Price:Number(15,2)'}, "
             "{op:'modify-attribute', value:'Price: synonym=Цена'}, "
-            "{op:'set-flag', value:'server=true'}. "
+            "{op:'set-flag', value:'server=true'}, "
+            "{op:'add-content', value:'Catalog.Products'}. "
             "Does not create new objects — use metadata.create."
             + _NO_SHELL
         ),

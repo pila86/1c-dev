@@ -11,6 +11,7 @@ from adapters.source.xmlgen import (
     EditResult,
     XmlGenError,
     edit_metadata,
+    edit_subsystem,
     fetch_script_suggestion,
     resolve_jar,
     resolve_java,
@@ -286,8 +287,9 @@ def update_metadata(
     get_fn: GetFn | None = None,
 ) -> MetadataResult:
     """
-    Apply sequential meta-edit ops to an existing metadata object.
+    Apply sequential edit ops to an existing metadata object.
 
+    Subsystem uses ``subsystem edit``; other types use ``meta edit``.
     edit_fn / get_fn: injectable for unit tests.
     """
     if not operations:
@@ -457,7 +459,13 @@ def update_metadata(
                 ],
             )
 
-    runner: EditFn = edit_fn if edit_fn is not None else _default_edit
+    runner: EditFn
+    if edit_fn is not None:
+        runner = edit_fn
+    elif obj_type == "Subsystem":
+        runner = _default_subsystem_edit
+    else:
+        runner = _default_edit
     try:
         edit_result = runner(object_xml, wire_ops)
     except XmlGenError as exc:
@@ -511,3 +519,7 @@ def update_metadata(
 
 def _default_edit(object_xml: Path, operations: list[EditOp]) -> EditResult:
     return edit_metadata(object_xml, operations)
+
+
+def _default_subsystem_edit(object_xml: Path, operations: list[EditOp]) -> EditResult:
+    return edit_subsystem(object_xml, operations)

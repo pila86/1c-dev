@@ -497,6 +497,53 @@ def test_update_common_module_set_flag_mock(tmp_path: Path) -> None:
     ]
 
 
+def test_update_subsystem_ops_mock(tmp_path: Path) -> None:
+    target = _init_shop(tmp_path)
+    subs = target / "src" / "cf" / "Subsystems"
+    subs.mkdir(parents=True)
+    (subs / "Main.xml").write_text("<Subsystem/>", encoding="utf-8")
+    calls: list[EditOp] = []
+
+    def fake_edit(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "Main.xml"
+        calls.extend(operations)
+        return EditResult(changed_paths=["Subsystems/Main.xml"], modified=1)
+
+    def fake_get(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "Subsystem",
+                "name": "Main",
+                "content": ["Catalog.Products"],
+                "children": ["Sales"],
+                "includeInCommandInterface": False,
+            },
+        )
+
+    result = update_metadata(
+        target,
+        "Subsystem.Main",
+        [
+            EditOp("add-content", "Catalog.Products"),
+            EditOp("add-child", "Sales"),
+            EditOp("set-property", "IncludeInCommandInterface=false"),
+        ],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert result.ir["content"] == ["Catalog.Products"]
+    assert result.ir["children"] == ["Sales"]
+    assert [c.op for c in calls] == [
+        "add-content",
+        "add-child",
+        "set-property",
+    ]
+
+
 def test_update_enum_duplicate_warning(tmp_path: Path) -> None:
     target = _init_shop(tmp_path)
     enums = target / "src" / "cf" / "Enums"
