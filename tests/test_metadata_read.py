@@ -302,7 +302,7 @@ def test_get_subsystem_full_ir_mock(tmp_path: Path) -> None:
 
 
 def _local_md_reader_jar() -> Path | None:
-    """Prefer freshly built md-reader jar from tools/ (Subsystem full IR)."""
+    """Prefer freshly built md-reader jar from tools/ (Report/DataProcessor full IR)."""
     built = (
         Path(__file__).resolve().parents[1]
         / "tools"
@@ -449,6 +449,66 @@ def test_get_constant_and_defined_type_full_ir_mock(tmp_path: Path) -> None:
     assert len(result2.ir["valueTypes"]) == 2
 
 
+def test_get_report_and_dataprocessor_full_ir_mock(tmp_path: Path) -> None:
+    """Smoke: md-reader full IR for Report / DataProcessor (#64)."""
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    def fake_read_report(
+        command: str, source_dir: Path, args: tuple[str, ...]
+    ) -> dict[str, Any]:
+        assert command == "get"
+        assert args == ("Report.Sales",)
+        return {
+            "status": "ok",
+            "object": {
+                "type": "Report",
+                "name": "Sales",
+                "qname": "Report.Sales",
+                "synonym": "Продажи",
+                "attributes": [{"name": "Period", "type": "Date"}],
+                "tabularSections": [
+                    {
+                        "name": "Lines",
+                        "attributes": [
+                            {"name": "Amount", "type": "Number", "precision": 15, "scale": 2}
+                        ],
+                    }
+                ],
+            },
+        }
+
+    result = get_metadata(target, "Report.Sales", read_fn=fake_read_report)
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert result.ir["type"] == "Report"
+    assert result.ir["attributes"][0]["name"] == "Period"
+    assert result.ir["tabularSections"][0]["name"] == "Lines"
+
+    def fake_read_processor(
+        command: str, source_dir: Path, args: tuple[str, ...]
+    ) -> dict[str, Any]:
+        assert args == ("DataProcessor.ImportData",)
+        return {
+            "status": "ok",
+            "object": {
+                "type": "DataProcessor",
+                "name": "ImportData",
+                "qname": "DataProcessor.ImportData",
+                "attributes": [{"name": "Path", "type": "String", "length": 200}],
+                "tabularSections": [],
+            },
+        }
+
+    result2 = get_metadata(
+        target, "DataProcessor.ImportData", read_fn=fake_read_processor
+    )
+    assert result2.status == "ok"
+    assert result2.ir is not None
+    assert result2.ir["attributes"][0]["length"] == 200
+
+
 @pytest.mark.integration
 def test_constant_defined_type_get_update_delete_roundtrip(
     tmp_path: Path,
@@ -550,6 +610,168 @@ def test_constant_defined_type_get_update_delete_roundtrip(
     cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
     assert "<Constant>VATRate</Constant>" not in cfg
     assert "<DefinedType>MoneyCode</DefinedType>" not in cfg
+
+
+@pytest.mark.integration
+def test_report_dataprocessor_get_update_delete_roundtrip(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """create (attr/TS) → get full IR → update attr/TS → delete (#64)."""
+    from adapters.source.xmlgen import EditOp
+    from adapters.source.xmlgen.resolve import resolve_jar as resolve_xmlgen
+    from adapters.source.xmlgen.resolve import resolve_java as resolve_java_xml
+    from core.metadata import (
+        catalog_from_parts,
+        create_metadata,
+        delete_metadata,
+        update_metadata,
+    )
+
+    local_jar = _local_md_reader_jar()
+    if local_jar is not None:
+        monkeypatch.setenv("ONEC_MDREADER_JAR", str(local_jar))
+
+    java = resolve_java()
+    jar = resolve_jar()
+    if not java.found or not jar.found:
+        pytest.skip(
+            "md-reader jar / Java 21+ недоступны (запустите scripts/fetch-md-reader.sh)"
+        )
+    xmlgen = resolve_xmlgen()
+    if not xmlgen.found or not resolve_java_xml().found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    created = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Report.Sales",
+            synonym="Продажи",
+            attr_specs=["Period:Date:Период"],
+            ts_specs=["Lines:Строки"],
+            ts_attr_specs=["Lines.Amount:Number:15.2:Сумма"],
+        ),
+    )
+    assert created.status == "ok", created.diagnostics
+
+    got = get_metadata(target, "Report.Sales")
+    assert got.status == "ok", got.diagnostics
+    assert got.ir is not None
+    assert got.ir["type"] == "Report"
+    assert got.ir["name"] == "Sales"
+    attrs = {
+        a.get("name"): a
+        for a in (got.ir.get("attributes") or [])
+        if isinstance(a, dict)
+    }
+    assert "Period" in attrs
+    assert attrs["Period"].get("type") == "Date"
+    sections = {
+        s.get("name"): s
+        for s in (got.ir.get("tabularSections") or [])
+        if isinstance(s, dict)
+    }
+    assert "Lines" in sections
+    ts_attrs = {
+        a.get("name"): a
+        for a in (sections["Lines"].get("attributes") or [])
+        if isinstance(a, dict)
+    }
+    assert "Amount" in ts_attrs
+    assert ts_attrs["Amount"].get("type") == "Number"
+
+    updated = update_metadata(
+        target,
+        "Report.Sales",
+        [
+            EditOp("add-attribute", "Cutoff:Number(10,2)"),
+            EditOp("add-ts-attribute", "Lines.Qty:Number(15,3)"),
+            EditOp("modify-property", "Synonym=ОтчётПродажи"),
+        ],
+    )
+    assert updated.status == "ok", updated.diagnostics
+
+    got2 = get_metadata(target, "Report.Sales")
+    assert got2.status == "ok", got2.diagnostics
+    assert got2.ir is not None
+    assert got2.ir.get("synonym") == "ОтчётПродажи"
+    attrs2 = {
+        a.get("name"): a
+        for a in (got2.ir.get("attributes") or [])
+        if isinstance(a, dict)
+    }
+    assert "Cutoff" in attrs2
+    sections2 = {
+        s.get("name"): s
+        for s in (got2.ir.get("tabularSections") or [])
+        if isinstance(s, dict)
+    }
+    ts_attrs2 = {
+        a.get("name"): a
+        for a in (sections2["Lines"].get("attributes") or [])
+        if isinstance(a, dict)
+    }
+    assert "Qty" in ts_attrs2
+
+    processor = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="DataProcessor.ImportData",
+            synonym="Загрузка",
+            attr_specs=["Path:String:200:Путь"],
+        ),
+    )
+    assert processor.status == "ok", processor.diagnostics
+
+    got_p = get_metadata(target, "DataProcessor.ImportData")
+    assert got_p.status == "ok", got_p.diagnostics
+    assert got_p.ir is not None
+    assert got_p.ir["type"] == "DataProcessor"
+    p_attrs = {
+        a.get("name"): a
+        for a in (got_p.ir.get("attributes") or [])
+        if isinstance(a, dict)
+    }
+    assert "Path" in p_attrs
+    assert p_attrs["Path"].get("type") == "String"
+    assert p_attrs["Path"].get("length") == 200
+
+    updated_p = update_metadata(
+        target,
+        "DataProcessor.ImportData",
+        [
+            EditOp("add-attribute", "DryRun:Boolean"),
+            EditOp("modify-attribute", "Path: synonym=ПутьКФайлу"),
+        ],
+    )
+    assert updated_p.status == "ok", updated_p.diagnostics
+
+    got_p2 = get_metadata(target, "DataProcessor.ImportData")
+    assert got_p2.status == "ok", got_p2.diagnostics
+    assert got_p2.ir is not None
+    p_attrs2 = {
+        a.get("name"): a
+        for a in (got_p2.ir.get("attributes") or [])
+        if isinstance(a, dict)
+    }
+    assert "DryRun" in p_attrs2
+    assert p_attrs2["Path"].get("synonym") == "ПутьКФайлу"
+
+    deleted_r = delete_metadata(target, "Report.Sales")
+    assert deleted_r.status == "ok", deleted_r.diagnostics
+    assert not (target / "src" / "cf" / "Reports" / "Sales.xml").is_file()
+
+    deleted_p = delete_metadata(target, "DataProcessor.ImportData")
+    assert deleted_p.status == "ok", deleted_p.diagnostics
+    assert not (target / "src" / "cf" / "DataProcessors" / "ImportData.xml").is_file()
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<Report>Sales</Report>" not in cfg
+    assert "<DataProcessor>ImportData</DataProcessor>" not in cfg
 
 
 @pytest.mark.integration

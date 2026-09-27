@@ -7,11 +7,13 @@ import com.github._1c_syntax.bsl.mdo.Attribute;
 import com.github._1c_syntax.bsl.mdo.Catalog;
 import com.github._1c_syntax.bsl.mdo.CommonModule;
 import com.github._1c_syntax.bsl.mdo.Constant;
+import com.github._1c_syntax.bsl.mdo.DataProcessor;
 import com.github._1c_syntax.bsl.mdo.DefinedType;
 import com.github._1c_syntax.bsl.mdo.Document;
 import com.github._1c_syntax.bsl.mdo.Enum;
 import com.github._1c_syntax.bsl.mdo.InformationRegister;
 import com.github._1c_syntax.bsl.mdo.MD;
+import com.github._1c_syntax.bsl.mdo.Report;
 import com.github._1c_syntax.bsl.mdo.Subsystem;
 import com.github._1c_syntax.bsl.mdo.TabularSection;
 import com.github._1c_syntax.bsl.mdo.children.EnumValue;
@@ -58,7 +60,9 @@ public final class Main {
       "CommonModule",
       "Subsystem",
       "Constant",
-      "DefinedType"
+      "DefinedType",
+      "Report",
+      "DataProcessor"
   );
 
   private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
@@ -228,6 +232,16 @@ public final class Main {
     } else if (md instanceof Document document) {
       obj.add("attributes", attributesArray((List<Attribute>) (List<?>) document.getAttributes()));
       obj.add("tabularSections", tabularSectionsArray((List<?>) document.getTabularSections()));
+    } else if (md instanceof Report report) {
+      obj.add("attributes", attributesArray((List<Attribute>) (List<?>) report.getAttributes()));
+      obj.add("tabularSections", tabularSectionsArray((List<?>) report.getTabularSections()));
+    } else if (md instanceof DataProcessor dataProcessor) {
+      obj.add(
+          "attributes",
+          attributesArray((List<Attribute>) (List<?>) dataProcessor.getAttributes()));
+      obj.add(
+          "tabularSections",
+          tabularSectionsArray((List<?>) dataProcessor.getTabularSections()));
     } else if (md instanceof Enum enumeration) {
       obj.add("values", enumValuesArray((List<EnumValue>) (List<?>) enumeration.getEnumValues()));
     } else if (md instanceof InformationRegister register) {

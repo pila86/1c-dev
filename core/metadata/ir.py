@@ -392,7 +392,7 @@ def catalog_from_parts(
     include_in_command_interface: bool | None = None,
     value_type_specs: list[str] | None = None,
 ) -> CatalogObject:
-    """Build create IR from CLI pieces (ADR-011 / #23 / #24 / #28 / #62 / #63)."""
+    """Build create IR from CLI pieces (ADR-011 / #23 / #24 / #28 / #62 / #63 / #64)."""
     obj_type, name = parse_qualified_name(qualified_name)
     if obj_type not in CREATE_OBJECT_TYPES:
         raise IrError(
@@ -685,7 +685,7 @@ def _validate_create_shape(obj: CatalogObject) -> None:
                 code="1CM004",
             )
         return
-    # Catalog / Document
+    # Catalog / Document / Report / DataProcessor (attr + tabularSections).
     if obj.values or obj.dimensions or obj.resources:
         raise IrError(
             f"{obj.type} не поддерживает values / dimensions / resources",

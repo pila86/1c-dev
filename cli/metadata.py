@@ -311,7 +311,8 @@ def update_command(
         help=(
             "Qualified name, например Catalog.Products, Enum.Statuses, "
             "InformationRegister.Prices, CommonModule.SalesServer, "
-            "Subsystem.Main, Constant.VATRate, DefinedType.CounterpartyRef."
+            "Subsystem.Main, Constant.VATRate, DefinedType.CounterpartyRef, "
+            "Report.Sales, DataProcessor.ImportData."
         ),
     ),
     op: list[str] | None = typer.Option(
@@ -474,7 +475,8 @@ def create_command(
         help=(
             "Qualified name, например Catalog.Products, Document.Sales, "
             "Enum.Statuses, InformationRegister.Prices, CommonModule.SalesServer, "
-            "Subsystem.Main, Constant.VATRate, DefinedType.CounterpartyRef."
+            "Subsystem.Main, Constant.VATRate, DefinedType.CounterpartyRef, "
+            "Report.Sales, DataProcessor.ImportData."
         ),
     ),
     synonym: str | None = typer.Option(

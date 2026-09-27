@@ -581,6 +581,60 @@ def test_update_constant_modify_property_mock(tmp_path: Path) -> None:
     assert calls == [EditOp("modify-property", "Synonym=НоваяСтавка")]
 
 
+def test_update_report_attr_and_ts_mock(tmp_path: Path) -> None:
+    target = _init_shop(tmp_path)
+    reports = target / "src" / "cf" / "Reports"
+    reports.mkdir(parents=True)
+    (reports / "Sales.xml").write_text("<Report/>", encoding="utf-8")
+    calls: list[EditOp] = []
+
+    def fake_edit(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "Sales.xml"
+        calls.extend(operations)
+        return EditResult(changed_paths=["Reports/Sales.xml"], modified=len(operations))
+
+    def fake_get(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "Report",
+                "name": "Sales",
+                "attributes": [
+                    {"name": "Period", "type": "Date"},
+                    {"name": "Cutoff", "type": "Number", "precision": 10, "scale": 2},
+                ],
+                "tabularSections": [
+                    {
+                        "name": "Lines",
+                        "attributes": [
+                            {"name": "Amount", "type": "Number", "precision": 15, "scale": 2},
+                            {"name": "Qty", "type": "Number", "precision": 15, "scale": 3},
+                        ],
+                    }
+                ],
+            },
+        )
+
+    result = update_metadata(
+        target,
+        "Report.Sales",
+        [
+            EditOp("add-attribute", "Cutoff:Number(10,2)"),
+            EditOp("add-ts-attribute", "Lines.Qty:Number(15,3)"),
+        ],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert {a["name"] for a in result.ir["attributes"]} == {"Period", "Cutoff"}
+    assert calls == [
+        EditOp("add-attribute", "Cutoff:Number(10,2)"),
+        EditOp("add-ts-attribute", "Lines.Qty:Number(15,3)"),
+    ]
+
+
 def test_update_enum_duplicate_warning(tmp_path: Path) -> None:
     target = _init_shop(tmp_path)
     enums = target / "src" / "cf" / "Enums"

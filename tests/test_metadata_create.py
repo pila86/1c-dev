@@ -369,6 +369,60 @@ def test_constant_and_defined_type_from_parts_and_json() -> None:
     assert required.value.code == "1CM004"
 
 
+def test_report_and_dataprocessor_from_parts_and_json() -> None:
+    report = catalog_from_parts(
+        qualified_name="Report.Sales",
+        synonym="Продажи",
+        attr_specs=["Period:Date:Период"],
+        ts_specs=["Lines:Строки"],
+        ts_attr_specs=["Lines.Amount:Number:15.2:Сумма"],
+    )
+    assert report.qualified_name == "Report.Sales"
+    assert report.type == "Report"
+    assert len(report.attributes) == 1
+    assert report.attributes[0].name == "Period"
+    assert len(report.tabular_sections) == 1
+    assert report.tabular_sections[0].name == "Lines"
+    dsl = ir_to_xmlgen_dsl(report.to_dict())
+    assert dsl["type"] == "Report"
+    assert dsl["attributes"][0]["type"] == "Date"
+    assert "Lines" in dsl["tabularSections"]
+
+    processor = catalog_from_parts(
+        qualified_name="DataProcessor.ImportData",
+        synonym="Загрузка",
+        attr_specs=["Path:String:200:Путь"],
+    )
+    assert processor.qualified_name == "DataProcessor.ImportData"
+    proc_dsl = ir_to_xmlgen_dsl(processor.to_dict())
+    assert proc_dsl["type"] == "DataProcessor"
+    assert proc_dsl["attributes"][0]["type"] == "String(200)"
+
+    from_json = catalog_from_json(
+        {
+            "type": "Report",
+            "name": "Margin",
+            "attributes": [{"name": "Cutoff", "type": "Number", "precision": 10, "scale": 2}],
+            "tabularSections": [
+                {
+                    "name": "Rows",
+                    "attributes": [{"name": "Qty", "type": "Number", "precision": 15, "scale": 3}],
+                }
+            ],
+        }
+    )
+    assert from_json.type == "Report"
+    assert from_json.attributes[0].name == "Cutoff"
+    assert from_json.tabular_sections[0].name == "Rows"
+
+    with pytest.raises(IrError) as shape:
+        catalog_from_parts(
+            qualified_name="Report.Bad",
+            value_type_specs=["String:10"],
+        )
+    assert shape.value.code == "1CM004"
+
+
 def test_create_metadata_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
@@ -645,6 +699,55 @@ def test_create_constant_and_defined_type_mock(tmp_path: Path) -> None:
     )
     assert result2.status == "ok"
     assert result2.object == "DefinedType.MoneyCode"
+
+
+def test_create_report_and_dataprocessor_mock(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+
+    def fake_compile_report(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "Report"
+        assert dsl["name"] == "Sales"
+        assert len(dsl["attributes"]) == 1
+        assert "Lines" in dsl["tabularSections"]
+        folder = source_dir / "Reports"
+        folder.mkdir(parents=True)
+        (folder / "Sales.xml").write_text("<Report/>", encoding="utf-8")
+        return ["Reports/Sales.xml"]
+
+    result = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Report.Sales",
+            synonym="Продажи",
+            attr_specs=["Period:Date"],
+            ts_specs=["Lines"],
+            ts_attr_specs=["Lines.Amount:Number:15.2"],
+        ),
+        compile_fn=fake_compile_report,
+    )
+    assert result.status == "ok"
+    assert result.object == "Report.Sales"
+
+    def fake_compile_processor(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "DataProcessor"
+        assert dsl["attributes"][0]["type"] == "String(200)"
+        folder = source_dir / "DataProcessors"
+        folder.mkdir(parents=True)
+        (folder / "ImportData.xml").write_text("<DataProcessor/>", encoding="utf-8")
+        return ["DataProcessors/ImportData.xml"]
+
+    result2 = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="DataProcessor.ImportData",
+            attr_specs=["Path:String:200"],
+        ),
+        compile_fn=fake_compile_processor,
+    )
+    assert result2.status == "ok"
+    assert result2.object == "DataProcessor.ImportData"
 
 
 def test_create_duplicate(tmp_path: Path) -> None:
@@ -1177,6 +1280,59 @@ def test_create_constant_and_defined_type_with_real_xmlgen(tmp_path: Path) -> No
     cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
     assert "<Constant>VATRate</Constant>" in cfg
     assert "<DefinedType>MoneyCode</DefinedType>" in cfg
+
+    from core.project import validate_project
+
+    assert validate_project(target).status == "ok"
+
+
+@pytest.mark.integration
+def test_create_report_and_dataprocessor_with_real_xmlgen(tmp_path: Path) -> None:
+    jar = resolve_jar()
+    java = resolve_java()
+    if not jar.found or not java.found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    report = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Report.Sales",
+            synonym="Продажи",
+            attr_specs=["Period:Date:Период"],
+            ts_specs=["Lines:Строки"],
+            ts_attr_specs=["Lines.Amount:Number:15.2:Сумма"],
+        ),
+    )
+    assert report.status == "ok", report.diagnostics
+    report_xml = target / "src" / "cf" / "Reports" / "Sales.xml"
+    assert report_xml.is_file()
+    report_text = report_xml.read_text(encoding="utf-8-sig")
+    assert "<Name>Period</Name>" in report_text
+    assert "<Name>Lines</Name>" in report_text
+    assert "<Name>Amount</Name>" in report_text
+
+    processor = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="DataProcessor.ImportData",
+            synonym="Загрузка",
+            attr_specs=["Path:String:200:Путь"],
+        ),
+    )
+    assert processor.status == "ok", processor.diagnostics
+    proc_xml = target / "src" / "cf" / "DataProcessors" / "ImportData.xml"
+    assert proc_xml.is_file()
+    proc_text = proc_xml.read_text(encoding="utf-8-sig")
+    assert "<Name>Path</Name>" in proc_text
+    assert "<v8:Length>200</v8:Length>" in proc_text
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<Report>Sales</Report>" in cfg
+    assert "<DataProcessor>ImportData</DataProcessor>" in cfg
 
     from core.project import validate_project
 
