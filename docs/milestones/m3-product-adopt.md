@@ -22,6 +22,7 @@
 | `import` vs `ide configure` | раздельно: import = CF → XML + манифест; агентские файлы (`AGENTS.md`, MCP IDE) — только `ide configure` |
 | Dirty source | конфликт = в `source.path` уже есть `Configuration.xml`; без `--force` — отказ, source intact |
 | Break support | **must:** opt-in `--break-support` на `project.import` — source-level strip `ParentConfigurations*` после export ([ADR-020](../adr/020-break-support.md)); без флага артефакты сохраняются; should: `source break-support`; пообъектные правила / DESIGNER `/ManageCfgSupport` / vendor-update — later |
+| Project clean | **should:** `project clean --yes` всегда сносит `source.path` **и** `.runtime/` ([ADR-021](../adr/021-project-clean.md)); манифест / IDE / git не трогает; без `--yes` — отказ; `runtime.reset` (только IB) — later |
 | Docs index | **lazy-only** при первом `docs.search` / `docs.get`; явный `docs build-index` — later |
 | Тест import | round-trip: `build --artifact cf` → `project.import`; skip без platform; бинарный `.cf` в git не коммитим |
 
@@ -70,6 +71,15 @@ create IB (если нет)
 ```
 
 Конфликт без `--force`: в `source.path` уже есть `Configuration.xml` → structured diagnostic, source не затёрт. Пустой / отсутствующий `source.path` — import ок. После `init` (там уже есть `Configuration.xml`) нужен `--force`.
+
+Явный wipe перед повторным import/init (**should**, [ADR-021](../adr/021-project-clean.md)):
+
+```bash
+1c-dev project clean --yes
+# MCP: project.clean  (confirm / yes обязателен)
+```
+
+Удаляет содержимое `source.path` **и** весь `.runtime/` (IB, ibcmd-data, client state). Не трогает `1c.project.yaml`, `AGENTS.md`, IDE MCP, `.gitignore`. Без `--yes` — отказ. Живой runtime-клиент — stop или отказ с suggestion. Идемпотентно. Отличие от `import --force`: force перезаписывает через pipeline; clean — destructive reset. `tools clean` — другое пространство (user cache toolchain).
 
 ### B. User-level install (cache + PATH + toolchain deps)
 
@@ -225,6 +235,9 @@ Out of this track: Role / Form / Command / SessionParameter / …; `xml-gen inte
 - [ ] MCP: `project.import` принимает `break_support`
 - [ ] Unit-тест: fixture с `ParentConfigurations.bin` → strip без platform
 - [ ] should: CLI `source break-support` (та же strip-логика без повторного import)
+- [ ] should: `project clean --yes` удаляет `source.path` и `.runtime/`; без `--yes` — отказ; манифест/IDE intact
+- [ ] should: MCP `project.clean` с обязательным confirm
+- [ ] Unit-тест: fixture source + `.runtime` → clean без platform; повторный clean идемпотентен
 
 ### Install
 
@@ -266,6 +279,7 @@ Out of this track: Role / Form / Command / SessionParameter / …; `xml-gen inte
 - Must-поддержка «голого» VS Code без Kilocode
 - Типы вне xml-gen Meta DSL + Subsystem (Role, Form, Command, SessionParameter, …); `interface edit` / CommandInterface — later (трек E не = «вся платформа»)
 - Пообъектные правила поддержки («на замке» / «редактируется»); DESIGNER `/ManageCfgSupport`; штатный vendor-update от поставщика
+- `runtime.reset` (только IB) и режим «только runtime» без source — later (не MVP #76)
 
 ## Manual verification
 
@@ -291,6 +305,9 @@ uv tool install git+https://github.com/pila86/1c-dev
 # 4. Build / check
 1c-dev build --output json
 1c-dev check --output json
+
+# 5. Clean (should; destructive)
+# 1c-dev project clean --yes --output json
 ```
 
 ## Links
@@ -304,6 +321,7 @@ uv tool install git+https://github.com/pila86/1c-dev
 - [ADR-010](../adr/010-mcp-architecture.md)
 - [ADR-018](../adr/018-metadata-types-coverage.md) (трек E: metadata types coverage)
 - [ADR-020](../adr/020-break-support.md) (`--break-support` / strip ParentConfigurations*)
+- [ADR-021](../adr/021-project-clean.md) (`project.clean` — wipe source + runtime)
 - [PRD §20 Documentation API](../../1c-dev-runtime-PRD-v0.1.md), [§19 BSL](../../1c-dev-runtime-PRD-v0.1.md), [§64 bsl-context / BSL LS](../../1c-dev-runtime-PRD-v0.1.md)
 - [bsl-context](https://github.com/1c-syntax/bsl-context)
 - [BSL LS MCP mode](https://1c-syntax.github.io/bsl-language-server/dev/features/McpMode/)
@@ -316,6 +334,7 @@ uv tool install git+https://github.com/pila86/1c-dev
 | [#46](https://github.com/pila86/1c-dev/issues/46) | Platform: ibcmd `config load` + `config export` | — |
 | [#47](https://github.com/pila86/1c-dev/issues/47) | CLI/MCP `project.import` (+ should: CLI `runtime.load`) | #46 |
 | [#74](https://github.com/pila86/1c-dev/issues/74) | `project.import --break-support` (+ should: `source break-support`); ADR-020 | #47 |
+| [#76](https://github.com/pila86/1c-dev/issues/76) | should: CLI/MCP `project.clean` (source + `.runtime`); ADR-021 | #47 |
 | [#48](https://github.com/pila86/1c-dev/issues/48) | `1c-dev tools sync`: bootstrap toolchain jars (+ uninstall) | #45 |
 | [#49](https://github.com/pila86/1c-dev/issues/49) | Doctor: jar self-checks + `--fix`; README `uv tool` quick start | #48 |
 | [#50](https://github.com/pila86/1c-dev/issues/50) | CLI `ide configure --target cursor\|kilocode` + merge + MCP/AGENTS templates | #48 |

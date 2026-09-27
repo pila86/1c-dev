@@ -32,6 +32,7 @@
 | [018](018-metadata-types-coverage.md) | Accepted | Metadata types coverage (23 meta + Subsystem) |
 | [019](019-runtime-client-lifecycle.md) | Accepted | Runtime client lifecycle (`start` / `stop` / `status`, `/Debug`) |
 | [020](020-break-support.md) | Accepted | Снятие конфигурации с поддержки (XML / `--break-support`) |
+| [021](021-project-clean.md) | Accepted | Product API: `project.clean` (source + runtime) |
 
 ## Когда писать ADR
 
