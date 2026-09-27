@@ -29,6 +29,7 @@
 | [015](015-project-import-cf.md) | Accepted | Product API: `project.import` / `runtime.load` |
 | [016](016-ide-configure.md) | Accepted | IDE configure (MCP + AGENTS merge) |
 | [017](017-docs-bsl-context.md) | Accepted | Docs API via bsl-context (lazy index) |
+| [018](018-metadata-types-coverage.md) | Accepted | Metadata types coverage (23 meta + Subsystem) |
 
 ## Когда писать ADR
 

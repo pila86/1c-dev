@@ -168,7 +168,7 @@ Installed platform HBK
 
 Уже в M2 (CRUD + full get): Catalog, Document, Enum, InformationRegister, AccumulationRegister. CommonModule — CRUD есть, get без флагов (gap → E0). Subsystem — отсутствует.
 
-Волны (см. Issues ниже): E-found → E0 (CommonModule get) → E1 Subsystem → E2…E8 → E-docs → E-accept.
+Волны (см. Issues ниже): [#60](https://github.com/pila86/1c-dev/issues/60) E-found → [#61](https://github.com/pila86/1c-dev/issues/61) E0 (CommonModule get) → [#62](https://github.com/pila86/1c-dev/issues/62) E1 Subsystem → [#63](https://github.com/pila86/1c-dev/issues/63)–[#69](https://github.com/pila86/1c-dev/issues/69) E2…E8 → [#70](https://github.com/pila86/1c-dev/issues/70) E-docs → [#71](https://github.com/pila86/1c-dev/issues/71) E-accept.
 
 Out of this track: Role / Form / Command / SessionParameter / …; `xml-gen interface edit` (CommandInterface); полное покрытие платформы ≠ трек E.
 
@@ -302,3 +302,15 @@ uv tool install git+https://github.com/pila86/1c-dev
 | [#50](https://github.com/pila86/1c-dev/issues/50) | CLI `ide configure --target cursor\|kilocode` + merge + MCP/AGENTS templates | #48 |
 | [#51](https://github.com/pila86/1c-dev/issues/51) | `docs.search` / `docs.get` via bsl-context, lazy index | #48 |
 | [#52](https://github.com/pila86/1c-dev/issues/52) | Acceptance: E2E import round-trip + ide configure + docs | #47, #50, #51 |
+| [#60](https://github.com/pila86/1c-dev/issues/60) | **E-found:** Metadata coverage foundation (allowlists, TYPE_DIRS, xml-gen pin, doctor) | — |
+| [#61](https://github.com/pila86/1c-dev/issues/61) | **E0:** CommonModule full IR get parity | #60 |
+| [#62](https://github.com/pila86/1c-dev/issues/62) | **E1:** Subsystem create/get/update/delete (priority) | #60, #61 |
+| [#63](https://github.com/pila86/1c-dev/issues/63) | **E2:** Constant + DefinedType | #60, #62 |
+| [#64](https://github.com/pila86/1c-dev/issues/64) | **E3:** Report + DataProcessor | #60, #62 |
+| [#65](https://github.com/pila86/1c-dev/issues/65) | **E4:** ScheduledJob + EventSubscription | #63, #64 |
+| [#66](https://github.com/pila86/1c-dev/issues/66) | **E5:** HTTPService + WebService | #65 |
+| [#67](https://github.com/pila86/1c-dev/issues/67) | **E6:** AccountingRegister + CalculationRegister | #66 |
+| [#68](https://github.com/pila86/1c-dev/issues/68) | **E7:** Charts (CharacteristicTypes / Accounts / CalculationTypes) | #67 |
+| [#69](https://github.com/pila86/1c-dev/issues/69) | **E8:** BusinessProcess + Task + ExchangePlan + DocumentJournal | #68 |
+| [#70](https://github.com/pila86/1c-dev/issues/70) | **E-docs:** Doctor/CLI/MCP/README surface новых типов | #69 |
+| [#71](https://github.com/pila86/1c-dev/issues/71) | **E-accept:** Acceptance E2E 23 meta + Subsystem | #61–#70 |

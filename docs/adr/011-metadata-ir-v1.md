@@ -31,6 +31,8 @@ Format-independent JSON (пример каркаса):
 
 Поддерживаемые `type` в M2: `Catalog`, `Document`, `Enum`, `InformationRegister`, `AccumulationRegister`, `CommonModule` (stretch create, #28).
 
+Расширение покрытия (23 Meta DSL + `Subsystem`, sync create/get/update/delete) — [ADR-018](018-metadata-types-coverage.md); M2-контракт этого ADR не меняется.
+
 ### Атрибуты
 
 | `type` | Поля | Пример CLI `--attr` |
@@ -191,6 +193,7 @@ JSON-пример атрибута-ссылки:
 ## Связанные решения
 
 - ADR-007 (IR v0 + xml-gen; модель IR для M2+ — этот ADR)
+- [ADR-018](018-metadata-types-coverage.md) — coverage beyond M2 types
 - Issue #20
 - [M2 milestone](../milestones/m2-metadata-api.md)
 - PRD §16–§18, §47
