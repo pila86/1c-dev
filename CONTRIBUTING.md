@@ -67,6 +67,7 @@ pwsh scripts/fetch-md-reader.ps1
 
 - Unit-тесты — для каждого PR с логикой: `poetry run pytest`.
 - Integration-тесты (маркер `integration`) — platform 1С / `ibcmd`, jar xml-gen / md-reader; без них — skip с явным сообщением:
+- E-accept (трек E / #71): `poetry run pytest tests/test_e_acceptance.py -m integration` — sample CRUD по волнам E0–E8; без platform/jars — skip.
 
 ```bash
 poetry run pytest -m integration

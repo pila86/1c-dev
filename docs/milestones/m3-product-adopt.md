@@ -189,7 +189,7 @@ Installed platform HBK
 
 Уже в M2 (CRUD + full get): Catalog, Document, Enum, InformationRegister, AccumulationRegister. CommonModule — CRUD + full get (E0 / #61). Subsystem — CRUD + full get (E1 / #62). Constant + DefinedType — CRUD + full get (E2 / #63). Report + DataProcessor — CRUD + full get (E3 / #64). ScheduledJob + EventSubscription — CRUD + full get (E4 / #65). HTTPService + WebService — CRUD + full get (E5 / #66). AccountingRegister + CalculationRegister — CRUD + full get (E6 / #67). ChartOfCharacteristicTypes + ChartOfAccounts + ChartOfCalculationTypes — CRUD + full get (E7 / #68). BusinessProcess + Task + ExchangePlan + DocumentJournal — CRUD + full get (E8 / #69). **E-docs (#70):** doctor `supportedTypes`, CLI help, MCP tool descriptions, README / AGENTS — поверхность всех 24 write-типов.
 
-Волны (см. Issues ниже): [#60](https://github.com/pila86/1c-dev/issues/60) E-found → [#61](https://github.com/pila86/1c-dev/issues/61) E0 (CommonModule get) → [#62](https://github.com/pila86/1c-dev/issues/62) E1 Subsystem → [#63](https://github.com/pila86/1c-dev/issues/63)–[#69](https://github.com/pila86/1c-dev/issues/69) E2…E8 → [#70](https://github.com/pila86/1c-dev/issues/70) E-docs (**surface done**) → [#71](https://github.com/pila86/1c-dev/issues/71) E-accept.
+Волны (см. Issues ниже): [#60](https://github.com/pila86/1c-dev/issues/60) E-found → [#61](https://github.com/pila86/1c-dev/issues/61) E0 (CommonModule get) → [#62](https://github.com/pila86/1c-dev/issues/62) E1 Subsystem → [#63](https://github.com/pila86/1c-dev/issues/63)–[#69](https://github.com/pila86/1c-dev/issues/69) E2…E8 → [#70](https://github.com/pila86/1c-dev/issues/70) E-docs (**surface done**) → [#71](https://github.com/pila86/1c-dev/issues/71) E-accept (`tests/test_e_acceptance.py`).
 
 Out of this track: Role / Form / Command / SessionParameter / …; `xml-gen interface edit` (CommandInterface); полное покрытие платформы ≠ трек E.
 
@@ -308,6 +308,10 @@ uv tool install git+https://github.com/pila86/1c-dev
 
 # 5. Clean (should; destructive)
 # 1c-dev project clean --yes --output json
+
+# 6. Track E acceptance (sample E0–E8 create/get/update/delete → build/check)
+#    skip без platform / xml-gen / md-reader
+poetry run pytest tests/test_e_acceptance.py -m integration
 ```
 
 ## Links
@@ -351,4 +355,4 @@ uv tool install git+https://github.com/pila86/1c-dev
 | [#68](https://github.com/pila86/1c-dev/issues/68) | **E7:** Charts (CharacteristicTypes / Accounts / CalculationTypes) | #67 |
 | [#69](https://github.com/pila86/1c-dev/issues/69) | **E8:** BusinessProcess + Task + ExchangePlan + DocumentJournal | #68 |
 | [#70](https://github.com/pila86/1c-dev/issues/70) | **E-docs:** Doctor/CLI/MCP/README surface новых типов | #69 |
-| [#71](https://github.com/pila86/1c-dev/issues/71) | **E-accept:** Acceptance E2E 23 meta + Subsystem | #61–#70 |
+| [#71](https://github.com/pila86/1c-dev/issues/71) | **E-accept:** Acceptance E2E 23 meta + Subsystem (`tests/test_e_acceptance.py`) | #61–#70 |
