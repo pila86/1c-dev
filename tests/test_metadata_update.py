@@ -635,6 +635,83 @@ def test_update_report_attr_and_ts_mock(tmp_path: Path) -> None:
     ]
 
 
+def test_update_scheduled_job_and_event_subscription_modify_property_mock(
+    tmp_path: Path,
+) -> None:
+    target = _init_shop(tmp_path)
+    jobs = target / "src" / "cf" / "ScheduledJobs"
+    jobs.mkdir(parents=True)
+    (jobs / "Cleanup.xml").write_text("<ScheduledJob/>", encoding="utf-8")
+    calls: list[EditOp] = []
+
+    def fake_edit(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "Cleanup.xml"
+        calls.extend(operations)
+        return EditResult(changed_paths=["ScheduledJobs/Cleanup.xml"], modified=1)
+
+    def fake_get(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "ScheduledJob",
+                "name": "Cleanup",
+                "use": False,
+                "methodName": "CommonModule.Jobs.Cleanup",
+            },
+        )
+
+    result = update_metadata(
+        target,
+        "ScheduledJob.Cleanup",
+        [EditOp("modify-property", "Use=false")],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert result.ir["use"] is False
+    assert calls == [EditOp("modify-property", "Use=false")]
+
+    subs = target / "src" / "cf" / "EventSubscriptions"
+    subs.mkdir(parents=True)
+    (subs / "ProductsBeforeWrite.xml").write_text("<EventSubscription/>", encoding="utf-8")
+    calls_es: list[EditOp] = []
+
+    def fake_edit_es(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "ProductsBeforeWrite.xml"
+        calls_es.extend(operations)
+        return EditResult(
+            changed_paths=["EventSubscriptions/ProductsBeforeWrite.xml"],
+            modified=1,
+        )
+
+    def fake_get_es(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "EventSubscription",
+                "name": "ProductsBeforeWrite",
+                "event": "OnWrite",
+                "handler": "CommonModule.Jobs.BeforeWrite",
+                "source": ["Catalog.Products"],
+            },
+        )
+
+    result2 = update_metadata(
+        target,
+        "EventSubscription.ProductsBeforeWrite",
+        [EditOp("modify-property", "Event=OnWrite")],
+        edit_fn=fake_edit_es,
+        get_fn=fake_get_es,
+    )
+    assert result2.status == "ok"
+    assert result2.ir is not None
+    assert result2.ir["event"] == "OnWrite"
+    assert calls_es == [EditOp("modify-property", "Event=OnWrite")]
+
+
 def test_update_enum_duplicate_warning(tmp_path: Path) -> None:
     target = _init_shop(tmp_path)
     enums = target / "src" / "cf" / "Enums"

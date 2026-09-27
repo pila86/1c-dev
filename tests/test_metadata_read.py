@@ -509,6 +509,67 @@ def test_get_report_and_dataprocessor_full_ir_mock(tmp_path: Path) -> None:
     assert result2.ir["attributes"][0]["length"] == 200
 
 
+def test_get_scheduled_job_and_event_subscription_full_ir_mock(tmp_path: Path) -> None:
+    """Smoke: md-reader full IR for ScheduledJob / EventSubscription (#65)."""
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    def fake_read_job(
+        command: str, source_dir: Path, args: tuple[str, ...]
+    ) -> dict[str, Any]:
+        assert command == "get"
+        assert args == ("ScheduledJob.Cleanup",)
+        return {
+            "status": "ok",
+            "object": {
+                "type": "ScheduledJob",
+                "name": "Cleanup",
+                "qname": "ScheduledJob.Cleanup",
+                "synonym": "Очистка",
+                "methodName": "CommonModule.Jobs.Cleanup",
+                "use": True,
+                "description": "Nightly",
+                "key": "cleanup",
+                "predefined": False,
+                "restartCountOnFailure": 5,
+                "restartIntervalOnFailure": 20,
+            },
+        }
+
+    result = get_metadata(target, "ScheduledJob.Cleanup", read_fn=fake_read_job)
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert result.ir["methodName"] == "CommonModule.Jobs.Cleanup"
+    assert result.ir["use"] is True
+    assert result.ir["restartCountOnFailure"] == 5
+
+    def fake_read_sub(
+        command: str, source_dir: Path, args: tuple[str, ...]
+    ) -> dict[str, Any]:
+        assert args == ("EventSubscription.ProductsBeforeWrite",)
+        return {
+            "status": "ok",
+            "object": {
+                "type": "EventSubscription",
+                "name": "ProductsBeforeWrite",
+                "qname": "EventSubscription.ProductsBeforeWrite",
+                "handler": "CommonModule.Jobs.BeforeWrite",
+                "event": "BeforeWrite",
+                "source": ["Catalog.Products"],
+            },
+        }
+
+    result2 = get_metadata(
+        target, "EventSubscription.ProductsBeforeWrite", read_fn=fake_read_sub
+    )
+    assert result2.status == "ok"
+    assert result2.ir is not None
+    assert result2.ir["handler"] == "CommonModule.Jobs.BeforeWrite"
+    assert result2.ir["event"] == "BeforeWrite"
+    assert result2.ir["source"] == ["Catalog.Products"]
+
+
 @pytest.mark.integration
 def test_constant_defined_type_get_update_delete_roundtrip(
     tmp_path: Path,
@@ -772,6 +833,147 @@ def test_report_dataprocessor_get_update_delete_roundtrip(
     cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
     assert "<Report>Sales</Report>" not in cfg
     assert "<DataProcessor>ImportData</DataProcessor>" not in cfg
+
+
+@pytest.mark.integration
+def test_scheduled_job_event_subscription_get_update_delete_roundtrip(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """create → get full IR → update properties → delete (#65)."""
+    from adapters.source.xmlgen import EditOp
+    from adapters.source.xmlgen.resolve import resolve_jar as resolve_xmlgen
+    from adapters.source.xmlgen.resolve import resolve_java as resolve_java_xml
+    from core.metadata import (
+        catalog_from_parts,
+        create_metadata,
+        delete_metadata,
+        update_metadata,
+    )
+
+    local_jar = _local_md_reader_jar()
+    if local_jar is not None:
+        monkeypatch.setenv("ONEC_MDREADER_JAR", str(local_jar))
+
+    java = resolve_java()
+    jar = resolve_jar()
+    if not java.found or not jar.found:
+        pytest.skip(
+            "md-reader jar / Java 21+ недоступны (запустите scripts/fetch-md-reader.sh)"
+        )
+    xmlgen = resolve_xmlgen()
+    if not xmlgen.found or not resolve_java_xml().found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    assert create_metadata(
+        target,
+        catalog_from_parts(qualified_name="CommonModule.Jobs", server=True),
+    ).status == "ok"
+    assert create_metadata(
+        target,
+        catalog_from_parts(qualified_name="Catalog.Products"),
+    ).status == "ok"
+
+    created = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ScheduledJob.Cleanup",
+            synonym="Очистка",
+            method_name="CommonModule.Jobs.Cleanup",
+            use=True,
+            description="Nightly",
+            key="cleanup",
+            predefined=False,
+            restart_count_on_failure=5,
+            restart_interval_on_failure=20,
+        ),
+    )
+    assert created.status == "ok", created.diagnostics
+
+    got = get_metadata(target, "ScheduledJob.Cleanup")
+    assert got.status == "ok", got.diagnostics
+    assert got.ir is not None
+    assert got.ir["type"] == "ScheduledJob"
+    assert got.ir["name"] == "Cleanup"
+    assert got.ir["methodName"] == "CommonModule.Jobs.Cleanup"
+    assert got.ir["use"] is True
+    assert got.ir.get("description") == "Nightly"
+    assert got.ir.get("key") == "cleanup"
+    assert got.ir["predefined"] is False
+    assert got.ir["restartCountOnFailure"] == 5
+    assert got.ir["restartIntervalOnFailure"] == 20
+
+    updated = update_metadata(
+        target,
+        "ScheduledJob.Cleanup",
+        [
+            EditOp("modify-property", "Use=false"),
+            EditOp("modify-property", "Synonym=НочнаяОчистка"),
+            EditOp("modify-property", "Description=Daily"),
+        ],
+    )
+    assert updated.status == "ok", updated.diagnostics
+
+    got2 = get_metadata(target, "ScheduledJob.Cleanup")
+    assert got2.status == "ok", got2.diagnostics
+    assert got2.ir is not None
+    assert got2.ir["use"] is False
+    assert got2.ir.get("synonym") == "НочнаяОчистка"
+    assert got2.ir.get("description") == "Daily"
+
+    sub = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="EventSubscription.ProductsBeforeWrite",
+            synonym="ПередЗаписью",
+            handler="CommonModule.Jobs.BeforeWrite",
+            event="BeforeWrite",
+            source=["Catalog.Products"],
+        ),
+    )
+    assert sub.status == "ok", sub.diagnostics
+
+    got_s = get_metadata(target, "EventSubscription.ProductsBeforeWrite")
+    assert got_s.status == "ok", got_s.diagnostics
+    assert got_s.ir is not None
+    assert got_s.ir["type"] == "EventSubscription"
+    assert got_s.ir["handler"] == "CommonModule.Jobs.BeforeWrite"
+    assert got_s.ir["event"] == "BeforeWrite"
+    assert got_s.ir["source"] == ["Catalog.Products"]
+
+    updated_s = update_metadata(
+        target,
+        "EventSubscription.ProductsBeforeWrite",
+        [
+            EditOp("modify-property", "Event=OnWrite"),
+            EditOp("modify-property", "Synonym=ПриЗаписи"),
+        ],
+    )
+    assert updated_s.status == "ok", updated_s.diagnostics
+
+    got_s2 = get_metadata(target, "EventSubscription.ProductsBeforeWrite")
+    assert got_s2.status == "ok", got_s2.diagnostics
+    assert got_s2.ir is not None
+    assert got_s2.ir["event"] == "OnWrite"
+    assert got_s2.ir.get("synonym") == "ПриЗаписи"
+
+    deleted_j = delete_metadata(target, "ScheduledJob.Cleanup")
+    assert deleted_j.status == "ok", deleted_j.diagnostics
+    assert not (target / "src" / "cf" / "ScheduledJobs" / "Cleanup.xml").is_file()
+
+    deleted_s = delete_metadata(target, "EventSubscription.ProductsBeforeWrite")
+    assert deleted_s.status == "ok", deleted_s.diagnostics
+    assert not (
+        target / "src" / "cf" / "EventSubscriptions" / "ProductsBeforeWrite.xml"
+    ).is_file()
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<ScheduledJob>Cleanup</ScheduledJob>" not in cfg
+    assert "<EventSubscription>ProductsBeforeWrite</EventSubscription>" not in cfg
 
 
 @pytest.mark.integration

@@ -115,7 +115,23 @@ _REGISTER_TYPES: frozenset[str] = frozenset(
     {"InformationRegister", "AccumulationRegister"}
 )
 _VALUE_TYPE_OBJECT_TYPES: frozenset[str] = frozenset({"Constant", "DefinedType"})
-
+_ATTR_TABULAR_OBJECT_TYPES: frozenset[str] = frozenset(
+    {"Catalog", "Document", "Report", "DataProcessor"}
+)
+_METHOD_PATH_RE = re.compile(
+    r"^[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]*"
+    r"\.[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]*"
+    r"\.[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]*$"
+)
+_SCHEDULED_JOB_DSL_KEYS: tuple[tuple[str, str], ...] = (
+    ("method_name", "methodName"),
+    ("use", "use"),
+    ("description", "description"),
+    ("key_", "key"),
+    ("predefined", "predefined"),
+    ("restart_count_on_failure", "restartCountOnFailure"),
+    ("restart_interval_on_failure", "restartIntervalOnFailure"),
+)
 
 @dataclass
 class ValueType:
@@ -167,6 +183,18 @@ class CatalogObject:
     # Constant / DefinedType (ADR-018 / #63).
     value_type: ValueType | None = None
     value_types: list[ValueType] = field(default_factory=list)
+    # ScheduledJob (ADR-018 / #65).
+    method_name: str | None = None
+    use: bool | None = None
+    description: str | None = None
+    key_: str | None = None
+    predefined: bool | None = None
+    restart_count_on_failure: int | None = None
+    restart_interval_on_failure: int | None = None
+    # EventSubscription (ADR-018 / #65).
+    handler: str | None = None
+    event: str | None = None
+    source: list[str] = field(default_factory=list)
 
     @property
     def qualified_name(self) -> str:
@@ -212,11 +240,23 @@ class CatalogObject:
             elif self.value_type is not None:
                 data["valueType"] = self.value_type.to_dict()
             return data
+        if self.type == "ScheduledJob":
+            for attr_name, json_key in _SCHEDULED_JOB_DSL_KEYS:
+                value = getattr(self, attr_name)
+                if value is not None:
+                    data[json_key] = value
+            return data
+        if self.type == "EventSubscription":
+            if self.handler is not None:
+                data["handler"] = self.handler
+            if self.event is not None:
+                data["event"] = self.event
+            data["source"] = list(self.source)
+            return data
         data["attributes"] = [a.to_dict() for a in self.attributes]
         if self.tabular_sections:
             data["tabularSections"] = [t.to_dict() for t in self.tabular_sections]
         return data
-
 @dataclass
 class MetadataSummary:
     """list/find item (ADR-011)."""
@@ -391,8 +431,18 @@ def catalog_from_parts(
     children: list[str] | None = None,
     include_in_command_interface: bool | None = None,
     value_type_specs: list[str] | None = None,
+    method_name: str | None = None,
+    use: bool | None = None,
+    description: str | None = None,
+    key: str | None = None,
+    predefined: bool | None = None,
+    restart_count_on_failure: int | None = None,
+    restart_interval_on_failure: int | None = None,
+    handler: str | None = None,
+    event: str | None = None,
+    source: list[str] | None = None,
 ) -> CatalogObject:
-    """Build create IR from CLI pieces (ADR-011 / #23 / #24 / #28 / #62 / #63 / #64)."""
+    """Build create IR from CLI pieces (ADR-011 / #23 / #24 / #28 / #62 / #63 / #64 / #65)."""
     obj_type, name = parse_qualified_name(qualified_name)
     if obj_type not in CREATE_OBJECT_TYPES:
         raise IrError(
@@ -424,6 +474,20 @@ def catalog_from_parts(
     value_type, value_types = _value_types_from_specs(
         obj_type, list(value_type_specs or [])
     )
+    job_fields = _scheduled_job_fields_from_parts(
+        method_name=method_name,
+        use=use,
+        description=description,
+        key=key,
+        predefined=predefined,
+        restart_count_on_failure=restart_count_on_failure,
+        restart_interval_on_failure=restart_interval_on_failure,
+    )
+    sub_fields = _event_subscription_fields_from_parts(
+        handler=handler,
+        event=event,
+        source=source,
+    )
     obj = CatalogObject(
         name=name,
         synonym=synonym,
@@ -439,10 +503,11 @@ def catalog_from_parts(
         value_type=value_type,
         value_types=value_types,
         **flags,
+        **job_fields,
+        **sub_fields,
     )
     _validate_create_shape(obj)
     return obj
-
 def catalog_from_json(
     data: dict[str, Any],
     *,
@@ -495,6 +560,8 @@ def catalog_from_json(
         field="includeInCommandInterface",
     )
     value_type, value_types = _value_types_from_json(obj_type, data)
+    job_fields = _scheduled_job_fields_from_json(data)
+    sub_fields = _event_subscription_fields_from_json(data)
     obj = CatalogObject(
         name=name,
         synonym=synonym_s,
@@ -510,10 +577,11 @@ def catalog_from_json(
         value_type=value_type,
         value_types=value_types,
         **flags,
+        **job_fields,
+        **sub_fields,
     )
     _validate_create_shape(obj)
     return obj
-
 
 def _optional_bool(value: Any, *, field: str) -> bool | None:
     if value is None:
@@ -521,6 +589,133 @@ def _optional_bool(value: Any, *, field: str) -> bool | None:
     if isinstance(value, bool):
         return value
     raise IrError(f"{field} должен быть boolean", code="1CM004")
+
+
+def _optional_int(value: Any, *, field: str) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise IrError(f"{field} должен быть integer", code="1CM004")
+    if isinstance(value, int):
+        return value
+    raise IrError(f"{field} должен быть integer", code="1CM004")
+
+
+def _parse_method_path(raw: str | None, *, field: str) -> str | None:
+    if raw is None:
+        return None
+    cleaned = str(raw).strip()
+    if not cleaned:
+        raise IrError(f"Пустой {field}", code="1CM004")
+    if not _METHOD_PATH_RE.match(cleaned):
+        raise IrError(
+            f"{field} должен быть путём CommonModule.Name.Method, получено: {raw!r}",
+            code="1CM004",
+        )
+    return cleaned
+
+
+def _scheduled_job_fields_from_parts(
+    *,
+    method_name: str | None = None,
+    use: bool | None = None,
+    description: str | None = None,
+    key: str | None = None,
+    predefined: bool | None = None,
+    restart_count_on_failure: int | None = None,
+    restart_interval_on_failure: int | None = None,
+) -> dict[str, Any]:
+    return {
+        "method_name": _parse_method_path(method_name, field="methodName"),
+        "use": use,
+        "description": description.strip() if isinstance(description, str) else description,
+        "key_": key.strip() if isinstance(key, str) else key,
+        "predefined": predefined,
+        "restart_count_on_failure": restart_count_on_failure,
+        "restart_interval_on_failure": restart_interval_on_failure,
+    }
+
+
+def _scheduled_job_fields_from_json(data: dict[str, Any]) -> dict[str, Any]:
+    description = data.get("description")
+    key = data.get("key")
+    return {
+        "method_name": _parse_method_path(
+            str(data["methodName"]) if data.get("methodName") is not None else None,
+            field="methodName",
+        ),
+        "use": _optional_bool(data.get("use"), field="use"),
+        "description": str(description) if description is not None else None,
+        "key_": str(key) if key is not None else None,
+        "predefined": _optional_bool(data.get("predefined"), field="predefined"),
+        "restart_count_on_failure": _optional_int(
+            data.get("restartCountOnFailure"),
+            field="restartCountOnFailure",
+        ),
+        "restart_interval_on_failure": _optional_int(
+            data.get("restartIntervalOnFailure"),
+            field="restartIntervalOnFailure",
+        ),
+    }
+
+
+def _event_subscription_fields_from_parts(
+    *,
+    handler: str | None = None,
+    event: str | None = None,
+    source: list[str] | None = None,
+) -> dict[str, Any]:
+    return {
+        "handler": _parse_method_path(handler, field="handler"),
+        "event": event.strip() if isinstance(event, str) else event,
+        "source": _event_subscription_source_from_list(source),
+    }
+
+
+def _event_subscription_fields_from_json(data: dict[str, Any]) -> dict[str, Any]:
+    event = data.get("event")
+    return {
+        "handler": _parse_method_path(
+            str(data["handler"]) if data.get("handler") is not None else None,
+            field="handler",
+        ),
+        "event": str(event) if event is not None else None,
+        "source": _event_subscription_source_from_list(data.get("source")),
+    }
+
+
+def _event_subscription_source_from_list(raw: Any) -> list[str]:
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        raise IrError(
+            "source должен быть массивом QName (например [\"Catalog.Products\"])",
+            code="1CM004",
+        )
+    if not isinstance(raw, list):
+        raise IrError("source должен быть массивом QName", code="1CM004")
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        if not isinstance(item, str) or not item.strip():
+            raise IrError(
+                f"Некорректный элемент source: {item!r}",
+                code="1CM004",
+            )
+        cleaned = item.strip()
+        if "." not in cleaned:
+            raise IrError(
+                f"source элемент должен быть Type.Name, получено: {cleaned!r}",
+                code="1CM004",
+            )
+        type_part, name_part = cleaned.split(".", 1)
+        type_part = _check_name(type_part, what="типа в source")
+        name_part = _check_name(name_part, what="объекта в source")
+        qname = f"{type_part}.{name_part}"
+        if qname not in seen:
+            seen.add(qname)
+            out.append(qname)
+    return out
 
 
 def _common_module_flags_from_parts(
@@ -613,6 +808,8 @@ def _validate_create_shape(obj: CatalogObject) -> None:
         _reject_common_module_flags(obj, type_name="Enum")
         _reject_subsystem_fields(obj, type_name="Enum")
         _reject_value_type_fields(obj, type_name="Enum")
+        _reject_scheduled_job_fields(obj, type_name="Enum")
+        _reject_event_subscription_fields(obj, type_name="Enum")
         return
     if obj.type in _REGISTER_TYPES:
         if obj.attributes or obj.tabular_sections or obj.values:
@@ -623,6 +820,8 @@ def _validate_create_shape(obj: CatalogObject) -> None:
         _reject_common_module_flags(obj, type_name=obj.type)
         _reject_subsystem_fields(obj, type_name=obj.type)
         _reject_value_type_fields(obj, type_name=obj.type)
+        _reject_scheduled_job_fields(obj, type_name=obj.type)
+        _reject_event_subscription_fields(obj, type_name=obj.type)
         return
     if obj.type == "CommonModule":
         if (
@@ -639,6 +838,8 @@ def _validate_create_shape(obj: CatalogObject) -> None:
             )
         _reject_subsystem_fields(obj, type_name="CommonModule")
         _reject_value_type_fields(obj, type_name="CommonModule")
+        _reject_scheduled_job_fields(obj, type_name="CommonModule")
+        _reject_event_subscription_fields(obj, type_name="CommonModule")
         if (
             obj.return_values_reuse is not None
             and obj.return_values_reuse not in _RETURN_VALUES_REUSE
@@ -663,6 +864,8 @@ def _validate_create_shape(obj: CatalogObject) -> None:
             )
         _reject_common_module_flags(obj, type_name="Subsystem")
         _reject_value_type_fields(obj, type_name="Subsystem")
+        _reject_scheduled_job_fields(obj, type_name="Subsystem")
+        _reject_event_subscription_fields(obj, type_name="Subsystem")
         return
     if obj.type in _VALUE_TYPE_OBJECT_TYPES:
         if (
@@ -679,13 +882,65 @@ def _validate_create_shape(obj: CatalogObject) -> None:
             )
         _reject_common_module_flags(obj, type_name=obj.type)
         _reject_subsystem_fields(obj, type_name=obj.type)
+        _reject_scheduled_job_fields(obj, type_name=obj.type)
+        _reject_event_subscription_fields(obj, type_name=obj.type)
         if obj.type == "DefinedType" and obj.value_type is None and not obj.value_types:
             raise IrError(
                 "DefinedType требует valueType или valueTypes",
                 code="1CM004",
             )
         return
+    if obj.type == "ScheduledJob":
+        if (
+            obj.attributes
+            or obj.tabular_sections
+            or obj.values
+            or obj.dimensions
+            or obj.resources
+        ):
+            raise IrError(
+                "ScheduledJob не поддерживает attributes / tabularSections / "
+                "values / dimensions / resources",
+                code="1CM004",
+            )
+        _reject_common_module_flags(obj, type_name="ScheduledJob")
+        _reject_subsystem_fields(obj, type_name="ScheduledJob")
+        _reject_value_type_fields(obj, type_name="ScheduledJob")
+        _reject_event_subscription_fields(obj, type_name="ScheduledJob")
+        return
+    if obj.type == "EventSubscription":
+        if (
+            obj.attributes
+            or obj.tabular_sections
+            or obj.values
+            or obj.dimensions
+            or obj.resources
+        ):
+            raise IrError(
+                "EventSubscription не поддерживает attributes / tabularSections / "
+                "values / dimensions / resources",
+                code="1CM004",
+            )
+        _reject_common_module_flags(obj, type_name="EventSubscription")
+        _reject_subsystem_fields(obj, type_name="EventSubscription")
+        _reject_value_type_fields(obj, type_name="EventSubscription")
+        _reject_scheduled_job_fields(obj, type_name="EventSubscription")
+        return
     # Catalog / Document / Report / DataProcessor (attr + tabularSections).
+    if obj.type not in _ATTR_TABULAR_OBJECT_TYPES:
+        # Other Meta DSL types without dedicated IR yet: only name/synonym.
+        if (
+            obj.attributes
+            or obj.tabular_sections
+            or obj.values
+            or obj.dimensions
+            or obj.resources
+        ):
+            raise IrError(
+                f"{obj.type} не поддерживает attributes / tabularSections / "
+                "values / dimensions / resources",
+                code="1CM004",
+            )
     if obj.values or obj.dimensions or obj.resources:
         raise IrError(
             f"{obj.type} не поддерживает values / dimensions / resources",
@@ -694,7 +949,8 @@ def _validate_create_shape(obj: CatalogObject) -> None:
     _reject_common_module_flags(obj, type_name=obj.type)
     _reject_subsystem_fields(obj, type_name=obj.type)
     _reject_value_type_fields(obj, type_name=obj.type)
-
+    _reject_scheduled_job_fields(obj, type_name=obj.type)
+    _reject_event_subscription_fields(obj, type_name=obj.type)
 
 def _reject_common_module_flags(obj: CatalogObject, *, type_name: str) -> None:
     if any(
@@ -725,6 +981,27 @@ def _reject_value_type_fields(obj: CatalogObject, *, type_name: str) -> None:
     if obj.value_type is not None or obj.value_types:
         raise IrError(
             f"{type_name} не поддерживает valueType / valueTypes",
+            code="1CM004",
+        )
+
+
+def _reject_scheduled_job_fields(obj: CatalogObject, *, type_name: str) -> None:
+    if any(
+        getattr(obj, attr) is not None
+        for attr, _ in _SCHEDULED_JOB_DSL_KEYS
+    ):
+        raise IrError(
+            f"{type_name} не поддерживает поля ScheduledJob "
+            "(methodName / use / description / key / …)",
+            code="1CM004",
+        )
+
+
+def _reject_event_subscription_fields(obj: CatalogObject, *, type_name: str) -> None:
+    if obj.handler is not None or obj.event is not None or obj.source:
+        raise IrError(
+            f"{type_name} не поддерживает поля EventSubscription "
+            "(handler / event / source)",
             code="1CM004",
         )
 

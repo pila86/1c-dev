@@ -312,7 +312,8 @@ def update_command(
             "Qualified name, например Catalog.Products, Enum.Statuses, "
             "InformationRegister.Prices, CommonModule.SalesServer, "
             "Subsystem.Main, Constant.VATRate, DefinedType.CounterpartyRef, "
-            "Report.Sales, DataProcessor.ImportData."
+            "Report.Sales, DataProcessor.ImportData, ScheduledJob.Cleanup, "
+            "EventSubscription.ProductsBeforeWrite."
         ),
     ),
     op: list[str] | None = typer.Option(
@@ -476,7 +477,8 @@ def create_command(
             "Qualified name, например Catalog.Products, Document.Sales, "
             "Enum.Statuses, InformationRegister.Prices, CommonModule.SalesServer, "
             "Subsystem.Main, Constant.VATRate, DefinedType.CounterpartyRef, "
-            "Report.Sales, DataProcessor.ImportData."
+            "Report.Sales, DataProcessor.ImportData, ScheduledJob.Cleanup, "
+            "EventSubscription.ProductsBeforeWrite."
         ),
     ),
     synonym: str | None = typer.Option(
@@ -577,6 +579,56 @@ def create_command(
             "(например Number:5.2, String:50); можно повторять."
         ),
     ),
+    method_name: str | None = typer.Option(
+        None,
+        "--method-name",
+        help="Путь метода CommonModule.Name.Method (ScheduledJob).",
+    ),
+    use: bool | None = typer.Option(
+        None,
+        "--use/--no-use",
+        help="Флаг Use (ScheduledJob).",
+    ),
+    description: str | None = typer.Option(
+        None,
+        "--description",
+        help="Description (ScheduledJob).",
+    ),
+    key: str | None = typer.Option(
+        None,
+        "--key",
+        help="Key уникальности (ScheduledJob).",
+    ),
+    predefined: bool | None = typer.Option(
+        None,
+        "--predefined/--no-predefined",
+        help="Флаг Predefined (ScheduledJob).",
+    ),
+    restart_count_on_failure: int | None = typer.Option(
+        None,
+        "--restart-count-on-failure",
+        help="RestartCountOnFailure (ScheduledJob).",
+    ),
+    restart_interval_on_failure: int | None = typer.Option(
+        None,
+        "--restart-interval-on-failure",
+        help="RestartIntervalOnFailure (ScheduledJob).",
+    ),
+    handler: str | None = typer.Option(
+        None,
+        "--handler",
+        help="Путь обработчика CommonModule.Name.Method (EventSubscription).",
+    ),
+    event: str | None = typer.Option(
+        None,
+        "--event",
+        help="Имя события, например BeforeWrite (EventSubscription).",
+    ),
+    source: list[str] | None = typer.Option(
+        None,
+        "--source",
+        help="Источник Type.Name (EventSubscription), можно повторять.",
+    ),
     from_json: str | None = typer.Option(
         None,
         "--from-json",
@@ -637,6 +689,22 @@ def create_command(
                 global_flag=global_flag,
                 return_values_reuse=return_values_reuse,
             )
+            _merge_scheduled_job_cli_fields(
+                data,
+                method_name=method_name,
+                use=use,
+                description=description,
+                key=key,
+                predefined=predefined,
+                restart_count_on_failure=restart_count_on_failure,
+                restart_interval_on_failure=restart_interval_on_failure,
+            )
+            _merge_event_subscription_cli_fields(
+                data,
+                handler=handler,
+                event=event,
+                source=source,
+            )
             catalog = catalog_from_json(data, qualified_name=qualified_name)
             if synonym and not catalog.synonym:
                 catalog.synonym = synonym
@@ -682,6 +750,16 @@ def create_command(
                 children=list(child or []),
                 include_in_command_interface=include_in_command_interface,
                 value_type_specs=list(value_type or []),
+                method_name=method_name,
+                use=use,
+                description=description,
+                key=key,
+                predefined=predefined,
+                restart_count_on_failure=restart_count_on_failure,
+                restart_interval_on_failure=restart_interval_on_failure,
+                handler=handler,
+                event=event,
+                source=list(source or []),
             )
     except IrError as exc:
         result = _ir_error_result(exc)
@@ -736,3 +814,55 @@ def _merge_common_module_cli_flags(
             data[key] = value
     if return_values_reuse is not None and "returnValuesReuse" not in data:
         data["returnValuesReuse"] = return_values_reuse
+
+
+def _merge_scheduled_job_cli_fields(
+    data: dict[str, Any],
+    *,
+    method_name: str | None,
+    use: bool | None,
+    description: str | None,
+    key: str | None,
+    predefined: bool | None,
+    restart_count_on_failure: int | None,
+    restart_interval_on_failure: int | None,
+) -> None:
+    """Fill ScheduledJob JSON keys from CLI when absent in --from-json body."""
+    if method_name is not None and "methodName" not in data:
+        data["methodName"] = method_name
+    if use is not None and "use" not in data:
+        data["use"] = use
+    if description is not None and "description" not in data:
+        data["description"] = description
+    if key is not None and "key" not in data:
+        data["key"] = key
+    if predefined is not None and "predefined" not in data:
+        data["predefined"] = predefined
+    if (
+        restart_count_on_failure is not None
+        and "restartCountOnFailure" not in data
+    ):
+        data["restartCountOnFailure"] = restart_count_on_failure
+    if (
+        restart_interval_on_failure is not None
+        and "restartIntervalOnFailure" not in data
+    ):
+        data["restartIntervalOnFailure"] = restart_interval_on_failure
+
+
+def _merge_event_subscription_cli_fields(
+    data: dict[str, Any],
+    *,
+    handler: str | None,
+    event: str | None,
+    source: list[str] | None,
+) -> None:
+    """Fill EventSubscription JSON keys from CLI when absent in --from-json body."""
+    if handler is not None and "handler" not in data:
+        data["handler"] = handler
+    if event is not None and "event" not in data:
+        data["event"] = event
+    if source:
+        existing = list(data.get("source") or [])
+        existing.extend(source)
+        data["source"] = existing

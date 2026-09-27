@@ -423,6 +423,99 @@ def test_report_and_dataprocessor_from_parts_and_json() -> None:
     assert shape.value.code == "1CM004"
 
 
+def test_scheduled_job_and_event_subscription_from_parts_and_json() -> None:
+    job = catalog_from_parts(
+        qualified_name="ScheduledJob.Cleanup",
+        synonym="Очистка",
+        method_name="CommonModule.Jobs.Cleanup",
+        use=True,
+        description="Nightly",
+        key="cleanup",
+        predefined=False,
+        restart_count_on_failure=5,
+        restart_interval_on_failure=20,
+    )
+    assert job.qualified_name == "ScheduledJob.Cleanup"
+    assert job.type == "ScheduledJob"
+    assert job.method_name == "CommonModule.Jobs.Cleanup"
+    assert job.use is True
+    dsl = ir_to_xmlgen_dsl(job.to_dict())
+    assert dsl == {
+        "type": "ScheduledJob",
+        "name": "Cleanup",
+        "synonym": "Очистка",
+        "methodName": "CommonModule.Jobs.Cleanup",
+        "use": True,
+        "description": "Nightly",
+        "key": "cleanup",
+        "predefined": False,
+        "restartCountOnFailure": 5,
+        "restartIntervalOnFailure": 20,
+    }
+    assert "attributes" not in dsl
+
+    sub = catalog_from_parts(
+        qualified_name="EventSubscription.ProductsBeforeWrite",
+        synonym="ПередЗаписью",
+        handler="CommonModule.Jobs.BeforeWrite",
+        event="BeforeWrite",
+        source=["Catalog.Products"],
+    )
+    assert sub.qualified_name == "EventSubscription.ProductsBeforeWrite"
+    assert sub.handler == "CommonModule.Jobs.BeforeWrite"
+    assert sub.event == "BeforeWrite"
+    assert sub.source == ["Catalog.Products"]
+    sub_dsl = ir_to_xmlgen_dsl(sub.to_dict())
+    assert sub_dsl["type"] == "EventSubscription"
+    assert sub_dsl["handler"] == "CommonModule.Jobs.BeforeWrite"
+    assert sub_dsl["event"] == "BeforeWrite"
+    assert sub_dsl["source"] == ["Catalog.Products"]
+
+    from_json = catalog_from_json(
+        {
+            "type": "ScheduledJob",
+            "name": "Rebuild",
+            "methodName": "CommonModule.Jobs.Rebuild",
+            "use": False,
+        }
+    )
+    assert from_json.type == "ScheduledJob"
+    assert from_json.method_name == "CommonModule.Jobs.Rebuild"
+    assert from_json.use is False
+
+    from_json_es = catalog_from_json(
+        {
+            "type": "EventSubscription",
+            "name": "DocOnWrite",
+            "handler": "CommonModule.Jobs.OnWrite",
+            "event": "OnWrite",
+            "source": ["Document.Order"],
+        }
+    )
+    assert from_json_es.source == ["Document.Order"]
+
+    with pytest.raises(IrError) as shape:
+        catalog_from_parts(
+            qualified_name="ScheduledJob.Bad",
+            attr_specs=["X:String:10"],
+        )
+    assert shape.value.code == "1CM004"
+
+    with pytest.raises(IrError) as bad_handler:
+        catalog_from_parts(
+            qualified_name="EventSubscription.Bad",
+            handler="Jobs.BeforeWrite",
+        )
+    assert bad_handler.value.code == "1CM004"
+
+    with pytest.raises(IrError) as bad_source:
+        catalog_from_parts(
+            qualified_name="EventSubscription.Bad",
+            source=["Products"],
+        )
+    assert bad_source.value.code == "1CM004"
+
+
 def test_create_metadata_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
@@ -748,6 +841,59 @@ def test_create_report_and_dataprocessor_mock(tmp_path: Path) -> None:
     )
     assert result2.status == "ok"
     assert result2.object == "DataProcessor.ImportData"
+
+
+def test_create_scheduled_job_and_event_subscription_mock(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+
+    def fake_compile_job(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "ScheduledJob"
+        assert dsl["methodName"] == "CommonModule.Jobs.Cleanup"
+        assert dsl["use"] is True
+        folder = source_dir / "ScheduledJobs"
+        folder.mkdir(parents=True)
+        (folder / "Cleanup.xml").write_text("<ScheduledJob/>", encoding="utf-8")
+        return ["ScheduledJobs/Cleanup.xml"]
+
+    result = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ScheduledJob.Cleanup",
+            synonym="Очистка",
+            method_name="CommonModule.Jobs.Cleanup",
+            use=True,
+        ),
+        compile_fn=fake_compile_job,
+    )
+    assert result.status == "ok"
+    assert result.object == "ScheduledJob.Cleanup"
+
+    def fake_compile_sub(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "EventSubscription"
+        assert dsl["handler"] == "CommonModule.Jobs.BeforeWrite"
+        assert dsl["event"] == "BeforeWrite"
+        assert dsl["source"] == ["Catalog.Products"]
+        folder = source_dir / "EventSubscriptions"
+        folder.mkdir(parents=True)
+        (folder / "ProductsBeforeWrite.xml").write_text(
+            "<EventSubscription/>", encoding="utf-8"
+        )
+        return ["EventSubscriptions/ProductsBeforeWrite.xml"]
+
+    result2 = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="EventSubscription.ProductsBeforeWrite",
+            handler="CommonModule.Jobs.BeforeWrite",
+            event="BeforeWrite",
+            source=["Catalog.Products"],
+        ),
+        compile_fn=fake_compile_sub,
+    )
+    assert result2.status == "ok"
+    assert result2.object == "EventSubscription.ProductsBeforeWrite"
 
 
 def test_create_duplicate(tmp_path: Path) -> None:
@@ -1333,6 +1479,86 @@ def test_create_report_and_dataprocessor_with_real_xmlgen(tmp_path: Path) -> Non
     cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
     assert "<Report>Sales</Report>" in cfg
     assert "<DataProcessor>ImportData</DataProcessor>" in cfg
+
+    from core.project import validate_project
+
+    assert validate_project(target).status == "ok"
+
+
+@pytest.mark.integration
+def test_create_scheduled_job_and_event_subscription_with_real_xmlgen(
+    tmp_path: Path,
+) -> None:
+    jar = resolve_jar()
+    java = resolve_java()
+    if not jar.found or not java.found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    module = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="CommonModule.Jobs",
+            server=True,
+        ),
+    )
+    assert module.status == "ok", module.diagnostics
+
+    catalog = create_metadata(
+        target,
+        catalog_from_parts(qualified_name="Catalog.Products"),
+    )
+    assert catalog.status == "ok", catalog.diagnostics
+
+    job = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ScheduledJob.Cleanup",
+            synonym="Очистка",
+            method_name="CommonModule.Jobs.Cleanup",
+            use=True,
+            description="Nightly",
+            key="cleanup",
+            predefined=False,
+            restart_count_on_failure=5,
+            restart_interval_on_failure=20,
+        ),
+    )
+    assert job.status == "ok", job.diagnostics
+    job_xml = target / "src" / "cf" / "ScheduledJobs" / "Cleanup.xml"
+    assert job_xml.is_file()
+    job_text = job_xml.read_text(encoding="utf-8-sig")
+    assert "<MethodName>CommonModule.Jobs.Cleanup</MethodName>" in job_text
+    assert "<Use>true</Use>" in job_text
+    assert "<Description>Nightly</Description>" in job_text
+    assert "<Key>cleanup</Key>" in job_text
+    assert "<RestartCountOnFailure>5</RestartCountOnFailure>" in job_text
+    assert (target / "src" / "cf" / "ScheduledJobs" / "Cleanup" / "Ext" / "Schedule.xml").is_file()
+
+    sub = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="EventSubscription.ProductsBeforeWrite",
+            synonym="ПередЗаписью",
+            handler="CommonModule.Jobs.BeforeWrite",
+            event="BeforeWrite",
+            source=["Catalog.Products"],
+        ),
+    )
+    assert sub.status == "ok", sub.diagnostics
+    sub_xml = target / "src" / "cf" / "EventSubscriptions" / "ProductsBeforeWrite.xml"
+    assert sub_xml.is_file()
+    sub_text = sub_xml.read_text(encoding="utf-8-sig")
+    assert "<Handler>CommonModule.Jobs.BeforeWrite</Handler>" in sub_text
+    assert "<Event>BeforeWrite</Event>" in sub_text
+    assert "cfg:Catalog.Products" in sub_text
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<ScheduledJob>Cleanup</ScheduledJob>" in cfg
+    assert "<EventSubscription>ProductsBeforeWrite</EventSubscription>" in cfg
 
     from core.project import validate_project
 

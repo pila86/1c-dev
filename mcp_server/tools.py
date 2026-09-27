@@ -215,12 +215,14 @@ def register_tools(server: FastMCP) -> None:
             "objects — use metadata.update for that). "
             "Types: Catalog, Document, Enum, InformationRegister, "
             "AccumulationRegister, CommonModule, Subsystem, Constant, "
-            "DefinedType, Report, DataProcessor "
+            "DefinedType, Report, DataProcessor, ScheduledJob, "
+            "EventSubscription "
             "(plus other Meta DSL types from the write allowlist). "
             "Pass qualified_name "
             "(e.g. Catalog.Products, Enum.Statuses, CommonModule.SalesServer, "
             "Subsystem.Main, Constant.VATRate, DefinedType.CounterpartyRef, "
-            "Report.Sales, DataProcessor.ImportData); "
+            "Report.Sales, DataProcessor.ImportData, ScheduledJob.Cleanup, "
+            "EventSubscription.ProductsBeforeWrite); "
             "optional synonym; "
             "for Catalog/Document/Report/DataProcessor: "
             "attributes and tabular_sections; "
@@ -235,7 +237,12 @@ def register_tools(server: FastMCP) -> None:
             "include_in_command_interface; "
             "for Constant: optional value_type {type, length?/precision?/…}; "
             "for DefinedType: value_type or value_types "
-            "[{type, …}, …] (required)."
+            "[{type, …}, …] (required); "
+            "for ScheduledJob: optional method_name "
+            "(CommonModule.Name.Method), use, description, key, predefined, "
+            "restart_count_on_failure, restart_interval_on_failure; "
+            "for EventSubscription: optional handler "
+            "(CommonModule.Name.Method), event, source [Type.Name, …]."
             + _NO_SHELL
         ),
     )
@@ -260,6 +267,16 @@ def register_tools(server: FastMCP) -> None:
         include_in_command_interface: bool | None = None,
         value_type: dict[str, Any] | str | None = None,
         value_types: list[dict[str, Any] | str] | None = None,
+        method_name: str | None = None,
+        use: bool | None = None,
+        description: str | None = None,
+        key: str | None = None,
+        predefined: bool | None = None,
+        restart_count_on_failure: int | None = None,
+        restart_interval_on_failure: int | None = None,
+        handler: str | None = None,
+        event: str | None = None,
+        source: list[str] | None = None,
         path: str | None = None,
     ) -> dict[str, Any]:
         try:
@@ -302,6 +319,26 @@ def register_tools(server: FastMCP) -> None:
                 data["valueType"] = value_type
             if value_types:
                 data["valueTypes"] = list(value_types)
+            if method_name is not None:
+                data["methodName"] = method_name
+            if use is not None:
+                data["use"] = use
+            if description is not None:
+                data["description"] = description
+            if key is not None:
+                data["key"] = key
+            if predefined is not None:
+                data["predefined"] = predefined
+            if restart_count_on_failure is not None:
+                data["restartCountOnFailure"] = restart_count_on_failure
+            if restart_interval_on_failure is not None:
+                data["restartIntervalOnFailure"] = restart_interval_on_failure
+            if handler is not None:
+                data["handler"] = handler
+            if event is not None:
+                data["event"] = event
+            if source:
+                data["source"] = list(source)
             # type/name come from qualified_name (validated inside catalog_from_json)
             catalog = catalog_from_json(data, qualified_name=qualified_name)
             if synonym and not catalog.synonym:

@@ -21,6 +21,21 @@ _COMMON_MODULE_DSL_KEYS: tuple[str, ...] = (
     "returnValuesReuse",
 )
 
+_SCHEDULED_JOB_DSL_KEYS: tuple[str, ...] = (
+    "methodName",
+    "use",
+    "description",
+    "key",
+    "predefined",
+    "restartCountOnFailure",
+    "restartIntervalOnFailure",
+)
+
+_EVENT_SUBSCRIPTION_DSL_KEYS: tuple[str, ...] = (
+    "handler",
+    "event",
+    "source",
+)
 
 class XmlGenError(Exception):
     """xml-gen subprocess or environment failure."""
@@ -94,6 +109,18 @@ def ir_to_xmlgen_dsl(ir: dict[str, Any]) -> dict[str, Any]:
 
     if ir.get("type") in ("Constant", "DefinedType"):
         _apply_value_type_dsl(dsl, ir)
+        return dsl
+
+    if ir.get("type") == "ScheduledJob":
+        for key in _SCHEDULED_JOB_DSL_KEYS:
+            if key in ir and ir[key] is not None:
+                dsl[key] = ir[key]
+        return dsl
+
+    if ir.get("type") == "EventSubscription":
+        for key in _EVENT_SUBSCRIPTION_DSL_KEYS:
+            if key in ir and ir[key] is not None:
+                dsl[key] = ir[key]
         return dsl
 
     attrs_out = [

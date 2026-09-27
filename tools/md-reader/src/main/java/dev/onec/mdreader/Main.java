@@ -11,12 +11,15 @@ import com.github._1c_syntax.bsl.mdo.DataProcessor;
 import com.github._1c_syntax.bsl.mdo.DefinedType;
 import com.github._1c_syntax.bsl.mdo.Document;
 import com.github._1c_syntax.bsl.mdo.Enum;
+import com.github._1c_syntax.bsl.mdo.EventSubscription;
 import com.github._1c_syntax.bsl.mdo.InformationRegister;
 import com.github._1c_syntax.bsl.mdo.MD;
 import com.github._1c_syntax.bsl.mdo.Report;
+import com.github._1c_syntax.bsl.mdo.ScheduledJob;
 import com.github._1c_syntax.bsl.mdo.Subsystem;
 import com.github._1c_syntax.bsl.mdo.TabularSection;
 import com.github._1c_syntax.bsl.mdo.children.EnumValue;
+import com.github._1c_syntax.bsl.mdo.support.Handler;
 import com.github._1c_syntax.bsl.mdo.support.ReturnValueReuse;
 import com.github._1c_syntax.bsl.types.MdoReference;
 import com.github._1c_syntax.bsl.types.MultiLanguageString;
@@ -62,7 +65,9 @@ public final class Main {
       "Constant",
       "DefinedType",
       "Report",
-      "DataProcessor"
+      "DataProcessor",
+      "ScheduledJob",
+      "EventSubscription"
   );
 
   private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
@@ -289,8 +294,59 @@ public final class Main {
       obj.add("valueType", valueTypeToJson(constant.getValueType()));
     } else if (md instanceof DefinedType definedType) {
       obj.add("valueTypes", valueTypesArray(definedType.getValueType()));
+    } else if (md instanceof ScheduledJob job) {
+      Handler method = job.getMethodName();
+      if (method != null && !method.isEmpty()) {
+        obj.addProperty("methodName", method.getMethodPath());
+      }
+      obj.addProperty("use", job.isUse());
+      String description = job.getDescription();
+      if (description != null && !description.isBlank()) {
+        obj.addProperty("description", description);
+      }
+      String key = job.getKey();
+      if (key != null && !key.isBlank()) {
+        obj.addProperty("key", key);
+      }
+      obj.addProperty("predefined", job.isPredefined());
+      obj.addProperty("restartCountOnFailure", job.getRestartCountOnFailure());
+      obj.addProperty("restartIntervalOnFailure", job.getRestartIntervalOnFailure());
+    } else if (md instanceof EventSubscription subscription) {
+      Handler handler = subscription.getHandler();
+      if (handler != null && !handler.isEmpty()) {
+        obj.addProperty("handler", handler.getMethodPath());
+      }
+      String event = subscription.getEvent();
+      if (event != null && !event.isBlank()) {
+        obj.addProperty("event", event);
+      }
+      obj.add("source", eventSubscriptionSourceArray(subscription.getValueType()));
     }
     return obj;
+  }
+
+  private static JsonArray eventSubscriptionSourceArray(ValueTypeDescription description) {
+    JsonArray arr = new JsonArray();
+    if (description == null || description.isEmpty()) {
+      return arr;
+    }
+    List<ValueType> types = description.getTypes();
+    if (types == null) {
+      return arr;
+    }
+    for (ValueType type : types) {
+      if (type == null) {
+        continue;
+      }
+      String en = type.nameEn();
+      if (en == null || en.isBlank() || !en.contains(".")) {
+        continue;
+      }
+      // Prefer Designer QName (Catalog.Products); also accept CatalogRef.Products.
+      String refQname = refQnameFromTypeName(en);
+      arr.add(refQname != null ? refQname : en);
+    }
+    return arr;
   }
 
   private static String returnValuesReuseOf(ReturnValueReuse reuse) {
