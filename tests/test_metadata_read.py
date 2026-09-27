@@ -593,6 +593,110 @@ def test_get_charts_full_ir_mock(tmp_path: Path) -> None:
     assert result3.ir["attributes"][0]["name"] == "Extra"
 
 
+def test_get_e8_full_ir_mock(tmp_path: Path) -> None:
+    """Smoke: md-reader full IR for BP/Task/ExchangePlan/DocumentJournal (#69)."""
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    def fake_read_task(
+        command: str, source_dir: Path, args: tuple[str, ...]
+    ) -> dict[str, Any]:
+        assert args == ("Task.Todo",)
+        return {
+            "status": "ok",
+            "object": {
+                "type": "Task",
+                "name": "Todo",
+                "qname": "Task.Todo",
+                "attributes": [{"name": "Note", "type": "String", "length": 50}],
+                "addressingAttributes": [
+                    {"name": "Assignee", "type": "String", "length": 50}
+                ],
+                "tabularSections": [],
+            },
+        }
+
+    result = get_metadata(target, "Task.Todo", read_fn=fake_read_task)
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert result.ir["addressingAttributes"][0]["name"] == "Assignee"
+
+    def fake_read_bp(
+        command: str, source_dir: Path, args: tuple[str, ...]
+    ) -> dict[str, Any]:
+        assert args == ("BusinessProcess.Approval",)
+        return {
+            "status": "ok",
+            "object": {
+                "type": "BusinessProcess",
+                "name": "Approval",
+                "qname": "BusinessProcess.Approval",
+                "task": "Task.Todo",
+                "attributes": [{"name": "Comment", "type": "String", "length": 100}],
+                "tabularSections": [],
+            },
+        }
+
+    result2 = get_metadata(
+        target, "BusinessProcess.Approval", read_fn=fake_read_bp
+    )
+    assert result2.status == "ok"
+    assert result2.ir is not None
+    assert result2.ir["task"] == "Task.Todo"
+
+    def fake_read_plan(
+        command: str, source_dir: Path, args: tuple[str, ...]
+    ) -> dict[str, Any]:
+        assert args == ("ExchangePlan.Main",)
+        return {
+            "status": "ok",
+            "object": {
+                "type": "ExchangePlan",
+                "name": "Main",
+                "qname": "ExchangePlan.Main",
+                "attributes": [{"name": "Extra", "type": "String", "length": 10}],
+                "content": [
+                    {"metadata": "Catalog.Products", "autoRecord": "Deny"},
+                ],
+                "tabularSections": [],
+            },
+        }
+
+    result3 = get_metadata(target, "ExchangePlan.Main", read_fn=fake_read_plan)
+    assert result3.status == "ok"
+    assert result3.ir is not None
+    assert result3.ir["content"][0]["metadata"] == "Catalog.Products"
+
+    def fake_read_journal(
+        command: str, source_dir: Path, args: tuple[str, ...]
+    ) -> dict[str, Any]:
+        assert args == ("DocumentJournal.Docs",)
+        return {
+            "status": "ok",
+            "object": {
+                "type": "DocumentJournal",
+                "name": "Docs",
+                "qname": "DocumentJournal.Docs",
+                "registeredDocuments": ["Document.Sales"],
+                "columns": [
+                    {
+                        "name": "Comment",
+                        "references": ["Document.Sales.Attribute.Comment"],
+                    }
+                ],
+            },
+        }
+
+    result4 = get_metadata(
+        target, "DocumentJournal.Docs", read_fn=fake_read_journal
+    )
+    assert result4.status == "ok"
+    assert result4.ir is not None
+    assert result4.ir["registeredDocuments"] == ["Document.Sales"]
+    assert result4.ir["columns"][0]["name"] == "Comment"
+
+
 def test_get_scheduled_job_and_event_subscription_full_ir_mock(tmp_path: Path) -> None:
     """Smoke: md-reader full IR for ScheduledJob / EventSubscription (#65)."""
     target = tmp_path / "shop"
@@ -1686,6 +1790,206 @@ def test_charts_get_update_delete_roundtrip(
     assert "<ChartOfCharacteristicTypes>Properties</ChartOfCharacteristicTypes>" not in cfg
     assert "<ChartOfAccounts>MainAccounts</ChartOfAccounts>" not in cfg
     assert "<ChartOfCalculationTypes>MainCalcs</ChartOfCalculationTypes>" not in cfg
+
+
+@pytest.mark.integration
+def test_e8_get_update_delete_roundtrip(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """create → get full IR → update attrs/content → delete (#69).
+
+    MDClasses 0.20.0: attrs/TS/task/addressingAttributes/columns/
+    registeredDocuments/content exposed. xml-gen gaps: addressingAttributes and
+    columns only on create (no dedicated edit ops); ExchangePlan content via
+    add-exchange-content with AutoRecord always Deny; meta compile writes empty
+    Content.xml stub (create followup applies content).
+    """
+    from adapters.source.xmlgen import EditOp
+    from adapters.source.xmlgen.resolve import resolve_jar as resolve_xmlgen
+    from adapters.source.xmlgen.resolve import resolve_java as resolve_java_xml
+    from core.metadata import (
+        catalog_from_parts,
+        create_metadata,
+        delete_metadata,
+        update_metadata,
+    )
+
+    local_jar = _local_md_reader_jar()
+    if local_jar is not None:
+        monkeypatch.setenv("ONEC_MDREADER_JAR", str(local_jar))
+
+    java = resolve_java()
+    jar = resolve_jar()
+    if not java.found or not jar.found:
+        pytest.skip(
+            "md-reader jar / Java 21+ недоступны (запустите scripts/fetch-md-reader.sh)"
+        )
+    xmlgen = resolve_xmlgen()
+    if not xmlgen.found or not resolve_java_xml().found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    assert create_metadata(
+        target, catalog_from_parts(qualified_name="Catalog.Products")
+    ).status == "ok"
+    assert create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Document.Sales",
+            attr_specs=["Comment:String:100"],
+        ),
+    ).status == "ok"
+
+    created_task = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Task.Todo",
+            synonym="Задача",
+            attr_specs=["Note:String:50"],
+            addressing_attr_specs=["Assignee:String:50"],
+            ts_specs=["Extra"],
+            ts_attr_specs=["Extra.Qty:Number:15.3"],
+        ),
+    )
+    assert created_task.status == "ok", created_task.diagnostics
+
+    got_task = get_metadata(target, "Task.Todo")
+    assert got_task.status == "ok", got_task.diagnostics
+    assert got_task.ir is not None
+    assert got_task.ir["type"] == "Task"
+    assert {a.get("name") for a in (got_task.ir.get("attributes") or [])} >= {"Note"}
+    assert {
+        a.get("name") for a in (got_task.ir.get("addressingAttributes") or [])
+    } >= {"Assignee"}
+
+    updated_task = update_metadata(
+        target,
+        "Task.Todo",
+        [
+            EditOp("add-attribute", "Priority:Number(10,0)"),
+            EditOp("modify-property", "Synonym=ЗадачаПользователя"),
+        ],
+    )
+    assert updated_task.status == "ok", updated_task.diagnostics
+    got_task2 = get_metadata(target, "Task.Todo")
+    assert got_task2.status == "ok", got_task2.diagnostics
+    assert got_task2.ir is not None
+    assert got_task2.ir.get("synonym") == "ЗадачаПользователя"
+    assert {a.get("name") for a in (got_task2.ir.get("attributes") or [])} >= {
+        "Note",
+        "Priority",
+    }
+
+    created_bp = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="BusinessProcess.Approval",
+            task="Task.Todo",
+            attr_specs=["Comment:String:100"],
+        ),
+    )
+    assert created_bp.status == "ok", created_bp.diagnostics
+    got_bp = get_metadata(target, "BusinessProcess.Approval")
+    assert got_bp.status == "ok", got_bp.diagnostics
+    assert got_bp.ir is not None
+    assert got_bp.ir.get("task") == "Task.Todo"
+
+    updated_bp = update_metadata(
+        target,
+        "BusinessProcess.Approval",
+        [EditOp("add-attribute", "Extra:String(20)")],
+    )
+    assert updated_bp.status == "ok", updated_bp.diagnostics
+    got_bp2 = get_metadata(target, "BusinessProcess.Approval")
+    assert got_bp2.status == "ok", got_bp2.diagnostics
+    assert got_bp2.ir is not None
+    assert {a.get("name") for a in (got_bp2.ir.get("attributes") or [])} >= {
+        "Comment",
+        "Extra",
+    }
+
+    created_plan = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ExchangePlan.Main",
+            attr_specs=["Extra:String:10"],
+            content=["Catalog.Products"],
+        ),
+    )
+    assert created_plan.status == "ok", created_plan.diagnostics
+    got_plan = get_metadata(target, "ExchangePlan.Main")
+    assert got_plan.status == "ok", got_plan.diagnostics
+    assert got_plan.ir is not None
+    content_meta = {
+        (c.get("metadata") if isinstance(c, dict) else c)
+        for c in (got_plan.ir.get("content") or [])
+    }
+    assert "Catalog.Products" in content_meta
+
+    updated_plan = update_metadata(
+        target,
+        "ExchangePlan.Main",
+        [
+            EditOp("add-attribute", "Comment:String(50)"),
+            EditOp("modify-property", "Synonym=ОсновнойОбмен"),
+        ],
+    )
+    assert updated_plan.status == "ok", updated_plan.diagnostics
+    got_plan2 = get_metadata(target, "ExchangePlan.Main")
+    assert got_plan2.status == "ok", got_plan2.diagnostics
+    assert got_plan2.ir is not None
+    assert got_plan2.ir.get("synonym") == "ОсновнойОбмен"
+    assert {a.get("name") for a in (got_plan2.ir.get("attributes") or [])} >= {
+        "Extra",
+        "Comment",
+    }
+
+    created_journal = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="DocumentJournal.Docs",
+            registered_document_specs=["Document.Sales"],
+            column_specs=["Comment:Document.Sales.Attribute.Comment"],
+        ),
+    )
+    assert created_journal.status == "ok", created_journal.diagnostics
+    got_j = get_metadata(target, "DocumentJournal.Docs")
+    assert got_j.status == "ok", got_j.diagnostics
+    assert got_j.ir is not None
+    assert "Document.Sales" in (got_j.ir.get("registeredDocuments") or [])
+    col_names = {c.get("name") for c in (got_j.ir.get("columns") or [])}
+    assert "Comment" in col_names
+
+    updated_j = update_metadata(
+        target,
+        "DocumentJournal.Docs",
+        [EditOp("modify-property", "Synonym=ЖурналДокументов")],
+    )
+    assert updated_j.status == "ok", updated_j.diagnostics
+    got_j2 = get_metadata(target, "DocumentJournal.Docs")
+    assert got_j2.status == "ok", got_j2.diagnostics
+    assert got_j2.ir is not None
+    assert got_j2.ir.get("synonym") == "ЖурналДокументов"
+
+    for qname, folder, fname in (
+        ("BusinessProcess.Approval", "BusinessProcesses", "Approval.xml"),
+        ("Task.Todo", "Tasks", "Todo.xml"),
+        ("ExchangePlan.Main", "ExchangePlans", "Main.xml"),
+        ("DocumentJournal.Docs", "DocumentJournals", "Docs.xml"),
+    ):
+        deleted = delete_metadata(target, qname)
+        assert deleted.status == "ok", deleted.diagnostics
+        assert not (target / "src" / "cf" / folder / fname).is_file()
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<BusinessProcess>Approval</BusinessProcess>" not in cfg
+    assert "<Task>Todo</Task>" not in cfg
+    assert "<ExchangePlan>Main</ExchangePlan>" not in cfg
+    assert "<DocumentJournal>Docs</DocumentJournal>" not in cfg
 
 
 @pytest.mark.integration

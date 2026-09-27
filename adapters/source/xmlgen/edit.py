@@ -38,6 +38,7 @@ ALLOWED_OPS: frozenset[str] = frozenset(
         "modify-resource",
         "remove-resource",
         "modify-property",
+        "add-exchange-content",
     }
 )
 

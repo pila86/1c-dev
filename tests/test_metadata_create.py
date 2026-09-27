@@ -774,6 +774,97 @@ def test_charts_from_parts_and_json() -> None:
     assert bad_flags.value.code == "1CM004"
 
 
+def test_e8_from_parts_and_json() -> None:
+    task = catalog_from_parts(
+        qualified_name="Task.Todo",
+        synonym="Задача",
+        attr_specs=["Note:String:50:Заметка"],
+        addressing_attr_specs=["Assignee:String:50:Исполнитель"],
+        ts_specs=["Extra"],
+        ts_attr_specs=["Extra.Qty:Number:15.3"],
+    )
+    assert task.type == "Task"
+    assert task.addressing_attributes[0].name == "Assignee"
+    task_dsl = ir_to_xmlgen_dsl(task.to_dict())
+    assert task_dsl["addressingAttributes"][0]["type"] == "String(50)"
+    assert "Extra" in task_dsl["tabularSections"]
+
+    bp = catalog_from_parts(
+        qualified_name="BusinessProcess.Approval",
+        synonym="Согласование",
+        task="Task.Todo",
+        attr_specs=["Comment:String:100"],
+        ts_specs=["Steps"],
+        ts_attr_specs=["Steps.Step:String:20"],
+    )
+    assert bp.task == "Task.Todo"
+    bp_dsl = ir_to_xmlgen_dsl(bp.to_dict())
+    assert bp_dsl["task"] == "Task.Todo"
+    assert bp_dsl["attributes"][0]["name"] == "Comment"
+
+    plan = catalog_from_parts(
+        qualified_name="ExchangePlan.Main",
+        attr_specs=["Extra:String:10"],
+        content=["Catalog.Products"],
+    )
+    assert plan.content == ["Catalog.Products"]
+    plan_dsl = ir_to_xmlgen_dsl(plan.to_dict())
+    assert plan_dsl["content"] == ["Catalog.Products"]
+
+    journal = catalog_from_parts(
+        qualified_name="DocumentJournal.Docs",
+        registered_document_specs=["Document.Sales"],
+        column_specs=["Comment:Document.Sales.Attribute.Comment"],
+    )
+    assert journal.registered_documents == ["Document.Sales"]
+    assert journal.columns[0].name == "Comment"
+    assert journal.columns[0].references == ["Document.Sales.Attribute.Comment"]
+    journal_dsl = ir_to_xmlgen_dsl(journal.to_dict())
+    assert journal_dsl["registeredDocuments"] == ["Document.Sales"]
+    assert journal_dsl["columns"][0]["references"][0].endswith("Attribute.Comment")
+
+    from_json = catalog_from_json(
+        {
+            "type": "Task",
+            "name": "Todo",
+            "addressingAttributes": [{"name": "Assignee", "type": "String", "length": 50}],
+            "attributes": [{"name": "Note", "type": "String", "length": 50}],
+        }
+    )
+    assert from_json.addressing_attributes[0].name == "Assignee"
+
+    plan_json = catalog_from_json(
+        {
+            "type": "ExchangePlan",
+            "name": "Main",
+            "content": [{"metadata": "Catalog.Products", "autoRecord": "Allow"}],
+            "attributes": [{"name": "Extra", "type": "String", "length": 10}],
+        }
+    )
+    assert plan_json.content == ["Catalog.Products"]
+
+    with pytest.raises(IrError) as bad_task:
+        catalog_from_parts(
+            qualified_name="BusinessProcess.Bad",
+            task="Catalog.Products",
+        )
+    assert bad_task.value.code == "1CM004"
+
+    with pytest.raises(IrError) as bad_addr:
+        catalog_from_parts(
+            qualified_name="Catalog.Bad",
+            addressing_attr_specs=["Assignee:String:10"],
+        )
+    assert bad_addr.value.code == "1CM004"
+
+    with pytest.raises(IrError) as bad_cols:
+        catalog_from_parts(
+            qualified_name="Catalog.Bad",
+            column_specs=["Comment:Document.Sales.Attribute.Comment"],
+        )
+    assert bad_cols.value.code == "1CM004"
+
+
 def test_create_metadata_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
@@ -1336,6 +1427,99 @@ def test_create_charts_mock(tmp_path: Path) -> None:
     )
     assert result3.status == "ok"
     assert result3.object == "ChartOfCalculationTypes.MainCalcs"
+
+
+def test_create_e8_mock(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    followups: list[tuple[str, str]] = []
+
+    def fake_compile_task(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "Task"
+        assert dsl["addressingAttributes"][0]["name"] == "Assignee"
+        folder = source_dir / "Tasks"
+        folder.mkdir(parents=True)
+        (folder / "Todo.xml").write_text("<Task/>", encoding="utf-8")
+        return ["Tasks/Todo.xml"]
+
+    result = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Task.Todo",
+            addressing_attr_specs=["Assignee:String:50"],
+            attr_specs=["Note:String:50"],
+        ),
+        compile_fn=fake_compile_task,
+    )
+    assert result.status == "ok"
+    assert result.object == "Task.Todo"
+
+    def fake_compile_bp(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "BusinessProcess"
+        assert dsl["task"] == "Task.Todo"
+        folder = source_dir / "BusinessProcesses"
+        folder.mkdir(parents=True)
+        (folder / "Approval.xml").write_text("<BusinessProcess/>", encoding="utf-8")
+        return ["BusinessProcesses/Approval.xml"]
+
+    result2 = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="BusinessProcess.Approval",
+            task="Task.Todo",
+            attr_specs=["Comment:String:100"],
+        ),
+        compile_fn=fake_compile_bp,
+    )
+    assert result2.status == "ok"
+
+    def fake_compile_plan(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "ExchangePlan"
+        assert dsl["content"] == ["Catalog.Products"]
+        folder = source_dir / "ExchangePlans"
+        folder.mkdir(parents=True)
+        (folder / "Main.xml").write_text("<ExchangePlan/>", encoding="utf-8")
+        return ["ExchangePlans/Main.xml"]
+
+    def fake_followup(object_xml: Path, ops: list[Any]) -> None:
+        assert object_xml.name == "Main.xml"
+        for op in ops:
+            followups.append((op.op, op.value))
+
+    result3 = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ExchangePlan.Main",
+            content=["Catalog.Products"],
+            attr_specs=["Extra:String:10"],
+        ),
+        compile_fn=fake_compile_plan,
+        followup_fn=fake_followup,
+    )
+    assert result3.status == "ok"
+    assert followups == [("add-exchange-content", "Catalog.Products")]
+
+    def fake_compile_journal(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "DocumentJournal"
+        assert dsl["registeredDocuments"] == ["Document.Sales"]
+        assert dsl["columns"][0]["name"] == "Comment"
+        folder = source_dir / "DocumentJournals"
+        folder.mkdir(parents=True)
+        (folder / "Docs.xml").write_text("<DocumentJournal/>", encoding="utf-8")
+        return ["DocumentJournals/Docs.xml"]
+
+    result4 = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="DocumentJournal.Docs",
+            registered_document_specs=["Document.Sales"],
+            column_specs=["Comment:Document.Sales.Attribute.Comment"],
+        ),
+        compile_fn=fake_compile_journal,
+    )
+    assert result4.status == "ok"
+    assert result4.object == "DocumentJournal.Docs"
 
 
 def test_create_duplicate(tmp_path: Path) -> None:
@@ -2224,6 +2408,109 @@ def test_create_charts_with_real_xmlgen(tmp_path: Path) -> None:
     assert "<ChartOfCharacteristicTypes>Properties</ChartOfCharacteristicTypes>" in cfg
     assert "<ChartOfAccounts>MainAccounts</ChartOfAccounts>" in cfg
     assert "<ChartOfCalculationTypes>MainCalcs</ChartOfCalculationTypes>" in cfg
+
+    from core.project import validate_project
+
+    assert validate_project(target).status == "ok"
+
+
+@pytest.mark.integration
+def test_create_e8_with_real_xmlgen(tmp_path: Path) -> None:
+    jar = resolve_jar()
+    java = resolve_java()
+    if not jar.found or not java.found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    assert create_metadata(
+        target,
+        catalog_from_parts(qualified_name="Catalog.Products"),
+    ).status == "ok"
+    assert create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Document.Sales",
+            attr_specs=["Comment:String:100"],
+        ),
+    ).status == "ok"
+
+    task = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Task.Todo",
+            synonym="Задача",
+            attr_specs=["Note:String:50:Заметка"],
+            addressing_attr_specs=["Assignee:String:50:Исполнитель"],
+            ts_specs=["Extra:Доп"],
+            ts_attr_specs=["Extra.Qty:Number:15.3"],
+        ),
+    )
+    assert task.status == "ok", task.diagnostics
+    task_xml = target / "src" / "cf" / "Tasks" / "Todo.xml"
+    assert task_xml.is_file()
+    task_text = task_xml.read_text(encoding="utf-8-sig")
+    assert "Assignee" in task_text
+    assert "Note" in task_text
+
+    bp = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="BusinessProcess.Approval",
+            synonym="Согласование",
+            task="Task.Todo",
+            attr_specs=["Comment:String:100"],
+            ts_specs=["Steps"],
+            ts_attr_specs=["Steps.Step:String:20"],
+        ),
+    )
+    assert bp.status == "ok", bp.diagnostics
+    bp_xml = target / "src" / "cf" / "BusinessProcesses" / "Approval.xml"
+    assert bp_xml.is_file()
+    bp_text = bp_xml.read_text(encoding="utf-8-sig")
+    assert "<Task>Task.Todo</Task>" in bp_text
+    assert "Comment" in bp_text
+
+    plan = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="ExchangePlan.Main",
+            synonym="Обмен",
+            attr_specs=["Extra:String:10"],
+            content=["Catalog.Products"],
+        ),
+    )
+    assert plan.status == "ok", plan.diagnostics
+    assert (target / "src" / "cf" / "ExchangePlans" / "Main.xml").is_file()
+    content_xml = (
+        target / "src" / "cf" / "ExchangePlans" / "Main" / "Ext" / "Content.xml"
+    )
+    assert content_xml.is_file()
+    assert "Catalog.Products" in content_xml.read_text(encoding="utf-8-sig")
+
+    journal = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="DocumentJournal.Docs",
+            synonym="Журнал",
+            registered_document_specs=["Document.Sales"],
+            column_specs=["Comment:Document.Sales.Attribute.Comment"],
+        ),
+    )
+    assert journal.status == "ok", journal.diagnostics
+    journal_text = (
+        target / "src" / "cf" / "DocumentJournals" / "Docs.xml"
+    ).read_text(encoding="utf-8-sig")
+    assert "Document.Sales" in journal_text
+    assert "Document.Sales.Attribute.Comment" in journal_text
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<Task>Todo</Task>" in cfg
+    assert "<BusinessProcess>Approval</BusinessProcess>" in cfg
+    assert "<ExchangePlan>Main</ExchangePlan>" in cfg
+    assert "<DocumentJournal>Docs</DocumentJournal>" in cfg
 
     from core.project import validate_project
 

@@ -111,6 +111,22 @@ class EnumValue:
         return data
 
 
+@dataclass
+class JournalColumn:
+    """DocumentJournal column (references to document attributes)."""
+
+    name: str
+    synonym: str | None = None
+    references: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        data: dict[str, Any] = {"name": self.name}
+        if self.synonym:
+            data["synonym"] = self.synonym
+        data["references"] = list(self.references)
+        return data
+
+
 _REGISTER_TYPES: frozenset[str] = frozenset(
     {
         "InformationRegister",
@@ -129,6 +145,9 @@ _ATTR_TABULAR_OBJECT_TYPES: frozenset[str] = frozenset(
         "ChartOfCharacteristicTypes",
         "ChartOfAccounts",
         "ChartOfCalculationTypes",
+        "BusinessProcess",
+        "Task",
+        "ExchangePlan",
     }
 )
 # ChartOfCharacteristicTypes shares valueType/valueTypes with Constant/DefinedType.
@@ -242,6 +261,11 @@ class CatalogObject:
     # ChartOfAccounts (ADR-018 / #68).
     accounting_flags: list[Attribute] = field(default_factory=list)
     ext_dimension_accounting_flags: list[Attribute] = field(default_factory=list)
+    # BusinessProcess / Task / DocumentJournal (ADR-018 / #69).
+    task: str | None = None
+    addressing_attributes: list[Attribute] = field(default_factory=list)
+    columns: list[JournalColumn] = field(default_factory=list)
+    registered_documents: list[str] = field(default_factory=list)
 
     @property
     def qualified_name(self) -> str:
@@ -321,6 +345,12 @@ class CatalogObject:
                     data[json_key] = value
             data["operations"] = dict(self.operations)
             return data
+        if self.type == "DocumentJournal":
+            if self.registered_documents:
+                data["registeredDocuments"] = list(self.registered_documents)
+            if self.columns:
+                data["columns"] = [c.to_dict() for c in self.columns]
+            return data
         data["attributes"] = [a.to_dict() for a in self.attributes]
         if self.tabular_sections:
             data["tabularSections"] = [t.to_dict() for t in self.tabular_sections]
@@ -336,6 +366,14 @@ class CatalogObject:
                 data["extDimensionAccountingFlags"] = [
                     a.to_dict() for a in self.ext_dimension_accounting_flags
                 ]
+        if self.type == "BusinessProcess" and self.task is not None:
+            data["task"] = self.task
+        if self.type == "Task" and self.addressing_attributes:
+            data["addressingAttributes"] = [
+                a.to_dict() for a in self.addressing_attributes
+            ]
+        if self.type == "ExchangePlan" and self.content:
+            data["content"] = list(self.content)
         return data
 @dataclass
 class MetadataSummary:
@@ -532,8 +570,12 @@ def catalog_from_parts(
     chart_of_calculation_types: str | None = None,
     accounting_flag_specs: list[str] | None = None,
     ext_dimension_accounting_flag_specs: list[str] | None = None,
+    task: str | None = None,
+    addressing_attr_specs: list[str] | None = None,
+    column_specs: list[str] | None = None,
+    registered_document_specs: list[str] | None = None,
 ) -> CatalogObject:
-    """Build create IR from CLI pieces (ADR-011 / #23–#28 / #62–#68)."""
+    """Build create IR from CLI pieces (ADR-011 / #23–#28 / #62–#69)."""
     obj_type, name = parse_qualified_name(qualified_name)
     if obj_type not in CREATE_OBJECT_TYPES:
         raise IrError(
@@ -553,6 +595,15 @@ def catalog_from_parts(
     ext_dimension_accounting_flags = [
         parse_attr_spec(s) for s in (ext_dimension_accounting_flag_specs or [])
     ]
+    addressing_attributes = [
+        parse_attr_spec(s) for s in (addressing_attr_specs or [])
+    ]
+    columns = [parse_journal_column_spec(s) for s in (column_specs or [])]
+    registered_documents = _subsystem_qnames_from_list(
+        list(registered_document_specs or []),
+        what="registeredDocuments",
+    )
+    task_ref = _normalize_task_ref(task)
     flags = _common_module_flags_from_parts(
         server=server,
         client=client,
@@ -564,7 +615,10 @@ def catalog_from_parts(
         global_=global_,
         return_values_reuse=return_values_reuse,
     )
-    content_list = _subsystem_qnames_from_list(content, what="content")
+    if obj_type == "ExchangePlan":
+        content_list = _exchange_plan_content_from_raw(content)
+    else:
+        content_list = _subsystem_qnames_from_list(content, what="content")
     children_list = _subsystem_names_from_list(children, what="children")
     value_type, value_types = _value_types_from_specs(
         obj_type, list(value_type_specs or [])
@@ -624,6 +678,10 @@ def catalog_from_parts(
         value_types=value_types,
         accounting_flags=accounting_flags,
         ext_dimension_accounting_flags=ext_dimension_accounting_flags,
+        task=task_ref,
+        addressing_attributes=addressing_attributes,
+        columns=columns,
+        registered_documents=registered_documents,
         **flags,
         **job_fields,
         **sub_fields,
@@ -686,8 +744,22 @@ def catalog_from_json(
     ext_dimension_accounting_flags = _attributes_from_json_list(
         list(data.get("extDimensionAccountingFlags") or [])
     )
+    addressing_attributes = _attributes_from_json_list(
+        list(data.get("addressingAttributes") or [])
+    )
+    columns = _journal_columns_from_json(data.get("columns"))
+    registered_documents = _subsystem_qnames_from_list(
+        data.get("registeredDocuments"),
+        what="registeredDocuments",
+    )
+    task_ref = _normalize_task_ref(
+        str(data["task"]) if data.get("task") is not None else None
+    )
     flags = _common_module_flags_from_json(data)
-    content_list = _subsystem_qnames_from_list(data.get("content"), what="content")
+    if obj_type == "ExchangePlan":
+        content_list = _exchange_plan_content_from_raw(data.get("content"))
+    else:
+        content_list = _subsystem_qnames_from_list(data.get("content"), what="content")
     children_list = _subsystem_names_from_list(data.get("children"), what="children")
     include_ci = _optional_bool(
         data.get("includeInCommandInterface"),
@@ -728,6 +800,10 @@ def catalog_from_json(
         value_types=value_types,
         accounting_flags=accounting_flags,
         ext_dimension_accounting_flags=ext_dimension_accounting_flags,
+        task=task_ref,
+        addressing_attributes=addressing_attributes,
+        columns=columns,
+        registered_documents=registered_documents,
         **flags,
         **job_fields,
         **sub_fields,
@@ -1172,6 +1248,12 @@ def _validate_create_shape(obj: CatalogObject) -> None:
         _reject_register_chart_fields(obj, type_name=obj.type)
     if obj.type not in ("ChartOfAccounts",):
         _reject_chart_of_accounts_flags(obj, type_name=obj.type)
+    if obj.type != "BusinessProcess":
+        _reject_business_process_fields(obj, type_name=obj.type)
+    if obj.type != "Task":
+        _reject_task_addressing_fields(obj, type_name=obj.type)
+    if obj.type != "DocumentJournal":
+        _reject_document_journal_fields(obj, type_name=obj.type)
     if obj.type == "Enum":
         if obj.attributes or obj.tabular_sections or obj.dimensions or obj.resources:
             raise IrError(
@@ -1378,7 +1460,29 @@ def _validate_create_shape(obj: CatalogObject) -> None:
                 code="1CM004",
             )
         return
-    # Catalog / Document / Report / DataProcessor / Charts (attr + tabularSections).
+    if obj.type == "DocumentJournal":
+        if (
+            obj.attributes
+            or obj.tabular_sections
+            or obj.values
+            or obj.dimensions
+            or obj.resources
+        ):
+            raise IrError(
+                "DocumentJournal не поддерживает attributes / tabularSections / "
+                "values / dimensions / resources",
+                code="1CM004",
+            )
+        _reject_common_module_flags(obj, type_name="DocumentJournal")
+        _reject_subsystem_fields(obj, type_name="DocumentJournal")
+        _reject_value_type_fields(obj, type_name="DocumentJournal")
+        _reject_scheduled_job_fields(obj, type_name="DocumentJournal")
+        _reject_event_subscription_fields(obj, type_name="DocumentJournal")
+        _reject_http_service_fields(obj, type_name="DocumentJournal")
+        _reject_web_service_fields(obj, type_name="DocumentJournal")
+        _reject_session_reuse_fields(obj, type_name="DocumentJournal")
+        return
+    # Catalog / Document / Report / DataProcessor / Charts / BP / Task / ExchangePlan.
     if obj.type not in _ATTR_TABULAR_OBJECT_TYPES:
         # Other Meta DSL types without dedicated IR yet: only name/synonym.
         if (
@@ -1399,7 +1503,14 @@ def _validate_create_shape(obj: CatalogObject) -> None:
             code="1CM004",
         )
     _reject_common_module_flags(obj, type_name=obj.type)
-    _reject_subsystem_fields(obj, type_name=obj.type)
+    if obj.type == "ExchangePlan":
+        if obj.children or obj.include_in_command_interface is not None:
+            raise IrError(
+                "ExchangePlan не поддерживает children / includeInCommandInterface",
+                code="1CM004",
+            )
+    else:
+        _reject_subsystem_fields(obj, type_name=obj.type)
     if obj.type != "ChartOfCharacteristicTypes":
         _reject_value_type_fields(obj, type_name=obj.type)
     _reject_scheduled_job_fields(obj, type_name=obj.type)
@@ -1447,6 +1558,31 @@ def _reject_chart_of_accounts_flags(obj: CatalogObject, *, type_name: str) -> No
         raise IrError(
             f"{type_name} не поддерживает accountingFlags / "
             "extDimensionAccountingFlags",
+            code="1CM004",
+        )
+
+
+def _reject_business_process_fields(obj: CatalogObject, *, type_name: str) -> None:
+    if obj.task is not None:
+        raise IrError(
+            f"{type_name} не поддерживает task (только BusinessProcess)",
+            code="1CM004",
+        )
+
+
+def _reject_task_addressing_fields(obj: CatalogObject, *, type_name: str) -> None:
+    if obj.addressing_attributes:
+        raise IrError(
+            f"{type_name} не поддерживает addressingAttributes (только Task)",
+            code="1CM004",
+        )
+
+
+def _reject_document_journal_fields(obj: CatalogObject, *, type_name: str) -> None:
+    if obj.columns or obj.registered_documents:
+        raise IrError(
+            f"{type_name} не поддерживает columns / registeredDocuments "
+            "(только DocumentJournal)",
             code="1CM004",
         )
 
@@ -1737,6 +1873,109 @@ def _subsystem_qnames_from_list(raw: Any, *, what: str) -> list[str]:
             raise IrError(f"Дублирующийся элемент {what}: {cleaned!r}", code="1CM004")
         seen.add(cleaned)
         result.append(cleaned)
+    return result
+
+
+def _exchange_plan_content_from_raw(raw: Any) -> list[str]:
+    """Parse ExchangePlan content: Type.Name strings or {metadata, autoRecord?}."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise IrError("content должен быть массивом", code="1CM004")
+    normalized: list[str] = []
+    for item in raw:
+        if isinstance(item, str):
+            normalized.append(item)
+        elif isinstance(item, dict):
+            meta = item.get("metadata")
+            if not isinstance(meta, str) or not meta.strip():
+                raise IrError(
+                    "content[].metadata должен быть строкой Type.Name",
+                    code="1CM004",
+                )
+            # autoRecord ignored on create: xml-gen meta compile stub +
+            # add-exchange-content always writes AutoRecord=Deny (#69 gap).
+            normalized.append(meta.strip())
+        else:
+            raise IrError(
+                "Элемент content должен быть строкой Type.Name или "
+                "{metadata, autoRecord?}",
+                code="1CM004",
+            )
+    return _subsystem_qnames_from_list(normalized, what="content")
+
+
+def _normalize_task_ref(raw: str | None) -> str | None:
+    if raw is None:
+        return None
+    cleaned = raw.strip()
+    if not cleaned:
+        raise IrError("task не должен быть пустым", code="1CM004")
+    obj_type, name = parse_qualified_name(cleaned)
+    if obj_type != "Task":
+        raise IrError(
+            f"task должен быть Task.Name, получено: {raw!r}",
+            code="1CM004",
+        )
+    return f"{obj_type}.{name}"
+
+
+def parse_journal_column_spec(spec: str) -> JournalColumn:
+    """Parse CLI column: Name or Name:Ref[,Ref…]."""
+    raw = spec.strip()
+    if not raw:
+        raise IrError("Пустой --column")
+    if ":" not in raw:
+        return JournalColumn(name=_check_name(raw, what="колонки журнала"))
+    name_part, refs_part = raw.split(":", 1)
+    refs = [r.strip() for r in refs_part.split(",") if r.strip()]
+    for ref in refs:
+        if "." not in ref:
+            raise IrError(
+                f"Ссылка колонки журнала должна быть MD-путём, получено: {ref!r}",
+                code="1CM004",
+            )
+    return JournalColumn(
+        name=_check_name(name_part, what="колонки журнала"),
+        references=refs,
+    )
+
+
+def _journal_columns_from_json(raw: Any) -> list[JournalColumn]:
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise IrError("columns должен быть массивом", code="1CM004")
+    result: list[JournalColumn] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            raise IrError("Элемент columns должен быть объектом", code="1CM004")
+        name_raw = item.get("name")
+        if not isinstance(name_raw, str) or not name_raw.strip():
+            raise IrError("columns[].name обязателен", code="1CM004")
+        synonym_raw = item.get("synonym")
+        synonym = str(synonym_raw) if synonym_raw else None
+        refs_raw = item.get("references")
+        if refs_raw is None:
+            refs: list[str] = []
+        elif not isinstance(refs_raw, list):
+            raise IrError("columns[].references должен быть массивом", code="1CM004")
+        else:
+            refs = []
+            for ref in refs_raw:
+                if not isinstance(ref, str) or not ref.strip() or "." not in ref:
+                    raise IrError(
+                        f"columns[].references элемент некорректен: {ref!r}",
+                        code="1CM004",
+                    )
+                refs.append(ref.strip())
+        result.append(
+            JournalColumn(
+                name=_check_name(name_raw, what="колонки журнала"),
+                synonym=synonym,
+                references=refs,
+            )
+        )
     return result
 
 

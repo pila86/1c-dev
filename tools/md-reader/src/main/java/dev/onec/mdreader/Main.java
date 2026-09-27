@@ -5,6 +5,7 @@ import com.github._1c_syntax.bsl.mdclasses.MDClasses;
 import com.github._1c_syntax.bsl.mdo.AccountingRegister;
 import com.github._1c_syntax.bsl.mdo.AccumulationRegister;
 import com.github._1c_syntax.bsl.mdo.Attribute;
+import com.github._1c_syntax.bsl.mdo.BusinessProcess;
 import com.github._1c_syntax.bsl.mdo.CalculationRegister;
 import com.github._1c_syntax.bsl.mdo.Catalog;
 import com.github._1c_syntax.bsl.mdo.ChartOfAccounts;
@@ -15,8 +16,10 @@ import com.github._1c_syntax.bsl.mdo.Constant;
 import com.github._1c_syntax.bsl.mdo.DataProcessor;
 import com.github._1c_syntax.bsl.mdo.DefinedType;
 import com.github._1c_syntax.bsl.mdo.Document;
+import com.github._1c_syntax.bsl.mdo.DocumentJournal;
 import com.github._1c_syntax.bsl.mdo.Enum;
 import com.github._1c_syntax.bsl.mdo.EventSubscription;
+import com.github._1c_syntax.bsl.mdo.ExchangePlan;
 import com.github._1c_syntax.bsl.mdo.HTTPService;
 import com.github._1c_syntax.bsl.mdo.InformationRegister;
 import com.github._1c_syntax.bsl.mdo.MD;
@@ -24,12 +27,15 @@ import com.github._1c_syntax.bsl.mdo.Report;
 import com.github._1c_syntax.bsl.mdo.ScheduledJob;
 import com.github._1c_syntax.bsl.mdo.Subsystem;
 import com.github._1c_syntax.bsl.mdo.TabularSection;
+import com.github._1c_syntax.bsl.mdo.Task;
 import com.github._1c_syntax.bsl.mdo.WebService;
 import com.github._1c_syntax.bsl.mdo.children.AccountingFlag;
+import com.github._1c_syntax.bsl.mdo.children.DocumentJournalColumn;
 import com.github._1c_syntax.bsl.mdo.children.EnumValue;
 import com.github._1c_syntax.bsl.mdo.children.ExtDimensionAccountingFlag;
 import com.github._1c_syntax.bsl.mdo.children.HTTPServiceMethod;
 import com.github._1c_syntax.bsl.mdo.children.HTTPServiceURLTemplate;
+import com.github._1c_syntax.bsl.mdo.children.TaskAddressingAttribute;
 import com.github._1c_syntax.bsl.mdo.children.WebServiceOperation;
 import com.github._1c_syntax.bsl.mdo.children.WebServiceOperationParameter;
 import com.github._1c_syntax.bsl.mdo.support.CalculationRegisterPeriodicity;
@@ -90,7 +96,11 @@ public final class Main {
       "WebService",
       "ChartOfCharacteristicTypes",
       "ChartOfAccounts",
-      "ChartOfCalculationTypes"
+      "ChartOfCalculationTypes",
+      "BusinessProcess",
+      "Task",
+      "ExchangePlan",
+      "DocumentJournal"
   );
 
   private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
@@ -294,6 +304,46 @@ public final class Main {
     } else if (md instanceof ChartOfCalculationTypes chart) {
       obj.add("attributes", attributesArray((List<Attribute>) (List<?>) chart.getAttributes()));
       obj.add("tabularSections", tabularSectionsArray((List<?>) chart.getTabularSections()));
+    } else if (md instanceof BusinessProcess bp) {
+      obj.add("attributes", attributesArray((List<Attribute>) (List<?>) bp.getAttributes()));
+      obj.add("tabularSections", tabularSectionsArray((List<?>) bp.getTabularSections()));
+      MdoReference taskRef = bp.getTask();
+      if (taskRef != null && !taskRef.isEmpty()) {
+        String mdoRef = taskRef.getMdoRef();
+        if (mdoRef != null && !mdoRef.isBlank()) {
+          obj.addProperty("task", mdoRef);
+        }
+      }
+    } else if (md instanceof Task task) {
+      obj.add("attributes", attributesArray((List<Attribute>) (List<?>) task.getAttributes()));
+      obj.add("tabularSections", tabularSectionsArray((List<?>) task.getTabularSections()));
+      obj.add(
+          "addressingAttributes",
+          addressingAttributesArray(
+              (List<TaskAddressingAttribute>) (List<?>) task.getAddressingAttributes()));
+    } else if (md instanceof ExchangePlan plan) {
+      obj.add("attributes", attributesArray((List<Attribute>) (List<?>) plan.getAttributes()));
+      obj.add("tabularSections", tabularSectionsArray((List<?>) plan.getTabularSections()));
+      obj.add("content", exchangePlanContentArray(plan.getContent()));
+    } else if (md instanceof DocumentJournal journal) {
+      obj.add(
+          "columns",
+          journalColumnsArray(
+              (List<DocumentJournalColumn>) (List<?>) journal.getColumns()));
+      JsonArray docs = new JsonArray();
+      List<MdoReference> registered = journal.getRegisteredDocuments();
+      if (registered != null) {
+        for (MdoReference ref : registered) {
+          if (ref == null || ref.isEmpty()) {
+            continue;
+          }
+          String mdoRef = ref.getMdoRef();
+          if (mdoRef != null && !mdoRef.isBlank()) {
+            docs.add(mdoRef);
+          }
+        }
+      }
+      obj.add("registeredDocuments", docs);
     } else if (md instanceof Enum enumeration) {
       obj.add("values", enumValuesArray((List<EnumValue>) (List<?>) enumeration.getEnumValues()));
     } else if (md instanceof InformationRegister register) {
@@ -560,6 +610,66 @@ public final class Main {
     }
     for (ExtDimensionAccountingFlag flag : flags) {
       arr.add(attributeToJson(flag));
+    }
+    return arr;
+  }
+
+  private static JsonArray addressingAttributesArray(List<TaskAddressingAttribute> attrs) {
+    JsonArray arr = new JsonArray();
+    if (attrs == null) {
+      return arr;
+    }
+    for (TaskAddressingAttribute attr : attrs) {
+      arr.add(attributeToJson(attr));
+    }
+    return arr;
+  }
+
+  private static JsonArray journalColumnsArray(List<DocumentJournalColumn> columns) {
+    JsonArray arr = new JsonArray();
+    if (columns == null) {
+      return arr;
+    }
+    for (DocumentJournalColumn column : columns) {
+      JsonObject item = attributeToJson(column);
+      JsonArray refs = new JsonArray();
+      List<MdoReference> references = column.getReferences();
+      if (references != null) {
+        for (MdoReference ref : references) {
+          if (ref == null || ref.isEmpty()) {
+            continue;
+          }
+          String mdoRef = ref.getMdoRef();
+          if (mdoRef != null && !mdoRef.isBlank()) {
+            refs.add(mdoRef);
+          }
+        }
+      }
+      item.add("references", refs);
+      arr.add(item);
+    }
+    return arr;
+  }
+
+  private static JsonArray exchangePlanContentArray(List<ExchangePlan.RecordContent> items) {
+    JsonArray arr = new JsonArray();
+    if (items == null) {
+      return arr;
+    }
+    for (ExchangePlan.RecordContent item : items) {
+      if (item == null) {
+        continue;
+      }
+      JsonObject entry = new JsonObject();
+      MdoReference meta = item.getMetadata();
+      if (meta != null && !meta.isEmpty()) {
+        String mdoRef = meta.getMdoRef();
+        if (mdoRef != null && !mdoRef.isBlank()) {
+          entry.addProperty("metadata", mdoRef);
+        }
+      }
+      entry.addProperty("autoRecord", item.isAllow() ? "Allow" : "Deny");
+      arr.add(entry);
     }
     return arr;
   }

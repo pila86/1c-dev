@@ -316,7 +316,9 @@ def update_command(
             "EventSubscription.ProductsBeforeWrite, HTTPService.API, "
             "WebService.DataExchange, AccountingRegister.Accounting, "
             "CalculationRegister.Salary, ChartOfCharacteristicTypes.Properties, "
-            "ChartOfAccounts.MainAccounts, ChartOfCalculationTypes.MainCalcs."
+            "ChartOfAccounts.MainAccounts, ChartOfCalculationTypes.MainCalcs, "
+            "BusinessProcess.Approval, Task.Todo, ExchangePlan.Main, "
+            "DocumentJournal.Docs."
         ),
     ),
     op: list[str] | None = typer.Option(
@@ -324,8 +326,8 @@ def update_command(
         "--op",
         help=(
             "Операция: attribute/ts/enumValue/dimension/resource ops, "
-            "set-flag, modify-property; для Subsystem: add-content, "
-            "remove-content, add-child, remove-child, set-property."
+            "set-flag, modify-property, add-exchange-content; для Subsystem: "
+            "add-content, remove-content, add-child, remove-child, set-property."
         ),
     ),
     value: list[str] | None = typer.Option(
@@ -484,7 +486,9 @@ def create_command(
             "EventSubscription.ProductsBeforeWrite, HTTPService.API, "
             "WebService.DataExchange, AccountingRegister.Accounting, "
             "CalculationRegister.Salary, ChartOfCharacteristicTypes.Properties, "
-            "ChartOfAccounts.MainAccounts, ChartOfCalculationTypes.MainCalcs."
+            "ChartOfAccounts.MainAccounts, ChartOfCalculationTypes.MainCalcs, "
+            "BusinessProcess.Approval, Task.Todo, ExchangePlan.Main, "
+            "DocumentJournal.Docs."
         ),
     ),
     synonym: str | None = typer.Option(

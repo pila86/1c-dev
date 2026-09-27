@@ -219,7 +219,8 @@ def register_tools(server: FastMCP) -> None:
             "DefinedType, Report, DataProcessor, ScheduledJob, "
             "EventSubscription, HTTPService, WebService, "
             "ChartOfCharacteristicTypes, ChartOfAccounts, "
-            "ChartOfCalculationTypes "
+            "ChartOfCalculationTypes, BusinessProcess, Task, ExchangePlan, "
+            "DocumentJournal "
             "(plus other Meta DSL types from the write allowlist). "
             "Pass qualified_name "
             "(e.g. Catalog.Products, Enum.Statuses, CommonModule.SalesServer, "
@@ -228,9 +229,12 @@ def register_tools(server: FastMCP) -> None:
             "EventSubscription.ProductsBeforeWrite, HTTPService.API, "
             "WebService.DataExchange, AccountingRegister.Accounting, "
             "CalculationRegister.Salary, ChartOfCharacteristicTypes.Properties, "
-            "ChartOfAccounts.MainAccounts, ChartOfCalculationTypes.MainCalcs); "
+            "ChartOfAccounts.MainAccounts, ChartOfCalculationTypes.MainCalcs, "
+            "BusinessProcess.Approval, Task.Todo, ExchangePlan.Main, "
+            "DocumentJournal.Docs); "
             "optional synonym; "
-            "for Catalog/Document/Report/DataProcessor/Charts: "
+            "for Catalog/Document/Report/DataProcessor/Charts/BusinessProcess/"
+            "Task/ExchangePlan: "
             "attributes and tabular_sections; "
             "for Enum: values [{name, synonym?}]; "
             "for registers: dimensions and resources (same shape as attributes); "
@@ -241,6 +245,12 @@ def register_tools(server: FastMCP) -> None:
             "for ChartOfCharacteristicTypes: optional value_type / value_types; "
             "for ChartOfAccounts: optional accounting_flags and "
             "ext_dimension_accounting_flags (same shape as attributes); "
+            "for BusinessProcess: optional task (Task.Name); "
+            "for Task: optional addressing_attributes (same shape as attributes); "
+            "for ExchangePlan: optional content [Type.Name] "
+            "(applied via add-exchange-content; AutoRecord=Deny in xml-gen); "
+            "for DocumentJournal: optional registered_documents [Document.Name] "
+            "and columns [{name, references[]}]; "
             "for CommonModule: optional flags server, client "
             "(→ clientManagedApplication), client_ordinary_application, "
             "server_call, external_connection, privileged, global, "
@@ -307,6 +317,10 @@ def register_tools(server: FastMCP) -> None:
         chart_of_calculation_types: str | None = None,
         accounting_flags: list[dict[str, Any]] | None = None,
         ext_dimension_accounting_flags: list[dict[str, Any]] | None = None,
+        task: str | None = None,
+        addressing_attributes: list[dict[str, Any]] | None = None,
+        columns: list[dict[str, Any]] | None = None,
+        registered_documents: list[str] | None = None,
         path: str | None = None,
     ) -> dict[str, Any]:
         try:
@@ -329,6 +343,14 @@ def register_tools(server: FastMCP) -> None:
                 data["extDimensionAccountingFlags"] = list(
                     ext_dimension_accounting_flags
                 )
+            if task is not None:
+                data["task"] = task
+            if addressing_attributes:
+                data["addressingAttributes"] = list(addressing_attributes)
+            if columns:
+                data["columns"] = list(columns)
+            if registered_documents:
+                data["registeredDocuments"] = list(registered_documents)
             if server is not None:
                 data["server"] = server
             if client is not None:
@@ -424,11 +446,14 @@ def register_tools(server: FastMCP) -> None:
             "add-resource / modify-resource / remove-resource; "
             "modify-property; set-flag (CommonModule sugar → modify-property); "
             "for Subsystem: add-content / remove-content / add-child / "
-            "remove-child / set-property. "
+            "remove-child / set-property; "
+            "for ExchangePlan: add-exchange-content (value Type.Name; "
+            "AutoRecord=Deny in pinned xml-gen). "
             "Examples: {op:'add-attribute', value:'Price:Number(15,2)'}, "
             "{op:'modify-attribute', value:'Price: synonym=Цена'}, "
             "{op:'set-flag', value:'server=true'}, "
-            "{op:'add-content', value:'Catalog.Products'}. "
+            "{op:'add-content', value:'Catalog.Products'}, "
+            "{op:'add-exchange-content', value:'Catalog.Products'}. "
             "Does not create new objects — use metadata.create."
             + _NO_SHELL
         ),

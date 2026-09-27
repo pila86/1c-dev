@@ -965,6 +965,80 @@ def test_update_charts_attr_and_ts_mock(tmp_path: Path) -> None:
     assert calls_a == [EditOp("add-attribute", "Comment:String(100)")]
 
 
+def test_update_e8_attr_and_exchange_content_mock(tmp_path: Path) -> None:
+    target = _init_shop(tmp_path)
+    tasks = target / "src" / "cf" / "Tasks"
+    tasks.mkdir(parents=True)
+    (tasks / "Todo.xml").write_text("<Task/>", encoding="utf-8")
+    calls: list[EditOp] = []
+
+    def fake_edit(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "Todo.xml"
+        calls.extend(operations)
+        return EditResult(changed_paths=["Tasks/Todo.xml"], added=1)
+
+    def fake_get(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "Task",
+                "name": "Todo",
+                "attributes": [
+                    {"name": "Note", "type": "String"},
+                    {"name": "Priority", "type": "Number"},
+                ],
+                "addressingAttributes": [{"name": "Assignee", "type": "String"}],
+            },
+        )
+
+    result = update_metadata(
+        target,
+        "Task.Todo",
+        [EditOp("add-attribute", "Priority:Number(10,0)")],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert calls == [EditOp("add-attribute", "Priority:Number(10,0)")]
+
+    plans = target / "src" / "cf" / "ExchangePlans"
+    plans.mkdir(parents=True)
+    (plans / "Main.xml").write_text("<ExchangePlan/>", encoding="utf-8")
+    calls_p: list[EditOp] = []
+
+    def fake_edit_p(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "Main.xml"
+        calls_p.extend(operations)
+        return EditResult(
+            changed_paths=["ExchangePlans/Main/Ext/Content.xml"], added=1
+        )
+
+    def fake_get_p(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "ExchangePlan",
+                "name": "Main",
+                "attributes": [{"name": "Extra", "type": "String"}],
+                "content": [
+                    {"metadata": "Catalog.Products", "autoRecord": "Deny"},
+                ],
+            },
+        )
+
+    result_p = update_metadata(
+        target,
+        "ExchangePlan.Main",
+        [EditOp("add-exchange-content", "Catalog.Products")],
+        edit_fn=fake_edit_p,
+        get_fn=fake_get_p,
+    )
+    assert result_p.status == "ok"
+    assert calls_p == [EditOp("add-exchange-content", "Catalog.Products")]
+
+
 def test_update_enum_duplicate_warning(tmp_path: Path) -> None:
     target = _init_shop(tmp_path)
     enums = target / "src" / "cf" / "Enums"

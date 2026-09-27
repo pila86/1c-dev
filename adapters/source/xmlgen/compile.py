@@ -199,6 +199,44 @@ def ir_to_xmlgen_dsl(ir: dict[str, Any]) -> dict[str, Any]:
     if ext_flags_out:
         dsl["extDimensionAccountingFlags"] = ext_flags_out
 
+    addressing_out = [
+        _attr_to_xmlgen_entry(attr)
+        for attr in (ir.get("addressingAttributes") or [])
+        if isinstance(attr, dict)
+    ]
+    if addressing_out:
+        dsl["addressingAttributes"] = addressing_out
+
+    if ir.get("task"):
+        dsl["task"] = str(ir["task"])
+
+    registered_docs = ir.get("registeredDocuments")
+    if isinstance(registered_docs, list) and registered_docs:
+        dsl["registeredDocuments"] = [str(x) for x in registered_docs]
+
+    columns_raw = ir.get("columns")
+    if isinstance(columns_raw, list) and columns_raw:
+        cols_out: list[dict[str, Any]] = []
+        for col in columns_raw:
+            if not isinstance(col, dict):
+                continue
+            entry: dict[str, Any] = {"name": str(col["name"])}
+            if col.get("synonym"):
+                entry["synonym"] = str(col["synonym"])
+            refs = col.get("references")
+            if isinstance(refs, list) and refs:
+                entry["references"] = [str(r) for r in refs]
+            cols_out.append(entry)
+        if cols_out:
+            dsl["columns"] = cols_out
+
+    # ExchangePlan content: compile writes empty Content.xml stub; applied via
+    # create followup add-exchange-content. Still pass through for tooling.
+    if ir.get("type") == "ExchangePlan":
+        content_raw = ir.get("content")
+        if isinstance(content_raw, list) and content_raw:
+            dsl["content"] = list(content_raw)
+
     ts_raw = ir.get("tabularSections")
     if isinstance(ts_raw, dict):
         # Already xml-gen map form (or mixed); normalize attribute entries.
