@@ -65,6 +65,7 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 | `1c-dev init --type configuration [--ide-target all\|cursor\|kilocode\|none]` | Bootstrap пустого проекта (+ IDE MCP) |
 | `1c-dev project detect\|validate\|info` | Манифест `1c.project.yaml` (`project init` = алиас `init`) |
 | `1c-dev project import --from <file.cf>` | Импорт `.cf` → XML source (`--force` перезаписывает) |
+| `1c-dev project clean --yes` | Destructive: wipe `source.path` + `.runtime/` (манифест/IDE intact) |
 | `1c-dev runtime load --from <file.cf>` | Загрузка `.cf` в file IB без export XML |
 | `1c-dev runtime start [--client thick|thin] [--debug]` | Запуск клиента (ENTERPRISE) к file IB |
 | `1c-dev runtime stop` | Остановка клиента |
@@ -120,6 +121,7 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 1c-dev build --output json
 1c-dev build --artifact cf --output json
 1c-dev project import --from build/out/configuration.cf --force --output json
+1c-dev project clean --yes --output json
 1c-dev runtime load --from build/out/configuration.cf --output json
 1c-dev runtime start --output json
 1c-dev runtime start --client thin --output json
@@ -145,13 +147,13 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 # или: 1c-dev ide configure --target cursor
 ```
 
-Tools: `project.get`, `project.init`, `ide.configure`, `project.import`,
+Tools: `project.get`, `project.init`, `ide.configure`, `project.import`, `project.clean`,
 `metadata.list`, `metadata.get`, `metadata.find`, `metadata.create`,
 `metadata.update`, `metadata.delete`, `build`, `check`,
 `runtime.start`, `runtime.stop`, `runtime.status`, `docs.search`, `docs.get`
 ([ADR-010](docs/adr/010-mcp-architecture.md), [ADR-016](docs/adr/016-ide-configure.md),
-[ADR-019](docs/adr/019-runtime-client-lifecycle.md)).
-`metadata.create` / `update` / `delete` покрывают те же 24 write-типа, что и CLI
+[ADR-019](docs/adr/019-runtime-client-lifecycle.md), [ADR-021](docs/adr/021-project-clean.md)).
+`project.clean` — destructive (нужен `yes=true`); не трогает манифест / IDE / git.`metadata.create` / `update` / `delete` покрывают те же 24 write-типа, что и CLI
 (список — в описании tool и в `doctor` → `supportedTypes`).
 
 Пример `.cursor/mcp.json` (пишет `init` / `ide configure`; `cwd` не нужен — IDE стартует из workspace):
