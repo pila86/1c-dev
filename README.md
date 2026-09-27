@@ -48,6 +48,7 @@ poetry run 1c-dev --version
 poetry run 1c-dev --help
 poetry run pytest
 poetry run pytest -m integration   # E2E с platform/xml-gen/md-reader; иначе skip
+# M3 accept: poetry run pytest tests/test_m3_acceptance.py -m integration
 ```
 
 Fallback для разработчиков (те же pin’ы): `./scripts/fetch-xml-gen.sh`, `./scripts/fetch-md-reader.sh` (Windows: `pwsh scripts/fetch-*.ps1`).

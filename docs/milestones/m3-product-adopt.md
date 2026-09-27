@@ -1,6 +1,6 @@
 # M3: Product adopt (CF import + install + ide configure)
 
-**Статус:** In progress — GitHub 21/22 closed; open: [#52](https://github.com/pila86/1c-dev/issues/52) (acceptance E2E). [#74](https://github.com/pila86/1c-dev/issues/74) (`--break-support`) **done**. [#76](https://github.com/pila86/1c-dev/issues/76) (`project.clean`) **done**. Трек E (#60–#71) **done**.
+**Статус:** Done — acceptance E2E [#52](https://github.com/pila86/1c-dev/issues/52) (`tests/test_m3_acceptance.py`). Треки A–D и E (#45–#51, #60–#71, #74, #76) **done**.
 
 ## Goal
 
@@ -226,8 +226,8 @@ Out of this track: Role / Form / Command / SessionParameter / …; `xml-gen inte
 ### Import
 
 - [x] `1c-dev project import --from <file.cf>` создаёт/обновляет XML source и валидный `1c.project.yaml` (**без** обязательной записи `AGENTS.md` / MCP IDE) — #47
-- [ ] После import `metadata.list` / `get` видят объекты из `.cf` — #52
-- [ ] `build` и `check` после import проходят (или дают платформенные diagnostics) — #52
+- [x] После import `metadata.list` / `get` видят объекты из `.cf` — #52 (`tests/test_m3_acceptance.py`)
+- [x] `build` и `check` после import проходят (или дают платформенные diagnostics) — #52
 - [x] Если в `source.path` уже есть `Configuration.xml` и нет `--force` → ошибка с diagnostic, source не затёрт — #47
 - [x] MCP: `project.import` без shell.exec — #47
 - [x] Integration-тест: `build --artifact cf` → `project.import` (round-trip); skip с сообщением, если нет platform — #47 (`tests/test_project_import.py`)
@@ -311,7 +311,11 @@ uv tool install git+https://github.com/pila86/1c-dev
 # 5. Clean (should; destructive)
 1c-dev project clean --yes --output json
 
-# 6. Track E acceptance (sample E0–E8 create/get/update/delete → build/check)
+# 6. M3 acceptance (CF round-trip → list/get → ide configure → docs soft → build/check)
+#    skip без platform / xml-gen / md-reader; docs soft без HBK/jar
+poetry run pytest tests/test_m3_acceptance.py -m integration
+
+# 7. Track E acceptance (sample E0–E8 create/get/update/delete → build/check)
 #    skip без platform / xml-gen / md-reader
 poetry run pytest tests/test_e_acceptance.py -m integration
 ```
@@ -345,7 +349,7 @@ poetry run pytest tests/test_e_acceptance.py -m integration
 | [#49](https://github.com/pila86/1c-dev/issues/49) | done | Doctor: jar self-checks + `--fix`; README `uv tool` quick start | #48 |
 | [#50](https://github.com/pila86/1c-dev/issues/50) | done | CLI `ide configure --target cursor\|kilocode` + merge + MCP/AGENTS templates | #48 |
 | [#51](https://github.com/pila86/1c-dev/issues/51) | done | `docs.search` / `docs.get` via bsl-context, lazy index | #48 |
-| [#52](https://github.com/pila86/1c-dev/issues/52) | open | Acceptance: E2E import round-trip + ide configure + docs | #47, #50, #51, #74 |
+| [#52](https://github.com/pila86/1c-dev/issues/52) | done | Acceptance: E2E import → list/get → ide configure → docs soft → build/check (`tests/test_m3_acceptance.py`) | #47, #50, #51, #74 |
 | [#60](https://github.com/pila86/1c-dev/issues/60) | done | **E-found:** Metadata coverage foundation (allowlists, TYPE_DIRS, xml-gen pin, doctor) | — |
 | [#61](https://github.com/pila86/1c-dev/issues/61) | done | **E0:** CommonModule full IR get parity | #60 |
 | [#62](https://github.com/pila86/1c-dev/issues/62) | done | **E1:** Subsystem create/get/update/delete (priority) | #60, #61 |
