@@ -314,7 +314,8 @@ def update_command(
             "Subsystem.Main, Constant.VATRate, DefinedType.CounterpartyRef, "
             "Report.Sales, DataProcessor.ImportData, ScheduledJob.Cleanup, "
             "EventSubscription.ProductsBeforeWrite, HTTPService.API, "
-            "WebService.DataExchange."
+            "WebService.DataExchange, AccountingRegister.Accounting, "
+            "CalculationRegister.Salary."
         ),
     ),
     op: list[str] | None = typer.Option(
@@ -480,7 +481,8 @@ def create_command(
             "Subsystem.Main, Constant.VATRate, DefinedType.CounterpartyRef, "
             "Report.Sales, DataProcessor.ImportData, ScheduledJob.Cleanup, "
             "EventSubscription.ProductsBeforeWrite, HTTPService.API, "
-            "WebService.DataExchange."
+            "WebService.DataExchange, AccountingRegister.Accounting, "
+            "CalculationRegister.Salary."
         ),
     ),
     synonym: str | None = typer.Option(
@@ -656,6 +658,16 @@ def create_command(
         "--xdto-packages",
         help="XDTOPackages (WebService).",
     ),
+    chart_of_accounts: str | None = typer.Option(
+        None,
+        "--chart-of-accounts",
+        help="ChartOfAccounts.Name (AccountingRegister).",
+    ),
+    chart_of_calculation_types: str | None = typer.Option(
+        None,
+        "--chart-of-calculation-types",
+        help="ChartOfCalculationTypes.Name (CalculationRegister).",
+    ),
     from_json: str | None = typer.Option(
         None,
         "--from-json",
@@ -743,6 +755,11 @@ def create_command(
                 namespace=namespace,
                 xdto_packages=xdto_packages,
             )
+            _merge_register_chart_cli_fields(
+                data,
+                chart_of_accounts=chart_of_accounts,
+                chart_of_calculation_types=chart_of_calculation_types,
+            )
             catalog = catalog_from_json(data, qualified_name=qualified_name)
             if synonym and not catalog.synonym:
                 catalog.synonym = synonym
@@ -803,6 +820,8 @@ def create_command(
                 session_max_age=session_max_age,
                 namespace=namespace,
                 xdto_packages=xdto_packages,
+                chart_of_accounts=chart_of_accounts,
+                chart_of_calculation_types=chart_of_calculation_types,
             )
     except IrError as exc:
         result = _ir_error_result(exc)
@@ -931,3 +950,19 @@ def _merge_http_web_cli_fields(
         data["namespace"] = namespace
     if xdto_packages is not None and "xdtoPackages" not in data:
         data["xdtoPackages"] = xdto_packages
+
+
+def _merge_register_chart_cli_fields(
+    data: dict[str, Any],
+    *,
+    chart_of_accounts: str | None,
+    chart_of_calculation_types: str | None,
+) -> None:
+    """Fill Accounting/CalculationRegister chart refs from CLI when absent."""
+    if chart_of_accounts is not None and "chartOfAccounts" not in data:
+        data["chartOfAccounts"] = chart_of_accounts
+    if (
+        chart_of_calculation_types is not None
+        and "chartOfCalculationTypes" not in data
+    ):
+        data["chartOfCalculationTypes"] = chart_of_calculation_types

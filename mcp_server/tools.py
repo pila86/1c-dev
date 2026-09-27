@@ -214,7 +214,8 @@ def register_tools(server: FastMCP) -> None:
             "Create a new metadata object in XML source (does not modify existing "
             "objects — use metadata.update for that). "
             "Types: Catalog, Document, Enum, InformationRegister, "
-            "AccumulationRegister, CommonModule, Subsystem, Constant, "
+            "AccumulationRegister, AccountingRegister, CalculationRegister, "
+            "CommonModule, Subsystem, Constant, "
             "DefinedType, Report, DataProcessor, ScheduledJob, "
             "EventSubscription, HTTPService, WebService "
             "(plus other Meta DSL types from the write allowlist). "
@@ -223,12 +224,17 @@ def register_tools(server: FastMCP) -> None:
             "Subsystem.Main, Constant.VATRate, DefinedType.CounterpartyRef, "
             "Report.Sales, DataProcessor.ImportData, ScheduledJob.Cleanup, "
             "EventSubscription.ProductsBeforeWrite, HTTPService.API, "
-            "WebService.DataExchange); "
+            "WebService.DataExchange, AccountingRegister.Accounting, "
+            "CalculationRegister.Salary); "
             "optional synonym; "
             "for Catalog/Document/Report/DataProcessor: "
             "attributes and tabular_sections; "
             "for Enum: values [{name, synonym?}]; "
             "for registers: dimensions and resources (same shape as attributes); "
+            "for AccountingRegister: required chart_of_accounts "
+            "(ChartOfAccounts.Name); "
+            "for CalculationRegister: required chart_of_calculation_types "
+            "(ChartOfCalculationTypes.Name); "
             "for CommonModule: optional flags server, client "
             "(→ clientManagedApplication), client_ordinary_application, "
             "server_call, external_connection, privileged, global, "
@@ -291,6 +297,8 @@ def register_tools(server: FastMCP) -> None:
         namespace: str | None = None,
         xdto_packages: str | None = None,
         operations: dict[str, Any] | None = None,
+        chart_of_accounts: str | None = None,
+        chart_of_calculation_types: str | None = None,
         path: str | None = None,
     ) -> dict[str, Any]:
         try:
@@ -367,6 +375,10 @@ def register_tools(server: FastMCP) -> None:
                 data["xdtoPackages"] = xdto_packages
             if operations:
                 data["operations"] = dict(operations)
+            if chart_of_accounts is not None:
+                data["chartOfAccounts"] = chart_of_accounts
+            if chart_of_calculation_types is not None:
+                data["chartOfCalculationTypes"] = chart_of_calculation_types
             # type/name come from qualified_name (validated inside catalog_from_json)
             catalog = catalog_from_json(data, qualified_name=qualified_name)
             if synonym and not catalog.synonym:

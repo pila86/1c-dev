@@ -644,6 +644,67 @@ def test_get_http_service_and_web_service_full_ir_mock(tmp_path: Path) -> None:
     )
 
 
+def test_get_accounting_and_calculation_register_full_ir_mock(tmp_path: Path) -> None:
+    """Smoke: md-reader full IR for AccountingRegister / CalculationRegister (#67)."""
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    def fake_read_acct(
+        command: str, source_dir: Path, args: tuple[str, ...]
+    ) -> dict[str, Any]:
+        assert command == "get"
+        assert args == ("AccountingRegister.Accounting",)
+        return {
+            "status": "ok",
+            "object": {
+                "type": "AccountingRegister",
+                "name": "Accounting",
+                "qname": "AccountingRegister.Accounting",
+                "synonym": "Бух",
+                "dimensions": [{"name": "Org", "type": "String", "length": 50}],
+                "resources": [
+                    {"name": "Sum", "type": "Number", "precision": 15, "scale": 2}
+                ],
+            },
+        }
+
+    result = get_metadata(
+        target, "AccountingRegister.Accounting", read_fn=fake_read_acct
+    )
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert result.ir["type"] == "AccountingRegister"
+    assert result.ir["dimensions"][0]["name"] == "Org"
+    assert result.ir["resources"][0]["name"] == "Sum"
+
+    def fake_read_calc(
+        command: str, source_dir: Path, args: tuple[str, ...]
+    ) -> dict[str, Any]:
+        assert args == ("CalculationRegister.Salary",)
+        return {
+            "status": "ok",
+            "object": {
+                "type": "CalculationRegister",
+                "name": "Salary",
+                "qname": "CalculationRegister.Salary",
+                "dimensions": [{"name": "Employee", "type": "String", "length": 50}],
+                "resources": [
+                    {"name": "Amount", "type": "Number", "precision": 15, "scale": 2}
+                ],
+                "periodicity": "Month",
+            },
+        }
+
+    result2 = get_metadata(
+        target, "CalculationRegister.Salary", read_fn=fake_read_calc
+    )
+    assert result2.status == "ok"
+    assert result2.ir is not None
+    assert result2.ir["periodicity"] == "Month"
+    assert result2.ir["dimensions"][0]["name"] == "Employee"
+
+
 @pytest.mark.integration
 def test_constant_defined_type_get_update_delete_roundtrip(
     tmp_path: Path,
@@ -1201,6 +1262,157 @@ def test_http_service_web_service_get_update_delete_roundtrip(
     cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
     assert "<HTTPService>API</HTTPService>" not in cfg
     assert "<WebService>DataExchange</WebService>" not in cfg
+
+
+@pytest.mark.integration
+def test_accounting_calculation_register_get_update_delete_roundtrip(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """create → get full IR → update dims/resources → delete (#67).
+
+    MDClasses gaps (documented):
+    - AccountingRegister: chartOfAccounts not exposed (verify via XML).
+    - CalculationRegister: chartOfCalculationTypes not exposed (verify via XML);
+      periodicity is returned.
+    """
+    from adapters.source.xmlgen import EditOp
+    from adapters.source.xmlgen.resolve import resolve_jar as resolve_xmlgen
+    from adapters.source.xmlgen.resolve import resolve_java as resolve_java_xml
+    from core.metadata import (
+        catalog_from_parts,
+        create_metadata,
+        delete_metadata,
+        update_metadata,
+    )
+
+    local_jar = _local_md_reader_jar()
+    if local_jar is not None:
+        monkeypatch.setenv("ONEC_MDREADER_JAR", str(local_jar))
+
+    java = resolve_java()
+    jar = resolve_jar()
+    if not java.found or not jar.found:
+        pytest.skip(
+            "md-reader jar / Java 21+ недоступны (запустите scripts/fetch-md-reader.sh)"
+        )
+    xmlgen = resolve_xmlgen()
+    if not xmlgen.found or not resolve_java_xml().found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    assert create_metadata(
+        target,
+        catalog_from_parts(qualified_name="ChartOfAccounts.MainAccounts"),
+    ).status == "ok"
+    assert create_metadata(
+        target,
+        catalog_from_parts(qualified_name="ChartOfCalculationTypes.MainCalcs"),
+    ).status == "ok"
+
+    created = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="AccountingRegister.Accounting",
+            synonym="Бух",
+            chart_of_accounts="ChartOfAccounts.MainAccounts",
+            dimension_specs=["Org:String:50"],
+            resource_specs=["Sum:Number:15.2"],
+        ),
+    )
+    assert created.status == "ok", created.diagnostics
+
+    got = get_metadata(target, "AccountingRegister.Accounting")
+    assert got.status == "ok", got.diagnostics
+    assert got.ir is not None
+    assert got.ir["type"] == "AccountingRegister"
+    assert got.ir["name"] == "Accounting"
+    dim_names = {d.get("name") for d in (got.ir.get("dimensions") or [])}
+    res_names = {r.get("name") for r in (got.ir.get("resources") or [])}
+    assert "Org" in dim_names
+    assert "Sum" in res_names
+    # Gap: chartOfAccounts not in MDClasses IR — present in XML.
+    assert "chartOfAccounts" not in got.ir
+    acct_xml = (target / "src" / "cf" / "AccountingRegisters" / "Accounting.xml").read_text(
+        encoding="utf-8-sig"
+    )
+    assert "<ChartOfAccounts>ChartOfAccounts.MainAccounts</ChartOfAccounts>" in acct_xml
+
+    updated = update_metadata(
+        target,
+        "AccountingRegister.Accounting",
+        [
+            EditOp("add-dimension", "Dept:String(30)"),
+            EditOp("add-resource", "Qty:Number(15,3)"),
+            EditOp("modify-property", "Synonym=Учёт"),
+        ],
+    )
+    assert updated.status == "ok", updated.diagnostics
+
+    got2 = get_metadata(target, "AccountingRegister.Accounting")
+    assert got2.status == "ok", got2.diagnostics
+    assert got2.ir is not None
+    assert got2.ir.get("synonym") == "Учёт"
+    dim_names2 = {d.get("name") for d in (got2.ir.get("dimensions") or [])}
+    res_names2 = {r.get("name") for r in (got2.ir.get("resources") or [])}
+    assert "Dept" in dim_names2
+    assert "Qty" in res_names2
+
+    calc = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="CalculationRegister.Salary",
+            synonym="Зарплата",
+            chart_of_calculation_types="ChartOfCalculationTypes.MainCalcs",
+            dimension_specs=["Employee:String:50"],
+            resource_specs=["Amount:Number:15.2"],
+        ),
+    )
+    assert calc.status == "ok", calc.diagnostics
+
+    got_c = get_metadata(target, "CalculationRegister.Salary")
+    assert got_c.status == "ok", got_c.diagnostics
+    assert got_c.ir is not None
+    assert got_c.ir["type"] == "CalculationRegister"
+    assert {d.get("name") for d in (got_c.ir.get("dimensions") or [])} >= {"Employee"}
+    assert {r.get("name") for r in (got_c.ir.get("resources") or [])} >= {"Amount"}
+    assert got_c.ir.get("periodicity") == "Month"
+    assert "chartOfCalculationTypes" not in got_c.ir
+    calc_xml = (target / "src" / "cf" / "CalculationRegisters" / "Salary.xml").read_text(
+        encoding="utf-8-sig"
+    )
+    assert "ChartOfCalculationTypes.MainCalcs" in calc_xml
+
+    updated_c = update_metadata(
+        target,
+        "CalculationRegister.Salary",
+        [
+            EditOp("add-resource", "Bonus:Number(15,2)"),
+            EditOp("modify-property", "Synonym=Оклад"),
+        ],
+    )
+    assert updated_c.status == "ok", updated_c.diagnostics
+
+    got_c2 = get_metadata(target, "CalculationRegister.Salary")
+    assert got_c2.status == "ok", got_c2.diagnostics
+    assert got_c2.ir is not None
+    assert got_c2.ir.get("synonym") == "Оклад"
+    assert {r.get("name") for r in (got_c2.ir.get("resources") or [])} >= {"Bonus"}
+
+    deleted_a = delete_metadata(target, "AccountingRegister.Accounting")
+    assert deleted_a.status == "ok", deleted_a.diagnostics
+    assert not (target / "src" / "cf" / "AccountingRegisters" / "Accounting.xml").is_file()
+
+    deleted_c = delete_metadata(target, "CalculationRegister.Salary")
+    assert deleted_c.status == "ok", deleted_c.diagnostics
+    assert not (target / "src" / "cf" / "CalculationRegisters" / "Salary.xml").is_file()
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<AccountingRegister>Accounting</AccountingRegister>" not in cfg
+    assert "<CalculationRegister>Salary</CalculationRegister>" not in cfg
 
 
 @pytest.mark.integration

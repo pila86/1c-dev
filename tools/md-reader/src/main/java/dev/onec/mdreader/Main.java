@@ -2,8 +2,10 @@ package dev.onec.mdreader;
 
 import com.github._1c_syntax.bsl.mdclasses.Configuration;
 import com.github._1c_syntax.bsl.mdclasses.MDClasses;
+import com.github._1c_syntax.bsl.mdo.AccountingRegister;
 import com.github._1c_syntax.bsl.mdo.AccumulationRegister;
 import com.github._1c_syntax.bsl.mdo.Attribute;
+import com.github._1c_syntax.bsl.mdo.CalculationRegister;
 import com.github._1c_syntax.bsl.mdo.Catalog;
 import com.github._1c_syntax.bsl.mdo.CommonModule;
 import com.github._1c_syntax.bsl.mdo.Constant;
@@ -25,6 +27,7 @@ import com.github._1c_syntax.bsl.mdo.children.HTTPServiceMethod;
 import com.github._1c_syntax.bsl.mdo.children.HTTPServiceURLTemplate;
 import com.github._1c_syntax.bsl.mdo.children.WebServiceOperation;
 import com.github._1c_syntax.bsl.mdo.children.WebServiceOperationParameter;
+import com.github._1c_syntax.bsl.mdo.support.CalculationRegisterPeriodicity;
 import com.github._1c_syntax.bsl.mdo.support.Handler;
 import com.github._1c_syntax.bsl.mdo.support.ReturnValueReuse;
 import com.github._1c_syntax.bsl.mdo.support.ReuseSessions;
@@ -68,6 +71,8 @@ public final class Main {
       "Enum",
       "InformationRegister",
       "AccumulationRegister",
+      "AccountingRegister",
+      "CalculationRegister",
       "CommonModule",
       "Subsystem",
       "Constant",
@@ -265,6 +270,15 @@ public final class Main {
     } else if (md instanceof AccumulationRegister register) {
       obj.add("dimensions", attributesArray((List<Attribute>) (List<?>) register.getDimensions()));
       obj.add("resources", attributesArray((List<Attribute>) (List<?>) register.getResources()));
+    } else if (md instanceof AccountingRegister register) {
+      // MDClasses 0.20.0 gap: chartOfAccounts not exposed on AccountingRegister.
+      obj.add("dimensions", attributesArray((List<Attribute>) (List<?>) register.getDimensions()));
+      obj.add("resources", attributesArray((List<Attribute>) (List<?>) register.getResources()));
+    } else if (md instanceof CalculationRegister register) {
+      // MDClasses 0.20.0 gap: chartOfCalculationTypes not exposed.
+      obj.add("dimensions", attributesArray((List<Attribute>) (List<?>) register.getDimensions()));
+      obj.add("resources", attributesArray((List<Attribute>) (List<?>) register.getResources()));
+      obj.addProperty("periodicity", calculationPeriodicityOf(register.getPeriodicity()));
     } else if (md instanceof CommonModule module) {
       obj.addProperty("server", module.isServer());
       obj.addProperty("clientManagedApplication", module.isClientManagedApplication());
@@ -474,6 +488,14 @@ public final class Main {
     }
     String en = reuse.nameEn();
     return en == null || en.isBlank() ? "DontUse" : en;
+  }
+
+  private static String calculationPeriodicityOf(CalculationRegisterPeriodicity periodicity) {
+    if (periodicity == null || periodicity == CalculationRegisterPeriodicity.UNKNOWN) {
+      return "Month";
+    }
+    String en = periodicity.nameEn();
+    return en == null || en.isBlank() ? "Month" : en;
   }
 
   private static JsonArray attributesArray(List<? extends Attribute> attributes) {

@@ -627,6 +627,83 @@ def test_http_service_and_web_service_from_parts_and_json() -> None:
     assert cross.value.code == "1CM004"
 
 
+def test_accounting_and_calculation_register_from_parts_and_json() -> None:
+    acct = catalog_from_parts(
+        qualified_name="AccountingRegister.Accounting",
+        synonym="Бух",
+        chart_of_accounts="ChartOfAccounts.MainAccounts",
+        dimension_specs=["Org:String:50"],
+        resource_specs=["Sum:Number:15.2:Сумма"],
+    )
+    assert acct.qualified_name == "AccountingRegister.Accounting"
+    assert acct.type == "AccountingRegister"
+    assert acct.chart_of_accounts == "ChartOfAccounts.MainAccounts"
+    assert acct.dimensions[0].name == "Org"
+    assert acct.resources[0].synonym == "Сумма"
+    dsl = ir_to_xmlgen_dsl(acct.to_dict())
+    assert dsl == {
+        "type": "AccountingRegister",
+        "name": "Accounting",
+        "synonym": "Бух",
+        "dimensions": [{"name": "Org", "type": "String(50)"}],
+        "resources": [{"name": "Sum", "type": "Number(15,2)", "synonym": "Сумма"}],
+        "chartOfAccounts": "ChartOfAccounts.MainAccounts",
+    }
+
+    calc = catalog_from_parts(
+        qualified_name="CalculationRegister.Salary",
+        chart_of_calculation_types="MainCalcs",
+        dimension_specs=["Employee:String:50"],
+        resource_specs=["Amount:Number:15.2"],
+    )
+    assert calc.chart_of_calculation_types == "ChartOfCalculationTypes.MainCalcs"
+    calc_dsl = ir_to_xmlgen_dsl(calc.to_dict())
+    assert calc_dsl["type"] == "CalculationRegister"
+    assert calc_dsl["chartOfCalculationTypes"] == "ChartOfCalculationTypes.MainCalcs"
+    assert calc_dsl["dimensions"][0]["name"] == "Employee"
+
+    from_json = catalog_from_json(
+        {
+            "type": "AccountingRegister",
+            "name": "AR",
+            "chartOfAccounts": "ChartOfAccounts.MainAccounts",
+            "dimensions": [{"name": "D", "type": "String", "length": 10}],
+            "resources": [{"name": "R", "type": "Number", "precision": 15, "scale": 2}],
+        }
+    )
+    assert from_json.chart_of_accounts == "ChartOfAccounts.MainAccounts"
+
+    with pytest.raises(IrError) as missing:
+        catalog_from_parts(qualified_name="AccountingRegister.Bad")
+    assert missing.value.code == "1CM004"
+
+    with pytest.raises(IrError) as missing_calc:
+        catalog_from_parts(qualified_name="CalculationRegister.Bad")
+    assert missing_calc.value.code == "1CM004"
+
+    with pytest.raises(IrError) as wrong_chart:
+        catalog_from_parts(
+            qualified_name="AccountingRegister.Bad",
+            chart_of_accounts="Catalog.Products",
+        )
+    assert wrong_chart.value.code == "1CM004"
+
+    with pytest.raises(IrError) as shape:
+        catalog_from_parts(
+            qualified_name="AccountingRegister.Bad",
+            chart_of_accounts="ChartOfAccounts.MainAccounts",
+            attr_specs=["X:String:10"],
+        )
+    assert shape.value.code == "1CM004"
+
+    with pytest.raises(IrError) as info_chart:
+        catalog_from_parts(
+            qualified_name="InformationRegister.Bad",
+            chart_of_accounts="ChartOfAccounts.MainAccounts",
+        )
+    assert info_chart.value.code == "1CM004"
+
+
 def test_create_metadata_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
@@ -1067,6 +1144,56 @@ def test_create_http_service_and_web_service_mock(tmp_path: Path) -> None:
     )
     assert result2.status == "ok"
     assert result2.object == "WebService.DataExchange"
+
+
+def test_create_accounting_and_calculation_register_mock(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+
+    def fake_compile_acct(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "AccountingRegister"
+        assert dsl["chartOfAccounts"] == "ChartOfAccounts.MainAccounts"
+        assert dsl["dimensions"][0]["name"] == "Org"
+        assert dsl["resources"][0]["name"] == "Sum"
+        folder = source_dir / "AccountingRegisters"
+        folder.mkdir(parents=True)
+        (folder / "Accounting.xml").write_text("<AccountingRegister/>", encoding="utf-8")
+        return ["AccountingRegisters/Accounting.xml"]
+
+    result = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="AccountingRegister.Accounting",
+            chart_of_accounts="ChartOfAccounts.MainAccounts",
+            dimension_specs=["Org:String:50"],
+            resource_specs=["Sum:Number:15.2"],
+        ),
+        compile_fn=fake_compile_acct,
+    )
+    assert result.status == "ok"
+    assert result.object == "AccountingRegister.Accounting"
+
+    def fake_compile_calc(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert dsl["type"] == "CalculationRegister"
+        assert dsl["chartOfCalculationTypes"] == "ChartOfCalculationTypes.MainCalcs"
+        folder = source_dir / "CalculationRegisters"
+        folder.mkdir(parents=True)
+        (folder / "Salary.xml").write_text("<CalculationRegister/>", encoding="utf-8")
+        return ["CalculationRegisters/Salary.xml"]
+
+    result2 = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="CalculationRegister.Salary",
+            chart_of_calculation_types="ChartOfCalculationTypes.MainCalcs",
+            dimension_specs=["Employee:String:50"],
+            resource_specs=["Amount:Number:15.2"],
+        ),
+        compile_fn=fake_compile_calc,
+    )
+    assert result2.status == "ok"
+    assert result2.object == "CalculationRegister.Salary"
 
 
 def test_create_duplicate(tmp_path: Path) -> None:
@@ -1804,6 +1931,79 @@ def test_create_http_service_and_web_service_with_real_xmlgen(tmp_path: Path) ->
     cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
     assert "<HTTPService>API</HTTPService>" in cfg
     assert "<WebService>DataExchange</WebService>" in cfg
+
+    from core.project import validate_project
+
+    assert validate_project(target).status == "ok"
+
+
+@pytest.mark.integration
+def test_create_accounting_and_calculation_register_with_real_xmlgen(
+    tmp_path: Path,
+) -> None:
+    jar = resolve_jar()
+    java = resolve_java()
+    if not jar.found or not java.found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    chart_a = create_metadata(
+        target,
+        catalog_from_parts(qualified_name="ChartOfAccounts.MainAccounts"),
+    )
+    assert chart_a.status == "ok", chart_a.diagnostics
+
+    chart_c = create_metadata(
+        target,
+        catalog_from_parts(qualified_name="ChartOfCalculationTypes.MainCalcs"),
+    )
+    assert chart_c.status == "ok", chart_c.diagnostics
+
+    acct = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="AccountingRegister.Accounting",
+            synonym="Бух",
+            chart_of_accounts="ChartOfAccounts.MainAccounts",
+            dimension_specs=["Org:String:50"],
+            resource_specs=["Sum:Number:15.2:Сумма"],
+        ),
+    )
+    assert acct.status == "ok", acct.diagnostics
+    acct_xml = target / "src" / "cf" / "AccountingRegisters" / "Accounting.xml"
+    assert acct_xml.is_file()
+    acct_text = acct_xml.read_text(encoding="utf-8-sig")
+    assert "<ChartOfAccounts>ChartOfAccounts.MainAccounts</ChartOfAccounts>" in acct_text
+    assert "Org" in acct_text
+    assert "Sum" in acct_text
+
+    calc = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="CalculationRegister.Salary",
+            chart_of_calculation_types="ChartOfCalculationTypes.MainCalcs",
+            dimension_specs=["Employee:String:50"],
+            resource_specs=["Amount:Number:15.2"],
+        ),
+    )
+    assert calc.status == "ok", calc.diagnostics
+    calc_xml = target / "src" / "cf" / "CalculationRegisters" / "Salary.xml"
+    assert calc_xml.is_file()
+    calc_text = calc_xml.read_text(encoding="utf-8-sig")
+    assert (
+        "<ChartOfCalculationTypes>ChartOfCalculationTypes.MainCalcs"
+        "</ChartOfCalculationTypes>"
+        in calc_text
+    )
+    assert "Employee" in calc_text
+    assert "Amount" in calc_text
+
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<AccountingRegister>Accounting</AccountingRegister>" in cfg
+    assert "<CalculationRegister>Salary</CalculationRegister>" in cfg
 
     from core.project import validate_project
 

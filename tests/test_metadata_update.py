@@ -792,6 +792,84 @@ def test_update_http_service_and_web_service_modify_property_mock(
     ]
 
 
+def test_update_accounting_and_calculation_register_ops_mock(tmp_path: Path) -> None:
+    target = _init_shop(tmp_path)
+    accts = target / "src" / "cf" / "AccountingRegisters"
+    accts.mkdir(parents=True)
+    (accts / "Accounting.xml").write_text("<AccountingRegister/>", encoding="utf-8")
+    calls: list[EditOp] = []
+
+    def fake_edit(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "Accounting.xml"
+        calls.extend(operations)
+        return EditResult(changed_paths=["AccountingRegisters/Accounting.xml"], added=1)
+
+    def fake_get(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "AccountingRegister",
+                "name": "Accounting",
+                "dimensions": [{"name": "Org", "type": "String"}],
+                "resources": [{"name": "Sum", "type": "Number"}],
+            },
+        )
+
+    result = update_metadata(
+        target,
+        "AccountingRegister.Accounting",
+        [
+            EditOp("add-dimension", "Org:String(50)"),
+            EditOp("add-resource", "Sum:Number(15,2)"),
+        ],
+        edit_fn=fake_edit,
+        get_fn=fake_get,
+    )
+    assert result.status == "ok"
+    assert result.ir is not None
+    assert calls == [
+        EditOp("add-dimension", "Org:String(50)"),
+        EditOp("add-resource", "Sum:Number(15,2)"),
+    ]
+
+    calcs = target / "src" / "cf" / "CalculationRegisters"
+    calcs.mkdir(parents=True)
+    (calcs / "Salary.xml").write_text("<CalculationRegister/>", encoding="utf-8")
+    calls_c: list[EditOp] = []
+
+    def fake_edit_c(object_xml: Path, operations: list[EditOp]) -> EditResult:
+        assert object_xml.name == "Salary.xml"
+        calls_c.extend(operations)
+        return EditResult(
+            changed_paths=["CalculationRegisters/Salary.xml"],
+            modified=1,
+        )
+
+    def fake_get_c(start: Path | None, qname: str, **_kw: Any) -> MetadataResult:
+        return MetadataResult(
+            status="ok",
+            object=qname,
+            ir={
+                "type": "CalculationRegister",
+                "name": "Salary",
+                "dimensions": [{"name": "Employee", "type": "String"}],
+                "resources": [{"name": "Amount", "type": "Number"}],
+                "periodicity": "Month",
+            },
+        )
+
+    result2 = update_metadata(
+        target,
+        "CalculationRegister.Salary",
+        [EditOp("modify-property", "Synonym=Зарплата")],
+        edit_fn=fake_edit_c,
+        get_fn=fake_get_c,
+    )
+    assert result2.status == "ok"
+    assert calls_c == [EditOp("modify-property", "Synonym=Зарплата")]
+
+
 def test_update_enum_duplicate_warning(tmp_path: Path) -> None:
     target = _init_shop(tmp_path)
     enums = target / "src" / "cf" / "Enums"

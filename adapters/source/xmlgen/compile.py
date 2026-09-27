@@ -178,6 +178,11 @@ def ir_to_xmlgen_dsl(ir: dict[str, Any]) -> dict[str, Any]:
     if res_out:
         dsl["resources"] = res_out
 
+    if ir.get("chartOfAccounts"):
+        dsl["chartOfAccounts"] = str(ir["chartOfAccounts"])
+    if ir.get("chartOfCalculationTypes"):
+        dsl["chartOfCalculationTypes"] = str(ir["chartOfCalculationTypes"])
+
     ts_raw = ir.get("tabularSections")
     if isinstance(ts_raw, dict):
         # Already xml-gen map form (or mixed); normalize attribute entries.

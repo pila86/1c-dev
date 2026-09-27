@@ -112,7 +112,12 @@ class EnumValue:
 
 
 _REGISTER_TYPES: frozenset[str] = frozenset(
-    {"InformationRegister", "AccumulationRegister"}
+    {
+        "InformationRegister",
+        "AccumulationRegister",
+        "AccountingRegister",
+        "CalculationRegister",
+    }
 )
 _VALUE_TYPE_OBJECT_TYPES: frozenset[str] = frozenset({"Constant", "DefinedType"})
 _ATTR_TABULAR_OBJECT_TYPES: frozenset[str] = frozenset(
@@ -219,6 +224,9 @@ class CatalogObject:
     namespace: str | None = None
     xdto_packages: str | None = None
     operations: dict[str, Any] = field(default_factory=dict)
+    # AccountingRegister / CalculationRegister (ADR-018 / #67).
+    chart_of_accounts: str | None = None
+    chart_of_calculation_types: str | None = None
 
     @property
     def qualified_name(self) -> str:
@@ -237,6 +245,13 @@ class CatalogObject:
         if self.type in _REGISTER_TYPES:
             data["dimensions"] = [a.to_dict() for a in self.dimensions]
             data["resources"] = [a.to_dict() for a in self.resources]
+            if self.type == "AccountingRegister" and self.chart_of_accounts is not None:
+                data["chartOfAccounts"] = self.chart_of_accounts
+            if (
+                self.type == "CalculationRegister"
+                and self.chart_of_calculation_types is not None
+            ):
+                data["chartOfCalculationTypes"] = self.chart_of_calculation_types
             return data
         if self.type == "CommonModule":
             for attr_name, json_key in _COMMON_MODULE_BOOL_FLAGS:
@@ -486,8 +501,10 @@ def catalog_from_parts(
     namespace: str | None = None,
     xdto_packages: str | None = None,
     operations: dict[str, Any] | None = None,
+    chart_of_accounts: str | None = None,
+    chart_of_calculation_types: str | None = None,
 ) -> CatalogObject:
-    """Build create IR from CLI pieces (ADR-011 / #23 / #24 / #28 / #62 / #63 / #64 / #65 / #66)."""
+    """Build create IR from CLI pieces (ADR-011 / #23–#28 / #62–#67)."""
     obj_type, name = parse_qualified_name(qualified_name)
     if obj_type not in CREATE_OBJECT_TYPES:
         raise IrError(
@@ -546,6 +563,11 @@ def catalog_from_parts(
         session_max_age=session_max_age,
         operations=operations,
     )
+    chart_fields = _register_chart_fields_from_parts(
+        obj_type,
+        chart_of_accounts=chart_of_accounts,
+        chart_of_calculation_types=chart_of_calculation_types,
+    )
     # Shared session fields: prefer HTTP/Web parsers (identical); merge once.
     session_fields = {
         "reuse_sessions": http_fields.pop("reuse_sessions"),
@@ -573,9 +595,12 @@ def catalog_from_parts(
         **session_fields,
         **http_fields,
         **web_fields,
+        **chart_fields,
     )
     _validate_create_shape(obj)
     return obj
+
+
 def catalog_from_json(
     data: dict[str, Any],
     *,
@@ -632,6 +657,7 @@ def catalog_from_json(
     sub_fields = _event_subscription_fields_from_json(data)
     http_fields = _http_service_fields_from_json(data)
     web_fields = _web_service_fields_from_json(data)
+    chart_fields = _register_chart_fields_from_json(obj_type, data)
     session_fields = {
         "reuse_sessions": http_fields.pop("reuse_sessions"),
         "session_max_age": http_fields.pop("session_max_age"),
@@ -665,6 +691,7 @@ def catalog_from_json(
         **session_fields,
         **http_fields,
         **web_fields,
+        **chart_fields,
     )
     _validate_create_shape(obj)
     return obj
@@ -1098,6 +1125,8 @@ def _parse_return_values_reuse(raw: str | None) -> ReturnValuesReuse | None:
 
 def _validate_create_shape(obj: CatalogObject) -> None:
     """Reject IR fields that do not belong to the object type (ADR-011)."""
+    if obj.type not in _REGISTER_TYPES:
+        _reject_register_chart_fields(obj, type_name=obj.type)
     if obj.type == "Enum":
         if obj.attributes or obj.tabular_sections or obj.dimensions or obj.resources:
             raise IrError(
@@ -1128,6 +1157,7 @@ def _validate_create_shape(obj: CatalogObject) -> None:
         _reject_http_service_fields(obj, type_name=obj.type)
         _reject_web_service_fields(obj, type_name=obj.type)
         _reject_session_reuse_fields(obj, type_name=obj.type)
+        _validate_register_chart_fields(obj)
         return
     if obj.type == "CommonModule":
         if (
@@ -1415,6 +1445,116 @@ def _reject_session_reuse_fields(obj: CatalogObject, *, type_name: str) -> None:
             f"{type_name} не поддерживает reuseSessions / sessionMaxAge",
             code="1CM004",
         )
+
+
+def _reject_register_chart_fields(obj: CatalogObject, *, type_name: str) -> None:
+    if obj.chart_of_accounts is not None or obj.chart_of_calculation_types is not None:
+        raise IrError(
+            f"{type_name} не поддерживает chartOfAccounts / chartOfCalculationTypes",
+            code="1CM004",
+        )
+
+
+def _validate_register_chart_fields(obj: CatalogObject) -> None:
+    """Require chart refs for Accounting/Calculation; reject on other registers."""
+    if obj.type == "AccountingRegister":
+        if obj.chart_of_accounts is None:
+            raise IrError(
+                "AccountingRegister требует chartOfAccounts "
+                "(ChartOfAccounts.Name)",
+                code="1CM004",
+            )
+        if obj.chart_of_calculation_types is not None:
+            raise IrError(
+                "AccountingRegister не поддерживает chartOfCalculationTypes",
+                code="1CM004",
+            )
+        return
+    if obj.type == "CalculationRegister":
+        if obj.chart_of_calculation_types is None:
+            raise IrError(
+                "CalculationRegister требует chartOfCalculationTypes "
+                "(ChartOfCalculationTypes.Name)",
+                code="1CM004",
+            )
+        if obj.chart_of_accounts is not None:
+            raise IrError(
+                "CalculationRegister не поддерживает chartOfAccounts",
+                code="1CM004",
+            )
+        return
+    _reject_register_chart_fields(obj, type_name=obj.type)
+
+
+def _parse_chart_ref(
+    raw: str | None,
+    *,
+    expected_type: str,
+    field: str,
+) -> str | None:
+    """Normalize ChartOfX.Name (or bare Name) to QName for xml-gen."""
+    if raw is None:
+        return None
+    cleaned = str(raw).strip()
+    if not cleaned:
+        raise IrError(f"Пустой {field}", code="1CM004")
+    if "." in cleaned:
+        type_part, name_part = cleaned.split(".", 1)
+        if type_part != expected_type or not name_part or "." in name_part:
+            raise IrError(
+                f"{field} должен быть {expected_type}.Name, получено: {raw!r}",
+                code="1CM004",
+            )
+        return f"{expected_type}.{_check_name(name_part, what=field)}"
+    return f"{expected_type}.{_check_name(cleaned, what=field)}"
+
+
+def _register_chart_fields_from_parts(
+    _obj_type: ObjectType,
+    *,
+    chart_of_accounts: str | None,
+    chart_of_calculation_types: str | None,
+) -> dict[str, Any]:
+    return {
+        "chart_of_accounts": _parse_chart_ref(
+            chart_of_accounts,
+            expected_type="ChartOfAccounts",
+            field="chartOfAccounts",
+        )
+        if chart_of_accounts is not None
+        else None,
+        "chart_of_calculation_types": _parse_chart_ref(
+            chart_of_calculation_types,
+            expected_type="ChartOfCalculationTypes",
+            field="chartOfCalculationTypes",
+        )
+        if chart_of_calculation_types is not None
+        else None,
+    }
+
+
+def _register_chart_fields_from_json(
+    _obj_type: ObjectType,
+    data: dict[str, Any],
+) -> dict[str, Any]:
+    raw_accounts = data.get("chartOfAccounts")
+    raw_calcs = data.get("chartOfCalculationTypes")
+    return {
+        "chart_of_accounts": _parse_chart_ref(
+            str(raw_accounts) if raw_accounts is not None else None,
+            expected_type="ChartOfAccounts",
+            field="chartOfAccounts",
+        )
+        if raw_accounts is not None
+        else None,
+        "chart_of_calculation_types": _parse_chart_ref(
+            str(raw_calcs) if raw_calcs is not None else None,
+            expected_type="ChartOfCalculationTypes",
+            field="chartOfCalculationTypes",
+        )
+        if raw_calcs is not None
+        else None,
+    }
 
 
 def _value_types_from_specs(
