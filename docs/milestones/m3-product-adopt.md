@@ -1,5 +1,7 @@
 # M3: Product adopt (CF import + install + ide configure)
 
+**Статус:** In progress — GitHub 20/22 closed; open: [#74](https://github.com/pila86/1c-dev/issues/74) (`--break-support`), [#52](https://github.com/pila86/1c-dev/issues/52) (acceptance E2E). Трек E (#60–#71) **done**. [#76](https://github.com/pila86/1c-dev/issues/76): ADR-021 принят; CLI/MCP `project.clean` ещё не реализован (acceptance ниже открыт).
+
 ## Goal
 
 Инструмент можно поставить в user cache / PATH **вместе с зависимостями toolchain** (xml-gen, md-reader/MDClasses, …) и начать использовать на **реальной** конфигурации без копирования monorepo: импорт из `.cf`, scaffold IDE/агента в каталоге проекта, подключение BSL LS MCP и локальный индекс знаний о платформе (через bsl-context).
@@ -184,12 +186,12 @@ Installed platform HBK
 
 | Приоритет | Статус в M3 |
 |-----------|-------------|
-| **should** | Issues в milestone M3; **не** блокирует must-acceptance треков A–D / #52 |
+| **should** | **done** (#60–#71); **не** блокировал must-acceptance треков A–D / #52 |
 | Temporary | При необходимости трек целиком переносится в отдельный milestone |
 
-Уже в M2 (CRUD + full get): Catalog, Document, Enum, InformationRegister, AccumulationRegister. CommonModule — CRUD + full get (E0 / #61). Subsystem — CRUD + full get (E1 / #62). Constant + DefinedType — CRUD + full get (E2 / #63). Report + DataProcessor — CRUD + full get (E3 / #64). ScheduledJob + EventSubscription — CRUD + full get (E4 / #65). HTTPService + WebService — CRUD + full get (E5 / #66). AccountingRegister + CalculationRegister — CRUD + full get (E6 / #67). ChartOfCharacteristicTypes + ChartOfAccounts + ChartOfCalculationTypes — CRUD + full get (E7 / #68). BusinessProcess + Task + ExchangePlan + DocumentJournal — CRUD + full get (E8 / #69). **E-docs (#70):** doctor `supportedTypes`, CLI help, MCP tool descriptions, README / AGENTS — поверхность всех 24 write-типов.
+Уже в M2 (CRUD + full get): Catalog, Document, Enum, InformationRegister, AccumulationRegister. CommonModule — CRUD + full get (E0 / #61). Subsystem — CRUD + full get (E1 / #62). Constant + DefinedType — CRUD + full get (E2 / #63). Report + DataProcessor — CRUD + full get (E3 / #64). ScheduledJob + EventSubscription — CRUD + full get (E4 / #65). HTTPService + WebService — CRUD + full get (E5 / #66). AccountingRegister + CalculationRegister — CRUD + full get (E6 / #67). ChartOfCharacteristicTypes + ChartOfAccounts + ChartOfCalculationTypes — CRUD + full get (E7 / #68). BusinessProcess + Task + ExchangePlan + DocumentJournal — CRUD + full get (E8 / #69). **E-docs (#70):** doctor `supportedTypes`, CLI help, MCP tool descriptions, README / AGENTS — поверхность всех 24 write-типов. **E-accept (#71):** `tests/test_e_acceptance.py` — sample CRUD E0–E8 → build/check (**done**).
 
-Волны (см. Issues ниже): [#60](https://github.com/pila86/1c-dev/issues/60) E-found → [#61](https://github.com/pila86/1c-dev/issues/61) E0 (CommonModule get) → [#62](https://github.com/pila86/1c-dev/issues/62) E1 Subsystem → [#63](https://github.com/pila86/1c-dev/issues/63)–[#69](https://github.com/pila86/1c-dev/issues/69) E2…E8 → [#70](https://github.com/pila86/1c-dev/issues/70) E-docs (**surface done**) → [#71](https://github.com/pila86/1c-dev/issues/71) E-accept (`tests/test_e_acceptance.py`).
+Волны (все **done**): [#60](https://github.com/pila86/1c-dev/issues/60) E-found → [#61](https://github.com/pila86/1c-dev/issues/61) E0 → [#62](https://github.com/pila86/1c-dev/issues/62) E1 → [#63](https://github.com/pila86/1c-dev/issues/63)–[#69](https://github.com/pila86/1c-dev/issues/69) E2…E8 → [#70](https://github.com/pila86/1c-dev/issues/70) E-docs → [#71](https://github.com/pila86/1c-dev/issues/71) E-accept.
 
 Out of this track: Role / Form / Command / SessionParameter / …; `xml-gen interface edit` (CommandInterface); полное покрытие платформы ≠ трек E.
 
@@ -223,45 +225,45 @@ Out of this track: Role / Form / Command / SessionParameter / …; `xml-gen inte
 
 ### Import
 
-- [ ] `1c-dev project import --from <file.cf>` создаёт/обновляет XML source и валидный `1c.project.yaml` (**без** обязательной записи `AGENTS.md` / MCP IDE)
-- [ ] После import `metadata.list` / `get` видят объекты из `.cf`
-- [ ] `build` и `check` после import проходят (или дают платформенные diagnostics)
-- [ ] Если в `source.path` уже есть `Configuration.xml` и нет `--force` → ошибка с diagnostic, source не затёрт
-- [ ] MCP: `project.import` без shell.exec
-- [ ] Integration-тест: `build --artifact cf` → `project.import` (round-trip); skip с сообщением, если нет platform
-- [ ] should: CLI `runtime load --from <file.cf>` (MCP — later)
-- [ ] `project import --break-support` удаляет артефакты поддержки (`ParentConfigurations*`) из `source.path` после export; без флага — сохраняет
-- [ ] Повторный `--break-support` идемпотентен (нет артефактов → ok + diagnostic)
-- [ ] MCP: `project.import` принимает `break_support`
-- [ ] Unit-тест: fixture с `ParentConfigurations.bin` → strip без platform
-- [ ] should: CLI `source break-support` (та же strip-логика без повторного import)
-- [ ] should: `project clean --yes` удаляет `source.path` и `.runtime/`; без `--yes` — отказ; манифест/IDE intact
+- [x] `1c-dev project import --from <file.cf>` создаёт/обновляет XML source и валидный `1c.project.yaml` (**без** обязательной записи `AGENTS.md` / MCP IDE) — #47
+- [ ] После import `metadata.list` / `get` видят объекты из `.cf` — #52
+- [ ] `build` и `check` после import проходят (или дают платформенные diagnostics) — #52
+- [x] Если в `source.path` уже есть `Configuration.xml` и нет `--force` → ошибка с diagnostic, source не затёрт — #47
+- [x] MCP: `project.import` без shell.exec — #47
+- [x] Integration-тест: `build --artifact cf` → `project.import` (round-trip); skip с сообщением, если нет platform — #47 (`tests/test_project_import.py`)
+- [x] should: CLI `runtime load --from <file.cf>` (MCP — later) — #47
+- [ ] `project import --break-support` удаляет артефакты поддержки (`ParentConfigurations*`) из `source.path` после export; без флага — сохраняет — #74
+- [ ] Повторный `--break-support` идемпотентен (нет артефактов → ok + diagnostic) — #74
+- [ ] MCP: `project.import` принимает `break_support` — #74
+- [ ] Unit-тест: fixture с `ParentConfigurations.bin` → strip без platform — #74
+- [ ] should: CLI `source break-support` (та же strip-логика без повторного import) — #74
+- [ ] should: `project clean --yes` удаляет `source.path` и `.runtime/`; без `--yes` — отказ; манифест/IDE intact — ADR-021; impl open (#76 closed as ADR)
 - [ ] should: MCP `project.clean` с обязательным confirm
 - [ ] Unit-тест: fixture source + `.runtime` → clean без platform; повторный clean идемпотентен
 
 ### Install
 
-- [ ] Документированный must-путь: `uv tool install` (git и/или wheel) → `1c-dev` в PATH без Poetry-checkout рядом с продуктом
-- [ ] `1c-dev tools sync` **автоматически** скачивает в user cache: xml-gen, md-reader (MDClasses), bsl-ls jar, docs-facade
-- [ ] После `tools sync` на чистой машине (без monorepo) `metadata.create` и `metadata.list`/`get` не требуют ручного `fetch-*.sh`
-- [ ] Повторный `tools sync` идемпотентен; при смене pin toolchain — обновляет артефакты
-- [ ] `1c-dev doctor` отражает наличие CLI, **каждого** jar toolchain, Java, platform, ibcmd; отсутствует jar → diagnostic с указанием `tools sync` / `--fix`
-- [ ] Env-override jar’ов по-прежнему работает
-- [ ] README: быстрый старт через `uv tool install` + `1c-dev tools sync` (не только `poetry run` + ручные fetch)
+- [x] Документированный must-путь: `uv tool install` (git и/или wheel) → `1c-dev` в PATH без Poetry-checkout рядом с продуктом — #45 / README
+- [x] `1c-dev tools sync` **автоматически** скачивает в user cache: xml-gen, md-reader (MDClasses), bsl-ls jar, docs-facade — #48
+- [x] После `tools sync` на чистой машине (без monorepo) `metadata.create` и `metadata.list`/`get` не требуют ручного `fetch-*.sh` — #48
+- [x] Повторный `tools sync` идемпотентен; при смене pin toolchain — обновляет артефакты — #48
+- [x] `1c-dev doctor` отражает наличие CLI, **каждого** jar toolchain, Java, platform, ibcmd; отсутствует jar → diagnostic с указанием `tools sync` / `--fix` — #49
+- [x] Env-override jar’ов по-прежнему работает — #48 / #49
+- [x] README: быстрый старт через `uv tool install` + `1c-dev tools sync` (не только `poetry run` + ручные fetch) — #49
 
 ### IDE configure
 
-- [ ] `1c-dev ide configure --target cursor|kilocode` пишет/мержит манифест, `AGENTS.md`, MCP-конфиг IDE, `.gitignore` по политике merge выше
-- [ ] Повторный `ide configure` без `--force` не затирает пользовательские правки (`AGENTS.md` skip; MCP — только недостающие servers; `.gitignore` — append)
-- [ ] После `ide configure` агент в Cursor (и Kilocode) может вызвать `1c-dev` MCP без ручного копирования репо
+- [x] `1c-dev ide configure --target cursor|kilocode` пишет/мержит манифест, `AGENTS.md`, MCP-конфиг IDE, `.gitignore` по политике merge выше — #50
+- [x] Повторный `ide configure` без `--force` не затирает пользовательские правки (`AGENTS.md` skip; MCP — только недостающие servers; `.gitignore` — append) — #50
+- [x] После `ide configure` агент в Cursor (и Kilocode) может вызвать `1c-dev` MCP без ручного копирования репо — #50
 
 ### BSL LS + docs
 
-- [ ] Doctor / `ide configure` умеют указать рабочий BSL LS MCP (jar в cache или явный путь)
-- [ ] В шаблоне IDE MCP — два server’а: `1c-dev` и `bsl-language-server`
-- [ ] `docs.search` / `docs.get` (CLI + MCP) отвечают по индексу текущей `platform.version` (индекс — lazy при первом вызове)
-- [ ] Индекс строится через bsl-context из HBK установленной платформы (или skip + diagnostic, если HBK нет)
-- [ ] AGENTS.md описывает разделение: metadata/build → 1c-dev; BSL-анализ → bsl-ls; API платформы → docs.*
+- [x] Doctor / `ide configure` умеют указать рабочий BSL LS MCP (jar в cache или явный путь) — #49 / #50
+- [x] В шаблоне IDE MCP — два server’а: `1c-dev` и `bsl-language-server` — #50
+- [x] `docs.search` / `docs.get` (CLI + MCP) отвечают по индексу текущей `platform.version` (индекс — lazy при первом вызове) — #51
+- [x] Индекс строится через bsl-context из HBK установленной платформы (или skip + diagnostic, если HBK нет) — #51
+- [x] AGENTS.md описывает разделение: metadata/build → 1c-dev; BSL-анализ → bsl-ls; API платформы → docs.* — #50 / #51
 
 ## Out of scope M3
 
@@ -332,27 +334,27 @@ poetry run pytest tests/test_e_acceptance.py -m integration
 
 ## Issues
 
-| # | Задача | Depends on |
-|---|--------|------------|
-| [#45](https://github.com/pila86/1c-dev/issues/45) | ADR: packaging (`uv tool`) / user cache layout + pin toolchain | — |
-| [#46](https://github.com/pila86/1c-dev/issues/46) | Platform: ibcmd `config load` + `config export` | — |
-| [#47](https://github.com/pila86/1c-dev/issues/47) | CLI/MCP `project.import` (+ should: CLI `runtime.load`) | #46 |
-| [#74](https://github.com/pila86/1c-dev/issues/74) | `project.import --break-support` (+ should: `source break-support`); ADR-020 | #47 |
-| [#76](https://github.com/pila86/1c-dev/issues/76) | should: CLI/MCP `project.clean` (source + `.runtime`); ADR-021 | #47 |
-| [#48](https://github.com/pila86/1c-dev/issues/48) | `1c-dev tools sync`: bootstrap toolchain jars (+ uninstall) | #45 |
-| [#49](https://github.com/pila86/1c-dev/issues/49) | Doctor: jar self-checks + `--fix`; README `uv tool` quick start | #48 |
-| [#50](https://github.com/pila86/1c-dev/issues/50) | CLI `ide configure --target cursor\|kilocode` + merge + MCP/AGENTS templates | #48 |
-| [#51](https://github.com/pila86/1c-dev/issues/51) | `docs.search` / `docs.get` via bsl-context, lazy index | #48 |
-| [#52](https://github.com/pila86/1c-dev/issues/52) | Acceptance: E2E import round-trip + ide configure + docs | #47, #50, #51, #74 |
-| [#60](https://github.com/pila86/1c-dev/issues/60) | **E-found:** Metadata coverage foundation (allowlists, TYPE_DIRS, xml-gen pin, doctor) | — |
-| [#61](https://github.com/pila86/1c-dev/issues/61) | **E0:** CommonModule full IR get parity | #60 |
-| [#62](https://github.com/pila86/1c-dev/issues/62) | **E1:** Subsystem create/get/update/delete (priority) | #60, #61 |
-| [#63](https://github.com/pila86/1c-dev/issues/63) | **E2:** Constant + DefinedType | #60, #62 |
-| [#64](https://github.com/pila86/1c-dev/issues/64) | **E3:** Report + DataProcessor | #60, #62 |
-| [#65](https://github.com/pila86/1c-dev/issues/65) | **E4:** ScheduledJob + EventSubscription | #63, #64 |
-| [#66](https://github.com/pila86/1c-dev/issues/66) | **E5:** HTTPService + WebService | #65 |
-| [#67](https://github.com/pila86/1c-dev/issues/67) | **E6:** AccountingRegister + CalculationRegister | #66 |
-| [#68](https://github.com/pila86/1c-dev/issues/68) | **E7:** Charts (CharacteristicTypes / Accounts / CalculationTypes) | #67 |
-| [#69](https://github.com/pila86/1c-dev/issues/69) | **E8:** BusinessProcess + Task + ExchangePlan + DocumentJournal | #68 |
-| [#70](https://github.com/pila86/1c-dev/issues/70) | **E-docs:** Doctor/CLI/MCP/README surface новых типов | #69 |
-| [#71](https://github.com/pila86/1c-dev/issues/71) | **E-accept:** Acceptance E2E 23 meta + Subsystem (`tests/test_e_acceptance.py`) | #61–#70 |
+| # | Статус | Задача | Depends on |
+|---|--------|--------|------------|
+| [#45](https://github.com/pila86/1c-dev/issues/45) | done | ADR: packaging (`uv tool`) / user cache layout + pin toolchain | — |
+| [#46](https://github.com/pila86/1c-dev/issues/46) | done | Platform: ibcmd `config load` + `config export` | — |
+| [#47](https://github.com/pila86/1c-dev/issues/47) | done | CLI/MCP `project.import` (+ should: CLI `runtime.load`) | #46 |
+| [#74](https://github.com/pila86/1c-dev/issues/74) | open | `project.import --break-support` (+ should: `source break-support`); ADR-020 | #47 |
+| [#76](https://github.com/pila86/1c-dev/issues/76) | ADR done | should: CLI/MCP `project.clean` (source + `.runtime`); ADR-021 | #47 |
+| [#48](https://github.com/pila86/1c-dev/issues/48) | done | `1c-dev tools sync`: bootstrap toolchain jars (+ uninstall) | #45 |
+| [#49](https://github.com/pila86/1c-dev/issues/49) | done | Doctor: jar self-checks + `--fix`; README `uv tool` quick start | #48 |
+| [#50](https://github.com/pila86/1c-dev/issues/50) | done | CLI `ide configure --target cursor\|kilocode` + merge + MCP/AGENTS templates | #48 |
+| [#51](https://github.com/pila86/1c-dev/issues/51) | done | `docs.search` / `docs.get` via bsl-context, lazy index | #48 |
+| [#52](https://github.com/pila86/1c-dev/issues/52) | open | Acceptance: E2E import round-trip + ide configure + docs | #47, #50, #51, #74 |
+| [#60](https://github.com/pila86/1c-dev/issues/60) | done | **E-found:** Metadata coverage foundation (allowlists, TYPE_DIRS, xml-gen pin, doctor) | — |
+| [#61](https://github.com/pila86/1c-dev/issues/61) | done | **E0:** CommonModule full IR get parity | #60 |
+| [#62](https://github.com/pila86/1c-dev/issues/62) | done | **E1:** Subsystem create/get/update/delete (priority) | #60, #61 |
+| [#63](https://github.com/pila86/1c-dev/issues/63) | done | **E2:** Constant + DefinedType | #60, #62 |
+| [#64](https://github.com/pila86/1c-dev/issues/64) | done | **E3:** Report + DataProcessor | #60, #62 |
+| [#65](https://github.com/pila86/1c-dev/issues/65) | done | **E4:** ScheduledJob + EventSubscription | #63, #64 |
+| [#66](https://github.com/pila86/1c-dev/issues/66) | done | **E5:** HTTPService + WebService | #65 |
+| [#67](https://github.com/pila86/1c-dev/issues/67) | done | **E6:** AccountingRegister + CalculationRegister | #66 |
+| [#68](https://github.com/pila86/1c-dev/issues/68) | done | **E7:** Charts (CharacteristicTypes / Accounts / CalculationTypes) | #67 |
+| [#69](https://github.com/pila86/1c-dev/issues/69) | done | **E8:** BusinessProcess + Task + ExchangePlan + DocumentJournal | #68 |
+| [#70](https://github.com/pila86/1c-dev/issues/70) | done | **E-docs:** Doctor/CLI/MCP/README surface новых типов | #69 |
+| [#71](https://github.com/pila86/1c-dev/issues/71) | done | **E-accept:** Acceptance E2E 23 meta + Subsystem (`tests/test_e_acceptance.py`) | #61–#70 |
