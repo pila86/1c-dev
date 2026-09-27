@@ -72,13 +72,15 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 | `1c-dev metadata list` | Список объектов (IR summaries) |
 | `1c-dev metadata get <QualifiedName>` | IR объекта по QName |
 | `1c-dev metadata find <query>` | Поиск по имени / синониму |
-| `1c-dev metadata create <QualifiedName>` | Создать объект в XML (`Catalog` / `Document` / `Enum` / регистры) |
-| `1c-dev metadata update <QualifiedName>` | Ops над реквизитами / ТЧ Catalog и Document |
+| `1c-dev metadata create <QualifiedName>` | Создать объект (23 Meta DSL + `Subsystem`) |
+| `1c-dev metadata update <QualifiedName>` | Ops над существующим объектом (те же write-типы) |
 | `1c-dev metadata delete <QualifiedName>` | Удалить объект из source + `Configuration.xml` |
 | `1c-dev build [--artifact cf]` | Загрузить XML в file IB через `ibcmd` |
 | `1c-dev check [--platform]` | Платформенная проверка конфигурации (`ibcmd config check`) |
 | `1c-dev mcp` | MCP server (stdio) для AI-агентов |
 | `1c-dev ide configure [--target all\|cursor\|kilocode\|none]` | AGENTS.md, `.gitignore`, IDE MCP |
+
+**Write-типы** (`metadata.create` / `update` / `delete`; также `doctor` → `supportedTypes`, [ADR-018](docs/adr/018-metadata-types-coverage.md)): AccountingRegister, AccumulationRegister, BusinessProcess, CalculationRegister, Catalog, ChartOfAccounts, ChartOfCalculationTypes, ChartOfCharacteristicTypes, CommonModule, Constant, DataProcessor, DefinedType, Document, DocumentJournal, Enum, EventSubscription, ExchangePlan, HTTPService, InformationRegister, Report, ScheduledJob, **Subsystem**, Task, WebService.
 
 Примеры:
 
@@ -94,12 +96,24 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 1c-dev metadata create InformationRegister.Prices \
   --dimension "Product:Ref:Catalog.Products" \
   --resource "Price:Number:15.2:Цена"
+1c-dev metadata create CommonModule.SalesServer --server --server-call
+1c-dev metadata create Subsystem.Sales --synonym "Продажи" \
+  --content Catalog.Products --content Document.Sales
+1c-dev metadata create Constant.VATRate --value-type Number:15.2
+1c-dev metadata create DefinedType.CounterpartyRef --value-type "Ref:Catalog.Products"
+1c-dev metadata create Report.SalesReport --synonym "Отчёт"
+1c-dev metadata create ScheduledJob.Cleanup --method-name CommonModule.SalesServer.Cleanup
+1c-dev metadata create EventSubscription.ProductsBeforeWrite \
+  --handler CommonModule.SalesServer.BeforeWrite --event BeforeWrite \
+  --source Catalog.Products
 1c-dev metadata update Catalog.Products --op add-attribute --value "Price:Number(15,2)"
 1c-dev metadata update Catalog.Products --op modify-attribute --value "Price: synonym=Цена, type=Number(10,2)"
 1c-dev metadata update Catalog.Products --attr "Code:String:20:Код"
 1c-dev metadata update Document.Sales --ts "Products:Товары" \
   --ts-attr "Products.Qty:Number:15.3:Количество"
+1c-dev metadata update Subsystem.Sales --op add-content --value Catalog.Products
 1c-dev metadata delete Catalog.Products --output json
+1c-dev metadata delete Subsystem.Sales --output json
 1c-dev metadata list --output json
 1c-dev metadata get Catalog.Products --output json
 1c-dev metadata find Товар --output json
@@ -137,6 +151,8 @@ Tools: `project.get`, `project.init`, `ide.configure`, `project.import`,
 `runtime.start`, `runtime.stop`, `runtime.status`, `docs.search`, `docs.get`
 ([ADR-010](docs/adr/010-mcp-architecture.md), [ADR-016](docs/adr/016-ide-configure.md),
 [ADR-019](docs/adr/019-runtime-client-lifecycle.md)).
+`metadata.create` / `update` / `delete` покрывают те же 24 write-типа, что и CLI
+(список — в описании tool и в `doctor` → `supportedTypes`).
 
 Пример `.cursor/mcp.json` (пишет `init` / `ide configure`; `cwd` не нужен — IDE стартует из workspace):
 

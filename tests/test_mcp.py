@@ -13,6 +13,7 @@ from cli.main import app
 from core.build import BuildResult
 from core.check import CheckResult
 from core.metadata import MetadataResult
+from core.metadata.types import WRITE_OBJECT_TYPES_HELP, WRITE_OBJECT_TYPES_SORTED
 from core.project import ProjectResult
 from mcp_server import create_server
 from mcp_server._path import resolve_path
@@ -71,6 +72,19 @@ def test_registered_tools() -> None:
     for tool in tools:
         desc = tool.description or ""
         assert "Do not use shell" in desc or "shell" in desc.lower()
+
+
+def test_metadata_write_tools_surface_all_types() -> None:
+    """E-docs (#70): MCP create/update/delete mention full write catalog."""
+    server = create_server()
+    tools = {t.name: t for t in asyncio.run(server.list_tools())}
+    for name in ("metadata.create", "metadata.update", "metadata.delete"):
+        desc = tools[name].description or ""
+        assert "23 Meta DSL + Subsystem" in desc
+        assert WRITE_OBJECT_TYPES_HELP in desc
+        for type_name in WRITE_OBJECT_TYPES_SORTED:
+            assert type_name in desc
+        assert "Subsystem" in desc
 
 
 def test_cli_mcp_help() -> None:

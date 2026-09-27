@@ -410,7 +410,7 @@ def update_command(
     ),
     output: OutputOption = None,
 ) -> None:
-    """Изменить объект метаданных (attributes / ТЧ / Enum / регистры / флаги модуля)."""
+    """Изменить объект метаданных (Meta DSL 23 + Subsystem)."""
     fmt = resolve_output(ctx, output)
     try:
         operations = _build_update_ops(
@@ -462,11 +462,15 @@ def delete_command(
     ctx: typer.Context,
     qualified_name: str = typer.Argument(
         ...,
-        help="Qualified name, например Catalog.Products.",
+        help=(
+            "Qualified name, например Catalog.Products, Subsystem.Main, "
+            "Constant.VATRate, ScheduledJob.Cleanup, BusinessProcess.Approval "
+            "(все write-типы: 23 Meta DSL + Subsystem)."
+        ),
     ),
     output: OutputOption = None,
 ) -> None:
-    """Удалить объект метаданных из source (xml-gen meta remove)."""
+    """Удалить объект метаданных из source (Meta DSL / Subsystem)."""
     fmt = resolve_output(ctx, output)
     result = delete_metadata(Path.cwd(), qualified_name)
     _emit(result.to_payload(), fmt, text_lines=_delete_text(result))
@@ -684,7 +688,7 @@ def create_command(
     ),
     output: OutputOption = None,
 ) -> None:
-    """Создать объект метаданных (Meta DSL + Subsystem)."""
+    """Создать объект метаданных (Meta DSL 23 + Subsystem)."""
     fmt = resolve_output(ctx, output)
     try:
         if from_json is not None:

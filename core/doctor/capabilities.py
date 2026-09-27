@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import NotRequired, TypedDict
 
-from core.metadata.types import WRITE_OBJECT_TYPES
+from core.metadata.types import WRITE_OBJECT_TYPES_SORTED
 from core.toolchain.resolve import sync_suggestion
 
 # Capability → required tool names (keys in tools map).
@@ -18,11 +18,11 @@ CAPABILITY_REQUIREMENTS: dict[str, list[str]] = {
     "metadata.read": ["java", "md-reader"],
 }
 
-# Write capabilities → ADR-018 coverage catalog (waves fill IR parity).
-_SUPPORTED_TYPES: dict[str, frozenset[str]] = {
-    "metadata.create": WRITE_OBJECT_TYPES,
-    "metadata.update": WRITE_OBJECT_TYPES,
-    "metadata.delete": WRITE_OBJECT_TYPES,
+# Write capabilities → ADR-018 coverage catalog (23 Meta DSL + Subsystem).
+_SUPPORTED_TYPES: dict[str, tuple[str, ...]] = {
+    "metadata.create": WRITE_OBJECT_TYPES_SORTED,
+    "metadata.update": WRITE_OBJECT_TYPES_SORTED,
+    "metadata.delete": WRITE_OBJECT_TYPES_SORTED,
 }
 
 _TOOL_HINTS: dict[str, str] = {
@@ -66,7 +66,7 @@ def resolve_capabilities(
         }
         types = _SUPPORTED_TYPES.get(name)
         if types is not None:
-            status["supportedTypes"] = sorted(types)
+            status["supportedTypes"] = list(types)
         capabilities[name] = status
         if missing:
             first = missing[0]

@@ -55,7 +55,7 @@ Cursor обычно стартует MCP из workspace root.
 | `metadata.find` | `find_metadata` |
 | `metadata.update` | `update_metadata` (`operations[]` как `{op, value}`) |
 | `metadata.delete` | `delete_metadata` |
-| `metadata.create` | расширен: Document / Enum / регистры / CommonModule |
+| `metadata.create` | расширен: 23 Meta DSL + Subsystem ([ADR-018](018-metadata-types-coverage.md) / #70) |
 
 `metadata.update` для агента — явные ops (`add-attribute` / …), без CLI-сахара `--attr` / `--ts`.
 

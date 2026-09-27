@@ -22,12 +22,16 @@ from core.metadata import (
     list_metadata,
     update_metadata,
 )
+from core.metadata.types import WRITE_OBJECT_TYPES_HELP
 from core.project import configure_ide, init_project, validate_project
 from core.runtime import run_start, run_status, run_stop
 from mcp_server._path import resolve_path
 
 _NO_SHELL = (
     " Do not use shell, Designer/Configurator, or raw ibcmd for this operation — use this tool."
+)
+_WRITE_TYPES = (
+    "Write types (23 Meta DSL + Subsystem): " + WRITE_OBJECT_TYPES_HELP + "."
 )
 
 
@@ -213,16 +217,8 @@ def register_tools(server: FastMCP) -> None:
         description=(
             "Create a new metadata object in XML source (does not modify existing "
             "objects — use metadata.update for that). "
-            "Types: Catalog, Document, Enum, InformationRegister, "
-            "AccumulationRegister, AccountingRegister, CalculationRegister, "
-            "CommonModule, Subsystem, Constant, "
-            "DefinedType, Report, DataProcessor, ScheduledJob, "
-            "EventSubscription, HTTPService, WebService, "
-            "ChartOfCharacteristicTypes, ChartOfAccounts, "
-            "ChartOfCalculationTypes, BusinessProcess, Task, ExchangePlan, "
-            "DocumentJournal "
-            "(plus other Meta DSL types from the write allowlist). "
-            "Pass qualified_name "
+            + _WRITE_TYPES
+            + " Pass qualified_name "
             "(e.g. Catalog.Products, Enum.Statuses, CommonModule.SalesServer, "
             "Subsystem.Main, Constant.VATRate, DefinedType.CounterpartyRef, "
             "Report.Sales, DataProcessor.ImportData, ScheduledJob.Cleanup, "
@@ -438,7 +434,9 @@ def register_tools(server: FastMCP) -> None:
         name="metadata.update",
         description=(
             "Apply edit operations to an existing metadata object. Prefer "
-            "metadata.get first. Pass operations as [{op, value}, …]: "
+            "metadata.get first. "
+            + _WRITE_TYPES
+            + " Pass operations as [{op, value}, …]: "
             "add-attribute / modify-attribute / remove-attribute; "
             "add-ts / modify-ts / remove-ts; add-ts-attribute / remove-ts-attribute; "
             "add-enumValue / modify-enumValue / remove-enumValue; "
@@ -474,8 +472,10 @@ def register_tools(server: FastMCP) -> None:
         name="metadata.delete",
         description=(
             "Delete a whole metadata object from XML source by qualified name "
-            "(e.g. Catalog.Products). Removes object artifacts and Configuration.xml "
-            "registration. Does not cascade references. Prefer metadata.get first. "
+            "(e.g. Catalog.Products, Subsystem.Main, Constant.VATRate). "
+            + _WRITE_TYPES
+            + " Removes object artifacts and Configuration.xml registration. "
+            "Does not cascade references. Prefer metadata.get first. "
             "To remove attributes/tabular sections/values use metadata.update "
             "remove-* ops instead."
             + _NO_SHELL
