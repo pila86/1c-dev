@@ -116,7 +116,7 @@ ADR packaging: [ADR-013](../adr/013-packaging-toolchain-cache.md) — `uv tool` 
 | `AGENTS.md` | skip + warning (пользовательский текст) | перезаписать шаблоном |
 | `1c.project.yaml` | не перезаписывать существующие поля; только недостающие обязательные (если трогаем) | осторожно: не клоббировать source/runtime без явной семантики; предпочтительно validate |
 
-Отличие от `init`: `init` — bootstrap **пустой** конфигурации; `ide configure` — подключить runtime к **уже существующему** source (после import или clone). `import` `ide configure` не вызывает.
+Отличие от `init`: `init` — bootstrap **пустой** конфигурации и сразу пишет IDE MCP (default `--ide-target all`); `ide configure` — подключить runtime к **уже существующему** source (после import или clone) и повторный merge. `import` `ide configure` не вызывает.
 
 ### D. Agent knowledge: BSL LS MCP + docs/context (bsl-context)
 
@@ -154,6 +154,23 @@ Installed platform HBK
 Индекс строится **lazy** при первом `docs.search` / `docs.get` (явный статус в JSON/diagnostic при долгой индексации). Нет HBK / JDK → skip + diagnostic. Явный `docs build-index`, `docs.related`, `docs.version` — **out of scope** M3.
 
 Источник знаний для агента: глобальный контекст, типы/методы/свойства, языковые конструкции, при необходимости — элементы языка запросов. Не заливать весь индекс в system prompt — только по запросу tool.
+
+### E. Metadata types coverage (should, temporary)
+
+Расширение Metadata API до **паритета с xml-gen**: 23 типа Meta DSL + **`Subsystem`** (отдельный CLI-путь `subsystem compile` / `edit`). Контракт: [ADR-018](../adr/018-metadata-types-coverage.md).
+
+На каждый тип синхронно: **create + get (full IR) + update + delete** (md-reader ↔ xml-gen).
+
+| Приоритет | Статус в M3 |
+|-----------|-------------|
+| **should** | Issues в milestone M3; **не** блокирует must-acceptance треков A–D / #52 |
+| Temporary | При необходимости трек целиком переносится в отдельный milestone |
+
+Уже в M2 (CRUD + full get): Catalog, Document, Enum, InformationRegister, AccumulationRegister. CommonModule — CRUD есть, get без флагов (gap → E0). Subsystem — отсутствует.
+
+Волны (см. Issues ниже): E-found → E0 (CommonModule get) → E1 Subsystem → E2…E8 → E-docs → E-accept.
+
+Out of this track: Role / Form / Command / SessionParameter / …; `xml-gen interface edit` (CommandInterface); полное покрытие платформы ≠ трек E.
 
 ## Agent workflows
 
@@ -231,6 +248,7 @@ Installed platform HBK
 - Явный `docs build-index`, `docs.related`, `docs.version`
 - MCP для `runtime.load` (CLI — should)
 - Must-поддержка «голого» VS Code без Kilocode
+- Типы вне xml-gen Meta DSL + Subsystem (Role, Form, Command, SessionParameter, …); `interface edit` / CommandInterface — later (трек E не = «вся платформа»)
 
 ## Manual verification
 
@@ -267,6 +285,7 @@ uv tool install git+https://github.com/pila86/1c-dev
 - [ADR-001](../adr/001-language-core-cli.md) (packaging → [ADR-013](../adr/013-packaging-toolchain-cache.md))
 - [ADR-013](../adr/013-packaging-toolchain-cache.md) (uv tool / cache / pin toolchain)
 - [ADR-010](../adr/010-mcp-architecture.md)
+- [ADR-018](../adr/018-metadata-types-coverage.md) (трек E: metadata types coverage)
 - [PRD §20 Documentation API](../../1c-dev-runtime-PRD-v0.1.md), [§19 BSL](../../1c-dev-runtime-PRD-v0.1.md), [§64 bsl-context / BSL LS](../../1c-dev-runtime-PRD-v0.1.md)
 - [bsl-context](https://github.com/1c-syntax/bsl-context)
 - [BSL LS MCP mode](https://1c-syntax.github.io/bsl-language-server/dev/features/McpMode/)

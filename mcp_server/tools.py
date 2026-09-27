@@ -94,7 +94,9 @@ def register_tools(server: FastMCP) -> None:
     @server.tool(
         name="project.init",
         description=(
-            "Bootstrap an empty 1C configuration project (1c.project.yaml + XML source skeleton)."
+            "Bootstrap an empty 1C configuration project "
+            "(1c.project.yaml + XML source skeleton + IDE MCP configs). "
+            "ide_target: all (default), cursor, kilocode, or none."
             + _NO_SHELL
         ),
     )
@@ -103,12 +105,14 @@ def register_tools(server: FastMCP) -> None:
         type: str = "configuration",
         name: str | None = None,
         force: bool = False,
+        ide_target: str = "all",
     ) -> dict[str, Any]:
         result = init_project(
             resolve_path(path),
             project_type=type,
             name=name,
             force=force,
+            ide_target=ide_target,
         )
         return result.to_payload(include_manifest=False)
 

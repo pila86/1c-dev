@@ -13,7 +13,8 @@ Issue #4 и M1 требуют bootstrap пустого проекта конфи
 
 - Основная команда: `1c-dev init --type configuration`.
 - Алиас: `1c-dev project init` с той же логикой.
-- Опции: `--name` (default — sanitized имя cwd или `Configuration`), `--force`.
+- Опции: `--name` (default — sanitized имя cwd или `Configuration`), `--force`,
+  `--ide-target all|cursor|kilocode|none` (default `all` — пишет IDE MCP).
 - M1 поддерживает только `type=configuration`; остальные типы → diagnostic `1CP005`, exit `PROJECT_ERROR` (2).
 - Если `1c.project.yaml` уже есть и нет `--force` → `1CP004`, exit 2.
 
@@ -27,6 +28,7 @@ Issue #4 и M1 требуют bootstrap пустого проекта конфи
 - `src/cf/Configuration.xml.tmpl` + `Languages/Русский.xml.tmpl`
 
 При init генерируются UUID; `CompatibilityMode` выводится из версии платформы (`Version8_3_N`). Формат dump — `2.17`.
+IDE MCP (`.cursor/mcp.json`, `.kilo/mcp.json`) пишется через `_configure_ide_mcp` (ADR-016), не из файлов templates/.
 
 ### Platform version
 
@@ -46,12 +48,13 @@ Issue #4 и M1 требуют bootstrap пустого проекта конфи
 
 ## Последствия
 
-- MCP `project.init` (#6) переиспользует `core.project.init_project`.
+- MCP `project.init` (#6) переиспользует `core.project.init_project` (включая IDE MCP).
+- Greenfield path: после `init` агент готов без отдельного `ide configure`.
 - Templates для extension/EPF/ERF — отдельные issues.
 - ibcmd load/build (#7) опирается на созданный XML-скелет.
 
 ## Связанные решения
 
-- ADR-002, ADR-004, ADR-005
+- ADR-002, ADR-004, ADR-005, ADR-016
 - Issue #4
 - PRD §15, §43, §44

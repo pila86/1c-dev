@@ -431,11 +431,13 @@ def test_project_init_mocked(tmp_path: Path, monkeypatch: Any) -> None:
         project_type: str = "configuration",
         name: str | None = None,
         force: bool = False,
+        ide_target: str = "all",
     ) -> ProjectResult:
         assert path == target.resolve()
         assert project_type == "configuration"
         assert name == "Demo"
         assert force is True
+        assert ide_target == "all"
         return ProjectResult(status="ok", path=path / "1c.project.yaml", root=path, created=["a"])
 
     monkeypatch.setattr("mcp_server.tools.init_project", fake_init)

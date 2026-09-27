@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,15 @@ from cli.output import OutputFormat, OutputOption, resolve_output
 from core.exit_codes import PROJECT_ERROR, SUCCESS
 from core.project import init_project
 from core.project.result import ProjectResult
+
+
+class IdeTargetChoice(str, Enum):
+    """IDE target for MCP config wiring on init."""
+
+    all = "all"
+    cursor = "cursor"
+    kilocode = "kilocode"
+    none = "none"
 
 
 def _emit(payload: dict[str, Any], output: OutputFormat, *, text_lines: list[str]) -> None:
@@ -50,6 +60,11 @@ def _init_text(result: ProjectResult) -> list[str]:
         lines.append("created:")
         for item in result.created:
             lines.append(f"  - {item}")
+    for diag in result.diagnostics:
+        if diag.get("severity") == "warning":
+            code = diag.get("code", "")
+            prefix = f"[{code}] " if code else ""
+            lines.append(f"warning: {prefix}{diag.get('message', '')}")
     return lines
 
 
@@ -70,6 +85,11 @@ def init_command(
         "--force",
         help="Перезаписать существующий манифест и шаблоны.",
     ),
+    ide_target: IdeTargetChoice = typer.Option(
+        IdeTargetChoice.all,
+        "--ide-target",
+        help="IDE MCP: all (default), cursor, kilocode, или none (без MCP).",
+    ),
     output: OutputOption = None,
 ) -> None:
     """Создать пустой проект конфигурации (bootstrap)."""
@@ -78,6 +98,7 @@ def init_command(
         project_type=project_type,
         name=name,
         force=force,
+        ide_target=ide_target.value,
     )
     payload = result.to_payload(include_manifest=False)
     _emit(payload, resolve_output(ctx, output), text_lines=_init_text(result))

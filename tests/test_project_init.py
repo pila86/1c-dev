@@ -51,8 +51,52 @@ def test_init_project_ok(tmp_path: Path) -> None:
     assert result.manifest["source"]["path"] == "src/cf"
     assert "1c.project.yaml" in result.created
 
+    cursor_mcp = target / ".cursor" / "mcp.json"
+    kilo_mcp = target / ".kilo" / "mcp.json"
+    assert cursor_mcp.is_file()
+    assert kilo_mcp.is_file()
+    assert ".cursor/mcp.json" in result.created
+    assert ".kilo/mcp.json" in result.created
+    for mcp_path in (cursor_mcp, kilo_mcp):
+        payload = json.loads(mcp_path.read_text(encoding="utf-8"))
+        servers = payload["mcpServers"]
+        assert "1c-dev" in servers
+        assert "bsl-language-server" in servers
+
     validated = validate_project(target)
     assert validated.status == "ok"
+
+
+def test_init_project_ide_target_none(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    result = init_project(
+        target, project_type="configuration", name="Shop", ide_target="none"
+    )
+    assert result.status == "ok"
+    assert not (target / ".cursor" / "mcp.json").exists()
+    assert not (target / ".kilo" / "mcp.json").exists()
+    assert ".cursor/mcp.json" not in result.created
+    assert ".kilo/mcp.json" not in result.created
+
+
+def test_init_project_ide_target_cursor(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    result = init_project(
+        target, project_type="configuration", name="Shop", ide_target="cursor"
+    )
+    assert result.status == "ok"
+    assert (target / ".cursor" / "mcp.json").is_file()
+    assert not (target / ".kilo" / "mcp.json").exists()
+    assert ".cursor/mcp.json" in result.created
+
+
+def test_init_project_invalid_ide_target(tmp_path: Path) -> None:
+    result = init_project(tmp_path, project_type="configuration", ide_target="vscode")
+    assert result.status == "error"
+    assert any(d.get("code") == "1CP007" for d in result.diagnostics)
+    assert not (tmp_path / "1c.project.yaml").exists()
 
 
 def test_init_project_default_name_from_cwd(tmp_path: Path) -> None:
@@ -104,6 +148,31 @@ def test_cli_init_json_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     assert payload["status"] == "ok"
     assert payload["created"]
     assert (tmp_path / "1c.project.yaml").is_file()
+    assert (tmp_path / ".cursor" / "mcp.json").is_file()
+    assert (tmp_path / ".kilo" / "mcp.json").is_file()
+
+
+def test_cli_init_ide_target_none(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(
+        app,
+        [
+            "init",
+            "--type",
+            "configuration",
+            "--ide-target",
+            "none",
+            "--output",
+            "json",
+        ],
+    )
+    assert result.exit_code == SUCCESS, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "ok"
+    assert not (tmp_path / ".cursor" / "mcp.json").exists()
+    assert not (tmp_path / ".kilo" / "mcp.json").exists()
 
 
 def test_cli_project_init_alias(

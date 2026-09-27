@@ -8,7 +8,7 @@ from pathlib import Path
 from xml.sax.saxutils import escape as xml_escape
 
 from adapters.platform import discover_environment
-from core.diagnostics import error
+from core.diagnostics import Diagnostic, error
 from core.project.constants import MANIFEST_NAME
 from core.project.result import ProjectResult
 from core.project.validate import validate_project
@@ -197,8 +197,16 @@ def init_project(
     project_type: str = "configuration",
     name: str | None = None,
     force: bool = False,
+    ide_target: str = "all",
 ) -> ProjectResult:
     """Create a new project skeleton in target (default: CWD)."""
+    # Lazy import: core.project.ide imports templates helpers from this module.
+    from core.project.ide import (
+        SUPPORTED_TARGETS,
+        _configure_ide_mcp,
+        ides_to_configure,
+    )
+
     root = (target or Path.cwd()).resolve()
     root.mkdir(parents=True, exist_ok=True)
 
@@ -211,6 +219,19 @@ def init_project(
                     f"Тип проекта не поддерживается в M1: {project_type}",
                     code="1CP005",
                     suggestion="Используйте --type configuration",
+                )
+            ],
+        )
+
+    if ide_target not in SUPPORTED_TARGETS:
+        return ProjectResult(
+            status="error",
+            root=root,
+            diagnostics=[
+                error(
+                    f"Неизвестное значение --ide-target: {ide_target}",
+                    code="1CP007",
+                    suggestion="Используйте all, cursor, kilocode или none",
                 )
             ],
         )
@@ -235,6 +256,7 @@ def init_project(
     discovery = discover_environment()
     platform_version = platform_version_for_manifest(discovery.platform.version)
 
+    mcp_diagnostics: list[Diagnostic] = []
     try:
         created = _scaffold_configuration(
             root,
@@ -242,6 +264,12 @@ def init_project(
             platform_version=platform_version,
             force=force,
         )
+        m_created, _, _, mcp_diagnostics = _configure_ide_mcp(
+            root,
+            ides_to_configure(ide_target),
+            force=True,
+        )
+        created.extend(m_created)
     except FileExistsError as exc:
         return ProjectResult(
             status="error",
@@ -268,4 +296,5 @@ def init_project(
 
     result = validate_project(root)
     result.created = created
+    result.diagnostics = [*mcp_diagnostics, *result.diagnostics]
     return result

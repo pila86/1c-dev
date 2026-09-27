@@ -5,7 +5,7 @@
 
 ## Контекст
 
-Issue #50 и [M3](../milestones/m3-product-adopt.md) требуют идемпотентно подключить runtime к уже существующему source (после `import` или clone): манифест, `AGENTS.md`, `.gitignore`, MCP-конфиг IDE. `init` — bootstrap пустой конфигурации; `import` агентские артефакты не пишет (ADR-015).
+Issue #50 и [M3](../milestones/m3-product-adopt.md) требуют идемпотентно подключить runtime к уже существующему source (после `import` или clone): манифест, `AGENTS.md`, `.gitignore`, MCP-конфиг IDE. `init` — bootstrap пустой конфигурации (включая IDE MCP через `_configure_ide_mcp`); `import` агентские артефакты не пишет (ADR-015).
 
 ## Решение
 
@@ -61,7 +61,8 @@ Issue #50 и [M3](../milestones/m3-product-adopt.md) требуют идемпо
 
 ## Последствия
 
-- `init` и `ide configure` делят шаблон `AGENTS.md` (разделение 1c-dev / bsl-ls / docs).
+- `init` и `ide configure` делят шаблон `AGENTS.md` и запись IDE MCP через `_configure_ide_mcp`.
+- `init --ide-target all` (default) сразу создаёт `.cursor/mcp.json` и `.kilo/mcp.json`; `ide configure` — adopt (после import/clone) и повторный merge.
 - Doctor / `tools sync` обеспечивают jar для рабочего BSL LS MCP.
 
 ## Связанные решения

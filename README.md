@@ -62,7 +62,7 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 | `1c-dev tools sync` | Bootstrap jars toolchain в user cache |
 | `1c-dev tools clean --yes` | Удалить user cache toolchain |
 | `1c-dev uninstall --yes` | Cache + `uv tool uninstall 1c-dev` |
-| `1c-dev init --type configuration` | Bootstrap пустого проекта |
+| `1c-dev init --type configuration [--ide-target all\|cursor\|kilocode\|none]` | Bootstrap пустого проекта (+ IDE MCP) |
 | `1c-dev project detect\|validate\|info` | Манифест `1c.project.yaml` (`project init` = алиас `init`) |
 | `1c-dev project import --from <file.cf>` | Импорт `.cf` → XML source (`--force` перезаписывает) |
 | `1c-dev runtime load --from <file.cf>` | Загрузка `.cf` в file IB без export XML |
@@ -115,7 +115,8 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 
 ### MCP (Cursor / Kilocode)
 
-После установки CLI:
+После `1c-dev init` MCP-конфиги пишутся сразу (default `--ide-target all`).
+Для уже существующего проекта (после `import` / clone):
 
 ```bash
 1c-dev ide configure                 # MCP для cursor и kilocode (default --target all)
@@ -127,7 +128,7 @@ Tools: `project.get`, `project.init`, `ide.configure`, `project.import`,
 `metadata.update`, `metadata.delete`, `build`, `check`
 ([ADR-010](docs/adr/010-mcp-architecture.md), [ADR-016](docs/adr/016-ide-configure.md)).
 
-Пример `.cursor/mcp.json` (пишет `ide configure`; `cwd` не нужен — IDE стартует из workspace):
+Пример `.cursor/mcp.json` (пишет `init` / `ide configure`; `cwd` не нужен — IDE стартует из workspace):
 
 ```json
 {
