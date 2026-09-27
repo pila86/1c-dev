@@ -66,6 +66,9 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 | `1c-dev project detect\|validate\|info` | Манифест `1c.project.yaml` (`project init` = алиас `init`) |
 | `1c-dev project import --from <file.cf>` | Импорт `.cf` → XML source (`--force` перезаписывает) |
 | `1c-dev runtime load --from <file.cf>` | Загрузка `.cf` в file IB без export XML |
+| `1c-dev runtime start [--debug]` | Запуск толстого клиента (ENTERPRISE) к file IB |
+| `1c-dev runtime stop` | Остановка клиента |
+| `1c-dev runtime status` | Статус клиента (pid / debug) |
 | `1c-dev metadata list` | Список объектов (IR summaries) |
 | `1c-dev metadata get <QualifiedName>` | IR объекта по QName |
 | `1c-dev metadata find <query>` | Поиск по имени / синониму |
@@ -104,6 +107,10 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 1c-dev build --artifact cf --output json
 1c-dev project import --from build/out/configuration.cf --force --output json
 1c-dev runtime load --from build/out/configuration.cf --output json
+1c-dev runtime start --output json
+1c-dev runtime start --debug --output json
+1c-dev runtime status --output json
+1c-dev runtime stop --output json
 1c-dev check --output json
 1c-dev ide configure --output json
 1c-dev ide configure --target cursor --output json
@@ -125,8 +132,10 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 
 Tools: `project.get`, `project.init`, `ide.configure`, `project.import`,
 `metadata.list`, `metadata.get`, `metadata.find`, `metadata.create`,
-`metadata.update`, `metadata.delete`, `build`, `check`
-([ADR-010](docs/adr/010-mcp-architecture.md), [ADR-016](docs/adr/016-ide-configure.md)).
+`metadata.update`, `metadata.delete`, `build`, `check`,
+`runtime.start`, `runtime.stop`, `runtime.status`, `docs.search`, `docs.get`
+([ADR-010](docs/adr/010-mcp-architecture.md), [ADR-016](docs/adr/016-ide-configure.md),
+[ADR-019](docs/adr/019-runtime-client-lifecycle.md)).
 
 Пример `.cursor/mcp.json` (пишет `init` / `ide configure`; `cwd` не нужен — IDE стартует из workspace):
 

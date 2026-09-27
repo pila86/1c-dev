@@ -59,9 +59,20 @@ Cursor обычно стартует MCP из workspace root.
 
 `metadata.update` для агента — явные ops (`add-attribute` / …), без CLI-сахара `--attr` / `--ts`.
 
+### Runtime client (# ADR-019)
+
+| Tool | Core |
+|------|------|
+| `runtime.start` | `run_start` (`debug` → `/Debug`) |
+| `runtime.stop` | `run_stop` |
+| `runtime.status` | `run_status` |
+
+Только file IB + ENTERPRISE, detach. DAP / `debug.*` — M6.
+
 ### Вне M1–M2 / #6 / #26
 
 - `shell.exec`, `doctor`, `project.validate` как MCP tools
+- MCP `runtime.load` (CLI уже есть)
 - Streamable HTTP transport
 - mcp SDK 2.x / `MCPServer`
 - resources / prompts MCP
@@ -85,6 +96,6 @@ Cursor обычно стартует MCP из workspace root.
 
 ## Связанные решения
 
-- ADR-001, ADR-002, ADR-003–009, ADR-011, ADR-012
+- ADR-001, ADR-002, ADR-003–009, ADR-011, ADR-012, ADR-019
 - Issue #6, Issue #26
 - PRD §32, §33, R7

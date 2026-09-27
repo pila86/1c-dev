@@ -23,6 +23,7 @@ from core.metadata import (
     update_metadata,
 )
 from core.project import configure_ide, init_project, validate_project
+from core.runtime import run_start, run_status, run_stop
 from mcp_server._path import resolve_path
 
 _NO_SHELL = (
@@ -365,6 +366,43 @@ def register_tools(server: FastMCP) -> None:
     )
     def check_tool(path: str | None = None) -> dict[str, Any]:
         result = run_check(resolve_path(path))
+        return result.to_payload()
+
+    @server.tool(
+        name="runtime.start",
+        description=(
+            "Detach-start the thick 1C client (ENTERPRISE) against the project file IB. "
+            "Requires a prior build or runtime load. "
+            "Set debug=true to pass /Debug (DAP attach is M6)." + _NO_SHELL
+        ),
+    )
+    def runtime_start_tool(
+        path: str | None = None,
+        debug: bool = False,
+    ) -> dict[str, Any]:
+        result = run_start(resolve_path(path), debug=debug)
+        return result.to_payload()
+
+    @server.tool(
+        name="runtime.stop",
+        description=(
+            "Stop the detached ENTERPRISE client previously started via runtime.start."
+            + _NO_SHELL
+        ),
+    )
+    def runtime_stop_tool(path: str | None = None) -> dict[str, Any]:
+        result = run_stop(resolve_path(path))
+        return result.to_payload()
+
+    @server.tool(
+        name="runtime.status",
+        description=(
+            "Report whether the detached ENTERPRISE client is running "
+            "(pid, mode, debug.enabled)." + _NO_SHELL
+        ),
+    )
+    def runtime_status_tool(path: str | None = None) -> dict[str, Any]:
+        result = run_status(resolve_path(path))
         return result.to_payload()
 
     @server.tool(

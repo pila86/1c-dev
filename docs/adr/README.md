@@ -30,6 +30,7 @@
 | [016](016-ide-configure.md) | Accepted | IDE configure (MCP + AGENTS merge) |
 | [017](017-docs-bsl-context.md) | Accepted | Docs API via bsl-context (lazy index) |
 | [018](018-metadata-types-coverage.md) | Accepted | Metadata types coverage (23 meta + Subsystem) |
+| [019](019-runtime-client-lifecycle.md) | Accepted | Runtime client lifecycle (`start` / `stop` / `status`, `/Debug`) |
 
 ## Когда писать ADR
 

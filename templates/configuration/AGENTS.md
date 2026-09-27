@@ -12,7 +12,7 @@
 10. Review semantic diff before completion.
 11. Prefer MCP tools over shell or Designer/Configurator:
     - **1c-dev** MCP: project init/import, ide.configure, metadata list/get/find/create/update/delete,
-      build, check, and docs.* when available.
+      build, check, runtime.start/stop/status (optional debug=/Debug), and docs.* when available.
     - **bsl-language-server** MCP: BSL code analysis (diagnostics, symbols, references,
       hover, definitions) — not for metadata or build.
       Before analyze_file / hover / definition / etc.: call `list_workspace_folders`;

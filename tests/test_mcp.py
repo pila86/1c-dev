@@ -32,6 +32,9 @@ EXPECTED_TOOLS = {
     "metadata.delete",
     "build",
     "check",
+    "runtime.start",
+    "runtime.stop",
+    "runtime.status",
     "docs.search",
     "docs.get",
 }
