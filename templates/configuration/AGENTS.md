@@ -11,9 +11,11 @@
 9. Prefer debugger for reproducible runtime failures.
 10. Review semantic diff before completion.
 11. Prefer MCP tools over shell or Designer/Configurator:
-    - **1c-dev** MCP: project init/import, ide.configure, metadata list/get/find/create/update/delete,
+    - **1c-dev** MCP: project init/import/clean, ide.configure, metadata list/get/find/create/update/delete,
       build, check, runtime.start/stop/status (client thick|thin, optional debug=/Debug),
       and docs.* when available.
+      `project.clean` is destructive (wipes source.path + .runtime/); always pass yes=true
+      and confirm intent first — does not touch 1c.project.yaml / AGENTS.md / IDE MCP / git.
       Write types for metadata.create/update/delete: 23 Meta DSL + Subsystem
       (AccountingRegister, AccumulationRegister, BusinessProcess, CalculationRegister,
       Catalog, ChartOfAccounts, ChartOfCalculationTypes, ChartOfCharacteristicTypes,

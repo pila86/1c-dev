@@ -1,6 +1,6 @@
 # M3: Product adopt (CF import + install + ide configure)
 
-**Статус:** In progress — GitHub 21/22 closed; open: [#52](https://github.com/pila86/1c-dev/issues/52) (acceptance E2E). [#74](https://github.com/pila86/1c-dev/issues/74) (`--break-support`) **done**. Трек E (#60–#71) **done**. [#76](https://github.com/pila86/1c-dev/issues/76): ADR-021 принят; CLI/MCP `project.clean` ещё не реализован (acceptance ниже открыт).
+**Статус:** In progress — GitHub 21/22 closed; open: [#52](https://github.com/pila86/1c-dev/issues/52) (acceptance E2E). [#74](https://github.com/pila86/1c-dev/issues/74) (`--break-support`) **done**. [#76](https://github.com/pila86/1c-dev/issues/76) (`project.clean`) **done**. Трек E (#60–#71) **done**.
 
 ## Goal
 
@@ -237,9 +237,9 @@ Out of this track: Role / Form / Command / SessionParameter / …; `xml-gen inte
 - [x] MCP: `project.import` принимает `break_support` — #74
 - [x] Unit-тест: fixture с `ParentConfigurations.bin` → strip без platform — #74
 - [x] should: CLI `source break-support` (та же strip-логика без повторного import) — #74
-- [ ] should: `project clean --yes` удаляет `source.path` и `.runtime/`; без `--yes` — отказ; манифест/IDE intact — ADR-021; impl open (#76 closed as ADR)
-- [ ] should: MCP `project.clean` с обязательным confirm
-- [ ] Unit-тест: fixture source + `.runtime` → clean без platform; повторный clean идемпотентен
+- [x] should: `project clean --yes` удаляет `source.path` и `.runtime/`; без `--yes` — отказ; манифест/IDE intact — ADR-021; #76
+- [x] should: MCP `project.clean` с обязательным confirm — #76
+- [x] Unit-тест: fixture source + `.runtime` → clean без platform; повторный clean идемпотентен — #76
 
 ### Install
 
@@ -309,7 +309,7 @@ uv tool install git+https://github.com/pila86/1c-dev
 1c-dev check --output json
 
 # 5. Clean (should; destructive)
-# 1c-dev project clean --yes --output json
+1c-dev project clean --yes --output json
 
 # 6. Track E acceptance (sample E0–E8 create/get/update/delete → build/check)
 #    skip без platform / xml-gen / md-reader
@@ -340,7 +340,7 @@ poetry run pytest tests/test_e_acceptance.py -m integration
 | [#46](https://github.com/pila86/1c-dev/issues/46) | done | Platform: ibcmd `config load` + `config export` | — |
 | [#47](https://github.com/pila86/1c-dev/issues/47) | done | CLI/MCP `project.import` (+ should: CLI `runtime.load`) | #46 |
 | [#74](https://github.com/pila86/1c-dev/issues/74) | done | `project.import --break-support` (+ should: `source break-support`); ADR-020 | #47 |
-| [#76](https://github.com/pila86/1c-dev/issues/76) | ADR done | should: CLI/MCP `project.clean` (source + `.runtime`); ADR-021 | #47 |
+| [#76](https://github.com/pila86/1c-dev/issues/76) | done | should: CLI/MCP `project.clean` (source + `.runtime`); ADR-021 | #47 |
 | [#48](https://github.com/pila86/1c-dev/issues/48) | done | `1c-dev tools sync`: bootstrap toolchain jars (+ uninstall) | #45 |
 | [#49](https://github.com/pila86/1c-dev/issues/49) | done | Doctor: jar self-checks + `--fix`; README `uv tool` quick start | #48 |
 | [#50](https://github.com/pila86/1c-dev/issues/50) | done | CLI `ide configure --target cursor\|kilocode` + merge + MCP/AGENTS templates | #48 |

@@ -12,7 +12,13 @@ from adapters.platform_ibcmd.constants import CODE_IBCMD_FAILED
 from cli.ide import app as ide_app
 from cli.init import init_command
 from cli.output import OutputFormat, OutputOption, resolve_output
-from core.exit_codes import BUILD_FAILURE, ENV_UNAVAILABLE, PROJECT_ERROR, SUCCESS
+from core.exit_codes import (
+    BUILD_FAILURE,
+    ENV_UNAVAILABLE,
+    PROJECT_ERROR,
+    RUNTIME_FAILURE,
+    SUCCESS,
+)
 from core.import_cf import ImportResult, run_import
 from core.import_cf.constants import (
     CODE_CF_MISSING,
@@ -21,7 +27,13 @@ from core.import_cf.constants import (
     CODE_IBCMD_MISSING,
     CODE_PROJECT,
 )
-from core.project import detect_project, validate_project
+from core.project import CleanResult, detect_project, run_clean, validate_project
+from core.project.constants import (
+    CODE_CLEAN_FAILED,
+    CODE_CLIENT_RUNNING,
+    CODE_CONFIRM_REQUIRED,
+    CODE_MANIFEST_MISSING,
+)
 from core.project.result import ProjectResult
 
 app = typer.Typer(
@@ -98,6 +110,58 @@ def _import_text(result: ImportResult) -> list[str]:
         lines.append("steps: " + ", ".join(result.steps))
     if result.created:
         lines.append("created: " + ", ".join(result.created))
+    if result.removed:
+        lines.append("removed: " + ", ".join(result.removed))
+    for diag in result.diagnostics:
+        if diag.get("severity") == "error":
+            continue
+        code = diag.get("code", "")
+        prefix = f"[{code}] " if code else ""
+        sev = diag.get("severity", "info")
+        lines.append(f"{sev}: {prefix}{diag.get('message', '')}")
+    return lines
+
+
+def _clean_exit_for(result: CleanResult) -> None:
+    if result.status == "ok":
+        raise typer.Exit(code=SUCCESS)
+    codes = {d.get("code") for d in result.diagnostics}
+    if CODE_CONFIRM_REQUIRED in codes or CODE_CLIENT_RUNNING in codes or CODE_CLEAN_FAILED in codes:
+        raise typer.Exit(code=RUNTIME_FAILURE)
+    if CODE_MANIFEST_MISSING in codes:
+        raise typer.Exit(code=PROJECT_ERROR)
+    raise typer.Exit(code=RUNTIME_FAILURE)
+
+
+def _clean_text(result: CleanResult) -> list[str]:
+    if result.status != "ok":
+        lines = ["status: failed"]
+        for diag in result.diagnostics:
+            code = diag.get("code", "")
+            prefix = f"[{code}] " if code else ""
+            lines.append(f"error: {prefix}{diag.get('message', '')}")
+            suggestion = diag.get("suggestion")
+            if suggestion:
+                lines.append(f"  → {suggestion}")
+        return lines
+
+    lines = ["status: ok"]
+    if result.duration is not None:
+        lines.append(f"duration: {result.duration:.3f}s")
+    if result.source_path is not None and result.root is not None:
+        try:
+            rel = result.source_path.relative_to(result.root).as_posix()
+        except ValueError:
+            rel = str(result.source_path)
+        lines.append(f"source: {rel}")
+    if result.runtime_dir is not None and result.root is not None:
+        try:
+            rel = result.runtime_dir.relative_to(result.root).as_posix()
+        except ValueError:
+            rel = str(result.runtime_dir)
+        lines.append(f"runtime: {rel}")
+    lines.append(f"sourceCleared: {result.source_cleared}")
+    lines.append(f"runtimeCleared: {result.runtime_cleared}")
     if result.removed:
         lines.append("removed: " + ", ".join(result.removed))
     for diag in result.diagnostics:
@@ -202,6 +266,23 @@ def project_import(
     )
     _emit(result.to_payload(), resolve_output(ctx, output), text_lines=_import_text(result))
     _import_exit_for(result)
+
+
+@app.command("clean")
+def project_clean(
+    ctx: typer.Context,
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        "-y",
+        help="Подтвердить удаление source.path и .runtime/ без запроса.",
+    ),
+    output: OutputOption = None,
+) -> None:
+    """Удалить содержимое source.path и весь .runtime/ (манифест / IDE intact)."""
+    result = run_clean(Path.cwd(), yes=yes)
+    _emit(result.to_payload(), resolve_output(ctx, output), text_lines=_clean_text(result))
+    _clean_exit_for(result)
 
 
 @app.command("detect")
