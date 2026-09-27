@@ -25,10 +25,17 @@ from adapters.source.xmlgen.resolve import (
     resolve_java,
     tools_cache_dir,
 )
+from adapters.source.xmlgen.subsystem import (
+    SUBSYSTEM_ALLOWED_OPS,
+    compile_subsystem,
+    edit_subsystem,
+    ir_to_subsystem_dsl,
+)
 
 __all__ = [
     "ALLOWED_OPS",
     "MIN_JAVA_MAJOR",
+    "SUBSYSTEM_ALLOWED_OPS",
     "XMLGEN_COMMIT",
     "XMLGEN_JAR_ENV",
     "XMLGEN_REPO",
@@ -37,10 +44,13 @@ __all__ = [
     "ToolResolve",
     "XmlGenError",
     "compile_metadata",
+    "compile_subsystem",
     "default_jar_path",
     "edit_metadata",
     "edit_op_from_dict",
+    "edit_subsystem",
     "fetch_script_suggestion",
+    "ir_to_subsystem_dsl",
     "ir_to_xmlgen_dsl",
     "remove_metadata",
     "resolve_java",

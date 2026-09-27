@@ -262,6 +262,61 @@ def test_common_module_from_parts_and_json() -> None:
     assert shape.value.code == "1CM004"
 
 
+def test_subsystem_from_parts_and_json() -> None:
+    from adapters.source.xmlgen.subsystem import ir_to_subsystem_dsl
+
+    sub = catalog_from_parts(
+        qualified_name="Subsystem.Main",
+        synonym="Главная",
+        content=["Catalog.Products"],
+        children=["Sales"],
+        include_in_command_interface=True,
+    )
+    assert sub.qualified_name == "Subsystem.Main"
+    assert sub.content == ["Catalog.Products"]
+    assert sub.children == ["Sales"]
+    assert sub.include_in_command_interface is True
+    ir = sub.to_dict()
+    assert ir == {
+        "type": "Subsystem",
+        "name": "Main",
+        "synonym": "Главная",
+        "content": ["Catalog.Products"],
+        "children": ["Sales"],
+        "includeInCommandInterface": True,
+    }
+    dsl = ir_to_subsystem_dsl(ir)
+    assert dsl["name"] == "Main"
+    assert dsl["content"] == ["Catalog.Products"]
+    assert dsl["children"] == ["Sales"]
+    assert "type" not in dsl
+
+    from_json = catalog_from_json(
+        {
+            "type": "Subsystem",
+            "name": "Reports",
+            "content": ["Report.Sales"],
+            "includeInCommandInterface": False,
+        }
+    )
+    assert from_json.content == ["Report.Sales"]
+    assert from_json.include_in_command_interface is False
+
+    with pytest.raises(IrError) as shape:
+        catalog_from_parts(
+            qualified_name="Subsystem.Bad",
+            attr_specs=["X:String:10"],
+        )
+    assert shape.value.code == "1CM004"
+
+    with pytest.raises(IrError) as bad_content:
+        catalog_from_parts(
+            qualified_name="Subsystem.Bad",
+            content=["Products"],
+        )
+    assert bad_content.value.code == "1CM004"
+
+
 def test_create_metadata_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
@@ -458,6 +513,41 @@ def test_create_common_module_mock(tmp_path: Path) -> None:
     assert result.status == "ok", result.diagnostics
     assert result.object == "CommonModule.SalesServer"
     assert any("CommonModules/SalesServer.xml" in p for p in result.created)
+
+
+def test_create_subsystem_mock(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+
+    def fake_compile(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
+        assert "type" not in dsl
+        assert dsl["name"] == "Main"
+        assert dsl["synonym"] == "Главная"
+        assert dsl["includeInCommandInterface"] is True
+        assert dsl.get("content") == []
+        subs = source_dir / "Subsystems"
+        subs.mkdir(parents=True)
+        (subs / "Main.xml").write_text("<Subsystem/>", encoding="utf-8")
+        cfg = source_dir / "Configuration.xml"
+        text = cfg.read_text(encoding="utf-8-sig")
+        text = text.replace(
+            "<Language>Русский</Language>",
+            "<Language>Русский</Language>\r\n\t\t\t"
+            "<Subsystem>Main</Subsystem>",
+        )
+        cfg.write_text(text, encoding="utf-8-sig", newline="")
+        return ["Subsystems/Main.xml", "Configuration.xml"]
+
+    sub = catalog_from_parts(
+        qualified_name="Subsystem.Main",
+        synonym="Главная",
+        include_in_command_interface=True,
+    )
+    result = create_metadata(target, sub, compile_fn=fake_compile)
+    assert result.status == "ok", result.diagnostics
+    assert result.object == "Subsystem.Main"
+    assert any("Subsystems/Main.xml" in p for p in result.created)
 
 
 def test_create_duplicate(tmp_path: Path) -> None:
@@ -898,6 +988,49 @@ def test_create_common_module_with_real_xmlgen(tmp_path: Path) -> None:
     assert bsl.is_file()
     cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
     assert "<CommonModule>SalesServer</CommonModule>" in cfg
+
+    from core.project import validate_project
+
+    assert validate_project(target).status == "ok"
+
+
+@pytest.mark.integration
+def test_create_subsystem_with_real_xmlgen(tmp_path: Path) -> None:
+    jar = resolve_jar()
+    java = resolve_java()
+    if not jar.found or not java.found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    # Content refs must exist before subsystem compile (xml-gen fail-fast).
+    cat = create_metadata(
+        target,
+        catalog_from_parts(qualified_name="Catalog.Products", synonym="Товары"),
+    )
+    assert cat.status == "ok", cat.diagnostics
+
+    sub = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Subsystem.Main",
+            synonym="Главная",
+            content=["Catalog.Products"],
+            children=["Sales"],
+            include_in_command_interface=True,
+        ),
+    )
+    assert sub.status == "ok", sub.diagnostics
+    xml_path = target / "src" / "cf" / "Subsystems" / "Main.xml"
+    assert xml_path.is_file()
+    text = xml_path.read_text(encoding="utf-8-sig")
+    assert "Catalog.Products" in text
+    assert "<Subsystem>Sales</Subsystem>" in text
+    assert "<IncludeInCommandInterface>true</IncludeInCommandInterface>" in text
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<Subsystem>Main</Subsystem>" in cfg
 
     from core.project import validate_project
 

@@ -252,7 +252,8 @@ def _build_update_ops(
     if not result:
         raise IrError(
             "Укажите операции: --op/--value, --attr, --ts, --ts-attr, "
-            "--dimension, --resource, флаги CommonModule или --from-json",
+            "--dimension, --resource, флаги CommonModule, "
+            "subsystem ops (add-content/…) или --from-json",
             code="1CM002",
         )
     return normalize_edit_ops(result)
@@ -309,7 +310,8 @@ def update_command(
         ...,
         help=(
             "Qualified name, например Catalog.Products, Enum.Statuses, "
-            "InformationRegister.Prices, CommonModule.SalesServer."
+            "InformationRegister.Prices, CommonModule.SalesServer, "
+            "Subsystem.Main."
         ),
     ),
     op: list[str] | None = typer.Option(
@@ -317,7 +319,8 @@ def update_command(
         "--op",
         help=(
             "Операция: attribute/ts/enumValue/dimension/resource ops, "
-            "set-flag, modify-property."
+            "set-flag, modify-property; для Subsystem: add-content, "
+            "remove-content, add-child, remove-child, set-property."
         ),
     ),
     value: list[str] | None = typer.Option(
@@ -470,7 +473,8 @@ def create_command(
         ...,
         help=(
             "Qualified name, например Catalog.Products, Document.Sales, "
-            "Enum.Statuses, InformationRegister.Prices, CommonModule.SalesServer."
+            "Enum.Statuses, InformationRegister.Prices, CommonModule.SalesServer, "
+            "Subsystem.Main."
         ),
     ),
     synonym: str | None = typer.Option(
@@ -548,6 +552,21 @@ def create_command(
         "--return-values-reuse",
         help="DontUse | DuringRequest | DuringSession (CommonModule).",
     ),
+    content: list[str] | None = typer.Option(
+        None,
+        "--content",
+        help="Ссылка Type.Name в составе подсистемы (Subsystem), можно повторять.",
+    ),
+    child: list[str] | None = typer.Option(
+        None,
+        "--child",
+        help="Имя дочерней подсистемы (Subsystem), можно повторять.",
+    ),
+    include_in_command_interface: bool | None = typer.Option(
+        None,
+        "--include-in-command-interface/--no-include-in-command-interface",
+        help="IncludeInCommandInterface (Subsystem).",
+    ),
     from_json: str | None = typer.Option(
         None,
         "--from-json",
@@ -555,7 +574,7 @@ def create_command(
     ),
     output: OutputOption = None,
 ) -> None:
-    """Создать объект метаданных (Catalog / Document / Enum / регистры / CommonModule)."""
+    """Создать объект метаданных (Meta DSL + Subsystem)."""
     fmt = resolve_output(ctx, output)
     try:
         if from_json is not None:
@@ -578,6 +597,19 @@ def create_command(
                 existing_r = list(data.get("resources") or [])
                 existing_r.extend(resource)
                 data["resources"] = existing_r
+            if content:
+                existing_c = list(data.get("content") or [])
+                existing_c.extend(content)
+                data["content"] = existing_c
+            if child:
+                existing_ch = list(data.get("children") or [])
+                existing_ch.extend(child)
+                data["children"] = existing_ch
+            if (
+                include_in_command_interface is not None
+                and "includeInCommandInterface" not in data
+            ):
+                data["includeInCommandInterface"] = include_in_command_interface
             _merge_common_module_cli_flags(
                 data,
                 server=server,
@@ -630,6 +662,9 @@ def create_command(
                 privileged=privileged,
                 global_=global_flag,
                 return_values_reuse=return_values_reuse,
+                content=list(content or []),
+                children=list(child or []),
+                include_in_command_interface=include_in_command_interface,
             )
     except IrError as exc:
         result = _ir_error_result(exc)

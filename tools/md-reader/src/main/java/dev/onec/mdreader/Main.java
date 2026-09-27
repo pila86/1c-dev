@@ -10,6 +10,7 @@ import com.github._1c_syntax.bsl.mdo.Document;
 import com.github._1c_syntax.bsl.mdo.Enum;
 import com.github._1c_syntax.bsl.mdo.InformationRegister;
 import com.github._1c_syntax.bsl.mdo.MD;
+import com.github._1c_syntax.bsl.mdo.Subsystem;
 import com.github._1c_syntax.bsl.mdo.TabularSection;
 import com.github._1c_syntax.bsl.mdo.children.EnumValue;
 import com.github._1c_syntax.bsl.mdo.support.ReturnValueReuse;
@@ -52,7 +53,8 @@ public final class Main {
       "Enum",
       "InformationRegister",
       "AccumulationRegister",
-      "CommonModule"
+      "CommonModule",
+      "Subsystem"
   );
 
   private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
@@ -239,6 +241,32 @@ public final class Main {
       obj.addProperty("privileged", module.isPrivileged());
       obj.addProperty("global", module.isGlobal());
       obj.addProperty("returnValuesReuse", returnValuesReuseOf(module.getReturnValuesReuse()));
+    } else if (md instanceof Subsystem subsystem) {
+      JsonArray content = new JsonArray();
+      List<MdoReference> refs = subsystem.getContent();
+      if (refs != null) {
+        for (MdoReference ref : refs) {
+          if (ref == null || ref.isEmpty()) {
+            continue;
+          }
+          String mdoRef = ref.getMdoRef();
+          if (mdoRef != null && !mdoRef.isBlank()) {
+            content.add(mdoRef);
+          }
+        }
+      }
+      obj.add("content", content);
+      JsonArray children = new JsonArray();
+      List<Subsystem> childSubs = subsystem.getSubsystems();
+      if (childSubs != null) {
+        for (Subsystem child : childSubs) {
+          if (child != null && child.getName() != null && !child.getName().isBlank()) {
+            children.add(child.getName());
+          }
+        }
+      }
+      obj.add("children", children);
+      obj.addProperty("includeInCommandInterface", subsystem.isIncludeInCommandInterface());
     }
     return obj;
   }

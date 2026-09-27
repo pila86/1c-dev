@@ -1,4 +1,4 @@
-"""metadata.create orchestration (ADR-007 / #23 / #24)."""
+"""metadata.create orchestration (ADR-007 / #23 / #24 / #62)."""
 
 from __future__ import annotations
 
@@ -10,8 +10,10 @@ from adapters.source.xmlgen import (
     EditOp,
     XmlGenError,
     compile_metadata,
+    compile_subsystem,
     edit_metadata,
     fetch_script_suggestion,
+    ir_to_subsystem_dsl,
     ir_to_xmlgen_dsl,
     resolve_jar,
     resolve_java,
@@ -36,10 +38,10 @@ def create_metadata(
     followup_fn: FollowupFn | None = None,
 ) -> MetadataResult:
     """
-    Create metadata object via xml-gen write-path (ADR-011 / #23 / #24).
+    Create metadata object via xml-gen write-path (ADR-011 / ADR-018 / #62).
 
-    Supported types: Catalog, Document, Enum, InformationRegister,
-    AccumulationRegister, CommonModule.
+    Supported write types: Meta DSL 23 + Subsystem (see CREATE_OBJECT_TYPES).
+    Subsystem uses ``subsystem compile``; others use ``meta compile``.
 
     compile_fn: optional injectable (source_dir, dsl) -> list[str] for tests.
     followup_fn: optional injectable for tabular-section synonym edits.
@@ -172,15 +174,23 @@ def create_metadata(
                 ],
             )
 
-    dsl = ir_to_xmlgen_dsl(catalog.to_dict())
-    runner: CompileFn = compile_fn if compile_fn is not None else compile_metadata
+    if catalog.type == "Subsystem":
+        dsl = ir_to_subsystem_dsl(catalog.to_dict())
+        runner: CompileFn = (
+            compile_fn if compile_fn is not None else compile_subsystem
+        )
+    else:
+        dsl = ir_to_xmlgen_dsl(catalog.to_dict())
+        runner = compile_fn if compile_fn is not None else compile_metadata
+
     try:
         created_rels = runner(source_dir, dsl)
-        _apply_tabular_synonyms(
-            object_file,
-            catalog,
-            followup_fn=followup_fn,
-        )
+        if catalog.type != "Subsystem":
+            _apply_tabular_synonyms(
+                object_file,
+                catalog,
+                followup_fn=followup_fn,
+            )
     except XmlGenError as exc:
         diag_kw: dict[str, Any] = {
             "code": exc.code,

@@ -135,6 +135,10 @@ class CatalogObject:
     privileged: bool | None = None
     global_: bool | None = None
     return_values_reuse: ReturnValuesReuse | None = None
+    # Subsystem (ADR-018 / #62).
+    content: list[str] = field(default_factory=list)
+    children: list[str] = field(default_factory=list)
+    include_in_command_interface: bool | None = None
 
     @property
     def qualified_name(self) -> str:
@@ -161,6 +165,12 @@ class CatalogObject:
                     data[json_key] = value
             if self.return_values_reuse is not None:
                 data["returnValuesReuse"] = self.return_values_reuse
+            return data
+        if self.type == "Subsystem":
+            data["content"] = list(self.content)
+            data["children"] = list(self.children)
+            if self.include_in_command_interface is not None:
+                data["includeInCommandInterface"] = self.include_in_command_interface
             return data
         data["attributes"] = [a.to_dict() for a in self.attributes]
         if self.tabular_sections:
@@ -322,8 +332,11 @@ def catalog_from_parts(
     privileged: bool | None = None,
     global_: bool | None = None,
     return_values_reuse: str | None = None,
+    content: list[str] | None = None,
+    children: list[str] | None = None,
+    include_in_command_interface: bool | None = None,
 ) -> CatalogObject:
-    """Build create IR from CLI pieces (ADR-011 / #23 / #24 / #28)."""
+    """Build create IR from CLI pieces (ADR-011 / #23 / #24 / #28 / #62)."""
     obj_type, name = parse_qualified_name(qualified_name)
     if obj_type not in CREATE_OBJECT_TYPES:
         raise IrError(
@@ -350,6 +363,8 @@ def catalog_from_parts(
         global_=global_,
         return_values_reuse=return_values_reuse,
     )
+    content_list = _subsystem_qnames_from_list(content, what="content")
+    children_list = _subsystem_names_from_list(children, what="children")
     obj = CatalogObject(
         name=name,
         synonym=synonym,
@@ -359,6 +374,9 @@ def catalog_from_parts(
         dimensions=dimensions,
         resources=resources,
         type=obj_type,
+        content=content_list,
+        children=children_list,
+        include_in_command_interface=include_in_command_interface,
         **flags,
     )
     _validate_create_shape(obj)
@@ -410,6 +428,12 @@ def catalog_from_json(
     dimensions = _attributes_from_json_list(list(data.get("dimensions") or []))
     resources = _attributes_from_json_list(list(data.get("resources") or []))
     flags = _common_module_flags_from_json(data)
+    content_list = _subsystem_qnames_from_list(data.get("content"), what="content")
+    children_list = _subsystem_names_from_list(data.get("children"), what="children")
+    include_ci = _optional_bool(
+        data.get("includeInCommandInterface"),
+        field="includeInCommandInterface",
+    )
     obj = CatalogObject(
         name=name,
         synonym=synonym_s,
@@ -419,6 +443,9 @@ def catalog_from_json(
         dimensions=dimensions,
         resources=resources,
         type=obj_type,
+        content=content_list,
+        children=children_list,
+        include_in_command_interface=include_ci,
         **flags,
     )
     _validate_create_shape(obj)
@@ -521,6 +548,7 @@ def _validate_create_shape(obj: CatalogObject) -> None:
                 code="1CM004",
             )
         _reject_common_module_flags(obj, type_name="Enum")
+        _reject_subsystem_fields(obj, type_name="Enum")
         return
     if obj.type in _REGISTER_TYPES:
         if obj.attributes or obj.tabular_sections or obj.values:
@@ -529,6 +557,7 @@ def _validate_create_shape(obj: CatalogObject) -> None:
                 code="1CM004",
             )
         _reject_common_module_flags(obj, type_name=obj.type)
+        _reject_subsystem_fields(obj, type_name=obj.type)
         return
     if obj.type == "CommonModule":
         if (
@@ -543,6 +572,7 @@ def _validate_create_shape(obj: CatalogObject) -> None:
                 "values / dimensions / resources",
                 code="1CM004",
             )
+        _reject_subsystem_fields(obj, type_name="CommonModule")
         if (
             obj.return_values_reuse is not None
             and obj.return_values_reuse not in _RETURN_VALUES_REUSE
@@ -552,6 +582,21 @@ def _validate_create_shape(obj: CatalogObject) -> None:
                 code="1CM004",
             )
         return
+    if obj.type == "Subsystem":
+        if (
+            obj.attributes
+            or obj.tabular_sections
+            or obj.values
+            or obj.dimensions
+            or obj.resources
+        ):
+            raise IrError(
+                "Subsystem не поддерживает attributes / tabularSections / "
+                "values / dimensions / resources",
+                code="1CM004",
+            )
+        _reject_common_module_flags(obj, type_name="Subsystem")
+        return
     # Catalog / Document
     if obj.values or obj.dimensions or obj.resources:
         raise IrError(
@@ -559,6 +604,7 @@ def _validate_create_shape(obj: CatalogObject) -> None:
             code="1CM004",
         )
     _reject_common_module_flags(obj, type_name=obj.type)
+    _reject_subsystem_fields(obj, type_name=obj.type)
 
 
 def _reject_common_module_flags(obj: CatalogObject, *, type_name: str) -> None:
@@ -571,6 +617,77 @@ def _reject_common_module_flags(obj: CatalogObject, *, type_name: str) -> None:
             "(server / client / … / returnValuesReuse)",
             code="1CM004",
         )
+
+
+def _reject_subsystem_fields(obj: CatalogObject, *, type_name: str) -> None:
+    if (
+        obj.content
+        or obj.children
+        or obj.include_in_command_interface is not None
+    ):
+        raise IrError(
+            f"{type_name} не поддерживает поля Subsystem "
+            "(content / children / includeInCommandInterface)",
+            code="1CM004",
+        )
+
+
+def _subsystem_qnames_from_list(raw: Any, *, what: str) -> list[str]:
+    """Parse content[] of Type.Name strings."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise IrError(f"{what} должен быть массивом строк", code="1CM004")
+    result: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        if not isinstance(item, str) or not item.strip():
+            raise IrError(
+                f"Элемент {what} должен быть непустой строкой Type.Name",
+                code="1CM004",
+            )
+        cleaned = item.strip()
+        if "." not in cleaned or cleaned.count(".") != 1:
+            raise IrError(
+                f"Элемент {what} должен быть QualifiedName Type.Name, "
+                f"получено: {item!r}",
+                code="1CM004",
+            )
+        type_part, name_part = cleaned.split(".", 1)
+        if not type_part or not name_part:
+            raise IrError(
+                f"Элемент {what} должен быть QualifiedName Type.Name, "
+                f"получено: {item!r}",
+                code="1CM004",
+            )
+        _check_name(name_part, what=f"имени в {what}")
+        if cleaned in seen:
+            raise IrError(f"Дублирующийся элемент {what}: {cleaned!r}", code="1CM004")
+        seen.add(cleaned)
+        result.append(cleaned)
+    return result
+
+
+def _subsystem_names_from_list(raw: Any, *, what: str) -> list[str]:
+    """Parse children[] of bare subsystem names."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise IrError(f"{what} должен быть массивом строк", code="1CM004")
+    result: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        if not isinstance(item, str):
+            raise IrError(
+                f"Элемент {what} должен быть строкой (имя подсистемы)",
+                code="1CM004",
+            )
+        name = _check_name(item, what=f"имени в {what}")
+        if name in seen:
+            raise IrError(f"Дублирующийся элемент {what}: {name!r}", code="1CM004")
+        seen.add(name)
+        result.append(name)
+    return result
 
 
 def _enum_values_from_json(raw: Any) -> list[EnumValue]:

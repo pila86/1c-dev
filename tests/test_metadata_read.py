@@ -270,6 +270,134 @@ def test_common_module_get_flags_roundtrip(tmp_path: Path) -> None:
     assert got2.ir["returnValuesReuse"] == "DuringRequest"
 
 
+def test_get_subsystem_full_ir_mock(tmp_path: Path) -> None:
+    """Smoke: md-reader full IR for Subsystem content/children (#62)."""
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    def fake_read(command: str, source_dir: Path, args: tuple[str, ...]) -> dict[str, Any]:
+        assert command == "get"
+        assert args == ("Subsystem.Main",)
+        return {
+            "status": "ok",
+            "object": {
+                "type": "Subsystem",
+                "name": "Main",
+                "qname": "Subsystem.Main",
+                "synonym": "Главная",
+                "content": ["Catalog.Products"],
+                "children": ["Sales"],
+                "includeInCommandInterface": True,
+            },
+        }
+
+    result = get_metadata(target, "Subsystem.Main", read_fn=fake_read)
+    assert result.status == "ok"
+    assert result.object == "Subsystem.Main"
+    assert result.ir is not None
+    assert result.ir["content"] == ["Catalog.Products"]
+    assert result.ir["children"] == ["Sales"]
+    assert result.ir["includeInCommandInterface"] is True
+
+
+def _local_md_reader_jar() -> Path | None:
+    """Prefer freshly built md-reader jar from tools/ (Subsystem full IR)."""
+    built = (
+        Path(__file__).resolve().parents[1]
+        / "tools"
+        / "md-reader"
+        / "build"
+        / "libs"
+        / "md-reader.jar"
+    )
+    return built if built.is_file() else None
+
+
+@pytest.mark.integration
+def test_subsystem_get_full_ir_roundtrip(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """create → get full IR → update → get → delete (#62)."""
+    from adapters.source.xmlgen import EditOp
+    from adapters.source.xmlgen.resolve import resolve_jar as resolve_xmlgen
+    from adapters.source.xmlgen.resolve import resolve_java as resolve_java_xml
+    from core.metadata import (
+        catalog_from_parts,
+        create_metadata,
+        delete_metadata,
+        update_metadata,
+    )
+
+    local_jar = _local_md_reader_jar()
+    if local_jar is not None:
+        monkeypatch.setenv("ONEC_MDREADER_JAR", str(local_jar))
+
+    java = resolve_java()
+    jar = resolve_jar()
+    if not java.found or not jar.found:
+        pytest.skip(
+            "md-reader jar / Java 21+ недоступны (запустите scripts/fetch-md-reader.sh)"
+        )
+    xmlgen = resolve_xmlgen()
+    if not xmlgen.found or not resolve_java_xml().found:
+        pytest.skip("xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh)")
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    init_project(target, project_type="configuration", name="Shop")
+
+    cat = create_metadata(
+        target,
+        catalog_from_parts(qualified_name="Catalog.Products", synonym="Товары"),
+    )
+    assert cat.status == "ok", cat.diagnostics
+
+    created = create_metadata(
+        target,
+        catalog_from_parts(
+            qualified_name="Subsystem.Main",
+            synonym="Главная",
+            include_in_command_interface=True,
+        ),
+    )
+    assert created.status == "ok", created.diagnostics
+
+    got = get_metadata(target, "Subsystem.Main")
+    assert got.status == "ok", got.diagnostics
+    assert got.ir is not None
+    assert got.ir["type"] == "Subsystem"
+    assert got.ir["name"] == "Main"
+    assert got.ir.get("content") == []
+    assert got.ir.get("children") == []
+    assert got.ir.get("includeInCommandInterface") is True
+
+    updated = update_metadata(
+        target,
+        "Subsystem.Main",
+        [
+            EditOp("add-content", "Catalog.Products"),
+            EditOp("add-child", "Sales"),
+            EditOp("set-property", "IncludeInCommandInterface=false"),
+        ],
+    )
+    assert updated.status == "ok", updated.diagnostics
+
+    got2 = get_metadata(target, "Subsystem.Main")
+    assert got2.status == "ok", got2.diagnostics
+    assert got2.ir is not None
+    assert "Catalog.Products" in (got2.ir.get("content") or [])
+    assert "Sales" in (got2.ir.get("children") or [])
+    assert got2.ir.get("includeInCommandInterface") is False
+
+    deleted = delete_metadata(target, "Subsystem.Main")
+    assert deleted.status == "ok", deleted.diagnostics
+    assert not (target / "src" / "cf" / "Subsystems" / "Main.xml").is_file()
+    cfg = (target / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8-sig")
+    assert "<Subsystem>Main</Subsystem>" not in cfg
+
+
 @pytest.mark.integration
 def test_read_with_real_md_reader(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     java = resolve_java()
