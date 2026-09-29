@@ -226,7 +226,9 @@ def register_tools(server: FastMCP) -> None:
             "(load → apply → export). Ensures empty .1c-dev/project.yaml "
             "(schema 2) if missing; registers configuration + runtime when "
             "needed (same path as configuration.add, without empty XML scaffold). "
-            "Refuses to overwrite existing Configuration.xml unless force=true. "
+            "Provide either from_path (.cf file) or from_template (id from "
+            "templates.list with Source .cf). Refuses to overwrite existing "
+            "Configuration.xml unless force=true. "
             "Set break_support=true to strip ParentConfigurations* support "
             "artifacts after export (vendor update will no longer be possible). "
             "Does not write AGENTS.md or IDE MCP configs (use ide.configure for that)."
@@ -235,7 +237,8 @@ def register_tools(server: FastMCP) -> None:
         ),
     )
     def configuration_import_tool(
-        from_path: str,
+        from_path: str | None = None,
+        from_template: str | None = None,
         path: str | None = None,
         id: str | None = None,
         source_path: str | None = None,
@@ -246,6 +249,7 @@ def register_tools(server: FastMCP) -> None:
         result = run_import(
             resolve_path(path),
             from_path=from_path,
+            from_template=from_template,
             force=force,
             break_support=break_support,
             config_id=id,

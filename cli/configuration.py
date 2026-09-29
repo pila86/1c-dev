@@ -26,8 +26,10 @@ from core.import_cf.constants import (
     CODE_EXPORT_MISSING,
     CODE_IBCMD_MISSING,
     CODE_PROJECT,
+    CODE_TEMPLATE_SOURCE,
 )
 from core.project.result import ProjectResult
+from core.templates import CODE_NOT_FOUND as CODE_TEMPLATE_NOT_FOUND
 
 app = typer.Typer(
     name="configuration",
@@ -160,6 +162,8 @@ def _import_exit_for(result: ImportResult) -> None:
         CODE_CF_MISSING,
         CODE_PROJECT,
         CODE_DIRTY_SOURCE,
+        CODE_TEMPLATE_SOURCE,
+        CODE_TEMPLATE_NOT_FOUND,
     }:
         raise typer.Exit(code=PROJECT_ERROR)
     if codes & {CODE_IBCMD_FAILED, CODE_EXPORT_MISSING}:
@@ -215,14 +219,19 @@ def _import_text(result: ImportResult) -> list[str]:
 @app.command("import")
 def configuration_import_command(
     ctx: typer.Context,
-    from_path: Path = typer.Option(
-        ...,
+    from_path: Path | None = typer.Option(
+        None,
         "--from",
         help="Путь к файлу конфигурации (.cf).",
         exists=False,
         dir_okay=False,
         file_okay=True,
         resolve_path=False,
+    ),
+    from_template: str | None = typer.Option(
+        None,
+        "--from-template",
+        help="Id шаблона платформы (templates.list) — Source .cf.",
     ),
     config_id: str | None = typer.Option(
         None,
@@ -259,6 +268,7 @@ def configuration_import_command(
     result = run_import(
         Path.cwd(),
         from_path=from_path,
+        from_template=from_template,
         force=force,
         break_support=break_support,
         config_id=config_id,
