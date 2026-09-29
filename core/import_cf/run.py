@@ -28,6 +28,7 @@ from core.import_cf.constants import (
     CODE_EXPORT_MISSING,
     CODE_IBCMD_MISSING,
     CODE_PROJECT,
+    CODE_TEMPLATE_SOURCE,
 )
 from core.import_cf.result import ImportResult
 from core.project.constants import (
@@ -50,9 +51,11 @@ from core.project.paths import (
 )
 from core.project.resolve import resolve_config_runtime
 from core.project.validate import validate_project
+from core.templates import TemplatesGetResult, templates_get
 
 ImportFn = Callable[..., list[str]]
 LoadFn = Callable[..., list[str]]
+TemplatesGetFn = Callable[..., TemplatesGetResult]
 
 _PLACEHOLDER_RE = re.compile(r"\{\{(\w+)\}\}")
 
@@ -118,10 +121,80 @@ def _conf_ids(data: dict[str, Any]) -> set[str]:
     return ids
 
 
+def _resolve_cf_from_template(
+    template_id: str,
+    *,
+    root: Path,
+    started: float,
+    templates_get_fn: TemplatesGetFn,
+) -> tuple[Path | None, ImportResult | None]:
+    """Resolve --from-template to a .cf path, or return a failed ImportResult."""
+    got = templates_get_fn(template_id)
+    if got.status != "ok" or got.template is None:
+        return None, ImportResult(
+            status="failed",
+            duration=time.perf_counter() - started,
+            root=root,
+            diagnostics=list(got.diagnostics)
+            or [
+                error(
+                    f"Шаблон не найден: {template_id}",
+                    code=CODE_TEMPLATE_SOURCE,
+                    source="templates",
+                    suggestion="Вызовите templates.list и передайте id из результата.",
+                )
+            ],
+        )
+
+    tmpl = got.template
+    kind = tmpl.source_kind
+    if kind != "cf":
+        kind_label = kind or "unknown"
+        suggestion = (
+            "Seed ИБ из .dt шаблона — should (#95); "
+            "выберите секцию Source с .cf через templates.list --source-kind cf."
+            if kind == "dt"
+            else "configuration.import --from-template поддерживает только Source .cf."
+        )
+        return None, ImportResult(
+            status="failed",
+            duration=time.perf_counter() - started,
+            root=root,
+            diagnostics=[
+                error(
+                    f"Шаблон {template_id}: Source kind={kind_label!r}, ожидается cf",
+                    code=CODE_TEMPLATE_SOURCE,
+                    source="templates",
+                    suggestion=suggestion,
+                )
+            ],
+        )
+
+    if tmpl.source_path is None or not tmpl.source_path.is_file():
+        missing = tmpl.source_path or tmpl.source or "(нет Source)"
+        return None, ImportResult(
+            status="failed",
+            duration=time.perf_counter() - started,
+            root=root,
+            from_path=tmpl.source_path,
+            diagnostics=[
+                error(
+                    f"Файл .cf шаблона не найден: {missing}",
+                    code=CODE_CF_MISSING,
+                    source="templates",
+                    suggestion="Проверьте каталог tmplts и Source в *.mft.",
+                )
+            ],
+        )
+
+    return tmpl.source_path.resolve(), None
+
+
 def run_import(
     start: Path | None = None,
     *,
-    from_path: Path | str,
+    from_path: Path | str | None = None,
+    from_template: str | None = None,
     force: bool = False,
     break_support: bool = False,
     config_id: str | None = None,
@@ -130,6 +203,7 @@ def run_import(
     run: RunFn | None = None,
     import_fn: ImportFn | None = None,
     discover: Callable[[], DiscoveryResult] | None = None,
+    templates_get_fn: TemplatesGetFn | None = None,
 ) -> ImportResult:
     """
     Import .cf into configuration XML source (configuration.import).
@@ -137,11 +211,55 @@ def run_import(
     Ensures empty scope if missing; registers conf/runtime when needed
     (same path as configuration.add, without empty XML scaffold).
     break_support: strip ParentConfigurations* after export (ADR-020).
+    from_template: resolve platform template id → .cf, then same pipeline.
     """
     started = time.perf_counter()
     root = (start or Path.cwd()).resolve()
     discover_fn = discover or discover_environment
-    cf_path = Path(from_path).expanduser().resolve()
+
+    template_id = (from_template or "").strip() or None
+    has_from = from_path is not None and str(from_path).strip() != ""
+    if template_id and has_from:
+        return ImportResult(
+            status="failed",
+            duration=time.perf_counter() - started,
+            root=root,
+            diagnostics=[
+                error(
+                    "Укажите либо --from, либо --from-template, не оба сразу",
+                    code=CODE_PROJECT,
+                    source="runtime",
+                    suggestion="Оставьте один источник: файл .cf или id шаблона.",
+                )
+            ],
+        )
+    if not template_id and not has_from:
+        return ImportResult(
+            status="failed",
+            duration=time.perf_counter() - started,
+            root=root,
+            diagnostics=[
+                error(
+                    "Не указан источник: --from <file.cf> или --from-template <id>",
+                    code=CODE_PROJECT,
+                    source="runtime",
+                    suggestion="Укажите путь к .cf или id из templates.list.",
+                )
+            ],
+        )
+
+    if template_id is not None:
+        cf_path, failed = _resolve_cf_from_template(
+            template_id,
+            root=root,
+            started=started,
+            templates_get_fn=templates_get_fn or templates_get,
+        )
+        if failed is not None:
+            return failed
+        assert cf_path is not None
+    else:
+        cf_path = Path(from_path).expanduser().resolve()  # type: ignore[arg-type]
 
     if not cf_path.is_file():
         return ImportResult(

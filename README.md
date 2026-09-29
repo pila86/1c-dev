@@ -71,6 +71,7 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 | `1c-dev templates roots\|list\|get` | Каталог шаблонов платформы (tmplts / `*.mft`) |
 | `1c-dev project detect\|validate\|info` | Манифест `.1c-dev/project.yaml` (`project init` = алиас `init`) |
 | `1c-dev configuration import --from <file.cf>` | Импорт `.cf` → XML source (`--force` перезаписывает; `--break-support` снимает с поддержки) |
+| `1c-dev configuration import --from-template <id>` | Импорт `.cf` из шаблона платформы (tmplts; id из `templates.list`) |
 | `1c-dev configuration add\|list\|get\|remove\|set-default` | Lifecycle конфигураций в scope |
 | `1c-dev source break-support` | Удалить `ParentConfigurations*` из `source.path` (без повторного import) |
 | `1c-dev project clean --yes` | Destructive: wipe `source.path` + `.1c-dev/runtime/` (манифест/IDE intact) |
