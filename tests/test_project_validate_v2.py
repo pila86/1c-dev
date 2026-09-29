@@ -1,4 +1,4 @@
-"""Tests for dual-schema validate (schema "1" / "2", ADR-022–026 / #85)."""
+"""Tests for schema \"2\" validate (ADR-022–026 / #85)."""
 
 from __future__ import annotations
 
@@ -69,25 +69,35 @@ def _two_default_configurations(data: dict[str, Any]) -> None:
     data["configurations"][1]["default"] = True
 
 
-def test_validate_manifest_schema1_ok() -> None:
-    assert validate_manifest(_load_fixture("valid_1c.project.yaml")) == []
-
-
-def test_validate_manifest_schema1_invalid() -> None:
-    diags = validate_manifest(_load_fixture("invalid_1c.project.yaml"))
-    assert diags
-    assert all(d.get("code") == "1CP003" for d in diags)
-
-
 def test_validate_manifest_schema2_ok() -> None:
     assert validate_manifest(_load_fixture("valid_1c.project.v2.yaml")) == []
 
 
+def test_validate_manifest_schema2_invalid() -> None:
+    diags = validate_manifest(_load_fixture("invalid_1c.project.v2.yaml"))
+    assert diags
+    assert all(d.get("code") == "1CP003" for d in diags)
+
+
 def test_validate_manifest_unsupported_schema() -> None:
-    data = _load_fixture("valid_1c.project.yaml")
+    data = _load_fixture("valid_1c.project.v2.yaml")
     data["schema"] = "99"
     diags = validate_manifest(data)
     assert len(diags) == 1
+    assert diags[0]["code"] == "1CP003"
+    assert "неподдерживаемая версия" in diags[0]["message"]
+
+
+def test_validate_manifest_schema1_rejected() -> None:
+    data = {
+        "schema": "1",
+        "project": {"name": "shop", "type": "configuration"},
+        "platform": {"version": "8.3.27"},
+        "source": {"format": "xml", "path": "src/cf"},
+        "runtime": {"type": "file", "path": ".runtime/ib"},
+    }
+    diags = validate_manifest(data)
+    assert diags
     assert diags[0]["code"] == "1CP003"
     assert "неподдерживаемая версия" in diags[0]["message"]
 

@@ -1,22 +1,21 @@
-"""Locate project manifest: ``.1c-dev/project.yaml`` or legacy ``1c.project.yaml``."""
+"""Locate project manifest: ``.1c-dev/project.yaml`` only (ADR-022)."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from core.diagnostics import error, warning
+from core.diagnostics import error
 from core.project.constants import (
     CODE_LEGACY_MANIFEST,
     DEFAULT_LIST_DEPTH,
     HOME_DIR_NAME,
     HOME_MANIFEST_NAME,
     HOME_MANIFEST_REL,
-    LEGACY_MANIFEST_NAME,
     MANIFEST_NAME,
+    UNSUPPORTED_ROOT_MANIFEST_NAME,
 )
 from core.project.load import load_manifest
 from core.project.paths import (
-    is_home_manifest,
     project_home,
     runtimes_summary,
     scope_root_from_manifest,
@@ -32,30 +31,39 @@ __all__ = [
 ]
 
 
-def _prefer_home_then_legacy(directory: Path) -> tuple[Path | None, bool]:
-    """Return (manifest_path, is_legacy) for a single directory."""
+def _home_manifest(directory: Path) -> Path | None:
     home = directory / HOME_DIR_NAME / HOME_MANIFEST_NAME
-    if home.is_file():
-        return home, False
-    legacy = directory / LEGACY_MANIFEST_NAME
-    if legacy.is_file():
-        return legacy, True
-    return None, False
+    return home if home.is_file() else None
+
+
+def _unsupported_root_manifest(directory: Path) -> Path | None:
+    legacy = directory / UNSUPPORTED_ROOT_MANIFEST_NAME
+    return legacy if legacy.is_file() else None
 
 
 def detect_manifest(start: Path | None = None) -> Path | None:
-    """Искать манифест от start (по умолчанию CWD) вверх по родителям.
-
-    Сначала ``.1c-dev/project.yaml``, иначе legacy ``1c.project.yaml``.
+    """Искать ``.1c-dev/project.yaml`` от start (по умолчанию CWD) вверх.
 
     Returns:
         Абсолютный путь к найденному файлу или None.
     """
     current = (start or Path.cwd()).resolve()
     for directory in (current, *current.parents):
-        path, _legacy = _prefer_home_then_legacy(directory)
+        path = _home_manifest(directory)
         if path is not None:
             return path
+    return None
+
+
+def _find_unsupported_root(start: Path | None = None) -> Path | None:
+    """Если home нет, но вверх есть корневой ``1c.project.yaml`` — вернуть его."""
+    current = (start or Path.cwd()).resolve()
+    for directory in (current, *current.parents):
+        if _home_manifest(directory) is not None:
+            return None
+        legacy = _unsupported_root_manifest(directory)
+        if legacy is not None:
+            return legacy
     return None
 
 
@@ -63,12 +71,29 @@ def detect_project(start: Path | None = None) -> ProjectResult:
     """Найти манифест; при успехе вернуть path/root/home и краткие поля."""
     path = detect_manifest(start)
     if path is None:
+        unsupported = _find_unsupported_root(start)
+        if unsupported is not None:
+            return ProjectResult(
+                status="error",
+                path=unsupported,
+                root=unsupported.parent,
+                diagnostics=[
+                    error(
+                        f"Корневой манифест {UNSUPPORTED_ROOT_MANIFEST_NAME} "
+                        f"больше не поддерживается; нужен layout "
+                        f"{HOME_MANIFEST_REL} (schema \"2\")",
+                        code=CODE_LEGACY_MANIFEST,
+                        file=UNSUPPORTED_ROOT_MANIFEST_NAME,
+                        source="project",
+                        suggestion="1c-dev project init",
+                    )
+                ],
+            )
         return ProjectResult(
             status="error",
             diagnostics=[
                 error(
-                    f"Манифест проекта не найден "
-                    f"({HOME_MANIFEST_REL} или {LEGACY_MANIFEST_NAME})",
+                    f"Манифест проекта не найден ({HOME_MANIFEST_REL})",
                     code="1CP001",
                     file=HOME_MANIFEST_REL,
                 )
@@ -76,28 +101,14 @@ def detect_project(start: Path | None = None) -> ProjectResult:
         )
 
     root = scope_root_from_manifest(path)
-    home = project_home(root) if is_home_manifest(path) else None
-    diagnostics = []
-    if not is_home_manifest(path):
-        diagnostics.append(
-            warning(
-                f"Обнаружен legacy манифест {LEGACY_MANIFEST_NAME}; "
-                f"предпочтителен layout {HOME_MANIFEST_REL} (schema \"2\")",
-                code=CODE_LEGACY_MANIFEST,
-                file=LEGACY_MANIFEST_NAME,
-                source="project",
-                suggestion="1c-dev project migrate (should) или init в новом scope",
-            )
-        )
-
     data, _ = load_manifest(path)
     return ProjectResult(
         status="ok",
         path=path,
         root=root,
-        home=home,
+        home=project_home(root),
         manifest=data,
-        diagnostics=diagnostics,
+        diagnostics=[],
         runtimes=runtimes_summary(data) if data else [],
     )
 
@@ -109,7 +120,7 @@ def list_projects(
 ) -> list[ProjectResult]:
     """Сканировать вниз от start в поисках ``.1c-dev/project.yaml`` (monorepo).
 
-    Ограничение глубины относительно start. Legacy корневые манифесты не ищет.
+    Ограничение глубины относительно start.
     """
     root = (start or Path.cwd()).resolve()
     if not root.is_dir():
@@ -127,7 +138,6 @@ def list_projects(
         "build",
         "dist",
         HOME_DIR_NAME,
-        ".runtime",
         ".cache",
     }
 

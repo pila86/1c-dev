@@ -13,10 +13,9 @@
 2. **Манифест** = `.1c-dev/project.yaml` (schema `"2"`, см. ADR-023/026).
 3. **Scope root** = родитель `.1c-dev/`. Все relative-пути в манифесте считаются от scope root.
 4. Эфемерное по умолчанию под home: `.1c-dev/runtime/`, `.1c-dev/publish/`.
-5. **Detect:** вверх от CWD/`path` искать `.1c-dev/project.yaml`. Если найден legacy корневой `1c.project.yaml` (schema `"1"`) — работать с warning; init/import пишут только новый layout.
+5. **Detect:** вверх от CWD/`path` искать только `.1c-dev/project.yaml`. Корневой `1c.project.yaml` (schema `"1"`) **не поддерживается** — ошибка `1CP016`, suggestion `project.init`. Init/import пишут только новый layout. Миграции (`project migrate`) нет.
 6. **`project.list`:** от переданного корня сканировать вниз на ограниченную глубину в поисках `.1c-dev/project.yaml` (monorepo).
 7. **`ide configure`:** флаги `--project` (scope) и `--ide-root` (куда писать `.cursor` / `.kilo`); по умолчанию ide-root = scope; в monorepo указывают git/workspace root. Не затирать чужой корневой `AGENTS.md` без явного opt-in.
-8. Should: `project migrate` — перенос legacy манифеста в `.1c-dev/` + один элемент `runtimes[]`.
 
 Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json). Milestone: [M4](../milestones/m4-project-model.md).
 
@@ -30,7 +29,7 @@ Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2
 
 ## Последствия
 
-- Supersede path-assumptions в ADR-004/006/016/021 при реализации project home (#86); validate schema `"2"` уже в коде (#85).
+- Supersede path-assumptions в ADR-004/006/016/021 при реализации project home (#86); validate schema `"2"` (#85). Dual-compat schema `"1"` / корневой `1c.project.yaml` снят (closed #93 as not planned).
 - MCP descriptions: `path` = scope root (родитель `.1c-dev`).
 - Clean не трогает git root вне scope; wipe source — отдельный confirm.
 

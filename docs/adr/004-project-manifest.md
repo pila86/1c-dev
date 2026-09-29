@@ -11,9 +11,9 @@
 
 ### Контракт
 
-Источник истины — [`schemas/1c.project.schema.json`](../../schemas/1c.project.schema.json) (JSON Schema draft 2020-12).
+Источник истины (M1, исторический): schema `"1"` / корневой `1c.project.yaml`. **С M4** актуальный контракт — [`.1c-dev/project.yaml`](../../schemas/1c.project.schema.v2.json) schema `"2"` ([ADR-022](022-project-home.md)). Schema `"1"` и корневой манифест **не поддерживаются**.
 
-Обязательные секции для M1:
+Обязательные секции для M1 (архив):
 
 | Секция | Поля | Заметки |
 |--------|------|---------|
@@ -61,7 +61,7 @@ runtime:
 - `project init` (#4) должен генерировать манифест, валидный по этой schema.
 - Расширение (`runtime.type: server`, lockfile) — через bump `schema` или additive optional fields + ADR.
 - MCP `project.get` / `project.validate` (#6) переиспользуют `core/project`.
-- **M4:** schema `"2"` (`configurations[]`, `runtimes[]`) валидируется dual-compat с `"1"` — [ADR-022](022-project-home.md), [ADR-026](026-runtimes-array.md); [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json). Layout `.1c-dev/project.yaml` — [#86](https://github.com/pila86/1c-dev/issues/86). Контракт schema `"1"` / корневой `1c.project.yaml` остаётся рабочим.
+- **M4:** schema `"2"` (`configurations[]`, `runtimes[]`) — [ADR-022](022-project-home.md), [ADR-026](026-runtimes-array.md); [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json). Layout только `.1c-dev/project.yaml` (#86). Dual-compat / `project migrate` (#93) — **сняты** (not planned).
 
 ## Связанные решения
 

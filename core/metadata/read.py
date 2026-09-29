@@ -10,6 +10,7 @@ from adapters.source.mdclasses import MdReaderError, fetch_script_suggestion, ru
 from core.diagnostics import error
 from core.metadata.ir import summary_from_dict
 from core.metadata.result import MetadataResult
+from core.project.constants import HOME_MANIFEST_REL
 from core.project.detect import detect_manifest
 from core.project.load import load_manifest
 from core.project.paths import scope_root_from_manifest
@@ -37,7 +38,7 @@ def _resolve_source(
             status="error",
             diagnostics=[
                 error(
-                    "Файл 1c.project.yaml не найден",
+                    f"Файл {HOME_MANIFEST_REL} не найден",
                     code="1CM001",
                     source="metadata",
                     suggestion="Выполните 1c-dev init --type configuration",

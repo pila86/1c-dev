@@ -22,7 +22,7 @@ from core.project.constants import (
     CODE_LEGACY_MANIFEST,
     HOME_DIR_NAME,
     HOME_MANIFEST_REL,
-    LEGACY_MANIFEST_NAME,
+    UNSUPPORTED_ROOT_MANIFEST_NAME,
 )
 
 runner = CliRunner()
@@ -49,29 +49,33 @@ def test_detect_home_manifest_nested(tmp_path: Path) -> None:
     assert not any(d.get("code") == CODE_LEGACY_MANIFEST for d in result.diagnostics)
 
 
-def test_detect_legacy_manifest_with_warning(tmp_path: Path) -> None:
-    shutil.copy(FIXTURES / "valid_1c.project.yaml", tmp_path / LEGACY_MANIFEST_NAME)
+def test_detect_unsupported_root_manifest(tmp_path: Path) -> None:
+    (tmp_path / UNSUPPORTED_ROOT_MANIFEST_NAME).write_text(
+        'schema: "1"\nproject:\n  name: old\n',
+        encoding="utf-8",
+    )
     child = tmp_path / "nested"
     child.mkdir()
-    found = detect_manifest(child)
-    assert found == tmp_path / LEGACY_MANIFEST_NAME
+    assert detect_manifest(child) is None
 
     result = detect_project(child)
-    assert result.status == "ok"
-    assert result.root == tmp_path
-    assert result.home is None
+    assert result.status == "error"
+    assert result.path == tmp_path / UNSUPPORTED_ROOT_MANIFEST_NAME
     assert any(d.get("code") == CODE_LEGACY_MANIFEST for d in result.diagnostics)
-    payload = result.to_payload()
-    assert "diagnostics" in payload
+    assert any("больше не поддерживается" in d["message"] for d in result.diagnostics)
 
 
-def test_detect_prefers_home_over_legacy(tmp_path: Path) -> None:
-    shutil.copy(FIXTURES / "valid_1c.project.yaml", tmp_path / LEGACY_MANIFEST_NAME)
+def test_detect_home_ignores_root_manifest(tmp_path: Path) -> None:
+    (tmp_path / UNSUPPORTED_ROOT_MANIFEST_NAME).write_text(
+        'schema: "1"\nproject:\n  name: old\n',
+        encoding="utf-8",
+    )
     home = tmp_path / HOME_DIR_NAME
     home.mkdir()
     shutil.copy(FIXTURES / "valid_1c.project.v2.yaml", home / "project.yaml")
     found = detect_manifest(tmp_path)
     assert found == home / "project.yaml"
+    assert detect_project(tmp_path).status == "ok"
     assert detect_project(tmp_path).home == home
 
 
@@ -84,7 +88,7 @@ def test_init_writes_schema2_home_layout(tmp_path: Path) -> None:
     assert result.root == target
     assert result.home == target / HOME_DIR_NAME
     assert (target / HOME_MANIFEST_REL).is_file()
-    assert not (target / LEGACY_MANIFEST_NAME).exists()
+    assert not (target / UNSUPPORTED_ROOT_MANIFEST_NAME).exists()
     assert (target / ".1c-dev" / "runtime").is_dir()
     assert result.manifest is not None
     assert result.manifest["schema"] == "2"

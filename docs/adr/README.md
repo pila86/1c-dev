@@ -33,7 +33,7 @@
 | [019](019-runtime-client-lifecycle.md) | Accepted | Runtime client lifecycle (`start` / `stop` / `status`, `/Debug`) |
 | [020](020-break-support.md) | Accepted | Снятие конфигурации с поддержки (XML / `--break-support`) |
 | [021](021-project-clean.md) | Accepted | Product API: `project.clean` (source + runtime) |
-| [022](022-project-home.md) | Accepted | Project home `.1c-dev/` (scope root, dual detect) |
+| [022](022-project-home.md) | Accepted | Project home `.1c-dev/` (scope root; schema `"2"` only) |
 | [023](023-multi-config-extensions.md) | Accepted | Multi-configuration + extensions |
 | [024](024-platform-templates.md) | Accepted | Platform templates (tmplts / `*.mft`) |
 | [025](025-publish-backends.md) | Accepted | Publish backends (ibsrv / webinst) |

@@ -1,0 +1,17 @@
+schema: "2"
+project:
+  name: broken
+platform:
+  version: "8.3.27"
+configurations:
+  - id: main
+    type: not-a-real-type
+    source:
+      format: xml
+      path: src/cf
+runtimes:
+  - id: main
+    configuration: main
+    type: file
+    path: .1c-dev/runtime/main
+    default: true

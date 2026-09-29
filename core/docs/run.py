@@ -19,6 +19,7 @@ from adapters.docs import (
 from adapters.platform import discover_environment
 from core.diagnostics import Diagnostic, error, info
 from core.docs.result import DocsResult
+from core.project.constants import HOME_MANIFEST_REL
 from core.project.detect import detect_manifest
 from core.project.init import platform_version_for_manifest
 from core.project.load import load_manifest
@@ -40,7 +41,7 @@ def _project_context(start: Path | None) -> DocsResult | tuple[Path, str]:
             status="error",
             diagnostics=[
                 error(
-                    "Файл 1c.project.yaml не найден",
+                    f"Файл {HOME_MANIFEST_REL} не найден",
                     code="1CX001",
                     source="docs",
                     suggestion="Выполните 1c-dev init --type configuration",

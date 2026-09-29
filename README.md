@@ -68,10 +68,10 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 | `1c-dev init --type extension` | Bootstrap standalone-проекта расширения (`src/cfe/<name>/`) |
 | `1c-dev extension add [--id] [--name] [--purpose] [--config]` | Добавить расширение в configuration-проект |
 | `1c-dev extension list [--config] [--runtime]` | Список расширений в выбранной file IB |
-| `1c-dev project detect\|validate\|info` | Манифест `.1c-dev/project.yaml` / legacy (`project init` = алиас `init`) |
+| `1c-dev project detect\|validate\|info` | Манифест `.1c-dev/project.yaml` (`project init` = алиас `init`) |
 | `1c-dev project import --from <file.cf>` | Импорт `.cf` → XML source (`--force` перезаписывает; `--break-support` снимает с поддержки) |
 | `1c-dev source break-support` | Удалить `ParentConfigurations*` из `source.path` (без повторного import) |
-| `1c-dev project clean --yes` | Destructive: wipe `source.path` + `.runtime/` (манифест/IDE intact) |
+| `1c-dev project clean --yes` | Destructive: wipe `source.path` + `.1c-dev/runtime/` (манифест/IDE intact) |
 | `1c-dev runtime load --from <file.cf>` | Загрузка `.cf` в file IB без export XML |
 | `1c-dev runtime start [--client thick|thin] [--debug]` | Запуск клиента (ENTERPRISE) к file IB |
 | `1c-dev runtime stop` | Остановка клиента |

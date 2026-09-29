@@ -12,8 +12,8 @@ from core.project.constants import (
     CODE_RUNTIME_AMBIGUOUS,
     CODE_RUNTIME_CONFIG_MISMATCH,
     CODE_RUNTIME_UNKNOWN,
-    DEFAULT_CONFIG_ID,
-    LEGACY_RUNTIME_DIR_NAME,
+    DEFAULT_RUNTIME_ID,
+    HOME_RUNTIME_DIR_NAME,
 )
 
 
@@ -43,7 +43,11 @@ def _source_from_conf(conf: dict[str, Any]) -> tuple[str, str | None]:
 
 def _runtime_fields(rt: dict[str, Any]) -> tuple[str, str]:
     path = rt.get("path")
-    rel = path if isinstance(path, str) and path else f"{LEGACY_RUNTIME_DIR_NAME}/ib"
+    rel = (
+        path
+        if isinstance(path, str) and path
+        else f"{HOME_RUNTIME_DIR_NAME}/{DEFAULT_RUNTIME_ID}"
+    )
     raw_type = rt.get("type")
     rtype = raw_type if isinstance(raw_type, str) and raw_type else "file"
     return rel, rtype
@@ -227,66 +231,6 @@ def _target_from(
     )
 
 
-def _resolve_schema1(
-    data: dict[str, Any],
-    *,
-    config_id: str | None,
-    runtime_id: str | None,
-    require_runtime: bool,
-) -> tuple[ResolvedTarget | None, list[Diagnostic]]:
-    """Single source/runtime layout (schema \"1\")."""
-    syn_config_id = DEFAULT_CONFIG_ID
-    syn_runtime_id = "default"
-    if config_id is not None and config_id not in {syn_config_id, "default"}:
-        return None, [
-            error(
-                f"Неизвестная configuration id={config_id!r} "
-                f"(schema \"1\" поддерживает только {syn_config_id!r})",
-                code=CODE_CONFIG_UNKNOWN,
-                source="project",
-                suggestion="Уберите --config или укажите schema \"2\" с configurations[]",
-            )
-        ]
-    if runtime_id is not None and runtime_id not in {syn_runtime_id, syn_config_id}:
-        return None, [
-            error(
-                f"Неизвестный runtime id={runtime_id!r} "
-                f"(schema \"1\" поддерживает только {syn_runtime_id!r})",
-                code=CODE_RUNTIME_UNKNOWN,
-                source="project",
-                suggestion="Уберите --runtime или укажите schema \"2\" с runtimes[]",
-            )
-        ]
-
-    source_raw = data.get("source")
-    source: dict[str, Any] = source_raw if isinstance(source_raw, dict) else {}
-    source_rel = str(source.get("path") or "src/cf")
-    fmt = source.get("format")
-    source_format = str(fmt) if fmt is not None else None
-
-    runtime_raw = data.get("runtime")
-    runtime: dict[str, Any] = runtime_raw if isinstance(runtime_raw, dict) else {}
-    runtime_rel = str(runtime.get("path") or f"{LEGACY_RUNTIME_DIR_NAME}/ib")
-    runtime_type = str(runtime.get("type") or "file")
-
-    conf = {
-        "id": syn_config_id,
-        "type": "configuration",
-        "default": True,
-        "source": {"format": source_format or "xml", "path": source_rel},
-    }
-    rt = {
-        "id": syn_runtime_id,
-        "configuration": syn_config_id,
-        "type": runtime_type,
-        "path": runtime_rel,
-        "default": True,
-    }
-    if not require_runtime and runtime_id is None:
-        return _target_from(conf, None)
-    return _target_from(conf, rt)
-
-
 def resolve_config_runtime(
     data: dict[str, Any],
     *,
@@ -308,12 +252,16 @@ def resolve_config_runtime(
     ``runtime_id``; иначе поля runtime остаются ``None``.
     """
     if str(data.get("schema")) != "2":
-        return _resolve_schema1(
-            data,
-            config_id=config_id,
-            runtime_id=runtime_id,
-            require_runtime=require_runtime,
-        )
+        shown = data.get("schema")
+        return None, [
+            error(
+                f"Неподдерживаемая версия schema {shown!r} "
+                f"(ожидается \"2\" с configurations[] / runtimes[])",
+                code=CODE_CONFIG_UNKNOWN,
+                source="project",
+                suggestion="Используйте layout .1c-dev/project.yaml (schema \"2\")",
+            )
+        ]
 
     configurations = _list_dicts(data.get("configurations"))
     runtimes = _list_dicts(data.get("runtimes"))

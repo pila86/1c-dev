@@ -51,7 +51,7 @@ from core.project.result import ProjectResult
 
 app = typer.Typer(
     name="project",
-    help="Манифест проекта (.1c-dev/project.yaml / legacy 1c.project.yaml).",
+    help="Манифест проекта (.1c-dev/project.yaml).",
     add_completion=False,
     no_args_is_help=True,
 )
@@ -354,7 +354,7 @@ def project_detect(
     ctx: typer.Context,
     output: OutputOption = None,
 ) -> None:
-    """Найти манифест (.1c-dev/project.yaml или legacy) от текущего каталога вверх."""
+    """Найти манифест (.1c-dev/project.yaml) от текущего каталога вверх."""
     result = detect_project(Path.cwd())
     payload = result.to_payload(include_manifest=False)
     _emit(payload, resolve_output(ctx, output), text_lines=_detect_text(result))

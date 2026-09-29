@@ -24,7 +24,7 @@ def run_break_support(start: Path | None = None) -> BreakSupportResult:
     """
     Strip ParentConfigurations* from project source.path (no import).
 
-    Requires an existing 1c.project.yaml. Idempotent.
+    Requires an existing ``.1c-dev/project.yaml``. Idempotent.
     """
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()

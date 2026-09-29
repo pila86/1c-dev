@@ -29,8 +29,8 @@
 | Platform templates | Discovery tmplts / `1cestart.cfg`; parse `*.mft`; `templates.*` + `project.import --from-template` | [024](../adr/024-platform-templates.md) |
 | Publish | Фасад `publish.*`; MVP `ibsrv`; Apache/`webinst` вторым адаптером | [025](../adr/025-publish-backends.md) |
 | Runtimes | Массив `runtimes[]`: `{id, configuration, type, path, default?}`; ≥1 IB на configuration (когда conf есть); один global `default` | [026](../adr/026-runtimes-array.md) |
-| Schema | Манифест schema `"2"`; dual-compat с `"1"` в validate; empty arrays на empty scope (#100) | [`1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json) |
-| Compat | Dual detect: `.1c-dev/project.yaml`, иначе legacy `1c.project.yaml` + warning; `project migrate` — should | ADR-022 |
+| Schema | Манифест schema `"2"`; empty arrays на empty scope (#100) | [`1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json) |
+| Compat | Только `.1c-dev/project.yaml`; корневой `1c.project.yaml` → ошибка `1CP016`; migrate — **cancelled** (#93) | ADR-022 |
 | IDE root | `ide configure --ide-root` отдельно от scope root (monorepo / оркестратор) | ADR-022 / ADR-016 |
 | Drafts вне roadmap | EDT / Tests не нумеруются; файлы `draft-*` | [roadmap](../roadmap.md) |
 
@@ -99,7 +99,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 
 ### A. Project home и schema 2
 
-- Detect: вверх искать `.1c-dev/project.yaml`; legacy корневой `1c.project.yaml` — warning + работа.
+- Detect: вверх искать только `.1c-dev/project.yaml`; корневой `1c.project.yaml` — ошибка `1CP016` (без migrate).
 - `project.list`: сканирование вниз от path (ограниченная глубина) для monorepo.
 - **`project.init`:** только layout schema `"2"` (home + манифест + opt AGENTS/IDE); **без** scaffold XML configuration ([#100](https://github.com/pila86/1c-dev/issues/100)). Empty scope: `configurations: []`, `runtimes: []` — schema/validate OK.
 - Import пишут schema `"2"`; при необходимости создают/обновляют configuration + runtime через тот же путь, что `configuration.add`, либо явно документированный import-path.
@@ -143,7 +143,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 
 - AGENTS-шаблон: happy-path `init` → `configuration.add`; **не** путать вторую conf с `extension.add` / повторным `init`.
 - Integration: nested scope; ≥2 configurations с ≥1 IB каждая; extension build; templates; publish skip без platform.
-- Compat: legacy `1c.project.yaml` детектится.
+- Compat: корневой `1c.project.yaml` не поддерживается (`1CP016`).
 
 ## Agent workflows (целевые)
 
@@ -206,7 +206,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 
 - [ ] Layout `.1c-dev/project.yaml`; пути relative к scope root
 - [x] `runtimes[]`: связь ИБ↔configuration; validate ≥1 IB на config (когда conf есть); один global `default` (когда runtimes непусты)
-- [x] `project.init` создаёт empty scope (без XML conf); dual detect + warning на legacy
+- [x] `project.init` создаёт empty scope (без XML conf); detect только `.1c-dev/project.yaml`
 - [x] `configuration.add` / `list` (CLI+MCP): scaffold + манифест + runtime; вторая conf в том же scope
 - [x] `project.get` — summary состава configurations / runtimes / defaults
 - [ ] `configurations[]` + `extensions[]`; build в выбранную/default ИБ
@@ -221,7 +221,6 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 ### Should
 
 - [x] `project.init --config <name>` (сахар) и/или `configuration.remove` / `set-default` / `get`
-- [ ] `project migrate` legacy → `.1c-dev`
 - [ ] Publish Apache/`webinst`
 - [ ] Import `.cfe` в ИБ при поддержке платформы
 - [ ] Seed ИБ из `.dt` шаблона
@@ -244,7 +243,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 |---|------|--------|------------|
 | [#84](https://github.com/pila86/1c-dev/issues/84) | 0 | Spike: ibcmd `--extension` + ibsrv config/lifecycle (argv freeze) — [note](../spikes/084-ibcmd-extension-ibsrv.md) | — |
 | [#85](https://github.com/pila86/1c-dev/issues/85) | 1 | Schema `"2"` в коде + validate configurations/runtimes/publish + ADR 022–026 → Accepted | #84 |
-| [#86](https://github.com/pila86/1c-dev/issues/86) | 1 | Project home `.1c-dev`: detect/legacy, init/import, clean, `project.list`/`get`, MCP path | #85 |
+| [#86](https://github.com/pila86/1c-dev/issues/86) | 1 | Project home `.1c-dev`: detect, init/import, clean, `project.list`/`get`, MCP path | #85 |
 | [#87](https://github.com/pila86/1c-dev/issues/87) | 1 | Resolve `--config` / `--runtime` в build/runtime/clean/metadata + defaults | #86 |
 | [#88](https://github.com/pila86/1c-dev/issues/88) | 1 | Multi-config + extensions: scaffold, build в ИБ, `extension.list` | #84, #87 |
 | [#89](https://github.com/pila86/1c-dev/issues/89) | 1 | Publish ibsrv: adapter, `publish.*`, doctor ibsrv, артефакты `.1c-dev/publish/` | #84, #87 |
@@ -252,7 +251,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 | [#100](https://github.com/pila86/1c-dev/issues/100) | 1b | `project.init` без conf; `configuration.add|list|…`; `project.get` summary; empty schema arrays | #86, #88 |
 | [#91](https://github.com/pila86/1c-dev/issues/91) | 2 | Templates: discovery tmplts/mft, `templates.*`, doctor `templates` | #86 |
 | [#92](https://github.com/pila86/1c-dev/issues/92) | 2 | `project.import --from-template` для `.cf` из tmplts | #91 |
-| [#93](https://github.com/pila86/1c-dev/issues/93) | 3 | should: `project migrate` legacy → `.1c-dev` | #86 |
+| [#93](https://github.com/pila86/1c-dev/issues/93) | — | **Cancelled:** `project migrate` / dual-compat не нужны | — |
 | [#94](https://github.com/pila86/1c-dev/issues/94) | 3 | should: Publish Apache/`webinst` + doctor `webinst` | #89 |
 | [#95](https://github.com/pila86/1c-dev/issues/95) | 3 | should: установка extension из `.cfe` + seed ИБ из `.dt` шаблона | #88, #92 |
 | [#96](https://github.com/pila86/1c-dev/issues/96) | 3 | Acceptance: E2E nested + multi-config + extension + templates + publish | #86–#92, #100 |
@@ -265,6 +264,5 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 - [draft-source-formats](draft-source-formats.md) · [draft-tests](draft-tests.md)
 - ADR: [022](../adr/022-project-home.md) · [023](../adr/023-multi-config-extensions.md) · [024](../adr/024-platform-templates.md) · [025](../adr/025-publish-backends.md) · [026](../adr/026-runtimes-array.md)
 - Spike argv: [084-ibcmd-extension-ibsrv](../spikes/084-ibcmd-extension-ibsrv.md)
-- Schema v1: [`schemas/1c.project.schema.json`](../../schemas/1c.project.schema.json)
 - Schema v2: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json)
 - PRD §8 Project Model, §9 Project Types

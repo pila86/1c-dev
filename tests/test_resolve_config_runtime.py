@@ -143,21 +143,18 @@ def test_require_runtime_false_with_config() -> None:
     assert target.source_rel == "src/buh"
 
 
-def test_schema1_defaults() -> None:
-    data = yaml.safe_load((FIXTURES / "valid_1c.project.yaml").read_text(encoding="utf-8"))
+def test_schema1_rejected() -> None:
+    data = {
+        "schema": "1",
+        "project": {"name": "shop", "type": "configuration"},
+        "platform": {"version": "8.3.27"},
+        "source": {"format": "xml", "path": "src/cf"},
+        "runtime": {"type": "file", "path": ".runtime/ib"},
+    }
     target, diags = resolve_config_runtime(data)
-    assert diags == []
-    assert target is not None
-    assert target.config_id == "main"
-    assert target.runtime_id == "default"
-    assert target.source_rel == "src/cf"
-
-
-def test_schema1_unknown_config() -> None:
-    data = yaml.safe_load((FIXTURES / "valid_1c.project.yaml").read_text(encoding="utf-8"))
-    target, diags = resolve_config_runtime(data, config_id="buh")
     assert target is None
     assert any(d.get("code") == CODE_CONFIG_UNKNOWN for d in diags)
+    assert any("Неподдерживаемая версия schema" in d["message"] for d in diags)
 
 
 def test_agreed_config_and_runtime() -> None:
