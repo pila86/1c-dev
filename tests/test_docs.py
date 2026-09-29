@@ -25,12 +25,31 @@ def _write_project(tmp_path: Path, *, version: str = "8.3.27") -> Path:
     root = tmp_path / "proj"
     root.mkdir()
     (root / "src" / "cf").mkdir(parents=True)
+    home = root / ".1c-dev"
+    home.mkdir()
     manifest = {
+        "schema": "2",
         "project": {"name": "Demo", "type": "configuration"},
         "platform": {"version": version},
-        "source": {"format": "xml", "path": "src/cf"},
+        "configurations": [
+            {
+                "id": "main",
+                "type": "configuration",
+                "default": True,
+                "source": {"format": "xml", "path": "src/cf"},
+            }
+        ],
+        "runtimes": [
+            {
+                "id": "main",
+                "configuration": "main",
+                "type": "file",
+                "path": ".1c-dev/runtime/main",
+                "default": True,
+            }
+        ],
     }
-    (root / "1c.project.yaml").write_text(
+    (home / "project.yaml").write_text(
         yaml.safe_dump(manifest, allow_unicode=True),
         encoding="utf-8",
     )

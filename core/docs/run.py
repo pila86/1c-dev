@@ -22,6 +22,7 @@ from core.docs.result import DocsResult
 from core.project.detect import detect_manifest
 from core.project.init import platform_version_for_manifest
 from core.project.load import load_manifest
+from core.project.paths import scope_root_from_manifest
 from core.toolchain.cache import docs_cache_dir
 
 Op = Literal["search", "get"]
@@ -51,7 +52,7 @@ def _project_context(start: Path | None) -> DocsResult | tuple[Path, str]:
     if data is None:
         return DocsResult(
             status="error",
-            root=manifest_path.parent,
+            root=scope_root_from_manifest(manifest_path),
             diagnostics=list(load_diags)
             or [
                 error(
@@ -63,7 +64,7 @@ def _project_context(start: Path | None) -> DocsResult | tuple[Path, str]:
             ],
         )
 
-    root = manifest_path.parent
+    root = scope_root_from_manifest(manifest_path)
     platform_raw = data.get("platform")
     platform: dict[str, Any] = platform_raw if isinstance(platform_raw, dict) else {}
     version = platform_version_for_manifest(

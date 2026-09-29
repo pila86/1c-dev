@@ -6,7 +6,7 @@ import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 from adapters.platform import DiscoveryResult, discover_environment
 from adapters.platform_1cv8 import (
@@ -26,6 +26,7 @@ from adapters.platform_ibcmd import infobase_exists
 from core.diagnostics import error
 from core.project.detect import detect_manifest
 from core.project.load import load_manifest
+from core.project.paths import default_runtime_rel, scope_root_from_manifest
 from core.runtime.constants import (
     CODE_CLIENT_FAILED,
     CODE_IB_MISSING,
@@ -83,12 +84,12 @@ def _resolve_project(
     data, load_diags = load_manifest(manifest_path)
     if data is None:
         return (
-            manifest_path.parent,
-            manifest_path.parent,
+            scope_root_from_manifest(manifest_path),
+            scope_root_from_manifest(manifest_path),
             RuntimeResult(
                 status="failed",
                 duration=time.perf_counter() - started,
-                root=manifest_path.parent,
+                root=scope_root_from_manifest(manifest_path),
                 diagnostics=list(load_diags)
                 or [
                     error(
@@ -101,10 +102,8 @@ def _resolve_project(
             ),
         )
 
-    root = manifest_path.parent
-    runtime_raw = data.get("runtime")
-    runtime: dict[str, Any] = runtime_raw if isinstance(runtime_raw, dict) else {}
-    runtime_rel = str(runtime.get("path") or ".runtime/ib")
+    root = scope_root_from_manifest(manifest_path)
+    runtime_rel = default_runtime_rel(data)
     db_path = (root / runtime_rel).resolve()
     return root, db_path, None
 

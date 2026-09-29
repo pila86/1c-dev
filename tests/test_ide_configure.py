@@ -31,7 +31,7 @@ def test_ides_to_configure() -> None:
 def test_configure_default_all(tmp_path: Path) -> None:
     result = configure_ide(tmp_path)
     assert result.status == "ok"
-    assert (tmp_path / "1c.project.yaml").is_file()
+    assert (tmp_path / ".1c-dev" / "project.yaml").is_file()
     assert (tmp_path / "AGENTS.md").is_file()
     assert (tmp_path / ".gitignore").is_file()
     assert (tmp_path / ".cursor" / "mcp.json").is_file()
@@ -152,27 +152,37 @@ def test_configure_force_overwrites_agents_and_mcp(tmp_path: Path) -> None:
 
 
 def test_configure_does_not_overwrite_existing_manifest_fields(tmp_path: Path) -> None:
-    (tmp_path / "1c.project.yaml").write_text(
-        'schema: "1"\n'
+    home = tmp_path / ".1c-dev"
+    home.mkdir()
+    (home / "project.yaml").write_text(
+        'schema: "2"\n'
         "project:\n"
         "  name: Existing\n"
         "  type: configuration\n"
         "platform:\n"
         '  version: "8.3.25"\n'
-        "source:\n"
-        "  format: xml\n"
-        "  path: src/cf\n"
-        "runtime:\n"
-        "  type: file\n"
-        "  path: .runtime/ib\n",
+        "configurations:\n"
+        "  - id: main\n"
+        "    type: configuration\n"
+        "    default: true\n"
+        "    source:\n"
+        "      format: xml\n"
+        "      path: src/cf\n"
+        "runtimes:\n"
+        "  - id: main\n"
+        "    configuration: main\n"
+        "    type: file\n"
+        "    path: .1c-dev/runtime/main\n"
+        "    default: true\n",
         encoding="utf-8",
     )
+    (tmp_path / "src" / "cf").mkdir(parents=True)
     result = configure_ide(tmp_path, target="none")
     assert result.status == "ok"
-    text = (tmp_path / "1c.project.yaml").read_text(encoding="utf-8")
+    text = (home / "project.yaml").read_text(encoding="utf-8")
     assert "Existing" in text
     assert "8.3.25" in text
-    assert "1c.project.yaml" not in result.created
+    assert ".1c-dev/project.yaml" not in result.created
 
 
 def test_build_mcp_servers_payload_no_cwd() -> None:

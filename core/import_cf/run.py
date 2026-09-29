@@ -26,7 +26,12 @@ from core.import_cf.constants import (
     CODE_PROJECT,
 )
 from core.import_cf.result import ImportResult
-from core.project.constants import MANIFEST_NAME
+from core.project.constants import (
+    DEFAULT_CONFIG_ID,
+    DEFAULT_RUNTIME_ID,
+    HOME_MANIFEST_REL,
+    HOME_RUNTIME_DIR_NAME,
+)
 from core.project.detect import detect_manifest
 from core.project.init import (
     default_project_name,
@@ -34,6 +39,14 @@ from core.project.init import (
     templates_root,
 )
 from core.project.load import load_manifest
+from core.project.paths import (
+    default_runtime_rel,
+    default_source_format,
+    default_source_rel,
+    home_manifest_path,
+    project_home,
+    scope_root_from_manifest,
+)
 from core.project.validate import validate_project
 
 ImportFn = Callable[..., list[str]]
@@ -53,29 +66,34 @@ def _render(template: str, values: dict[str, str]) -> str:
 
 
 def _ensure_manifest(root: Path, *, discover: Callable[[], DiscoveryResult]) -> list[str]:
-    """Create 1c.project.yaml + runtime dirs if missing. No AGENTS/XML skeleton."""
+    """Create ``.1c-dev/project.yaml`` + runtime dirs if missing. No AGENTS/XML."""
     created: list[str] = []
-    manifest_path = root / MANIFEST_NAME
-    if not manifest_path.is_file():
+    # Prefer existing detect (home or legacy); only create home layout if none.
+    existing = detect_manifest(root)
+    if existing is None:
         tmpl = templates_root() / "configuration" / "1c.project.yaml.tmpl"
         if not tmpl.is_file():
             raise FileNotFoundError(f"Шаблон манифеста не найден: {tmpl}")
         discovery = discover()
         platform_version = platform_version_for_manifest(discovery.platform.version)
         name = default_project_name(root)
+        project_home(root).mkdir(parents=True, exist_ok=True)
+        manifest_path = home_manifest_path(root)
         text = _render(
             tmpl.read_text(encoding="utf-8"),
             {
                 "name": name,
                 "platform_version": platform_version,
+                "config_id": DEFAULT_CONFIG_ID,
+                "runtime_id": DEFAULT_RUNTIME_ID,
             },
         )
         manifest_path.write_text(text, encoding="utf-8", newline="\n")
-        created.append(MANIFEST_NAME)
+        created.append(HOME_MANIFEST_REL)
 
     for directory in (
-        root / ".runtime",
-        root / ".runtime" / "ib",
+        root / HOME_RUNTIME_DIR_NAME,
+        root / HOME_RUNTIME_DIR_NAME / DEFAULT_CONFIG_ID,
         root / "build",
     ):
         if not directory.exists():
@@ -89,12 +107,8 @@ def _paths_from_manifest(
     data: dict[str, Any],
     root: Path,
 ) -> tuple[Path, Path, str, str]:
-    source_raw = data.get("source")
-    source: dict[str, Any] = source_raw if isinstance(source_raw, dict) else {}
-    runtime_raw = data.get("runtime")
-    runtime: dict[str, Any] = runtime_raw if isinstance(runtime_raw, dict) else {}
-    source_rel = str(source.get("path") or "src/cf")
-    runtime_rel = str(runtime.get("path") or ".runtime/ib")
+    source_rel = default_source_rel(data)
+    runtime_rel = default_runtime_rel(data)
     source_dir = (root / source_rel).resolve()
     db_path = (root / runtime_rel).resolve()
     return source_dir, db_path, source_rel, runtime_rel
@@ -165,7 +179,7 @@ def run_import(
             created=created,
             diagnostics=[
                 error(
-                    f"Файл {MANIFEST_NAME} не найден",
+                    f"Манифест проекта не найден ({HOME_MANIFEST_REL})",
                     code=CODE_PROJECT,
                     source="runtime",
                 )
@@ -177,7 +191,7 @@ def run_import(
         return ImportResult(
             status="failed",
             duration=time.perf_counter() - started,
-            root=manifest_path.parent,
+            root=scope_root_from_manifest(manifest_path),
             from_path=cf_path,
             created=created,
             diagnostics=list(load_diags)
@@ -191,12 +205,11 @@ def run_import(
             ],
         )
 
-    root = manifest_path.parent
+    root = scope_root_from_manifest(manifest_path)
     source_dir, db_path, source_rel, _runtime_rel = _paths_from_manifest(data, root)
     data_path = (root / IBCMD_DATA_REL).resolve()
 
-    fmt_raw = data.get("source")
-    fmt = fmt_raw.get("format") if isinstance(fmt_raw, dict) else None
+    fmt = default_source_format(data)
     if fmt is not None and fmt != "xml":
         return ImportResult(
             status="failed",
@@ -389,7 +402,7 @@ def run_runtime_load(
             from_path=cf_path,
             diagnostics=[
                 error(
-                    f"Файл {MANIFEST_NAME} не найден",
+                    f"Манифест проекта не найден ({HOME_MANIFEST_REL})",
                     code=CODE_PROJECT,
                     source="runtime",
                     suggestion="Выполните 1c-dev init или project import",
@@ -402,7 +415,7 @@ def run_runtime_load(
         return ImportResult(
             status="failed",
             duration=time.perf_counter() - started,
-            root=manifest_path.parent,
+            root=scope_root_from_manifest(manifest_path),
             from_path=cf_path,
             diagnostics=list(load_diags)
             or [
@@ -415,7 +428,7 @@ def run_runtime_load(
             ],
         )
 
-    root = manifest_path.parent
+    root = scope_root_from_manifest(manifest_path)
     _source_dir, db_path, _source_rel, _runtime_rel = _paths_from_manifest(data, root)
     data_path = (root / IBCMD_DATA_REL).resolve()
 

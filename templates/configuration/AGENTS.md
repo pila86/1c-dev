@@ -14,8 +14,9 @@
     - **1c-dev** MCP: project init/import/clean, ide.configure, metadata list/get/find/create/update/delete,
       build, check, runtime.start/stop/status (client thick|thin, optional debug=/Debug),
       and docs.* when available.
-      `project.clean` is destructive (wipes source.path + .runtime/); always pass yes=true
-      and confirm intent first — does not touch 1c.project.yaml / AGENTS.md / IDE MCP / git.
+      `project.clean` is destructive (wipes source + `.1c-dev/runtime/`); always pass yes=true
+      and confirm intent first — does not touch `.1c-dev/project.yaml` / AGENTS.md / IDE MCP / git.
+      MCP `path` = scope root (parent of `.1c-dev`).
       Write types for metadata.create/update/delete: 23 Meta DSL + Subsystem
       (AccountingRegister, AccumulationRegister, BusinessProcess, CalculationRegister,
       Catalog, ChartOfAccounts, ChartOfCalculationTypes, ChartOfCharacteristicTypes,

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-CLIENT_PID_REL = ".runtime/client.pid"
-CLIENT_META_REL = ".runtime/client.meta.json"
+CLIENT_PID_REL = ".1c-dev/runtime/client.pid"
+CLIENT_META_REL = ".1c-dev/runtime/client.meta.json"
 MODE_ENTERPRISE = "enterprise"
 CLIENT_THICK = "thick"
 CLIENT_THIN = "thin"

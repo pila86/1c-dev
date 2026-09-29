@@ -193,7 +193,7 @@ def test_m2_acceptance_document_enum_register_delete(tmp_path: Path) -> None:
 
     build = run_build(target)
     assert build.status == "ok", build.to_payload()
-    assert (target / ".runtime" / "ib" / IB_MARKER).is_file()
+    assert (target / ".1c-dev" / "runtime" / "main" / IB_MARKER).is_file()
 
     check = run_check(target)
     assert check.status == "ok", check.to_payload()

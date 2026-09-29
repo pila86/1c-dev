@@ -12,6 +12,11 @@ from core.metadata.ir import summary_from_dict
 from core.metadata.result import MetadataResult
 from core.project.detect import detect_manifest
 from core.project.load import load_manifest
+from core.project.paths import (
+    default_source_format,
+    default_source_rel,
+    scope_root_from_manifest,
+)
 
 Command = Literal["list", "get", "find"]
 ReadFn = Callable[[Command, Path, tuple[str, ...]], dict[str, Any]]
@@ -42,7 +47,7 @@ def _resolve_source(start: Path | None) -> MetadataResult | tuple[Path, Path, Pa
     if data is None:
         return MetadataResult(
             status="error",
-            root=manifest_path.parent,
+            root=scope_root_from_manifest(manifest_path),
             diagnostics=list(load_diags)
             or [
                 error(
@@ -54,10 +59,8 @@ def _resolve_source(start: Path | None) -> MetadataResult | tuple[Path, Path, Pa
             ],
         )
 
-    root = manifest_path.parent
-    source_raw = data.get("source")
-    source: dict[str, Any] = source_raw if isinstance(source_raw, dict) else {}
-    fmt = source.get("format")
+    root = scope_root_from_manifest(manifest_path)
+    fmt = default_source_format(data)
     if fmt != "xml":
         return MetadataResult(
             status="error",
@@ -72,7 +75,7 @@ def _resolve_source(start: Path | None) -> MetadataResult | tuple[Path, Path, Pa
             ],
         )
 
-    rel = str(source.get("path") or "src/cf")
+    rel = default_source_rel(data)
     source_dir = (root / rel).resolve()
     if not source_dir.is_dir():
         return MetadataResult(

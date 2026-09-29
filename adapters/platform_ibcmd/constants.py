@@ -4,7 +4,7 @@ from __future__ import annotations
 
 IB_MARKER = "1Cv8.1CD"
 DEFAULT_ARTIFACT_REL = "build/out/configuration.cf"
-IBCMD_DATA_REL = ".runtime/ibcmd-data"
+IBCMD_DATA_REL = ".1c-dev/runtime/ibcmd-data"
 
 # Diagnostic codes (build, ADR-008)
 CODE_IBCMD_MISSING = "1CB001"

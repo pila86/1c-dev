@@ -19,6 +19,11 @@ from core.metadata.result import MetadataResult
 from core.metadata.types import TYPE_DIRS
 from core.project.detect import detect_manifest
 from core.project.load import load_manifest
+from core.project.paths import (
+    default_source_format,
+    default_source_rel,
+    scope_root_from_manifest,
+)
 
 RemoveFn = Callable[[Path, str], list[str]]
 
@@ -75,7 +80,7 @@ def delete_metadata(
         return MetadataResult(
             status="error",
             object=qname,
-            root=manifest_path.parent,
+            root=scope_root_from_manifest(manifest_path),
             diagnostics=list(load_diags)
             or [
                 error(
@@ -87,10 +92,8 @@ def delete_metadata(
             ],
         )
 
-    root = manifest_path.parent
-    source_raw = data.get("source")
-    source: dict[str, Any] = source_raw if isinstance(source_raw, dict) else {}
-    fmt = source.get("format")
+    root = scope_root_from_manifest(manifest_path)
+    fmt = default_source_format(data)
     if fmt != "xml":
         return MetadataResult(
             status="error",
@@ -106,7 +109,7 @@ def delete_metadata(
             ],
         )
 
-    rel = str(source.get("path") or "src/cf")
+    rel = default_source_rel(data)
     source_dir = (root / rel).resolve()
     if not source_dir.is_dir():
         return MetadataResult(

@@ -1,4 +1,4 @@
-"""Bootstrap a new 1C project from templates (ADR-006)."""
+"""Bootstrap a new 1C project from templates (ADR-006 / ADR-022)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,13 @@ from xml.sax.saxutils import escape as xml_escape
 
 from adapters.platform import discover_environment
 from core.diagnostics import Diagnostic, error
-from core.project.constants import MANIFEST_NAME
+from core.project.constants import (
+    DEFAULT_CONFIG_ID,
+    DEFAULT_RUNTIME_ID,
+    HOME_MANIFEST_REL,
+    HOME_RUNTIME_DIR_NAME,
+)
+from core.project.paths import home_manifest_path, project_home
 from core.project.result import ProjectResult
 from core.project.validate import validate_project
 
@@ -118,6 +124,8 @@ def _placeholder_values(name: str, platform_version: str) -> dict[str, str]:
         "synonym": name,
         "platform_version": platform_version,
         "compatibility_mode": compatibility_mode_for(platform_version),
+        "config_id": DEFAULT_CONFIG_ID,
+        "runtime_id": DEFAULT_RUNTIME_ID,
         "uuid_cfg": str(uuid.uuid4()),
         "uuid_lang": str(uuid.uuid4()),
         **{f"uuid_co{i}": str(uuid.uuid4()) for i in range(7)},
@@ -148,10 +156,12 @@ def _scaffold_configuration(
     }
 
     created: list[str] = []
+    home = project_home(target)
+    home.mkdir(parents=True, exist_ok=True)
 
     _copy_rendered(
         tmpl_dir / "1c.project.yaml.tmpl",
-        target / MANIFEST_NAME,
+        home_manifest_path(target),
         yaml_values,
         created=created,
         root=target,
@@ -178,10 +188,11 @@ def _scaffold_configuration(
         rel = path.relative_to(tmpl_dir)
         _copy_rendered(path, target / rel, xml_values, created=created, root=target)
 
+    runtime_ib = target / HOME_RUNTIME_DIR_NAME / DEFAULT_CONFIG_ID
     for directory in (
         target / "build",
-        target / ".runtime",
-        target / ".runtime" / "ib",
+        target / HOME_RUNTIME_DIR_NAME,
+        runtime_ib,
     ):
         directory.mkdir(parents=True, exist_ok=True)
         rel_dir = str(directory.relative_to(target))
@@ -236,17 +247,18 @@ def init_project(
             ],
         )
 
-    manifest_path = root / MANIFEST_NAME
+    manifest_path = home_manifest_path(root)
     if manifest_path.exists() and not force:
         return ProjectResult(
             status="error",
             path=manifest_path,
             root=root,
+            home=project_home(root),
             diagnostics=[
                 error(
-                    f"Проект уже инициализирован: {MANIFEST_NAME}",
+                    f"Проект уже инициализирован: {HOME_MANIFEST_REL}",
                     code="1CP004",
-                    file=MANIFEST_NAME,
+                    file=HOME_MANIFEST_REL,
                     suggestion="Укажите --force для перезаписи или выберите другой каталог",
                 )
             ],

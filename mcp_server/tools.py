@@ -23,12 +23,21 @@ from core.metadata import (
     update_metadata,
 )
 from core.metadata.types import WRITE_OBJECT_TYPES_HELP
-from core.project import configure_ide, init_project, run_clean, validate_project
+from core.project import (
+    configure_ide,
+    init_project,
+    list_projects,
+    run_clean,
+    validate_project,
+)
 from core.runtime import run_start, run_status, run_stop
 from mcp_server._path import resolve_path
 
 _NO_SHELL = (
     " Do not use shell, Designer/Configurator, or raw ibcmd for this operation — use this tool."
+)
+_PATH_SCOPE = (
+    " Argument path is the scope root (parent of .1c-dev), not the home directory itself."
 )
 _WRITE_TYPES = (
     "Write types (23 Meta DSL + Subsystem): " + WRITE_OBJECT_TYPES_HELP + "."
@@ -88,8 +97,11 @@ def register_tools(server: FastMCP) -> None:
     @server.tool(
         name="project.get",
         description=(
-            "Read and validate the 1C project (1c.project.yaml) and return structured JSON "
-            "including the full manifest." + _NO_SHELL
+            "Read and validate the 1C project (.1c-dev/project.yaml or legacy "
+            "1c.project.yaml) and return structured JSON including home, root, "
+            "manifest_path, runtimes, and the full manifest."
+            + _PATH_SCOPE
+            + _NO_SHELL
         ),
     )
     def project_get(path: str | None = None) -> dict[str, Any]:
@@ -97,11 +109,32 @@ def register_tools(server: FastMCP) -> None:
         return result.to_payload(include_manifest=True)
 
     @server.tool(
+        name="project.list",
+        description=(
+            "Scan downward from path for nested 1C projects (.1c-dev/project.yaml) "
+            "with a limited depth (monorepo discovery). "
+            "Returns a list of projects with root/home/manifest_path."
+            + _PATH_SCOPE
+            + _NO_SHELL
+        ),
+    )
+    def project_list_tool(
+        path: str | None = None,
+        depth: int = 4,
+    ) -> dict[str, Any]:
+        results = list_projects(resolve_path(path), max_depth=depth)
+        return {
+            "status": "ok",
+            "projects": [r.to_payload(include_manifest=False) for r in results],
+        }
+
+    @server.tool(
         name="project.init",
         description=(
             "Bootstrap an empty 1C configuration project "
-            "(1c.project.yaml + XML source skeleton + IDE MCP configs). "
+            "(.1c-dev/project.yaml schema 2 + XML source skeleton + IDE MCP configs). "
             "ide_target: all (default), cursor, kilocode, or none."
+            + _PATH_SCOPE
             + _NO_SHELL
         ),
     )
@@ -129,6 +162,7 @@ def register_tools(server: FastMCP) -> None:
             "target: all (default), cursor, kilocode, or none. "
             "Without force, does not overwrite AGENTS.md; merges missing MCP servers "
             "and .gitignore lines."
+            + _PATH_SCOPE
             + _NO_SHELL
         ),
     )
@@ -148,11 +182,12 @@ def register_tools(server: FastMCP) -> None:
         name="project.import",
         description=(
             "Import a .cf configuration into project XML source via ibcmd "
-            "(load → apply → export). Creates 1c.project.yaml if missing. "
+            "(load → apply → export). Creates .1c-dev/project.yaml (schema 2) if missing. "
             "Refuses to overwrite existing Configuration.xml unless force=true. "
             "Set break_support=true to strip ParentConfigurations* support "
             "artifacts after export (vendor update will no longer be possible). "
             "Does not write AGENTS.md or IDE MCP configs (use ide.configure for that)."
+            + _PATH_SCOPE
             + _NO_SHELL
         ),
     )
@@ -173,11 +208,13 @@ def register_tools(server: FastMCP) -> None:
     @server.tool(
         name="project.clean",
         description=(
-            "DESTRUCTIVE: wipe project XML source (source.path contents) and the "
-            "entire .runtime/ directory (file IB, ibcmd-data, client state). "
-            "Requires yes=true. Does not touch 1c.project.yaml, AGENTS.md, IDE MCP "
+            "DESTRUCTIVE: wipe project XML source (default configuration source.path) "
+            "and the entire .1c-dev/runtime/ directory (file IB, ibcmd-data, client state). "
+            "Also removes legacy .runtime/ if present. "
+            "Requires yes=true. Does not touch .1c-dev/project.yaml, AGENTS.md, IDE MCP "
             "configs, .gitignore, or git. Stops a live runtime client first. "
             "Idempotent if already empty. Typical follow-up: project.import or init."
+            + _PATH_SCOPE
             + _NO_SHELL
         ),
     )
@@ -194,6 +231,7 @@ def register_tools(server: FastMCP) -> None:
             "List metadata objects in project XML source as IR summaries "
             "({type, name, qname, synonym?}). Use to survey the configuration "
             "before get/update/create/delete. Works from source without the 1C platform."
+            + _PATH_SCOPE
             + _NO_SHELL
         ),
     )

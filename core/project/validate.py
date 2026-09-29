@@ -11,9 +11,15 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
 
 from core.diagnostics import Diagnostic, error
-from core.project.constants import MANIFEST_NAME
+from core.project.constants import HOME_MANIFEST_REL, LEGACY_MANIFEST_NAME, MANIFEST_NAME
 from core.project.detect import detect_manifest
 from core.project.load import load_manifest
+from core.project.paths import (
+    is_home_manifest,
+    project_home,
+    runtimes_summary,
+    scope_root_from_manifest,
+)
 from core.project.result import ProjectResult
 
 _SCHEMAS_DIR = Path(__file__).resolve().parents[2] / "schemas"
@@ -198,35 +204,45 @@ def validate_project(start: Path | None = None) -> ProjectResult:
             status="error",
             diagnostics=[
                 error(
-                    f"Файл {MANIFEST_NAME} не найден",
+                    f"Манифест проекта не найден "
+                    f"({HOME_MANIFEST_REL} или {LEGACY_MANIFEST_NAME})",
                     code="1CP001",
-                    file=MANIFEST_NAME,
+                    file=HOME_MANIFEST_REL,
                 )
             ],
         )
+
+    root = scope_root_from_manifest(path)
+    home = project_home(root) if is_home_manifest(path) else None
 
     data, load_diags = load_manifest(path)
     if data is None:
         return ProjectResult(
             status="error",
             path=path,
-            root=path.parent,
+            root=root,
+            home=home,
             diagnostics=load_diags,
         )
 
     schema_diags = validate_manifest(data)
+    runtimes = runtimes_summary(data)
     if schema_diags:
         return ProjectResult(
             status="error",
             path=path,
-            root=path.parent,
+            root=root,
+            home=home,
             manifest=data,
+            runtimes=runtimes,
             diagnostics=schema_diags,
         )
 
     return ProjectResult(
         status="ok",
         path=path,
-        root=path.parent,
+        root=root,
+        home=home,
         manifest=data,
+        runtimes=runtimes,
     )

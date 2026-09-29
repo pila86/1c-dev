@@ -5,7 +5,6 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 from adapters.platform import DiscoveryResult, discover_environment
 from adapters.platform_ibcmd import IbcmdError, RunFn, build_with_ibcmd
@@ -22,6 +21,12 @@ from core.build.result import BuildResult
 from core.diagnostics import error
 from core.project.detect import detect_manifest
 from core.project.load import load_manifest
+from core.project.paths import (
+    default_runtime_rel,
+    default_source_format,
+    default_source_rel,
+    scope_root_from_manifest,
+)
 
 BuildFn = Callable[..., list[str]]
 
@@ -77,7 +82,7 @@ def run_build(
         return BuildResult(
             status="failed",
             duration=time.perf_counter() - started,
-            root=manifest_path.parent,
+            root=scope_root_from_manifest(manifest_path),
             diagnostics=list(load_diags)
             or [
                 error(
@@ -89,13 +94,9 @@ def run_build(
             ],
         )
 
-    root = manifest_path.parent
-    source_raw = data.get("source")
-    source: dict[str, Any] = source_raw if isinstance(source_raw, dict) else {}
-    runtime_raw = data.get("runtime")
-    runtime: dict[str, Any] = runtime_raw if isinstance(runtime_raw, dict) else {}
+    root = scope_root_from_manifest(manifest_path)
 
-    fmt = source.get("format")
+    fmt = default_source_format(data)
     if fmt != "xml":
         return BuildResult(
             status="failed",
@@ -111,7 +112,7 @@ def run_build(
             ],
         )
 
-    source_rel = str(source.get("path") or "src/cf")
+    source_rel = default_source_rel(data)
     source_dir = (root / source_rel).resolve()
     if not source_dir.is_dir():
         return BuildResult(
@@ -127,7 +128,7 @@ def run_build(
             ],
         )
 
-    runtime_rel = str(runtime.get("path") or ".runtime/ib")
+    runtime_rel = default_runtime_rel(data)
     db_path = (root / runtime_rel).resolve()
     data_path = (root / IBCMD_DATA_REL).resolve()
 

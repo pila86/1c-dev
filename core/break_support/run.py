@@ -13,13 +13,11 @@ from core.diagnostics import error
 from core.project.constants import MANIFEST_NAME
 from core.project.detect import detect_manifest
 from core.project.load import load_manifest
+from core.project.paths import default_source_rel, scope_root_from_manifest
 
 
 def _source_dir_from_manifest(data: dict[str, Any], root: Path) -> Path:
-    source_raw = data.get("source")
-    source: dict[str, Any] = source_raw if isinstance(source_raw, dict) else {}
-    source_rel = str(source.get("path") or "src/cf")
-    return (root / source_rel).resolve()
+    return (root / default_source_rel(data)).resolve()
 
 
 def run_break_support(start: Path | None = None) -> BreakSupportResult:
@@ -52,7 +50,7 @@ def run_break_support(start: Path | None = None) -> BreakSupportResult:
         return BreakSupportResult(
             status="failed",
             duration=time.perf_counter() - started,
-            root=manifest_path.parent,
+            root=scope_root_from_manifest(manifest_path),
             diagnostics=list(load_diags)
             or [
                 error(
@@ -64,7 +62,7 @@ def run_break_support(start: Path | None = None) -> BreakSupportResult:
             ],
         )
 
-    root = manifest_path.parent
+    root = scope_root_from_manifest(manifest_path)
     source_dir = _source_dir_from_manifest(data, root)
     removed, diags = strip_parent_configurations(source_dir, root=root)
     return BreakSupportResult(
