@@ -40,7 +40,7 @@ def run_break_support(start: Path | None = None) -> BreakSupportResult:
                     f"Файл {MANIFEST_NAME} не найден",
                     code=CODE_PROJECT,
                     source="runtime",
-                    suggestion="Выполните 1c-dev init или project import",
+                    suggestion="Выполните 1c-dev init или configuration import",
                 )
             ],
         )

@@ -1,4 +1,5 @@
-"""Diagnostic codes for project.import / runtime.load (ADR-015)."""
+"""Diagnostic codes for configuration.import / runtime.load (ADR-015 / ADR-028)."""
+
 
 from __future__ import annotations
 

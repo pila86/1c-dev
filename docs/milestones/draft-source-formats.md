@@ -9,7 +9,7 @@
 ## Prerequisites
 
 - M2: Metadata API по XML source
-- M3: `project.import` из `.cf` в XML (онбординг артефакта уже есть)
+- M3: `configuration.import` из `.cf` в XML (онбординг артефакта; исторически `project.import`)
 - Для EDT-ветки: `1cedtcli` (или согласованный EDT CLI) в окружении
 
 ## Scope
@@ -23,7 +23,7 @@
 ### 2. Convert после import (опциональный flow)
 
 ```bash
-1c-dev project import --from configuration.cf   # XML (M3)
+1c-dev configuration import --from configuration.cf   # XML (M3 / ADR-028)
 1c-dev source convert --to=edt
 ```
 

@@ -29,10 +29,10 @@ EXPECTED_TOOLS = {
     "configuration.get",
     "configuration.remove",
     "configuration.set-default",
+    "configuration.import",
     "extension.add",
     "extension.list",
     "ide.configure",
-    "project.import",
     "project.clean",
     "metadata.list",
     "metadata.get",
@@ -133,7 +133,7 @@ def test_project_get_and_init(tmp_path: Path) -> None:
     assert info["manifest"]["configurations"] == []
 
 
-def test_project_import_mocked(tmp_path: Path, monkeypatch: Any) -> None:
+def test_configuration_import_mocked(tmp_path: Path, monkeypatch: Any) -> None:
     target = tmp_path / "imported"
     target.mkdir()
     cf_path = tmp_path / "configuration.cf"
@@ -162,14 +162,14 @@ def test_project_import_mocked(tmp_path: Path, monkeypatch: Any) -> None:
 
     monkeypatch.setattr("mcp_server.tools.run_import", fake_import)
     payload = _call(
-        "project.import",
+        "configuration.import",
         {"path": str(target), "from_path": str(cf_path)},
     )
     assert payload["status"] == "ok"
     assert payload["steps"] == ["create", "load", "apply", "export"]
 
 
-def test_project_import_break_support_mocked(tmp_path: Path, monkeypatch: Any) -> None:
+def test_configuration_import_break_support_mocked(tmp_path: Path, monkeypatch: Any) -> None:
     target = tmp_path / "imported"
     target.mkdir()
     cf_path = tmp_path / "configuration.cf"
@@ -196,7 +196,7 @@ def test_project_import_break_support_mocked(tmp_path: Path, monkeypatch: Any) -
 
     monkeypatch.setattr("mcp_server.tools.run_import", fake_import)
     payload = _call(
-        "project.import",
+        "configuration.import",
         {
             "path": str(target),
             "from_path": str(cf_path),

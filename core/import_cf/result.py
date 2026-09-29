@@ -1,4 +1,5 @@
-"""Result types for project.import / runtime.load (ADR-015)."""
+"""Result types for configuration.import / runtime.load (ADR-015 / ADR-028)."""
+
 
 from __future__ import annotations
 
@@ -13,7 +14,7 @@ Status = Literal["ok", "failed"]
 
 @dataclass
 class ImportResult:
-    """Structured result for project.import / runtime.load."""
+    """Structured result for configuration.import / runtime.load."""
 
     status: Status
     diagnostics: list[Diagnostic] = field(default_factory=list)

@@ -100,7 +100,7 @@ def test_run_import_break_support_strips(tmp_path: Path) -> None:
         import_fn=import_fn,
     )
     assert result.status == "ok", result.to_payload()
-    source = target / "src" / "cf"
+    source = target / "src" / "main"
     assert not (source / "Ext" / "ParentConfigurations.bin").exists()
     assert not (source / "ParentConfigurations").exists()
     assert (source / "Catalogs" / "Products.xml").is_file()
@@ -140,7 +140,7 @@ def test_run_import_without_break_support_keeps_artifacts(tmp_path: Path) -> Non
         import_fn=import_fn,
     )
     assert result.status == "ok", result.to_payload()
-    source = target / "src" / "cf"
+    source = target / "src" / "main"
     assert (source / "Ext" / "ParentConfigurations.bin").is_file()
     assert (source / "ParentConfigurations").is_dir()
     assert result.removed == []
@@ -219,7 +219,7 @@ def test_cli_source_break_support_no_manifest(tmp_path: Path, monkeypatch: Any) 
     assert payload["status"] == "failed"
 
 
-def test_cli_project_import_break_support(tmp_path: Path, monkeypatch: Any) -> None:
+def test_cli_configuration_import_break_support(tmp_path: Path, monkeypatch: Any) -> None:
     monkeypatch.chdir(tmp_path)
     cf_path = tmp_path / "configuration.cf"
     cf_path.write_bytes(b"CF")
@@ -249,7 +249,7 @@ def test_cli_project_import_break_support(tmp_path: Path, monkeypatch: Any) -> N
     result = runner.invoke(
         app,
         [
-            "project",
+            "configuration",
             "import",
             "--from",
             str(cf_path),
@@ -262,5 +262,5 @@ def test_cli_project_import_break_support(tmp_path: Path, monkeypatch: Any) -> N
     payload = json.loads(result.output)
     assert payload["status"] == "ok"
     assert payload.get("removed")
-    assert not (tmp_path / "src" / "cf" / "Ext" / "ParentConfigurations.bin").exists()
+    assert not (tmp_path / "src" / "main" / "Ext" / "ParentConfigurations.bin").exists()
     assert (tmp_path / HOME_MANIFEST_REL).is_file()

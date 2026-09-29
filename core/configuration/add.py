@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
-
-import yaml
 
 from adapters.platform import discover_environment
+from core.configuration.register import (
+    CODE_CONF_EXISTS,
+    register_configuration_entry,
+    write_manifest_yaml,
+)
 from core.diagnostics import error
-from core.project.constants import HOME_RUNTIME_DIR_NAME
 from core.project.detect import detect_manifest
 from core.project.init import (
     _scaffold_configuration_sources,
@@ -21,8 +22,10 @@ from core.project.paths import project_home, scope_root_from_manifest
 from core.project.result import ProjectResult
 from core.project.validate import validate_project
 
-CODE_CONF_EXISTS = "1CC001"
 CODE_CONF_NOT_SCOPE = "1CC002"
+
+# Re-export for callers/tests that imported CODE_CONF_EXISTS from add.
+__all__ = ["CODE_CONF_EXISTS", "CODE_CONF_NOT_SCOPE", "add_configuration"]
 
 
 def add_configuration(
@@ -94,30 +97,22 @@ def add_configuration(
     resolved_path = (source_path or f"src/{resolved_id}").replace("\\", "/").strip("/")
 
     configurations = data.get("configurations")
-    if not isinstance(configurations, list):
-        configurations = []
-        data["configurations"] = configurations
-
-    runtimes = data.get("runtimes")
-    if not isinstance(runtimes, list):
-        runtimes = []
-        data["runtimes"] = runtimes
-
-    for item in configurations:
-        if isinstance(item, dict) and item.get("id") == resolved_id:
-            return ProjectResult(
-                status="error",
-                path=manifest_path,
-                root=root,
-                home=project_home(root),
-                diagnostics=[
-                    error(
-                        f"Configuration уже есть в манифесте: id={resolved_id!r}",
-                        code=CODE_CONF_EXISTS,
-                        suggestion="Укажите другой --id или --force после remove",
-                    )
-                ],
-            )
+    if isinstance(configurations, list):
+        for item in configurations:
+            if isinstance(item, dict) and item.get("id") == resolved_id:
+                return ProjectResult(
+                    status="error",
+                    path=manifest_path,
+                    root=root,
+                    home=project_home(root),
+                    diagnostics=[
+                        error(
+                            f"Configuration уже есть в манифесте: id={resolved_id!r}",
+                            code=CODE_CONF_EXISTS,
+                            suggestion="Укажите другой --id или --force после remove",
+                        )
+                    ],
+                )
 
     discovery = discover_environment()
     platform_version = platform_version_for_manifest(discovery.platform.version)
@@ -158,69 +153,30 @@ def add_configuration(
             ],
         )
 
-    is_first_conf = len(configurations) == 0
-    conf_default = set_default if set_default is not None else is_first_conf
-    if conf_default:
-        for item in configurations:
-            if isinstance(item, dict):
-                item.pop("default", None)
+    reg = register_configuration_entry(
+        data,
+        root,
+        config_id=resolved_id,
+        name=resolved_name,
+        source_path=resolved_path,
+        set_default=set_default,
+        with_runtime=with_runtime,
+    )
+    if reg.status != "ok":
+        return ProjectResult(
+            status="error",
+            path=manifest_path,
+            root=root,
+            home=project_home(root),
+            diagnostics=list(reg.diagnostics),
+        )
 
-    conf_entry: dict[str, Any] = {
-        "id": resolved_id,
-        "type": "configuration",
-        "source": {"format": "xml", "path": resolved_path},
-    }
-    if conf_default:
-        conf_entry["default"] = True
-    configurations.append(conf_entry)
-
-    if with_runtime:
-        is_first_rt = len(runtimes) == 0
-        if is_first_rt or conf_default:
-            for item in runtimes:
-                if isinstance(item, dict):
-                    item.pop("default", None)
-        runtime_rel = f"{HOME_RUNTIME_DIR_NAME}/{resolved_id}"
-        runtime_dir = root / runtime_rel
-        runtime_dir.mkdir(parents=True, exist_ok=True)
-        rel_rt = str(runtime_dir.relative_to(root))
-        if rel_rt not in created:
-            created.append(rel_rt)
-        rt_entry: dict[str, Any] = {
-            "id": resolved_id,
-            "configuration": resolved_id,
-            "type": "file",
-            "path": runtime_rel,
-        }
-        if is_first_rt or conf_default:
-            rt_entry["default"] = True
-        runtimes.append(rt_entry)
-
-        # Default publish profile for the first runtime (matches historical init tmpl).
-        if is_first_rt and "publish" not in data:
-            data["publish"] = {
-                "default": "local-ibsrv",
-                "profiles": {
-                    "local-ibsrv": {
-                        "backend": "ibsrv",
-                        "port": 8314,
-                        "runtime": resolved_id,
-                        "config": ".1c-dev/publish/local-ibsrv/ibsrv.yaml",
-                    }
-                },
-            }
+    for item in reg.created:
+        if item not in created:
+            created.append(item)
 
     try:
-        manifest_path.write_text(
-            yaml.safe_dump(
-                data,
-                allow_unicode=True,
-                sort_keys=False,
-                default_flow_style=False,
-            ),
-            encoding="utf-8",
-            newline="\n",
-        )
+        write_manifest_yaml(manifest_path, data)
     except OSError as exc:
         return ProjectResult(
             status="error",

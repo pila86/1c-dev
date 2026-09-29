@@ -17,8 +17,8 @@
       `runtimes[]`) — **not** XML configuration.
       Another configuration in the same scope: `configuration.add` again —
       **not** a second `project.init` and **not** `extension.add`.
-    - **1c-dev** MCP: project init/import/clean, project.get (summary),
-      configuration.add/list/get/remove/set-default,
+    - **1c-dev** MCP: project init/clean, project.get (summary),
+      configuration.add/list/get/remove/set-default/import,
       ide.configure, metadata list/get/find/create/update/delete,
       build (configuration + nested extensions), check, runtime.start/stop/status
       (client thick|thin, optional debug=/Debug),

@@ -1,4 +1,4 @@
-"""Capability matrix for doctor (ADR-005, ADR-007, ADR-012, ADR-015, ADR-018, #25, #49, #60)."""
+"""Capability matrix for doctor (ADR-005, ADR-007, ADR-012, ADR-018, ADR-028, #25, #49, #60)."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from core.toolchain.resolve import sync_suggestion
 CAPABILITY_REQUIREMENTS: dict[str, list[str]] = {
     "build": ["ibcmd"],
     "check": ["ibcmd"],
-    "project.import": ["ibcmd"],
+    "configuration.import": ["ibcmd"],
     "ibsrv": ["ibsrv"],
     "metadata.create": ["java", "xml-gen"],
     "metadata.update": ["java", "xml-gen"],

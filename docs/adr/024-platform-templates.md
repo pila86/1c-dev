@@ -5,7 +5,7 @@
 
 ## Контекст
 
-Сейчас onboarding конфигурации — `project.import --from *.cf`. На машине разработчика уже часто установлены шаблоны конфигураций платформы (каталог tmplts + манифесты `*.mft`). Нужен discovery и import без ручного поиска `.cf`.
+Сейчас onboarding конфигурации — `configuration.import --from *.cf` ([ADR-028](028-configuration-import.md)). На машине разработчика уже часто установлены шаблоны конфигураций платформы (каталог tmplts + манифесты `*.mft`). Нужен discovery и import без ручного поиска `.cf`.
 
 ## Решение
 
@@ -15,10 +15,10 @@
 2. Рекурсивно находить `*.mft`, парсить INI-подобный формат (Vendor, Name, Version, секции Source/Catalog/…).
 3. Публичный API:
    - `templates.roots` / `templates.list` / `templates.get`;
-   - `project.import --from-template <id>`: resolve путь к `.cf` → reuse pipeline ADR-014/015;
+   - `configuration.import --from-template <id>`: resolve путь к `.cf` → reuse pipeline ADR-014/028;
    - для Source `.dt`: seed выбранного runtime (create/load), **не** подмена XML source без явного флага.
 4. Doctor capability `templates` (gap ≠ hard-fail всего CLI).
-5. MCP-зеркала `templates.*` + `from_template` у `project.import`.
+5. MCP-зеркала `templates.*` + `from_template` у `configuration.import`.
 
 Это **не** путать с git-шаблонами `templates/configuration/` в monorepo toolchain.
 
@@ -37,5 +37,5 @@
 
 ## Связанные решения
 
-- ADR-005, ADR-014, ADR-015, ADR-022
+- ADR-005, ADR-014, ADR-015, ADR-022, ADR-028
 - [M4](../milestones/m4-project-model.md)
