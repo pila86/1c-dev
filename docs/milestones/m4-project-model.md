@@ -1,6 +1,6 @@
 # M4: Project home, multi-config, templates, publish
 
-**Статус:** Planned (документация контракта; реализация кода — отдельные issues)
+**Статус:** In progress — контракт зафиксирован (ADR 022–026); реализация [#84](https://github.com/pila86/1c-dev/issues/84)–[#96](https://github.com/pila86/1c-dev/issues/96), [GitHub milestone M4](https://github.com/pila86/1c-dev/milestone/4)
 
 ## Goal
 
@@ -205,20 +205,29 @@ publish:
 - Vendor-in vanessa-runner / EPF для `.cfe` как hard dependency
 - Обязательный манифест в git root
 
-## Suggested work packages (реализация — вне текущего docs-цикла)
+## Issues
 
-| Тема | Зависит от |
-|------|------------|
-| Spike ibcmd `--extension` + ibsrv config init | платформа |
-| ADR 022–026 → Accepted + schema 2 в коде | spike |
-| Detect/init/import/build под `.1c-dev` + `runtimes[]` | schema |
-| Extensions build + scaffold | ibcmd spike |
-| Templates discovery + import-from-template | ADR-015 reuse |
-| Publish ibsrv (+ webinst should) | runtimes |
-| Acceptance E2E nested + multi-IB | треки A–D |
+Волны: **0** spike → **1** манифест + multi-config + publish ibsrv → **2** templates → **3** should + acceptance.
+
+| # | Wave | Задача | Depends on |
+|---|------|--------|------------|
+| [#84](https://github.com/pila86/1c-dev/issues/84) | 0 | Spike: ibcmd `--extension` + ibsrv config/lifecycle (argv freeze) | — |
+| [#85](https://github.com/pila86/1c-dev/issues/85) | 1 | Schema `"2"` в коде + validate configurations/runtimes/publish + ADR 022–026 → Accepted | #84 |
+| [#86](https://github.com/pila86/1c-dev/issues/86) | 1 | Project home `.1c-dev`: detect/legacy, init/import, clean, `project.list`/`get`, MCP path | #85 |
+| [#87](https://github.com/pila86/1c-dev/issues/87) | 1 | Resolve `--config` / `--runtime` в build/runtime/clean/metadata + defaults | #86 |
+| [#88](https://github.com/pila86/1c-dev/issues/88) | 1 | Multi-config + extensions: scaffold, build в ИБ, `extension.list` | #84, #87 |
+| [#89](https://github.com/pila86/1c-dev/issues/89) | 1 | Publish ibsrv: adapter, `publish.*`, doctor ibsrv, артефакты `.1c-dev/publish/` | #84, #87 |
+| [#90](https://github.com/pila86/1c-dev/issues/90) | 1 | `ide configure --project` / `--ide-root` + AGENTS opt-in для multi-tool | #86 |
+| [#91](https://github.com/pila86/1c-dev/issues/91) | 2 | Templates: discovery tmplts/mft, `templates.*`, doctor `templates` | #86 |
+| [#92](https://github.com/pila86/1c-dev/issues/92) | 2 | `project.import --from-template` для `.cf` из tmplts | #91 |
+| [#93](https://github.com/pila86/1c-dev/issues/93) | 3 | should: `project migrate` legacy → `.1c-dev` | #86 |
+| [#94](https://github.com/pila86/1c-dev/issues/94) | 3 | should: Publish Apache/`webinst` + doctor `webinst` | #89 |
+| [#95](https://github.com/pila86/1c-dev/issues/95) | 3 | should: установка extension из `.cfe` + seed ИБ из `.dt` шаблона | #88, #92 |
+| [#96](https://github.com/pila86/1c-dev/issues/96) | 3 | Acceptance: E2E nested + multi-config + extension + templates + publish | #86–#92 |
 
 ## Links
 
+- [GitHub milestone M4](https://github.com/pila86/1c-dev/milestone/4)
 - [Roadmap](../roadmap.md)
 - [M3](m3-product-adopt.md)
 - [draft-source-formats](draft-source-formats.md) · [draft-tests](draft-tests.md)
