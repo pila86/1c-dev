@@ -28,6 +28,7 @@ __all__ = [
     "check_config",
     "export_xml",
     "import_cf_with_ibcmd",
+    "import_cfe_with_ibcmd",
     "infobase_exists",
     "list_extensions",
     "load_cf",
@@ -178,6 +179,42 @@ def load_cf_with_ibcmd(
     )
     steps.append(f"apply:{extension}" if extension else "apply")
 
+    return steps
+
+
+def import_cfe_with_ibcmd(
+    ibcmd: Path,
+    *,
+    db_path: Path,
+    data_path: Path,
+    cfe_path: Path,
+    source_dir: Path,
+    extension: str,
+    run: RunFn | None = None,
+) -> list[str]:
+    """
+    Create (if needed) → load .cfe --extension → apply → export XML (#95).
+
+    On 8.3.25 ``config export --file=.cfe`` without IB does not work; use load/export.
+    Returns: create?, load:Name, apply:Name, export.
+    """
+    steps = load_cf_with_ibcmd(
+        ibcmd,
+        db_path=db_path,
+        data_path=data_path,
+        cf_path=cfe_path,
+        extension=extension,
+        run=run,
+    )
+    export_xml(
+        ibcmd,
+        db_path=db_path,
+        data_path=data_path,
+        target_dir=source_dir,
+        extension=extension,
+        run=run,
+    )
+    steps.append("export")
     return steps
 
 

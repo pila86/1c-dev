@@ -188,7 +188,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 ### Расширение в ИБ
 
 ```
-1. extension.add / metadata в src/cfe/…   # или extension.add --from *.cfe
+1. extension.add / metadata в src/cfe/…   # или extension.add --from *.cfe → XML dump
 2. build   # conf + extensions → default runtime IB
 3. runtime.start
 ```

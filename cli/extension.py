@@ -105,7 +105,10 @@ def extension_add_command(
     from_cfe: Path | None = typer.Option(
         None,
         "--from",
-        help="Путь к файлу .cfe: зарегистрировать format=cfe без XML-scaffold.",
+        help=(
+            "Путь к .cfe: выгрузить XML в src/cfe/<id>/ "
+            "(load → apply → export) и зарегистрировать format=xml."
+        ),
         exists=False,
         dir_okay=False,
         file_okay=True,
@@ -115,11 +118,11 @@ def extension_add_command(
     force: bool = typer.Option(
         False,
         "--force",
-        help="Перезаписать исходники/файл .cfe, если уже есть.",
+        help="Перезаписать исходники расширения, если каталог уже есть.",
     ),
     output: OutputOption = None,
 ) -> None:
-    """Добавить расширение в configuration-проект (XML scaffold или --from .cfe)."""
+    """Добавить расширение в configuration-проект (XML scaffold или --from .cfe → XML)."""
     result = add_extension(
         Path.cwd(),
         ext_id=ext_id,

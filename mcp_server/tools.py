@@ -331,8 +331,9 @@ def register_tools(server: FastMCP) -> None:
             "Add an extension to an existing configuration project. "
             "Default: scaffold src/cfe/<id>/ (XML) and append "
             "configurations[].extensions[]. "
-            "With from_cfe: register source.format=cfe (copy into scope if needed), "
-            "no XML scaffold; then use build to load into IB. "
+            "With from_cfe: load .cfe into a scratch IB via ibcmd "
+            "(config load --extension → apply → export) into src/cfe/<id>/ "
+            "as source.format=xml (binary .cfe is not copied into src). "
             "purpose: product (default), tests, or other. "
             "Requires at least one configuration (use configuration.add first)."
             + _PATH_SCOPE

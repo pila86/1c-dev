@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from adapters.platform import discover_environment
+from adapters.platform import DiscoveryResult, discover_environment
+from adapters.platform_ibcmd import IbcmdError, RunFn, import_cfe_with_ibcmd
+from adapters.platform_ibcmd.constants import CODE_IBCMD_FAILED, IBCMD_DATA_REL
 from core.diagnostics import error
 from core.project.detect import detect_manifest
 from core.project.init import (
@@ -26,41 +29,13 @@ from core.project.validate import validate_project
 CODE_EXT_EXISTS = "1CE001"
 CODE_EXT_NOT_CONFIG = "1CE002"
 CODE_CFE_MISSING = "1CE003"
+CODE_IBCMD_MISSING = "1CE004"
 SUPPORTED_PURPOSES = frozenset({"product", "tests", "other"})
 
+# Scratch IB for .cfe → XML dump (not the project's default runtime).
+CFE_IMPORT_RUNTIME_REL = ".1c-dev/runtime/_cfe-import"
 
-def _resolve_cfe_manifest_path(
-    root: Path,
-    *,
-    from_cfe: Path,
-    resolved_id: str,
-    force: bool,
-) -> tuple[str, list[str]]:
-    """
-    Place .cfe under scope and return (relative path, created entries).
-
-    If the file is already inside the scope, reuse its relative path.
-    Otherwise copy to ``src/cfe/<id>.cfe``.
-    """
-    created: list[str] = []
-    resolved = from_cfe.expanduser().resolve()
-    try:
-        rel = resolved.relative_to(root).as_posix()
-        return rel, created
-    except ValueError:
-        pass
-
-    dest_dir = root / "src" / "cfe"
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest = dest_dir / f"{resolved_id}.cfe"
-    if dest.exists() and not force:
-        raise FileExistsError(
-            f"Файл уже существует: src/cfe/{resolved_id}.cfe "
-            "(укажите --force для перезаписи)"
-        )
-    shutil.copy2(resolved, dest)
-    created.append(f"src/cfe/{resolved_id}.cfe")
-    return f"src/cfe/{resolved_id}.cfe", created
+ImportCfeFn = Callable[..., list[str]]
 
 
 def add_extension(
@@ -72,12 +47,16 @@ def add_extension(
     config_id: str | None = None,
     force: bool = False,
     from_cfe: Path | str | None = None,
+    run: RunFn | None = None,
+    import_cfe_fn: ImportCfeFn | None = None,
+    discover: Callable[[], DiscoveryResult] | None = None,
 ) -> ProjectResult:
     """
     Append to ``configurations[].extensions[]``.
 
     Default: scaffold ``src/cfe/<id>/`` (XML).
-    With ``from_cfe``: register ``format: cfe`` path (copy into scope if needed); no XML scaffold.
+    With ``from_cfe``: load .cfe into a scratch IB → export hierarchical XML into
+    ``src/cfe/<id>/`` (``source.format=xml``). Does not copy the binary .cfe into src.
     """
     start_path = (start or Path.cwd()).resolve()
     manifest_path = detect_manifest(start_path)
@@ -246,17 +225,11 @@ def add_extension(
                 )
 
     created: list[str] = []
-    source_entry: dict[str, str]
+    source_rel = f"src/cfe/{resolved_id}"
+    source_dir = (root / source_rel).resolve()
 
     if cfe_src is not None:
-        try:
-            rel_path, created = _resolve_cfe_manifest_path(
-                root,
-                from_cfe=cfe_src,
-                resolved_id=resolved_id,
-                force=force,
-            )
-        except FileExistsError as exc:
+        if source_dir.exists() and any(source_dir.iterdir()) and not force:
             return ProjectResult(
                 status="error",
                 path=manifest_path,
@@ -264,13 +237,86 @@ def add_extension(
                 home=project_home(root),
                 diagnostics=[
                     error(
-                        str(exc),
+                        f"Каталог исходников уже существует: {source_rel}",
                         code="1CP004",
-                        suggestion="Укажите --force для перезаписи файла .cfe",
+                        suggestion="Укажите --force для перезаписи XML из .cfe",
                     )
                 ],
+            )
+
+        discovery = (discover or discover_environment)()
+        ibcmd_info = discovery.ibcmd
+        if not ibcmd_info.found or ibcmd_info.path is None:
+            return ProjectResult(
+                status="error",
+                path=manifest_path,
+                root=root,
+                home=project_home(root),
+                diagnostics=[
+                    error(
+                        "ibcmd не найден — нужен для выгрузки .cfe в XML",
+                        code=CODE_IBCMD_MISSING,
+                        source="platform",
+                        suggestion=(
+                            "Установите платформу 1С с ibcmd "
+                            "или укажите path к ibcmd в PATH"
+                        ),
+                    )
+                ],
+            )
+
+        if source_dir.exists() and force:
+            shutil.rmtree(source_dir)
+        source_dir.mkdir(parents=True, exist_ok=True)
+
+        db_path = (root / CFE_IMPORT_RUNTIME_REL).resolve()
+        data_path = (root / IBCMD_DATA_REL).resolve()
+        importer = import_cfe_fn or import_cfe_with_ibcmd
+        try:
+            importer(
+                ibcmd_info.path,
+                db_path=db_path,
+                data_path=data_path,
+                cfe_path=cfe_src,
+                source_dir=source_dir,
+                extension=resolved_name,
+                run=run,
+            )
+        except IbcmdError as exc:
+            if source_dir.exists():
+                shutil.rmtree(source_dir, ignore_errors=True)
+            diags = list(exc.diagnostics) or [
+                error(exc.message, code=exc.code, source="platform")
+            ]
+            for diag in diags:
+                if diag.get("severity") == "error" and not diag.get("suggestion"):
+                    diag["suggestion"] = (
+                        "Имя --name должно совпадать с именем расширения внутри .cfe; "
+                        "нужен ibcmd с support load/export --extension"
+                    )
+                    break
+            return ProjectResult(
+                status="error",
+                path=manifest_path,
+                root=root,
+                home=project_home(root),
+                diagnostics=diags,
             )
         except OSError as exc:
+            if source_dir.exists():
+                shutil.rmtree(source_dir, ignore_errors=True)
+            return ProjectResult(
+                status="error",
+                path=manifest_path,
+                root=root,
+                home=project_home(root),
+                diagnostics=[
+                    error(f"Ошибка выгрузки .cfe в XML: {exc}", code="1CP006")
+                ],
+            )
+
+        if not (source_dir / "Configuration.xml").is_file():
+            shutil.rmtree(source_dir, ignore_errors=True)
             return ProjectResult(
                 status="error",
                 path=manifest_path,
@@ -278,14 +324,19 @@ def add_extension(
                 home=project_home(root),
                 diagnostics=[
                     error(
-                        f"Не удалось скопировать .cfe: {exc}",
-                        code="1CP006",
+                        "После export нет Configuration.xml — выгрузка .cfe не удалась",
+                        code=CODE_IBCMD_FAILED,
+                        source="platform",
+                        suggestion=(
+                            "Проверьте, что --name совпадает с именем в .cfe "
+                            "и ibcmd поддерживает config load/export --extension"
+                        ),
                     )
                 ],
             )
-        source_entry = {"format": "cfe", "path": rel_path}
+        created.append(source_rel)
     else:
-        discovery = discover_environment()
+        discovery = (discover or discover_environment)()
         platform_version = platform_version_for_manifest(discovery.platform.version)
 
         try:
@@ -323,7 +374,8 @@ def add_extension(
                     )
                 ],
             )
-        source_entry = {"format": "xml", "path": f"src/cfe/{resolved_id}"}
+
+    source_entry = {"format": "xml", "path": source_rel}
 
     # Patch configurations[].extensions[]
     configurations = data.get("configurations")

@@ -115,9 +115,35 @@ def test_add_extension_from_cfe(tmp_path: Path) -> None:
     _init_config_project(target)
     cfe = tmp_path / "CustomExt.cfe"
     cfe.write_bytes(b"CFE")
+    ibcmd = tmp_path / "ibcmd"
+    ibcmd.write_text("", encoding="utf-8")
+
+    def fake_import(
+        _ibcmd: Path,
+        *,
+        db_path: Path,
+        data_path: Path,
+        cfe_path: Path,
+        source_dir: Path,
+        extension: str,
+        run: Any = None,
+    ) -> list[str]:
+        assert cfe_path == cfe.resolve()
+        assert extension == "CustomExt"
+        source_dir.mkdir(parents=True, exist_ok=True)
+        (source_dir / "Configuration.xml").write_text(
+            '<?xml version="1.0"?><MetaDataObject/>',
+            encoding="utf-8",
+        )
+        return ["create", "load:CustomExt", "apply:CustomExt", "export"]
 
     result = add_extension(
-        target, from_cfe=cfe, name="CustomExt", purpose="product"
+        target,
+        from_cfe=cfe,
+        name="CustomExt",
+        purpose="product",
+        discover=lambda: _fake_discovery(ibcmd=ibcmd),
+        import_cfe_fn=fake_import,
     )
     assert result.status == "ok", result.diagnostics
     data = yaml.safe_load(
@@ -127,29 +153,26 @@ def test_add_extension_from_cfe(tmp_path: Path) -> None:
     assert len(exts) == 1
     assert exts[0]["id"] == "CustomExt"
     assert exts[0]["name"] == "CustomExt"
-    assert exts[0]["source"]["format"] == "cfe"
-    assert exts[0]["source"]["path"] == "src/cfe/CustomExt.cfe"
-    assert (target / "src" / "cfe" / "CustomExt.cfe").is_file()
-    assert not (target / "src" / "cfe" / "CustomExt" / "Configuration.xml").exists()
+    assert exts[0]["source"] == {"format": "xml", "path": "src/cfe/CustomExt"}
+    assert (target / "src" / "cfe" / "CustomExt" / "Configuration.xml").is_file()
+    assert not (target / "src" / "cfe" / "CustomExt.cfe").exists()
 
 
-def test_add_extension_from_cfe_inside_scope(tmp_path: Path) -> None:
+def test_add_extension_from_cfe_needs_ibcmd(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
     _init_config_project(target)
-    cfe = target / "vendor" / "CustomExt.cfe"
-    cfe.parent.mkdir(parents=True)
+    cfe = tmp_path / "CustomExt.cfe"
     cfe.write_bytes(b"CFE")
-
-    result = add_extension(target, from_cfe=cfe, ext_id="custom", name="CustomExt")
-    assert result.status == "ok", result.diagnostics
-    data = yaml.safe_load(
-        (target / ".1c-dev" / "project.yaml").read_text(encoding="utf-8")
+    result = add_extension(
+        target,
+        from_cfe=cfe,
+        name="CustomExt",
+        discover=lambda: _fake_discovery(ibcmd=None),
+        import_cfe_fn=lambda *a, **k: (_ for _ in ()).throw(AssertionError("no call")),
     )
-    assert data["configurations"][0]["extensions"][0]["source"] == {
-        "format": "cfe",
-        "path": "vendor/CustomExt.cfe",
-    }
+    assert result.status == "error"
+    assert any(d.get("code") == "1CE004" for d in result.diagnostics)
 
 
 def test_cli_extension_add_from_cfe(
@@ -160,6 +183,28 @@ def test_cli_extension_add_from_cfe(
     _init_config_project(target)
     cfe = tmp_path / "Ext.cfe"
     cfe.write_bytes(b"CFE")
+    ibcmd = tmp_path / "ibcmd"
+    ibcmd.write_text("", encoding="utf-8")
+
+    def fake_import(
+        _ibcmd: Path,
+        *,
+        db_path: Path,
+        data_path: Path,
+        cfe_path: Path,
+        source_dir: Path,
+        extension: str,
+        run: Any = None,
+    ) -> list[str]:
+        source_dir.mkdir(parents=True, exist_ok=True)
+        (source_dir / "Configuration.xml").write_text("<MetaDataObject/>", encoding="utf-8")
+        return ["create", "load:Ext", "apply:Ext", "export"]
+
+    monkeypatch.setattr(
+        "core.extension.add.discover_environment",
+        lambda: _fake_discovery(ibcmd=ibcmd),
+    )
+    monkeypatch.setattr("core.extension.add.import_cfe_with_ibcmd", fake_import)
     monkeypatch.chdir(target)
     result = runner.invoke(
         app,
@@ -177,6 +222,7 @@ def test_cli_extension_add_from_cfe(
     assert result.exit_code == SUCCESS, result.stdout
     payload = json.loads(result.stdout)
     assert payload["status"] == "ok"
+    assert (target / "src" / "cfe" / "Ext" / "Configuration.xml").is_file()
 
 
 def test_run_extension_list_ok(tmp_path: Path) -> None:

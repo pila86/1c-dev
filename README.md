@@ -66,7 +66,7 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 | `1c-dev uninstall --yes` | Cache + `uv tool uninstall 1c-dev` |
 | `1c-dev init --type configuration [--ide-target all\|cursor\|kilocode\|none]` | Bootstrap пустого проекта конфигурации (+ IDE MCP) |
 | `1c-dev init --type extension` | Bootstrap standalone-проекта расширения (`src/cfe/<name>/`) |
-| `1c-dev extension add [--id] [--name] [--purpose] [--from *.cfe] [--config]` | Добавить расширение (XML scaffold или `.cfe`) |
+| `1c-dev extension add [--id] [--name] [--purpose] [--from *.cfe] [--config]` | Добавить расширение (XML scaffold или выгрузка XML из `.cfe`) |
 | `1c-dev extension list [--config] [--runtime]` | Список расширений в выбранной file IB |
 | `1c-dev templates roots\|list\|get` | Каталог шаблонов платформы (tmplts / `*.mft`) |
 | `1c-dev project detect\|validate\|info` | Манифест `.1c-dev/project.yaml` (`project init` = алиас `init`) |
@@ -100,7 +100,7 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 ```bash
 1c-dev init --type configuration --output json
 1c-dev extension add --id custom --name CustomExt
-# или из готового .cfe:
+# или из готового .cfe (выгрузка XML в src/cfe/<id>/, не копирование бинарника):
 # 1c-dev extension add --from ./CustomExt.cfe --name CustomExt
 1c-dev build   # configuration, затем extensions → default runtime IB
 1c-dev extension list

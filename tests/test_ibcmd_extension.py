@@ -184,3 +184,34 @@ def test_load_cf_with_ibcmd_extension_argv(tmp_path: Path) -> None:
         for a in captured
     )
     assert any("apply" in a and "--extension=CustomExt" in a for a in captured)
+
+
+def test_import_cfe_with_ibcmd_export_argv(tmp_path: Path) -> None:
+    from adapters.platform_ibcmd import import_cfe_with_ibcmd
+
+    ibcmd = tmp_path / "ibcmd"
+    ibcmd.write_text("", encoding="utf-8")
+    db_path = tmp_path / "ib"
+    data_path = tmp_path / "data"
+    cfe = tmp_path / "ext.cfe"
+    cfe.write_bytes(b"CFE")
+    out = tmp_path / "xml"
+    captured: list[list[str]] = []
+
+    def run(argv: list[str]) -> IbcmdRunResult:
+        captured.append(argv)
+        return _ok_run(argv)
+
+    steps = import_cfe_with_ibcmd(
+        ibcmd,
+        db_path=db_path,
+        data_path=data_path,
+        cfe_path=cfe,
+        source_dir=out,
+        extension="CustomExt",
+        run=run,
+    )
+    assert steps == ["create", "load:CustomExt", "apply:CustomExt", "export"]
+    exports = [a for a in captured if "export" in a and "--extension=CustomExt" in a]
+    assert len(exports) == 1
+    assert str(out) in exports[0]
