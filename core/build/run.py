@@ -19,6 +19,7 @@ from adapters.platform_ibcmd.constants import (
 )
 from core.build.result import BuildResult
 from core.diagnostics import Diagnostic, error
+from core.project.constants import HOME_MANIFEST_REL
 from core.project.detect import detect_manifest
 from core.project.load import load_manifest
 from core.project.paths import scope_root_from_manifest
@@ -154,7 +155,7 @@ def run_build(
             duration=time.perf_counter() - started,
             diagnostics=[
                 error(
-                    "Файл 1c.project.yaml не найден",
+                    f"Файл {HOME_MANIFEST_REL} не найден",
                     code=CODE_PROJECT,
                     source="runtime",
                     suggestion="Выполните 1c-dev init --type configuration",

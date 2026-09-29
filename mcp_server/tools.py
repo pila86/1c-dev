@@ -124,8 +124,8 @@ def register_tools(server: FastMCP) -> None:
     @server.tool(
         name="project.get",
         description=(
-            "Read and validate the 1C project (.1c-dev/project.yaml or legacy "
-            "1c.project.yaml) and return structured JSON including home, root, "
+            "Read and validate the 1C project (.1c-dev/project.yaml) and return "
+            "structured JSON including home, root, "
             "manifest_path, runtimes, summary (configurations/runtimes/defaults), "
             "and the full manifest."
             + _PATH_SCOPE
@@ -393,7 +393,6 @@ def register_tools(server: FastMCP) -> None:
         description=(
             "DESTRUCTIVE: wipe project XML source (default configuration source.path) "
             "and the entire .1c-dev/runtime/ directory (file IB, ibcmd-data, client state). "
-            "Also removes legacy .runtime/ if present. "
             "Requires yes=true. Does not touch .1c-dev/project.yaml, AGENTS.md, IDE MCP "
             "configs, .gitignore, or git. Stops a live runtime client first. "
             "Idempotent if already empty. Typical follow-up: project.import or init."

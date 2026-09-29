@@ -16,6 +16,7 @@ from adapters.platform_ibcmd.constants import (
     IBCMD_DATA_REL,
 )
 from core.diagnostics import Diagnostic, error
+from core.project.constants import HOME_MANIFEST_REL
 from core.project.detect import detect_manifest
 from core.project.load import load_manifest
 from core.project.paths import scope_root_from_manifest
@@ -75,7 +76,7 @@ def run_extension_list(
             status="error",
             diagnostics=[
                 error(
-                    "Файл 1c.project.yaml не найден",
+                    f"Файл {HOME_MANIFEST_REL} не найден",
                     code=CODE_PROJECT,
                     source="runtime",
                     suggestion="Выполните 1c-dev init --type configuration",

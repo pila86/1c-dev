@@ -1,18 +1,17 @@
 """Project manifest and home layout constants (ADR-004 / ADR-022)."""
 
-# Legacy (schema "1"): манифест в корне scope.
-LEGACY_MANIFEST_NAME = "1c.project.yaml"
-LEGACY_RUNTIME_DIR_NAME = ".runtime"
-
-# Project home (schema "2", ADR-022).
+# Project home (schema "2", ADR-022). Единственный поддерживаемый layout.
 HOME_DIR_NAME = ".1c-dev"
 HOME_MANIFEST_NAME = "project.yaml"
 HOME_MANIFEST_REL = f"{HOME_DIR_NAME}/{HOME_MANIFEST_NAME}"
 HOME_RUNTIME_DIR_NAME = f"{HOME_DIR_NAME}/runtime"
 HOME_PUBLISH_DIR_NAME = f"{HOME_DIR_NAME}/publish"
 
-# Backward-compat aliases (историческое имя в коде/тестах).
-MANIFEST_NAME = LEGACY_MANIFEST_NAME
+# Историческое имя корневого манифеста (только для ошибки unsupported layout).
+UNSUPPORTED_ROOT_MANIFEST_NAME = "1c.project.yaml"
+
+# Alias для diagnostics ``file=``.
+MANIFEST_NAME = HOME_MANIFEST_REL
 RUNTIME_DIR_NAME = HOME_RUNTIME_DIR_NAME
 
 # Default ids при init/import (одна configuration + один runtime).
@@ -30,6 +29,7 @@ CODE_CLEAN_FAILED = "1CP012"
 CODE_SOURCE_CLEARED = "1CP013"
 CODE_RUNTIME_CLEARED = "1CP014"
 CODE_ALREADY_CLEAN = "1CP015"
+# Корневой 1c.project.yaml / schema "1" больше не поддерживаются.
 CODE_LEGACY_MANIFEST = "1CP016"
 
 # Resolve --config / --runtime (ADR-023 / ADR-026 / #87)

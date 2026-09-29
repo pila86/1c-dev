@@ -1,4 +1,4 @@
-"""Load and parse 1c.project.yaml."""
+"""Load and parse ``.1c-dev/project.yaml``."""
 
 from __future__ import annotations
 

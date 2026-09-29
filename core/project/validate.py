@@ -1,4 +1,4 @@
-"""Validate project manifest against JSON Schema (schema "1" / "2")."""
+"""Validate project manifest against JSON Schema (schema \"2\" only)."""
 
 from __future__ import annotations
 
@@ -11,11 +11,10 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
 
 from core.diagnostics import Diagnostic, error
-from core.project.constants import HOME_MANIFEST_REL, LEGACY_MANIFEST_NAME, MANIFEST_NAME
-from core.project.detect import detect_manifest
+from core.project.constants import MANIFEST_NAME
+from core.project.detect import detect_project
 from core.project.load import load_manifest
 from core.project.paths import (
-    is_home_manifest,
     project_home,
     runtimes_summary,
     scope_root_from_manifest,
@@ -23,15 +22,13 @@ from core.project.paths import (
 from core.project.result import ProjectResult
 
 _SCHEMAS_DIR = Path(__file__).resolve().parents[2] / "schemas"
-_SCHEMA_V1_PATH = _SCHEMAS_DIR / "1c.project.schema.json"
 _SCHEMA_V2_PATH = _SCHEMAS_DIR / "1c.project.schema.v2.json"
-_SUPPORTED_SCHEMAS = frozenset({"1", "2"})
+_SUPPORTED_SCHEMA = "2"
 
 
-@lru_cache(maxsize=2)
-def _validator(version: str) -> Draft202012Validator:
-    path = _SCHEMA_V1_PATH if version == "1" else _SCHEMA_V2_PATH
-    with path.open(encoding="utf-8") as fh:
+@lru_cache(maxsize=1)
+def _validator() -> Draft202012Validator:
+    with _SCHEMA_V2_PATH.open(encoding="utf-8") as fh:
         schema = json.load(fh)
     return Draft202012Validator(schema)
 
@@ -175,47 +172,37 @@ def _validate_v2_invariants(data: dict[str, Any]) -> list[Diagnostic]:
 def validate_manifest(data: dict[str, Any]) -> list[Diagnostic]:
     """Провалидировать уже загруженный dict по JSON Schema (+ инварианты v2)."""
     version = data.get("schema")
-    if version not in _SUPPORTED_SCHEMAS:
+    if version != _SUPPORTED_SCHEMA:
         shown = version if isinstance(version, str) else type(version).__name__
         return [
             error(
                 f"Манифест не соответствует schema: "
                 f"неподдерживаемая версия schema {shown!r} "
-                f"(ожидается \"1\" или \"2\")",
+                f"(ожидается \"{_SUPPORTED_SCHEMA}\")",
                 code="1CP003",
                 file=MANIFEST_NAME,
             )
         ]
 
-    validator = _validator(version)
+    validator = _validator()
     errors = sorted(validator.iter_errors(data), key=lambda e: list(e.absolute_path))
     diags = [_schema_diagnostics(err) for err in errors]
     if diags:
         return diags
 
-    if version == "2":
-        diags.extend(_validate_v2_invariants(data))
+    diags.extend(_validate_v2_invariants(data))
     return diags
 
 
 def validate_project(start: Path | None = None) -> ProjectResult:
     """Detect + load + schema-validate манифест относительно start/CWD."""
-    path = detect_manifest(start)
-    if path is None:
-        return ProjectResult(
-            status="error",
-            diagnostics=[
-                error(
-                    f"Манифест проекта не найден "
-                    f"({HOME_MANIFEST_REL} или {LEGACY_MANIFEST_NAME})",
-                    code="1CP001",
-                    file=HOME_MANIFEST_REL,
-                )
-            ],
-        )
+    detected = detect_project(start)
+    if detected.status != "ok" or detected.path is None:
+        return detected
 
-    root = scope_root_from_manifest(path)
-    home = project_home(root) if is_home_manifest(path) else None
+    path = detected.path
+    root = detected.root or scope_root_from_manifest(path)
+    home = detected.home or project_home(root)
 
     data, load_diags = load_manifest(path)
     if data is None:
