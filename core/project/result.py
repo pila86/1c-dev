@@ -90,6 +90,7 @@ class ProjectResult:
     path: Path | None = None
     root: Path | None = None
     home: Path | None = None
+    ide_root: Path | None = None
     manifest: dict[str, Any] | None = None
     runtimes: list[dict[str, Any]] = field(default_factory=list)
     created: list[str] = field(default_factory=list)
@@ -106,6 +107,8 @@ class ProjectResult:
             payload["root"] = str(self.root)
         if self.home is not None:
             payload["home"] = str(self.home)
+        if self.ide_root is not None:
+            payload["ide_root"] = str(self.ide_root)
         if self.runtimes:
             payload["runtimes"] = list(self.runtimes)
         if self.manifest is not None and "schema" in self.manifest:

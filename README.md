@@ -89,7 +89,7 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 | `1c-dev build [--artifact cf] [--config] [--runtime]` | Загрузить XML configuration (+ nested extensions) в file IB через `ibcmd` |
 | `1c-dev check [--platform]` | Платформенная проверка конфигурации (`ibcmd config check`) |
 | `1c-dev mcp` | MCP server (stdio) для AI-агентов |
-| `1c-dev ide configure [--target all\|cursor\|kilocode\|none]` | AGENTS.md, `.gitignore`, IDE MCP |
+| `1c-dev ide configure [--project] [--ide-root] [--agents] [--target …]` | AGENTS.md (merge), `.gitignore`, IDE MCP |
 
 **Write-типы** (`metadata.create` / `update` / `delete`; также `doctor` → `supportedTypes`, [ADR-018](docs/adr/018-metadata-types-coverage.md)): AccountingRegister, AccumulationRegister, BusinessProcess, CalculationRegister, Catalog, ChartOfAccounts, ChartOfCalculationTypes, ChartOfCharacteristicTypes, CommonModule, Constant, DataProcessor, DefinedType, Document, DocumentJournal, Enum, EventSubscription, ExchangePlan, HTTPService, InformationRegister, Report, ScheduledJob, **Subsystem**, Task, WebService.
 
@@ -149,6 +149,7 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 1c-dev ide configure --output json
 1c-dev ide configure --target cursor --output json
 1c-dev ide configure --target none --output json
+1c-dev ide configure --project products/shop --ide-root . --agents scope --output json
 1c-dev mcp
 ```
 
@@ -162,6 +163,8 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 ```bash
 1c-dev ide configure                 # MCP для cursor и kilocode (default --target all)
 # или: 1c-dev ide configure --target cursor
+# monorepo: MCP в корне workspace, scope nested
+# 1c-dev ide configure --project products/shop --ide-root . --agents scope
 ```
 
 Tools: `project.get`, `project.init`, `ide.configure`, `configuration.import`,

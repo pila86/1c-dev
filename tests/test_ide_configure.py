@@ -1,4 +1,4 @@
-"""Tests for ide configure (ADR-016 / #50)."""
+"""Tests for ide configure (ADR-016 / #50 / #90)."""
 
 from __future__ import annotations
 
@@ -13,7 +13,13 @@ from typer.testing import CliRunner
 from cli.main import app
 from core.exit_codes import SUCCESS
 from core.project import configure_ide
-from core.project.ide import build_mcp_servers_payload, ides_to_configure, mcp_rel_path
+from core.project.ide import (
+    AGENTS_BEGIN,
+    AGENTS_END,
+    build_mcp_servers_payload,
+    ides_to_configure,
+    mcp_rel_path,
+)
 from mcp_server import create_server
 
 runner = CliRunner()
@@ -31,8 +37,12 @@ def test_ides_to_configure() -> None:
 def test_configure_default_all(tmp_path: Path) -> None:
     result = configure_ide(tmp_path)
     assert result.status == "ok"
+    assert result.ide_root == tmp_path.resolve()
     assert (tmp_path / ".1c-dev" / "project.yaml").is_file()
     assert (tmp_path / "AGENTS.md").is_file()
+    agents = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert AGENTS_BEGIN in agents
+    assert AGENTS_END in agents
     assert (tmp_path / ".gitignore").is_file()
     assert (tmp_path / ".cursor" / "mcp.json").is_file()
     assert (tmp_path / ".kilo" / "mcp.json").is_file()
@@ -81,13 +91,19 @@ def test_configure_unknown_target(tmp_path: Path) -> None:
     assert any(d.get("code") == "1CP007" for d in result.diagnostics)
 
 
-def test_configure_repeat_preserves_agents_and_merges(
-    tmp_path: Path,
-) -> None:
+def test_configure_unknown_agents(tmp_path: Path) -> None:
+    result = configure_ide(tmp_path, agents="everywhere")
+    assert result.status == "error"
+    assert any(d.get("code") == "1CP010" for d in result.diagnostics)
+
+
+def test_configure_repeat_merges_agents_and_mcp(tmp_path: Path) -> None:
     first = configure_ide(tmp_path, target="cursor")
     assert first.status == "ok"
     agents_text = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
-    (tmp_path / "AGENTS.md").write_text(agents_text + "\n# custom\n", encoding="utf-8")
+    (tmp_path / "AGENTS.md").write_text(
+        agents_text + "\n# custom outside block\n", encoding="utf-8"
+    )
 
     gi = (tmp_path / ".gitignore").read_text(encoding="utf-8")
     (tmp_path / ".gitignore").write_text(gi + "custom_dir/\n", encoding="utf-8")
@@ -107,8 +123,10 @@ def test_configure_repeat_preserves_agents_and_merges(
     second = configure_ide(tmp_path, target="cursor")
     assert second.status == "ok"
     assert "AGENTS.md" in second.skipped
-    assert any(d.get("code") == "1CP008" for d in second.diagnostics)
-    assert "# custom" in (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert not any(d.get("code") == "1CP008" for d in second.diagnostics)
+    agents_after = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert "# custom outside block" in agents_after
+    assert AGENTS_BEGIN in agents_after
 
     gi2 = (tmp_path / ".gitignore").read_text(encoding="utf-8")
     assert "custom_dir/" in gi2
@@ -121,6 +139,33 @@ def test_configure_repeat_preserves_agents_and_merges(
     assert "bsl-language-server" in merged["mcpServers"]
     assert merged["mcpServers"]["1c-dev"] == data["mcpServers"]["1c-dev"]
     assert ".cursor/mcp.json" in second.updated
+
+
+def test_configure_merges_agents_into_existing_foreign_file(tmp_path: Path) -> None:
+    (tmp_path / "AGENTS.md").write_text("# Orchestrator rules\n\nKeep me.\n", encoding="utf-8")
+    result = configure_ide(tmp_path, target="none")
+    assert result.status == "ok"
+    assert "AGENTS.md" in result.updated
+    text = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert "# Orchestrator rules" in text
+    assert "Keep me." in text
+    assert AGENTS_BEGIN in text
+    assert AGENTS_END in text
+    assert "1C Development Rules" in text
+
+
+def test_configure_updates_stale_agents_block(tmp_path: Path) -> None:
+    (tmp_path / "AGENTS.md").write_text(
+        f"{AGENTS_BEGIN}\n# stale\n{AGENTS_END}\n\n# user note\n",
+        encoding="utf-8",
+    )
+    result = configure_ide(tmp_path, target="none")
+    assert result.status == "ok"
+    assert "AGENTS.md" in result.updated
+    text = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert "# stale" not in text
+    assert "1C Development Rules" in text
+    assert "# user note" in text
 
 
 def test_configure_force_overwrites_agents_and_mcp(tmp_path: Path) -> None:
@@ -144,11 +189,61 @@ def test_configure_force_overwrites_agents_and_mcp(tmp_path: Path) -> None:
     agents = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
     assert "# user" not in agents
     assert "1C Development Rules" in agents
+    assert AGENTS_BEGIN in agents
     assert "AGENTS.md" in result.updated
 
     data = json.loads(mcp_path.read_text(encoding="utf-8"))
     assert set(data["mcpServers"]) == {"1c-dev", "bsl-language-server"}
     assert data["mcpServers"]["1c-dev"]["command"] == "1c-dev"
+
+
+def test_configure_agents_none_skips_agents(tmp_path: Path) -> None:
+    result = configure_ide(tmp_path, target="none", agents="none")
+    assert result.status == "ok"
+    assert not (tmp_path / "AGENTS.md").exists()
+    assert (tmp_path / ".gitignore").is_file()
+
+
+def test_configure_ide_root_differs_auto_skips_scope_agents(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    scope = repo / "products" / "shop"
+    scope.mkdir(parents=True)
+    (repo / "AGENTS.md").write_text("# root orchestrator\n", encoding="utf-8")
+
+    result = configure_ide(
+        scope,
+        ide_root=repo,
+        target="cursor",
+        agents="auto",
+    )
+    assert result.status == "ok"
+    assert result.ide_root == repo.resolve()
+    assert (scope / ".1c-dev" / "project.yaml").is_file()
+    assert (scope / ".gitignore").is_file()
+    assert not (scope / "AGENTS.md").exists()
+    assert (repo / ".cursor" / "mcp.json").is_file()
+    assert not (scope / ".cursor").exists()
+    assert (repo / "AGENTS.md").read_text(encoding="utf-8") == "# root orchestrator\n"
+
+
+def test_configure_ide_root_differs_agents_scope(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    scope = repo / "products" / "shop"
+    scope.mkdir(parents=True)
+    (repo / "AGENTS.md").write_text("# root orchestrator\n", encoding="utf-8")
+
+    result = configure_ide(
+        scope,
+        ide_root=repo,
+        target="cursor",
+        agents="scope",
+        force=True,
+    )
+    assert result.status == "ok"
+    assert (scope / "AGENTS.md").is_file()
+    assert AGENTS_BEGIN in (scope / "AGENTS.md").read_text(encoding="utf-8")
+    assert (repo / "AGENTS.md").read_text(encoding="utf-8") == "# root orchestrator\n"
+    assert (repo / ".cursor" / "mcp.json").is_file()
 
 
 def test_configure_does_not_overwrite_existing_manifest_fields(tmp_path: Path) -> None:
@@ -206,8 +301,42 @@ def test_cli_ide_configure_json(
     assert result.exit_code == SUCCESS, result.stdout
     payload = json.loads(result.stdout)
     assert payload["status"] == "ok"
+    assert payload["ide_root"] == str(tmp_path.resolve())
     assert (tmp_path / ".cursor" / "mcp.json").is_file()
     assert (tmp_path / ".kilo" / "mcp.json").is_file()
+
+
+def test_cli_ide_configure_project_and_ide_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "repo"
+    scope = repo / "shop"
+    scope.mkdir(parents=True)
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(
+        app,
+        [
+            "ide",
+            "configure",
+            "--project",
+            str(scope),
+            "--ide-root",
+            str(repo),
+            "--agents",
+            "scope",
+            "--target",
+            "cursor",
+            "--output",
+            "json",
+        ],
+    )
+    assert result.exit_code == SUCCESS, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "ok"
+    assert payload["ide_root"] == str(repo.resolve())
+    assert (repo / ".cursor" / "mcp.json").is_file()
+    assert (scope / "AGENTS.md").is_file()
+    assert not (scope / ".cursor").exists()
 
 
 def test_cli_ide_configure_target_none(
@@ -265,3 +394,24 @@ def test_mcp_ide_configure(tmp_path: Path) -> None:
     assert payload["status"] == "ok"
     assert (tmp_path / ".cursor" / "mcp.json").is_file()
     assert not (tmp_path / ".kilo").exists()
+
+
+def test_mcp_ide_configure_ide_root_and_agents(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    scope = repo / "shop"
+    scope.mkdir(parents=True)
+    (repo / "AGENTS.md").write_text("# keep\n", encoding="utf-8")
+    payload = _call(
+        "ide.configure",
+        {
+            "path": str(scope),
+            "ide_root": str(repo),
+            "target": "cursor",
+            "agents": "auto",
+        },
+    )
+    assert payload["status"] == "ok"
+    assert payload["ide_root"] == str(repo.resolve())
+    assert (repo / ".cursor" / "mcp.json").is_file()
+    assert not (scope / "AGENTS.md").exists()
+    assert (repo / "AGENTS.md").read_text(encoding="utf-8") == "# keep\n"

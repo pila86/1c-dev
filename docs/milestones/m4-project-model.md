@@ -216,7 +216,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 - [ ] `templates.list` / `configuration.import --from-template` для `.cf` из tmplts
 - [ ] `publish` через ibsrv для default (или указанного) runtime
 - [ ] MCP `path` = scope root; `project.list` находит nested `.1c-dev`
-- [ ] `ide configure --ide-root` не требует совпадения с scope root
+- [x] `ide configure --ide-root` не требует совпадения с scope root
 - [ ] Doctor: templates / ibsrv / webinst capabilities
 - [ ] ADR 022–028 Accepted (при закрытии реализации); roadmap M1–M4; EDT/Tests в `draft-*`
 

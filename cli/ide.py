@@ -31,6 +31,14 @@ class TargetChoice(str, Enum):
     none = "none"
 
 
+class AgentsChoice(str, Enum):
+    """Where / whether to write AGENTS.md (ADR-016 / #90)."""
+
+    auto = "auto"
+    scope = "scope"
+    none = "none"
+
+
 def _emit(payload: dict[str, Any], output: OutputFormat, *, text_lines: list[str]) -> None:
     if output is OutputFormat.json:
         typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
@@ -57,6 +65,8 @@ def _configure_text(result: ProjectResult) -> list[str]:
         f"path: {result.path}",
         f"root: {result.root}",
     ]
+    if result.ide_root is not None:
+        lines.append(f"ide_root: {result.ide_root}")
     if result.created:
         lines.append("created:")
         for item in result.created:
@@ -80,6 +90,24 @@ def _configure_text(result: ProjectResult) -> list[str]:
 @app.command("configure")
 def configure_command(
     ctx: typer.Context,
+    project: Path | None = typer.Option(
+        None,
+        "--project",
+        help="Scope root (родитель .1c-dev). Default: текущий каталог.",
+    ),
+    ide_root: Path | None = typer.Option(
+        None,
+        "--ide-root",
+        help="Куда писать .cursor / .kilo. Default: = --project.",
+    ),
+    agents: AgentsChoice = typer.Option(
+        AgentsChoice.auto,
+        "--agents",
+        help=(
+            "AGENTS.md: auto (в scope только если ide-root=project), "
+            "scope (всегда в project), none (не писать)."
+        ),
+    ),
     target: TargetChoice = typer.Option(
         TargetChoice.all,
         "--target",
@@ -93,10 +121,13 @@ def configure_command(
     output: OutputOption = None,
 ) -> None:
     """Настроить IDE MCP, AGENTS.md и .gitignore для существующего проекта."""
+    project_path = (project or Path.cwd()).resolve()
     result = configure_ide(
-        Path.cwd(),
+        project_path,
+        ide_root=ide_root.resolve() if ide_root is not None else None,
         target=target.value,
         force=force,
+        agents=agents.value,
     )
     payload = result.to_payload(include_manifest=False)
     _emit(payload, resolve_output(ctx, output), text_lines=_configure_text(result))
