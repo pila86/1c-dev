@@ -129,7 +129,9 @@ def _validate_v2_invariants(data: dict[str, Any]) -> list[Diagnostic]:
                 )
             )
 
-    if default_runtimes != 1:
+    # Empty scope (оба массива пусты) — OK до configuration.add (#100).
+    # «Ровно один default» — только когда runtimes непуст.
+    if runtimes and default_runtimes != 1:
         diags.append(
             _invariant_error(
                 "runtimes: ровно один элемент с default: true "

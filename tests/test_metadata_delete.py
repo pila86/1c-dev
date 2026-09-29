@@ -16,7 +16,7 @@ from cli.main import app
 from core.exit_codes import PROJECT_ERROR, SUCCESS
 from core.metadata import catalog_from_parts, create_metadata, delete_metadata, get_metadata
 from core.metadata.result import MetadataResult
-from core.project import init_project
+from tests.helpers_project import bootstrap_configuration_project
 
 runner = CliRunner()
 
@@ -24,7 +24,7 @@ runner = CliRunner()
 def _init_shop_with_catalog(tmp_path: Path) -> Path:
     target = tmp_path / "shop"
     target.mkdir()
-    init = init_project(target, project_type="configuration", name="Shop")
+    init = bootstrap_configuration_project(target, name="Shop")
     assert init.status == "ok"
     catalogs = target / "src" / "cf" / "Catalogs"
     catalogs.mkdir(parents=True)
@@ -81,7 +81,7 @@ def test_delete_metadata_mock(tmp_path: Path) -> None:
 def test_delete_not_found(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
     cfg = target / "src" / "cf" / "Configuration.xml"
     before = hashlib.sha256(cfg.read_bytes()).hexdigest()
 
@@ -145,7 +145,7 @@ def test_cli_delete_mock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
 def test_cli_delete_not_found(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
     monkeypatch.chdir(target)
     monkeypatch.setattr(
         "core.metadata.delete.resolve_java",
@@ -176,7 +176,7 @@ def test_delete_with_real_xmlgen(tmp_path: Path) -> None:
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
     created = create_metadata(
         target,
         catalog_from_parts(

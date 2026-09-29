@@ -9,7 +9,7 @@ import pytest
 from adapters.platform_ibcmd import IbcmdError, import_cf_with_ibcmd, load_cf_with_ibcmd
 from adapters.platform_ibcmd.client import IbcmdRunResult, export_xml, load_cf
 from adapters.platform_ibcmd.constants import CODE_IBCMD_FAILED, IB_MARKER
-from core.project import init_project
+from tests.helpers_project import bootstrap_configuration_project
 
 
 def _ok_run(argv: list[str]) -> IbcmdRunResult:
@@ -220,7 +220,7 @@ def test_integration_import_cf_roundtrip(tmp_path: Path) -> None:
 
     project = tmp_path / "shop"
     project.mkdir()
-    assert init_project(project, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(project, name="Shop").status == "ok"
 
     cf_path = tmp_path / "configuration.cf"
     build_result = run_build(project, artifact="cf")

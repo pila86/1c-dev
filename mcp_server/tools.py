@@ -9,6 +9,13 @@ from mcp.server.fastmcp import FastMCP
 from adapters.source.xmlgen import EditOp, edit_op_from_dict
 from core.build import run_build
 from core.check import run_check
+from core.configuration import (
+    add_configuration,
+    get_configuration,
+    list_configurations,
+    remove_configuration,
+    set_default_configuration,
+)
 from core.docs import get_docs, search_docs
 from core.extension import add_extension, run_extension_list
 from core.import_cf import run_import
@@ -119,7 +126,8 @@ def register_tools(server: FastMCP) -> None:
         description=(
             "Read and validate the 1C project (.1c-dev/project.yaml or legacy "
             "1c.project.yaml) and return structured JSON including home, root, "
-            "manifest_path, runtimes, and the full manifest."
+            "manifest_path, runtimes, summary (configurations/runtimes/defaults), "
+            "and the full manifest."
             + _PATH_SCOPE
             + _NO_SHELL
         ),
@@ -151,8 +159,10 @@ def register_tools(server: FastMCP) -> None:
     @server.tool(
         name="project.init",
         description=(
-            "Bootstrap an empty 1C project "
-            "(.1c-dev/project.yaml schema 2 + XML source skeleton + IDE MCP configs). "
+            "Bootstrap an empty 1C project scope "
+            "(.1c-dev/project.yaml schema 2 with empty configurations[]/runtimes[], "
+            "AGENTS/gitignore, IDE MCP). Does NOT create XML configuration — "
+            "use configuration.add (or pass config=name for DX sugar). "
             "type: configuration (default) or extension (standalone). "
             "ide_target: all (default), cursor, kilocode, or none."
             + _PATH_SCOPE
@@ -163,6 +173,7 @@ def register_tools(server: FastMCP) -> None:
         path: str | None = None,
         type: str = "configuration",
         name: str | None = None,
+        config: str | None = None,
         force: bool = False,
         ide_target: str = "all",
     ) -> dict[str, Any]:
@@ -172,7 +183,106 @@ def register_tools(server: FastMCP) -> None:
             name=name,
             force=force,
             ide_target=ide_target,
+            config=config,
         )
+        return result.to_payload(include_manifest=False)
+
+    @server.tool(
+        name="configuration.add",
+        description=(
+            "Add a configuration to the project scope: scaffold XML under "
+            "src/<id>/ (or path), append configurations[], and create linked "
+            "runtime under .1c-dev/runtime/<id> (with_runtime default true). "
+            "First configuration becomes default."
+            + _PATH_SCOPE
+            + _NO_SHELL
+        ),
+    )
+    def configuration_add_tool(
+        path: str | None = None,
+        id: str | None = None,
+        name: str | None = None,
+        source_path: str | None = None,
+        set_default: bool = False,
+        with_runtime: bool = True,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        result = add_configuration(
+            resolve_path(path),
+            config_id=id,
+            name=name,
+            source_path=source_path,
+            set_default=True if set_default else None,
+            with_runtime=with_runtime,
+            force=force,
+        )
+        return result.to_payload(include_manifest=False)
+
+    @server.tool(
+        name="configuration.list",
+        description=(
+            "List configurations in the project scope "
+            "(id, path, default, extension ids)."
+            + _PATH_SCOPE
+            + _NO_SHELL
+        ),
+    )
+    def configuration_list_tool(path: str | None = None) -> dict[str, Any]:
+        return list_configurations(resolve_path(path)).to_payload()
+
+    @server.tool(
+        name="configuration.get",
+        description=(
+            "Get one configuration and its linked runtimes by id."
+            + _PATH_SCOPE
+            + _NO_SHELL
+        ),
+    )
+    def configuration_get_tool(
+        path: str | None = None,
+        id: str = "",
+    ) -> dict[str, Any]:
+        result = get_configuration(resolve_path(path), config_id=id)
+        return result.to_payload(include_manifest=True)
+
+    @server.tool(
+        name="configuration.remove",
+        description=(
+            "Remove a configuration from the manifest. Requires yes=true. "
+            "Optional wipe_source / wipe_runtime."
+            + _PATH_SCOPE
+            + _NO_SHELL
+        ),
+    )
+    def configuration_remove_tool(
+        path: str | None = None,
+        id: str = "",
+        yes: bool = False,
+        wipe_source: bool = False,
+        wipe_runtime: bool = False,
+    ) -> dict[str, Any]:
+        result = remove_configuration(
+            resolve_path(path),
+            config_id=id,
+            yes=yes,
+            wipe_source=wipe_source,
+            wipe_runtime=wipe_runtime,
+        )
+        return result.to_payload(include_manifest=False)
+
+    @server.tool(
+        name="configuration.set-default",
+        description=(
+            "Set the default configuration (and align default runtime) by id."
+            + _PATH_SCOPE
+            + _NO_SHELL
+        ),
+    )
+    def configuration_set_default_tool(
+        path: str | None = None,
+        id: str = "",
+    ) -> dict[str, Any]:
+        result = set_default_configuration(resolve_path(path), config_id=id)
         return result.to_payload(include_manifest=False)
 
     @server.tool(
@@ -180,7 +290,8 @@ def register_tools(server: FastMCP) -> None:
         description=(
             "Add an extension to an existing configuration project: scaffold "
             "src/cfe/<id>/ and append configurations[].extensions[]. "
-            "purpose: product (default), tests, or other."
+            "purpose: product (default), tests, or other. "
+            "Requires at least one configuration (use configuration.add first)."
             + _PATH_SCOPE
             + _CONFIG_RUNTIME
             + _NO_SHELL

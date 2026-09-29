@@ -205,10 +205,10 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 ### Must
 
 - [ ] Layout `.1c-dev/project.yaml`; пути relative к scope root
-- [ ] `runtimes[]`: связь ИБ↔configuration; validate ≥1 IB на config (когда conf есть); один global `default` (когда runtimes непусты)
-- [ ] `project.init` создаёт empty scope (без XML conf); dual detect + warning на legacy
-- [ ] `configuration.add` / `list` (CLI+MCP): scaffold + манифест + runtime; вторая conf в том же scope
-- [ ] `project.get` — summary состава configurations / runtimes / defaults
+- [x] `runtimes[]`: связь ИБ↔configuration; validate ≥1 IB на config (когда conf есть); один global `default` (когда runtimes непусты)
+- [x] `project.init` создаёт empty scope (без XML conf); dual detect + warning на legacy
+- [x] `configuration.add` / `list` (CLI+MCP): scaffold + манифест + runtime; вторая conf в том же scope
+- [x] `project.get` — summary состава configurations / runtimes / defaults
 - [ ] `configurations[]` + `extensions[]`; build в выбранную/default ИБ
 - [ ] Extension scaffold; установка extension в ИБ из XML через ibcmd
 - [ ] `templates.list` / `project.import --from-template` для `.cf` из tmplts
@@ -220,7 +220,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 
 ### Should
 
-- [ ] `project.init --config <name>` (сахар) и/или `configuration.remove` / `set-default` / `get`
+- [x] `project.init --config <name>` (сахар) и/или `configuration.remove` / `set-default` / `get`
 - [ ] `project migrate` legacy → `.1c-dev`
 - [ ] Publish Apache/`webinst`
 - [ ] Import `.cfe` в ИБ при поддержке платформы

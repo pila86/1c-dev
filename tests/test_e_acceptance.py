@@ -24,7 +24,7 @@ from core.metadata import (
     list_metadata,
     update_metadata,
 )
-from core.project import init_project
+from tests.helpers_project import bootstrap_configuration_project
 
 
 def _local_md_reader_jar() -> Path | None:
@@ -73,7 +73,7 @@ def test_e_acceptance_sample_per_wave(
 
     target = tmp_path / "shop"
     target.mkdir()
-    init = init_project(target, project_type="configuration", name="Shop")
+    init = bootstrap_configuration_project(target, name="Shop")
     assert init.status == "ok", init.to_payload()
 
     # --- deps ---

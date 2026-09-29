@@ -41,19 +41,15 @@ def test_init_project_ok(tmp_path: Path) -> None:
     assert result.path == target / ".1c-dev" / "project.yaml"
     assert (target / "AGENTS.md").is_file()
     assert (target / ".gitignore").is_file()
-    assert (target / "src" / "cf" / "Configuration.xml").is_file()
-    assert (target / "src" / "cf" / "Languages" / "Русский.xml").is_file()
+    assert not (target / "src" / "cf" / "Configuration.xml").exists()
     assert (target / "build").is_dir()
-    assert (target / ".1c-dev" / "runtime" / "main").is_dir()
+    assert (target / ".1c-dev" / "runtime").is_dir()
     assert result.manifest is not None
     assert result.manifest["project"]["name"] == "Shop"
     assert result.manifest["project"]["type"] == "configuration"
     assert result.manifest["schema"] == "2"
-    assert result.manifest["configurations"][0]["source"]["path"] == "src/cf"
-    assert result.manifest["runtimes"][0]["path"] == ".1c-dev/runtime/main"
-    assert result.manifest["publish"]["default"] == "local-ibsrv"
-    assert result.manifest["publish"]["profiles"]["local-ibsrv"]["backend"] == "ibsrv"
-    assert result.manifest["publish"]["profiles"]["local-ibsrv"]["runtime"] == "main"
+    assert result.manifest["configurations"] == []
+    assert result.manifest["runtimes"] == []
     assert ".1c-dev/project.yaml" in result.created
 
     cursor_mcp = target / ".cursor" / "mcp.json"
@@ -70,6 +66,18 @@ def test_init_project_ok(tmp_path: Path) -> None:
 
     validated = validate_project(target)
     assert validated.status == "ok"
+
+
+def test_init_project_conflict_without_force(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    first = init_project(target, project_type="configuration", name="Shop")
+    assert first.status == "ok"
+    second = init_project(target, project_type="configuration", name="Shop")
+    assert second.status == "error"
+    assert any(d.get("code") == "1CP004" for d in second.diagnostics)
+    diag = next(d for d in second.diagnostics if d.get("code") == "1CP004")
+    assert "configuration add" in (diag.get("suggestion") or "")
 
 
 def test_init_project_ide_target_none(tmp_path: Path) -> None:
@@ -111,16 +119,6 @@ def test_init_project_default_name_from_cwd(tmp_path: Path) -> None:
     assert result.status == "ok"
     assert result.manifest is not None
     assert result.manifest["project"]["name"] == "myapp"
-
-
-def test_init_project_conflict_without_force(tmp_path: Path) -> None:
-    target = tmp_path / "shop"
-    target.mkdir()
-    first = init_project(target, project_type="configuration", name="Shop")
-    assert first.status == "ok"
-    second = init_project(target, project_type="configuration", name="Shop")
-    assert second.status == "error"
-    assert any(d.get("code") == "1CP004" for d in second.diagnostics)
 
 
 def test_init_project_force_overwrites(tmp_path: Path) -> None:
@@ -176,6 +174,22 @@ def test_cli_init_json_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     assert (tmp_path / ".1c-dev" / "project.yaml").is_file()
     assert (tmp_path / ".cursor" / "mcp.json").is_file()
     assert (tmp_path / ".kilo" / "mcp.json").is_file()
+
+
+def test_cli_init_default_type_configuration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``--type`` optional: defaults to configuration empty scope."""
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["init", "--name", "Demo", "--output", "json"])
+    assert result.exit_code == SUCCESS, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "ok"
+    manifest_path = tmp_path / ".1c-dev" / "project.yaml"
+    assert manifest_path.is_file()
+    text = manifest_path.read_text(encoding="utf-8")
+    assert "type: configuration" in text
+    assert "configurations: []" in text
 
 
 def test_cli_init_ide_target_none(

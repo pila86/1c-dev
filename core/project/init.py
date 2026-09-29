@@ -194,23 +194,26 @@ def _scaffold_extension_sources(
     return created
 
 
-def _scaffold_configuration(
+def _scaffold_configuration_sources(
     target: Path,
     *,
+    source_rel: str,
     name: str,
     platform_version: str,
     force: bool,
 ) -> list[str]:
+    """Copy templates/configuration/src/cf → ``target / source_rel``."""
     tmpl_dir = templates_root() / "configuration"
-    if not tmpl_dir.is_dir():
-        raise FileNotFoundError(f"Шаблон configuration не найден: {tmpl_dir}")
+    cf_tmpl = tmpl_dir / "src" / "cf"
+    if not cf_tmpl.is_dir():
+        raise FileNotFoundError(f"Шаблон configuration XML не найден: {cf_tmpl}")
 
-    src_cfg = target / "src" / "cf" / "Configuration.xml"
+    dest_root = target / source_rel
+    src_cfg = dest_root / "Configuration.xml"
     if src_cfg.exists() and not force:
         raise FileExistsError(f"Исходники конфигурации уже существуют: {src_cfg}")
 
     base = _placeholder_values(name, platform_version)
-    yaml_values = base
     xml_values = {
         **base,
         "name": xml_escape(name),
@@ -218,43 +221,66 @@ def _scaffold_configuration(
     }
 
     created: list[str] = []
+    for path in sorted(cf_tmpl.rglob("*")):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(cf_tmpl)
+        _copy_rendered(
+            path, dest_root / rel, xml_values, created=created, root=target
+        )
+    return created
+
+
+def _scaffold_empty_scope(
+    target: Path,
+    *,
+    name: str,
+    platform_version: str,
+    force: bool,
+) -> list[str]:
+    """Create empty project home: manifest with empty arrays, no XML configuration."""
+    tmpl_dir = templates_root() / "configuration"
+    if not tmpl_dir.is_dir():
+        raise FileNotFoundError(f"Шаблон configuration не найден: {tmpl_dir}")
+
+    empty_tmpl = tmpl_dir / "1c.project.empty.yaml.tmpl"
+    if not empty_tmpl.is_file():
+        raise FileNotFoundError(f"Шаблон empty-манифеста не найден: {empty_tmpl}")
+
+    manifest_path = home_manifest_path(target)
+    if manifest_path.exists() and not force:
+        raise FileExistsError(f"Проект уже инициализирован: {manifest_path}")
+
+    base = _placeholder_values(name, platform_version)
+    created: list[str] = []
     home = project_home(target)
     home.mkdir(parents=True, exist_ok=True)
 
     _copy_rendered(
-        tmpl_dir / "1c.project.yaml.tmpl",
-        home_manifest_path(target),
-        yaml_values,
+        empty_tmpl,
+        manifest_path,
+        base,
         created=created,
         root=target,
     )
     _copy_rendered(
         tmpl_dir / "AGENTS.md",
         target / "AGENTS.md",
-        yaml_values,
+        base,
         created=created,
         root=target,
     )
     _copy_rendered(
         tmpl_dir / ".gitignore",
         target / ".gitignore",
-        yaml_values,
+        base,
         created=created,
         root=target,
     )
 
-    cf_tmpl = tmpl_dir / "src" / "cf"
-    for path in sorted(cf_tmpl.rglob("*")):
-        if not path.is_file():
-            continue
-        rel = path.relative_to(tmpl_dir)
-        _copy_rendered(path, target / rel, xml_values, created=created, root=target)
-
-    runtime_ib = target / HOME_RUNTIME_DIR_NAME / DEFAULT_CONFIG_ID
     for directory in (
         target / "build",
         target / HOME_RUNTIME_DIR_NAME,
-        runtime_ib,
     ):
         directory.mkdir(parents=True, exist_ok=True)
         rel_dir = str(directory.relative_to(target))
@@ -340,8 +366,15 @@ def init_project(
     name: str | None = None,
     force: bool = False,
     ide_target: str = "all",
+    config: str | None = None,
 ) -> ProjectResult:
-    """Create a new project skeleton in target (default: CWD)."""
+    """
+    Create a new project scope in target (default: CWD).
+
+    For ``configuration``: empty scope (``.1c-dev/project.yaml``, no XML).
+    Optional ``config`` runs ``configuration.add`` after init (DX sugar).
+    For ``extension``: standalone extension project (unchanged).
+    """
     # Lazy import: core.project.ide imports templates helpers from this module.
     from core.project.ide import (
         SUPPORTED_TARGETS,
@@ -378,6 +411,19 @@ def init_project(
             ],
         )
 
+    if config is not None and project_type != "configuration":
+        return ProjectResult(
+            status="error",
+            root=root,
+            diagnostics=[
+                error(
+                    "--config применим только к --type configuration",
+                    code="1CP005",
+                    suggestion="Уберите --config или используйте --type configuration",
+                )
+            ],
+        )
+
     manifest_path = home_manifest_path(root)
     if manifest_path.exists() and not force:
         return ProjectResult(
@@ -392,7 +438,7 @@ def init_project(
                     file=HOME_MANIFEST_REL,
                     suggestion=(
                         "Укажите --force для перезаписи, выберите другой каталог "
-                        "или используйте 1c-dev extension add"
+                        "или используйте 1c-dev configuration add"
                     ),
                 )
             ],
@@ -412,7 +458,7 @@ def init_project(
                 force=force,
             )
         else:
-            created = _scaffold_configuration(
+            created = _scaffold_empty_scope(
                 root,
                 name=project_name,
                 platform_version=platform_version,
@@ -447,6 +493,20 @@ def init_project(
                 )
             ],
         )
+
+    if config is not None:
+        from core.configuration.add import add_configuration
+
+        add_result = add_configuration(
+            root,
+            name=config,
+            force=force,
+        )
+        if add_result.status != "ok":
+            add_result.created = [*created, *add_result.created]
+            add_result.diagnostics = [*mcp_diagnostics, *add_result.diagnostics]
+            return add_result
+        created = [*created, *add_result.created]
 
     result = validate_project(root)
     result.created = created

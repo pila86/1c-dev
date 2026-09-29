@@ -23,7 +23,7 @@ from cli.main import app
 from core.build import run_build
 from core.check import run_check
 from core.exit_codes import CHECK_FAILURE, ENV_UNAVAILABLE, PROJECT_ERROR, SUCCESS
-from core.project import init_project
+from tests.helpers_project import bootstrap_configuration_project
 
 runner = CliRunner()
 SCHEMAS = Path(__file__).resolve().parents[1] / "schemas"
@@ -75,7 +75,7 @@ def test_run_check_no_project(tmp_path: Path) -> None:
 def test_run_check_missing_ibcmd(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
     _ensure_ib(target)
     result = run_check(target, discover=lambda: _fake_discovery(ibcmd=None))
     assert result.status == "failed"
@@ -85,7 +85,7 @@ def test_run_check_missing_ibcmd(tmp_path: Path) -> None:
 def test_run_check_missing_ib(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
     ibcmd = tmp_path / "ibcmd"
     ibcmd.write_text("", encoding="utf-8")
     result = run_check(target, discover=lambda: _fake_discovery(ibcmd=ibcmd), run=_ok_run)
@@ -97,7 +97,7 @@ def test_run_check_missing_ib(tmp_path: Path) -> None:
 def test_run_check_happy_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
     _ensure_ib(target)
     ibcmd = tmp_path / "ibcmd"
     ibcmd.write_text("#!/bin/sh\n", encoding="utf-8")
@@ -117,7 +117,7 @@ def test_run_check_happy_mock(tmp_path: Path) -> None:
 def test_run_check_bsl_failure(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
     _ensure_ib(target)
     ibcmd = tmp_path / "ibcmd"
     ibcmd.write_text("", encoding="utf-8")
@@ -136,7 +136,7 @@ def test_run_check_bsl_failure(tmp_path: Path) -> None:
 def test_check_payload_matches_schema(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
     _ensure_ib(target)
     ibcmd = tmp_path / "ibcmd"
     ibcmd.write_text("", encoding="utf-8")
@@ -155,7 +155,7 @@ def test_check_payload_matches_schema(tmp_path: Path) -> None:
 def test_cli_check_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
     _ensure_ib(target)
     ibcmd = tmp_path / "ibcmd"
     ibcmd.write_text("", encoding="utf-8")
@@ -176,7 +176,7 @@ def test_cli_check_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
 def test_cli_check_platform_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
     _ensure_ib(target)
     ibcmd = tmp_path / "ibcmd"
     ibcmd.write_text("", encoding="utf-8")
@@ -197,7 +197,7 @@ def _fake_check_ok(*_args: Any, **_kwargs: Any) -> IbcmdRunResult:
 def test_cli_check_missing_ibcmd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
     _ensure_ib(target)
     monkeypatch.chdir(target)
     monkeypatch.setattr(
@@ -213,7 +213,7 @@ def test_cli_check_missing_ibcmd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 def test_cli_check_failure_exit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
     _ensure_ib(target)
     ibcmd = tmp_path / "ibcmd"
     ibcmd.write_text("", encoding="utf-8")
@@ -248,7 +248,7 @@ def test_cli_check_no_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
 def test_cli_check_missing_ib_exit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
     ibcmd = tmp_path / "ibcmd"
     ibcmd.write_text("", encoding="utf-8")
     monkeypatch.chdir(target)
@@ -271,7 +271,7 @@ def test_integration_ibcmd_check(tmp_path: Path) -> None:
 
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
 
     build = run_build(target)
     assert build.status == "ok", build.to_payload()

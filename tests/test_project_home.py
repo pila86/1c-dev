@@ -85,19 +85,20 @@ def test_init_writes_schema2_home_layout(tmp_path: Path) -> None:
     assert result.home == target / HOME_DIR_NAME
     assert (target / HOME_MANIFEST_REL).is_file()
     assert not (target / LEGACY_MANIFEST_NAME).exists()
-    assert (target / ".1c-dev" / "runtime" / "main").is_dir()
+    assert (target / ".1c-dev" / "runtime").is_dir()
     assert result.manifest is not None
     assert result.manifest["schema"] == "2"
-    assert result.manifest["configurations"][0]["id"] == "main"
-    assert result.manifest["runtimes"][0]["path"] == ".1c-dev/runtime/main"
-    assert result.runtimes
+    assert result.manifest["configurations"] == []
+    assert result.manifest["runtimes"] == []
     assert HOME_MANIFEST_REL in result.created
 
 
 def test_project_get_fields(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, name="Shop", ide_target="none").status == "ok"
+    assert init_project(
+        target, name="Shop", config="Shop", ide_target="none"
+    ).status == "ok"
     result = validate_project(target)
     assert result.status == "ok"
     payload = result.to_payload(include_manifest=True)
@@ -106,8 +107,11 @@ def test_project_get_fields(tmp_path: Path) -> None:
     assert payload["manifest_path"] == str(target / HOME_DIR_NAME / "project.yaml")
     assert payload["path"] == payload["manifest_path"]
     assert isinstance(payload["runtimes"], list)
-    assert payload["runtimes"][0]["id"] == "main"
+    assert payload["runtimes"][0]["id"] == "Shop"
     assert "manifest" in payload
+    assert "summary" in payload
+    assert payload["summary"]["defaults"]["configuration"] == "Shop"
+    assert payload["summary"]["configurations"][0]["path"] == "src/Shop"
 
 
 def test_list_projects_nested_monorepo(tmp_path: Path) -> None:

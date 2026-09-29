@@ -21,6 +21,18 @@ from core.project import init_project
 runner = CliRunner()
 
 
+def _init_config_project(target: Path, *, name: str = "Shop") -> None:
+    assert init_project(target, project_type="configuration", name=name).status == "ok"
+    from core.configuration import add_configuration
+
+    assert (
+        add_configuration(
+            target, config_id="main", name=name, source_path="src/cf"
+        ).status
+        == "ok"
+    )
+
+
 def _fake_discovery(*, ibcmd: Path | None) -> DiscoveryResult:
     return DiscoveryResult(
         platform=PlatformInfo(found=True, version="8.3.25.1560", path=Path("/opt/1cv8")),
@@ -34,7 +46,7 @@ def _fake_discovery(*, ibcmd: Path | None) -> DiscoveryResult:
 def test_add_extension_to_configuration(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    _init_config_project(target)
 
     result = add_extension(target, ext_id="custom", name="CustomExt", purpose="product")
     assert result.status == "ok", result.diagnostics
@@ -56,7 +68,7 @@ def test_add_extension_to_configuration(tmp_path: Path) -> None:
 def test_add_extension_duplicate(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    _init_config_project(target)
     assert add_extension(target, ext_id="custom", name="CustomExt").status == "ok"
     second = add_extension(target, ext_id="custom", name="Other")
     assert second.status == "error"
@@ -66,7 +78,7 @@ def test_add_extension_duplicate(tmp_path: Path) -> None:
 def test_cli_extension_add(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    _init_config_project(target)
     monkeypatch.chdir(target)
     result = runner.invoke(
         app,
@@ -100,7 +112,7 @@ def test_cli_extension_add_no_project(
 def test_run_extension_list_ok(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    _init_config_project(target)
     ib_dir = target / ".1c-dev" / "runtime" / "main"
     ib_dir.mkdir(parents=True, exist_ok=True)
     (ib_dir / IB_MARKER).write_bytes(b"")
@@ -127,7 +139,7 @@ def test_run_extension_list_ok(tmp_path: Path) -> None:
 def test_run_extension_list_missing_ib(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    _init_config_project(target)
     ibcmd = tmp_path / "ibcmd"
     ibcmd.write_text("", encoding="utf-8")
     result = run_extension_list(
@@ -141,7 +153,7 @@ def test_run_extension_list_missing_ib(tmp_path: Path) -> None:
 def test_cli_extension_list(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    _init_config_project(target)
     ib_dir = target / ".1c-dev" / "runtime" / "main"
     ib_dir.mkdir(parents=True, exist_ok=True)
     (ib_dir / IB_MARKER).write_bytes(b"")
