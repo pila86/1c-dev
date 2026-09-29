@@ -219,6 +219,41 @@ def register_tools(server: FastMCP) -> None:
         return result.to_payload(include_manifest=False)
 
     @server.tool(
+        name="configuration.import",
+        description=(
+            "Import a .cf configuration into XML source via ibcmd "
+            "(load → apply → export). Ensures empty .1c-dev/project.yaml "
+            "(schema 2) if missing; registers configuration + runtime when "
+            "needed (same path as configuration.add, without empty XML scaffold). "
+            "Refuses to overwrite existing Configuration.xml unless force=true. "
+            "Set break_support=true to strip ParentConfigurations* support "
+            "artifacts after export (vendor update will no longer be possible). "
+            "Does not write AGENTS.md or IDE MCP configs (use ide.configure for that)."
+            + _PATH_SCOPE
+            + _NO_SHELL
+        ),
+    )
+    def configuration_import_tool(
+        from_path: str,
+        path: str | None = None,
+        id: str | None = None,
+        source_path: str | None = None,
+        force: bool = False,
+        break_support: bool = False,
+        with_runtime: bool = True,
+    ) -> dict[str, Any]:
+        result = run_import(
+            resolve_path(path),
+            from_path=from_path,
+            force=force,
+            break_support=break_support,
+            config_id=id,
+            source_path=source_path,
+            with_runtime=with_runtime,
+        )
+        return result.to_payload()
+
+    @server.tool(
         name="configuration.list",
         description=(
             "List configurations in the project scope "
@@ -362,40 +397,13 @@ def register_tools(server: FastMCP) -> None:
         return result.to_payload(include_manifest=False)
 
     @server.tool(
-        name="project.import",
-        description=(
-            "Import a .cf configuration into project XML source via ibcmd "
-            "(load → apply → export). Creates .1c-dev/project.yaml (schema 2) if missing. "
-            "Refuses to overwrite existing Configuration.xml unless force=true. "
-            "Set break_support=true to strip ParentConfigurations* support "
-            "artifacts after export (vendor update will no longer be possible). "
-            "Does not write AGENTS.md or IDE MCP configs (use ide.configure for that)."
-            + _PATH_SCOPE
-            + _NO_SHELL
-        ),
-    )
-    def project_import_tool(
-        from_path: str,
-        path: str | None = None,
-        force: bool = False,
-        break_support: bool = False,
-    ) -> dict[str, Any]:
-        result = run_import(
-            resolve_path(path),
-            from_path=from_path,
-            force=force,
-            break_support=break_support,
-        )
-        return result.to_payload()
-
-    @server.tool(
         name="project.clean",
         description=(
             "DESTRUCTIVE: wipe project XML source (default configuration source.path) "
             "and the entire .1c-dev/runtime/ directory (file IB, ibcmd-data, client state). "
             "Requires yes=true. Does not touch .1c-dev/project.yaml, AGENTS.md, IDE MCP "
             "configs, .gitignore, or git. Stops a live runtime client first. "
-            "Idempotent if already empty. Typical follow-up: project.import or init."
+            "Idempotent if already empty. Typical follow-up: configuration.import or init."
             " Optional config_id/runtime_id wipe only that source/runtime; "
             "without them wipe default source and entire .1c-dev/runtime/."
             + _PATH_SCOPE

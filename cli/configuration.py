@@ -1,4 +1,4 @@
-"""CLI: 1c-dev configuration … (ADR-027 / #100)."""
+"""CLI: 1c-dev configuration … (ADR-027 / ADR-028 / #100)."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from typing import Any
 
 import typer
 
+from adapters.platform_ibcmd.constants import CODE_IBCMD_FAILED
 from cli.output import OutputFormat, OutputOption, resolve_output
 from core.configuration import (
     ConfigurationListResult,
@@ -17,12 +18,20 @@ from core.configuration import (
     remove_configuration,
     set_default_configuration,
 )
-from core.exit_codes import PROJECT_ERROR, SUCCESS
+from core.exit_codes import BUILD_FAILURE, ENV_UNAVAILABLE, PROJECT_ERROR, SUCCESS
+from core.import_cf import ImportResult, run_import
+from core.import_cf.constants import (
+    CODE_CF_MISSING,
+    CODE_DIRTY_SOURCE,
+    CODE_EXPORT_MISSING,
+    CODE_IBCMD_MISSING,
+    CODE_PROJECT,
+)
 from core.project.result import ProjectResult
 
 app = typer.Typer(
     name="configuration",
-    help="Lifecycle конфигураций в scope (add / list / get / remove / set-default).",
+    help="Lifecycle конфигураций в scope (add / import / list / get / remove / set-default).",
     add_completion=False,
     no_args_is_help=True,
 )
@@ -139,6 +148,125 @@ def configuration_add_command(
     payload = result.to_payload(include_manifest=False)
     _emit(payload, resolve_output(ctx, output), text_lines=_project_text(result))
     raise typer.Exit(code=SUCCESS if result.status == "ok" else PROJECT_ERROR)
+
+
+def _import_exit_for(result: ImportResult) -> None:
+    if result.status == "ok":
+        raise typer.Exit(code=SUCCESS)
+    codes = {d.get("code") for d in result.diagnostics}
+    if CODE_IBCMD_MISSING in codes:
+        raise typer.Exit(code=ENV_UNAVAILABLE)
+    if codes & {
+        CODE_CF_MISSING,
+        CODE_PROJECT,
+        CODE_DIRTY_SOURCE,
+    }:
+        raise typer.Exit(code=PROJECT_ERROR)
+    if codes & {CODE_IBCMD_FAILED, CODE_EXPORT_MISSING}:
+        raise typer.Exit(code=BUILD_FAILURE)
+    raise typer.Exit(code=BUILD_FAILURE)
+
+
+def _import_text(result: ImportResult) -> list[str]:
+    if result.status != "ok":
+        lines = ["status: failed"]
+        for diag in result.diagnostics:
+            code = diag.get("code", "")
+            prefix = f"[{code}] " if code else ""
+            lines.append(f"error: {prefix}{diag.get('message', '')}")
+            suggestion = diag.get("suggestion")
+            if suggestion:
+                lines.append(f"  → {suggestion}")
+        return lines
+
+    lines = ["status: ok"]
+    if result.duration is not None:
+        lines.append(f"duration: {result.duration:.3f}s")
+    if result.source_path is not None and result.root is not None:
+        try:
+            rel = result.source_path.relative_to(result.root).as_posix()
+        except ValueError:
+            rel = str(result.source_path)
+        lines.append(f"source: {rel}")
+    if result.runtime_path is not None and result.root is not None:
+        try:
+            rel = result.runtime_path.relative_to(result.root).as_posix()
+        except ValueError:
+            rel = str(result.runtime_path)
+        lines.append(f"runtime: {rel}")
+    if result.from_path is not None:
+        lines.append(f"from: {result.from_path}")
+    if result.steps:
+        lines.append("steps: " + ", ".join(result.steps))
+    if result.created:
+        lines.append("created: " + ", ".join(result.created))
+    if result.removed:
+        lines.append("removed: " + ", ".join(result.removed))
+    for diag in result.diagnostics:
+        if diag.get("severity") == "error":
+            continue
+        code = diag.get("code", "")
+        prefix = f"[{code}] " if code else ""
+        sev = diag.get("severity", "info")
+        lines.append(f"{sev}: {prefix}{diag.get('message', '')}")
+    return lines
+
+
+@app.command("import")
+def configuration_import_command(
+    ctx: typer.Context,
+    from_path: Path = typer.Option(
+        ...,
+        "--from",
+        help="Путь к файлу конфигурации (.cf).",
+        exists=False,
+        dir_okay=False,
+        file_okay=True,
+        resolve_path=False,
+    ),
+    config_id: str | None = typer.Option(
+        None,
+        "--id",
+        help="Id configuration (по умолчанию: default conf или main при создании).",
+    ),
+    source_path: str | None = typer.Option(
+        None,
+        "--path",
+        help="Каталог исходников при создании conf (default: src/<id>).",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Перезаписать существующий XML source (Configuration.xml).",
+    ),
+    break_support: bool = typer.Option(
+        False,
+        "--break-support",
+        help=(
+            "После export удалить артефакты поддержки поставщика "
+            "(ParentConfigurations*) из source.path. "
+            "Теряется возможность штатного обновления от поставщика."
+        ),
+    ),
+    with_runtime: bool = typer.Option(
+        True,
+        "--with-runtime/--no-runtime",
+        help="При создании conf — связанный runtime (.1c-dev/runtime/<id>).",
+    ),
+    output: OutputOption = None,
+) -> None:
+    """Импортировать .cf в XML source configuration (CF → IB → export)."""
+    result = run_import(
+        Path.cwd(),
+        from_path=from_path,
+        force=force,
+        break_support=break_support,
+        config_id=config_id,
+        source_path=source_path,
+        with_runtime=with_runtime,
+    )
+    _emit(result.to_payload(), resolve_output(ctx, output), text_lines=_import_text(result))
+    _import_exit_for(result)
 
 
 @app.command("list")

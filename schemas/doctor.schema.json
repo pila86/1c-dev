@@ -60,7 +60,7 @@
       "properties": {
         "build": { "$ref": "#/$defs/capability" },
         "check": { "$ref": "#/$defs/capability" },
-        "project.import": { "$ref": "#/$defs/capability" },
+        "configuration.import": { "$ref": "#/$defs/capability" },
         "ibsrv": { "$ref": "#/$defs/capability" },
         "metadata.create": { "$ref": "#/$defs/capability" },
         "metadata.update": { "$ref": "#/$defs/capability" },

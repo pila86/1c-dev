@@ -25,8 +25,8 @@
 |------|---------|-----|
 | Project home | Каталог `.1c-dev/`; манифест `.1c-dev/project.yaml`; scope root = родитель; пути relative к scope root | [022](../adr/022-project-home.md) |
 | Multi-config + extensions | `configurations[]` + `extensions[]`; CLI/MCP `--config`; build с ibcmd `--extension` | [023](../adr/023-multi-config-extensions.md) |
-| Init vs configuration | `project.init` = только scope/home (манифест, без XML conf); lifecycle conf — `configuration.add|list|…`; empty `configurations[]`/`runtimes[]` допустимы до первого add | [#100](https://github.com/pila86/1c-dev/issues/100) (ADR-006 supersede / ADR-023+) |
-| Platform templates | Discovery tmplts / `1cestart.cfg`; parse `*.mft`; `templates.*` + `project.import --from-template` | [024](../adr/024-platform-templates.md) |
+| Init vs configuration | `project.init` = только scope/home (манифест, без XML conf); lifecycle conf — `configuration.add|list|import|…`; empty `configurations[]`/`runtimes[]` допустимы до первого add/import | [#100](https://github.com/pila86/1c-dev/issues/100) / [ADR-027](../adr/027-configuration-lifecycle.md) / [ADR-028](../adr/028-configuration-import.md) |
+| Platform templates | Discovery tmplts / `1cestart.cfg`; parse `*.mft`; `templates.*` + `configuration.import --from-template` | [024](../adr/024-platform-templates.md) |
 | Publish | Фасад `publish.*`; MVP `ibsrv`; Apache/`webinst` вторым адаптером | [025](../adr/025-publish-backends.md) |
 | Runtimes | Массив `runtimes[]`: `{id, configuration, type, path, default?}`; ≥1 IB на configuration (когда conf есть); один global `default` | [026](../adr/026-runtimes-array.md) |
 | Schema | Манифест schema `"2"`; empty arrays на empty scope (#100) | [`1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json) |
@@ -112,10 +112,11 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 
 ### B. Multi-config и extensions
 
-- **`configuration.*` (CLI/MCP, #100):**
-  - **Must:** `add` (scaffold XML + манифест + связанный runtime), `list`;
+- **`configuration.*` (CLI/MCP, #100 / ADR-028):**
+  - **Must:** `add` (scaffold XML + манифест + связанный runtime), `list`, `import` (`.cf` → XML; register conf/runtime без empty scaffold);
   - **Should:** `get`, `remove` (`--yes`), `set-default`.
   - Сигнатура add: `--id`, `--name`, `--path` (default `src/<id>`), `--set-default`, `--with-runtime` (default on).
+  - Сигнатура import: `--from`, `--id`, `--path`, `--force`, `--break-support`, `--with-runtime`.
 - `templates/extension/` + standalone `init --type extension` (или `configuration.add` с `type=extension` — уточнить в реализации #100) и `extension.add` в configuration-проект.
 - Adapter ibcmd: `--extension` на import/apply/save/load/export (spike argv до freeze API).
 - `build`: configuration, затем extensions в ИБ из `runtimes[]` (`--runtime` / default / `--config`); без conf — ошибка со suggestion `configuration.add`.
@@ -128,7 +129,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 - Discovery: `ConfigurationTemplatesLocation` из `1cestart.cfg` + default tmplts (Linux/Windows).
 - Парсер `*.mft` → list (vendor, name, version, Source `.cf`/`.dt`/`.cfu`).
 - CLI/MCP: `templates.roots`, `templates.list`, `templates.get`.
-- `project.import --from-template <id>`: `.cf` → reuse import pipeline; `.dt` → seed runtime (не подмена XML source без явного флага).
+- `configuration.import --from-template <id>`: `.cf` → reuse import pipeline; `.dt` → seed runtime (не подмена XML source без явного флага).
 - Doctor capability `templates`.
 
 ### D. Publish
@@ -180,7 +181,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 
 ```
 1. templates.list
-2. project.import --from-template <id>
+2. configuration.import --from-template <id>
 3. build
 ```
 
@@ -208,15 +209,16 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 - [x] `runtimes[]`: связь ИБ↔configuration; validate ≥1 IB на config (когда conf есть); один global `default` (когда runtimes непусты)
 - [x] `project.init` создаёт empty scope (без XML conf); detect только `.1c-dev/project.yaml`
 - [x] `configuration.add` / `list` (CLI+MCP): scaffold + манифест + runtime; вторая conf в том же scope
+- [x] `configuration.import` (CLI+MCP): empty ensure + register conf/runtime; без `project.import` (ADR-028 / #105)
 - [x] `project.get` — summary состава configurations / runtimes / defaults
 - [ ] `configurations[]` + `extensions[]`; build в выбранную/default ИБ
 - [ ] Extension scaffold; установка extension в ИБ из XML через ibcmd
-- [ ] `templates.list` / `project.import --from-template` для `.cf` из tmplts
+- [ ] `templates.list` / `configuration.import --from-template` для `.cf` из tmplts
 - [ ] `publish` через ibsrv для default (или указанного) runtime
 - [ ] MCP `path` = scope root; `project.list` находит nested `.1c-dev`
 - [ ] `ide configure --ide-root` не требует совпадения с scope root
 - [ ] Doctor: templates / ibsrv / webinst capabilities
-- [ ] ADR 022–026 Accepted (при закрытии реализации); roadmap M1–M4; EDT/Tests в `draft-*`
+- [ ] ADR 022–028 Accepted (при закрытии реализации); roadmap M1–M4; EDT/Tests в `draft-*`
 
 ### Should
 
@@ -249,8 +251,9 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 | [#89](https://github.com/pila86/1c-dev/issues/89) | 1 | Publish ibsrv: adapter, `publish.*`, doctor ibsrv, артефакты `.1c-dev/publish/` | #84, #87 |
 | [#90](https://github.com/pila86/1c-dev/issues/90) | 1 | `ide configure --project` / `--ide-root` + AGENTS opt-in для multi-tool | #86 |
 | [#100](https://github.com/pila86/1c-dev/issues/100) | 1b | `project.init` без conf; `configuration.add|list|…`; `project.get` summary; empty schema arrays | #86, #88 |
+| [#105](https://github.com/pila86/1c-dev/issues/105) | 1b | `configuration.import` (migrate from `project.import` + empty-scope register); ADR-028 | #100 |
 | [#91](https://github.com/pila86/1c-dev/issues/91) | 2 | Templates: discovery tmplts/mft, `templates.*`, doctor `templates` | #86 |
-| [#92](https://github.com/pila86/1c-dev/issues/92) | 2 | `project.import --from-template` для `.cf` из tmplts | #91 |
+| [#92](https://github.com/pila86/1c-dev/issues/92) | 2 | `configuration.import --from-template` для `.cf` из tmplts | #91, #105 |
 | [#93](https://github.com/pila86/1c-dev/issues/93) | — | **Cancelled:** `project migrate` / dual-compat не нужны | — |
 | [#94](https://github.com/pila86/1c-dev/issues/94) | 3 | should: Publish Apache/`webinst` + doctor `webinst` | #89 |
 | [#95](https://github.com/pila86/1c-dev/issues/95) | 3 | should: установка extension из `.cfe` + seed ИБ из `.dt` шаблона | #88, #92 |
@@ -262,7 +265,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 - [Roadmap](../roadmap.md)
 - [M3](m3-product-adopt.md)
 - [draft-source-formats](draft-source-formats.md) · [draft-tests](draft-tests.md)
-- ADR: [022](../adr/022-project-home.md) · [023](../adr/023-multi-config-extensions.md) · [024](../adr/024-platform-templates.md) · [025](../adr/025-publish-backends.md) · [026](../adr/026-runtimes-array.md)
+- ADR: [022](../adr/022-project-home.md) · [023](../adr/023-multi-config-extensions.md) · [024](../adr/024-platform-templates.md) · [025](../adr/025-publish-backends.md) · [026](../adr/026-runtimes-array.md) · [027](../adr/027-configuration-lifecycle.md) · [028](../adr/028-configuration-import.md)
 - Spike argv: [084-ibcmd-extension-ibsrv](../spikes/084-ibcmd-extension-ibsrv.md)
 - Schema v2: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json)
 - PRD §8 Project Model, §9 Project Types

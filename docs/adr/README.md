@@ -26,7 +26,7 @@
 | [012](012-metadata-read-mdclasses.md) | Accepted | Metadata read-backend MDClasses |
 | [013](013-packaging-toolchain-cache.md) | Accepted | Packaging (`uv tool`) / user cache / pin toolchain |
 | [014](014-ibcmd-import-cf.md) | Accepted | Platform adapter: ibcmd import from `.cf` |
-| [015](015-project-import-cf.md) | Accepted | Product API: `project.import` / `runtime.load` |
+| [015](015-project-import-cf.md) | Superseded by [028](028-configuration-import.md) | Product API: historical `project.import` / `runtime.load` |
 | [016](016-ide-configure.md) | Accepted | IDE configure (MCP + AGENTS merge) |
 | [017](017-docs-bsl-context.md) | Accepted | Docs API via bsl-context (lazy index) |
 | [018](018-metadata-types-coverage.md) | Accepted | Metadata types coverage (23 meta + Subsystem) |
@@ -39,6 +39,7 @@
 | [025](025-publish-backends.md) | Accepted | Publish backends (ibsrv / webinst) |
 | [026](026-runtimes-array.md) | Accepted | `runtimes[]`: ИБ ↔ configuration |
 | [027](027-configuration-lifecycle.md) | Accepted | Init = empty scope; `configuration.*` lifecycle |
+| [028](028-configuration-import.md) | Accepted | Product API: `configuration.import` (supersedes `project.import` name) |
 
 ## Когда писать ADR
 

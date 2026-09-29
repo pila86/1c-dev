@@ -1,4 +1,4 @@
-"""Tests for project.import / runtime.load (ADR-015, #47)."""
+"""Tests for configuration.import / runtime.load (ADR-015 / ADR-028, #47)."""
 
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ from core.import_cf.constants import (
     CODE_PROJECT,
 )
 from core.project.constants import HOME_MANIFEST_REL
+from core.project.load import load_manifest
 from tests.helpers_project import bootstrap_configuration_project
 
 runner = CliRunner()
@@ -127,12 +128,63 @@ def test_run_import_ensure_manifest(tmp_path: Path) -> None:
     assert result.status == "ok", result.to_payload()
     assert (target / HOME_MANIFEST_REL).is_file()
     assert ".1c-dev/project.yaml" in result.created
-    assert (target / "src" / "cf" / "Configuration.xml").is_file()
+    assert (target / "src" / "main" / "Configuration.xml").is_file()
     assert not (target / "AGENTS.md").exists()
     assert result.steps == ["create", "load", "apply", "export"]
     payload = result.to_payload()
-    assert payload["sourcePath"] == "src/cf"
+    assert payload["sourcePath"] == "src/main"
     assert payload["from"] == str(cf_path.resolve())
+    data, _ = load_manifest(target / HOME_MANIFEST_REL)
+    assert data is not None
+    assert data["configurations"] == [
+        {
+            "id": "main",
+            "type": "configuration",
+            "source": {"format": "xml", "path": "src/main"},
+            "default": True,
+        }
+    ]
+    assert data["runtimes"][0]["id"] == "main"
+    assert data["runtimes"][0]["path"] == ".1c-dev/runtime/main"
+
+
+def test_run_import_after_empty_init(tmp_path: Path) -> None:
+    from core.project import init_project
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert init_project(target, name="Shop", ide_target="none").status == "ok"
+    cf_path = tmp_path / "configuration.cf"
+    cf_path.write_bytes(b"CF")
+    ibcmd = tmp_path / "ibcmd"
+    ibcmd.write_text("", encoding="utf-8")
+
+    def import_fn(
+        _ibcmd: Path,
+        *,
+        db_path: Path,
+        data_path: Path,
+        cf_path: Path,
+        source_dir: Path,
+        run: Any = None,
+    ) -> list[str]:
+        source_dir.mkdir(parents=True, exist_ok=True)
+        (source_dir / "Configuration.xml").write_text("<MetaDataObject/>", encoding="utf-8")
+        return ["create", "load", "apply", "export"]
+
+    result = run_import(
+        target,
+        from_path=cf_path,
+        discover=lambda: _fake_discovery(ibcmd=ibcmd),
+        import_fn=import_fn,
+    )
+    assert result.status == "ok", result.to_payload()
+    data, _ = load_manifest(target / HOME_MANIFEST_REL)
+    assert data is not None
+    assert len(data["configurations"]) == 1
+    assert data["configurations"][0]["source"]["path"] == "src/main"
+    assert (target / "src" / "main" / "Configuration.xml").is_file()
+    assert (target / "AGENTS.md").is_file()  # from init, not from import
 
 
 def test_run_import_force_overwrites(tmp_path: Path) -> None:
@@ -248,7 +300,7 @@ def test_run_import_happy_mock(tmp_path: Path) -> None:
     )
     assert result.status == "ok"
     assert result.steps == ["create", "load", "apply", "export"]
-    assert (target / "src" / "cf" / "Configuration.xml").is_file()
+    assert (target / "src" / "main" / "Configuration.xml").is_file()
 
 
 def test_run_runtime_load_requires_manifest(tmp_path: Path) -> None:
@@ -284,7 +336,7 @@ def test_run_runtime_load_happy_mock(tmp_path: Path) -> None:
     assert "export" not in result.steps
 
 
-def test_cli_project_import(tmp_path: Path, monkeypatch: Any) -> None:
+def test_cli_configuration_import(tmp_path: Path, monkeypatch: Any) -> None:
     monkeypatch.chdir(tmp_path)
     cf_path = tmp_path / "configuration.cf"
     cf_path.write_bytes(b"CF")
@@ -314,7 +366,7 @@ def test_cli_project_import(tmp_path: Path, monkeypatch: Any) -> None:
 
     result = runner.invoke(
         app,
-        ["project", "import", "--from", str(cf_path), "--output", "json"],
+        ["configuration", "import", "--from", str(cf_path), "--output", "json"],
     )
     assert result.exit_code == SUCCESS, result.output
     payload = json.loads(result.output)
@@ -322,14 +374,14 @@ def test_cli_project_import(tmp_path: Path, monkeypatch: Any) -> None:
     assert (tmp_path / HOME_MANIFEST_REL).is_file()
 
 
-def test_cli_project_import_dirty_exit(tmp_path: Path, monkeypatch: Any) -> None:
+def test_cli_configuration_import_dirty_exit(tmp_path: Path, monkeypatch: Any) -> None:
     monkeypatch.chdir(tmp_path)
     assert bootstrap_configuration_project(tmp_path, name="Shop").status == "ok"
     cf_path = tmp_path / "configuration.cf"
     cf_path.write_bytes(b"CF")
     result = runner.invoke(
         app,
-        ["project", "import", "--from", str(cf_path), "--output", "json"],
+        ["configuration", "import", "--from", str(cf_path), "--output", "json"],
     )
     assert result.exit_code == PROJECT_ERROR
     payload = json.loads(result.output)
@@ -360,18 +412,18 @@ def test_cli_runtime_load(tmp_path: Path, monkeypatch: Any) -> None:
     assert payload["steps"] == ["load", "apply"]
 
 
-def test_cli_project_import_missing_cf_exit(tmp_path: Path, monkeypatch: Any) -> None:
+def test_cli_configuration_import_missing_cf_exit(tmp_path: Path, monkeypatch: Any) -> None:
     monkeypatch.chdir(tmp_path)
     result = runner.invoke(
         app,
-        ["project", "import", "--from", str(tmp_path / "missing.cf"), "--output", "json"],
+        ["configuration", "import", "--from", str(tmp_path / "missing.cf"), "--output", "json"],
     )
     assert result.exit_code == PROJECT_ERROR
     payload = json.loads(result.output)
     assert any(d.get("code") == CODE_CF_MISSING for d in payload["diagnostics"])
 
 
-def test_cli_project_import_ibcmd_missing_exit(tmp_path: Path, monkeypatch: Any) -> None:
+def test_cli_configuration_import_ibcmd_missing_exit(tmp_path: Path, monkeypatch: Any) -> None:
     monkeypatch.chdir(tmp_path)
     cf_path = tmp_path / "configuration.cf"
     cf_path.write_bytes(b"CF")
@@ -381,12 +433,12 @@ def test_cli_project_import_ibcmd_missing_exit(tmp_path: Path, monkeypatch: Any)
     )
     result = runner.invoke(
         app,
-        ["project", "import", "--from", str(cf_path), "--output", "json"],
+        ["configuration", "import", "--from", str(cf_path), "--output", "json"],
     )
     assert result.exit_code == ENV_UNAVAILABLE
 
 
-def test_cli_project_import_ibcmd_fail_exit(tmp_path: Path, monkeypatch: Any) -> None:
+def test_cli_configuration_import_ibcmd_fail_exit(tmp_path: Path, monkeypatch: Any) -> None:
     from adapters.platform_ibcmd import IbcmdError
 
     monkeypatch.chdir(tmp_path)
@@ -416,20 +468,20 @@ def test_cli_project_import_ibcmd_fail_exit(tmp_path: Path, monkeypatch: Any) ->
     monkeypatch.setattr("core.import_cf.run.import_cf_with_ibcmd", boom)
     result = runner.invoke(
         app,
-        ["project", "import", "--from", str(cf_path), "--output", "json"],
+        ["configuration", "import", "--from", str(cf_path), "--output", "json"],
     )
     assert result.exit_code == BUILD_FAILURE
 
 
 @pytest.mark.integration
-def test_integration_project_import_roundtrip(tmp_path: Path) -> None:
-    """build --artifact cf → project.import; skip if platform unavailable."""
+def test_integration_configuration_import_roundtrip(tmp_path: Path) -> None:
+    """build --artifact cf → configuration.import; skip if platform unavailable."""
     from adapters.platform import discover_environment
     from core.build import run_build
 
     discovery = discover_environment()
     if not discovery.ibcmd.found or discovery.ibcmd.path is None:
-        pytest.skip("ibcmd не найден — integration project.import пропущен")
+        pytest.skip("ibcmd не найден — integration configuration.import пропущен")
 
     project = tmp_path / "shop"
     project.mkdir()
@@ -447,6 +499,6 @@ def test_integration_project_import_roundtrip(tmp_path: Path) -> None:
     result = run_import(import_root, from_path=cf_path)
     assert result.status == "ok", result.to_payload()
     assert "export" in result.steps
-    assert (import_root / "src" / "cf" / "Configuration.xml").is_file()
+    assert (import_root / "src" / "main" / "Configuration.xml").is_file()
     assert (import_root / HOME_MANIFEST_REL).is_file()
     assert not (import_root / "AGENTS.md").exists()

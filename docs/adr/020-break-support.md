@@ -17,8 +17,8 @@ Agent workflow M3 «import → metadata.update/create → build» на реал�
 ### MVP (must): флаг на import
 
 ```bash
-1c-dev project import --from configuration.cf --break-support
-# MCP: project.import(..., break_support=true)
+1c-dev configuration import --from configuration.cf --break-support
+# MCP: configuration.import(..., break_support=true)
 ```
 
 После `config export` в `source.path` — **source-level strip**:
@@ -52,7 +52,7 @@ Agent workflow M3 «import → metadata.update/create → build» на реал�
 
 ## Последствия
 
-- Типовой adopt: `project import --break-support` → правки metadata + `build` без блокировки поддержкой.
+- Типовой adopt: `configuration import --break-support` → правки metadata + `build` без блокировки поддержкой.
 - Потеря возможности штатного обновления от поставщика для этого source — осознанный trade-off; документировать в CLI help / AGENTS.
 - Unit-тесты на fixture с `ParentConfigurations.bin` без platform; integration на реальном типовом `.cf` — optional / skip без файла.
 

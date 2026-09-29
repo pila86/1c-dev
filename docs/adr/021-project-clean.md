@@ -37,7 +37,7 @@ require --yes (иначе отказ + diagnostic)
 
 Без `--yes` — отказ (как `tools clean --yes`, ADR-013). MCP требует тот же явный confirm.
 
-Отличие от `project import --force`: force перезаписывает source через pipeline ibcmd; `clean` — явный wipe перед повторным import/init.
+Отличие от `configuration import --force`: force перезаписывает source через pipeline ibcmd; `clean` — явный wipe перед повторным import/init.
 
 ### Пакет
 
@@ -58,7 +58,7 @@ require --yes (иначе отказ + diagnostic)
 
 ## Последствия
 
-- Типовой цикл: `project clean --yes` → `project import --from …` (или `init`).
+- Типовой цикл: `project clean --yes` → `configuration import --from …` (или `init`).
 - Агент обязан передавать confirm; в AGENTS.md — предупреждение о destructive.
 - Unit-тесты на tmp fixture (файлы в `source.path` + `.runtime/ib`) без platform.
 - `runtime.reset` (только IB) и режим «только runtime» — later, не M3 must.

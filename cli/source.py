@@ -77,7 +77,7 @@ def source_break_support(
     """
     Снять конфигурацию с поддержки: удалить ParentConfigurations* из source.path.
 
-    Та же strip-логика, что у project import --break-support, без повторного import.
+    Та же strip-логика, что у configuration import --break-support, без повторного import.
     Идемпотентно. Теряется возможность штатного обновления от поставщика.
     """
     result = run_break_support(Path.cwd())

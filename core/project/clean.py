@@ -139,7 +139,7 @@ def run_clean(
                     f"Манифест проекта не найден ({HOME_MANIFEST_REL})",
                     code=CODE_MANIFEST_MISSING,
                     source="project",
-                    suggestion="Выполните 1c-dev init или project import",
+                    suggestion="Выполните 1c-dev init или configuration import",
                 )
             ],
         )

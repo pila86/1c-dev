@@ -76,7 +76,7 @@ def test_m3_acceptance_import_ide_docs(tmp_path: Path) -> None:
     assert imported_result.status == "ok", imported_result.to_payload()
     assert "export" in imported_result.steps
     assert (imported / HOME_MANIFEST_REL).is_file()
-    assert (imported / "src" / "cf" / "Configuration.xml").is_file()
+    assert (imported / "src" / "main" / "Configuration.xml").is_file()
     assert not (imported / "AGENTS.md").exists()
 
     # --- metadata visible after import ---

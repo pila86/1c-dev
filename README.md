@@ -7,7 +7,7 @@ Agent-independent toolchain и API-слой для AI-native разработк�
 - [uv](https://docs.astral.sh/uv/) — для установки CLI в PATH (`uv tool install`)
 - JDK 17+ — для `metadata.create` / `metadata.update` (jar xml-gen)
 - JDK 21+ — для `metadata.list` / `get` / `find` (jar md-reader / MDClasses) и BSL LS
-- Платформа 1С 8.3.x и `ibcmd` в PATH — для `build` / `check` / `project import` и integration-тестов
+- Платформа 1С 8.3.x и `ibcmd` в PATH — для `build` / `check` / `configuration import` и integration-тестов
 
 Для разработки в monorepo дополнительно: Python 3.11+ и [Poetry](https://python-poetry.org/).
 
@@ -69,7 +69,8 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 | `1c-dev extension add [--id] [--name] [--purpose] [--config]` | Добавить расширение в configuration-проект |
 | `1c-dev extension list [--config] [--runtime]` | Список расширений в выбранной file IB |
 | `1c-dev project detect\|validate\|info` | Манифест `.1c-dev/project.yaml` (`project init` = алиас `init`) |
-| `1c-dev project import --from <file.cf>` | Импорт `.cf` → XML source (`--force` перезаписывает; `--break-support` снимает с поддержки) |
+| `1c-dev configuration import --from <file.cf>` | Импорт `.cf` → XML source (`--force` перезаписывает; `--break-support` снимает с поддержки) |
+| `1c-dev configuration add\|list\|get\|remove\|set-default` | Lifecycle конфигураций в scope |
 | `1c-dev source break-support` | Удалить `ParentConfigurations*` из `source.path` (без повторного import) |
 | `1c-dev project clean --yes` | Destructive: wipe `source.path` + `.1c-dev/runtime/` (манифест/IDE intact) |
 | `1c-dev runtime load --from <file.cf>` | Загрузка `.cf` в file IB без export XML |
@@ -132,7 +133,7 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 1c-dev metadata find Товар --output json
 1c-dev build --output json
 1c-dev build --artifact cf --output json
-1c-dev project import --from build/out/configuration.cf --force --output json
+1c-dev configuration import --from build/out/configuration.cf --force --output json
 1c-dev project clean --yes --output json
 1c-dev runtime load --from build/out/configuration.cf --output json
 1c-dev runtime start --output json
@@ -163,14 +164,16 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 # или: 1c-dev ide configure --target cursor
 ```
 
-Tools: `project.get`, `project.init`, `ide.configure`, `project.import`, `project.clean`,
+Tools: `project.get`, `project.init`, `ide.configure`, `configuration.import`,
+`configuration.add` / `list` / `get` / `remove` / `set-default`, `project.clean`,
 `metadata.list`, `metadata.get`, `metadata.find`, `metadata.create`,
 `metadata.update`, `metadata.delete`, `build`, `check`,
 `runtime.start`, `runtime.stop`, `runtime.status`,
 `publish.up`, `publish.down`, `publish.status`, `publish.url`,
 `docs.search`, `docs.get`
 ([ADR-010](docs/adr/010-mcp-architecture.md), [ADR-016](docs/adr/016-ide-configure.md),
-[ADR-019](docs/adr/019-runtime-client-lifecycle.md), [ADR-021](docs/adr/021-project-clean.md)).
+[ADR-019](docs/adr/019-runtime-client-lifecycle.md), [ADR-021](docs/adr/021-project-clean.md),
+[ADR-028](docs/adr/028-configuration-import.md)).
 `project.clean` — destructive (нужен `yes=true`); не трогает манифест / IDE / git.`metadata.create` / `update` / `delete` покрывают те же 24 write-типа, что и CLI
 (список — в описании tool и в `doctor` → `supportedTypes`).
 
