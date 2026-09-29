@@ -12,6 +12,7 @@ CAPABILITY_REQUIREMENTS: dict[str, list[str]] = {
     "build": ["ibcmd"],
     "check": ["ibcmd"],
     "project.import": ["ibcmd"],
+    "ibsrv": ["ibsrv"],
     "metadata.create": ["java", "xml-gen"],
     "metadata.update": ["java", "xml-gen"],
     "metadata.delete": ["java", "xml-gen"],
@@ -29,6 +30,10 @@ _TOOL_HINTS: dict[str, str] = {
     "ibcmd": (
         "Установите платформу 1С и добавьте ibcmd в PATH "
         "(или в стандартный каталог установки)."
+    ),
+    "ibsrv": (
+        "Установите платформу 1С с автономным сервером и добавьте ibsrv в PATH "
+        "(рядом с ibcmd; нужен для publish.up)."
     ),
     "java": "Установите JDK 17+ и добавьте java в PATH (или задайте JAVA_HOME).",
     "xml-gen": "{suggest} (или задайте ONEC_XMLGEN_JAR).",

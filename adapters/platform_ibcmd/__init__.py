@@ -16,6 +16,7 @@ from adapters.platform_ibcmd.client import (
     list_extensions,
     load_cf,
     save_cf,
+    server_config_init,
 )
 from adapters.platform_ibcmd.constants import IB_MARKER
 
@@ -31,6 +32,7 @@ __all__ = [
     "list_extensions",
     "load_cf",
     "load_cf_with_ibcmd",
+    "server_config_init",
 ]
 
 

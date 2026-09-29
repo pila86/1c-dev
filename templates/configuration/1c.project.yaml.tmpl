@@ -17,3 +17,11 @@ runtimes:
     type: file
     path: .1c-dev/runtime/{{config_id}}
     default: true
+publish:
+  default: local-ibsrv
+  profiles:
+    local-ibsrv:
+      backend: ibsrv
+      port: 8314
+      runtime: "{{runtime_id}}"
+      config: .1c-dev/publish/local-ibsrv/ibsrv.yaml

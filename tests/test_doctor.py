@@ -35,6 +35,16 @@ def _clear_path(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PATH", "")
 
 
+def test_discover_ibsrv_sibling(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_path(monkeypatch)
+    _make_install(tmp_path, "8.3.27.1549", tools=("ibcmd", "ibsrv"))
+    result = discover_environment(search_roots=[tmp_path])
+    assert result.ibcmd.found is True
+    assert result.ibsrv.found is True
+    assert result.ibsrv.path is not None
+    assert result.ibsrv.path.name == "ibsrv"
+
+
 def test_version_from_path() -> None:
     assert version_from_path(Path("/opt/1cv8/x86_64/8.3.27.1549/ibcmd")) == "8.3.27.1549"
     assert version_from_path(Path("/tmp/no-version/ibcmd")) is None
@@ -176,6 +186,7 @@ def test_run_doctor_reports_all_toolchain_tools(
     for key in (
         "cli",
         "ibcmd",
+        "ibsrv",
         "1cv8",
         "java",
         "xml-gen",
@@ -187,8 +198,13 @@ def test_run_doctor_reports_all_toolchain_tools(
         assert "found" in result.tools[key]
     codes = {d.get("code") for d in result.diagnostics}
     assert "1CD008" in codes  # docs-facade missing
+    assert "1CD011" in codes  # ibsrv missing (not in _make_install default)
     docs_diag = next(d for d in result.diagnostics if d.get("code") == "1CD008")
     assert docs_diag["severity"] == "warning"
+    ibsrv_diag = next(d for d in result.diagnostics if d.get("code") == "1CD011")
+    assert ibsrv_diag["severity"] == "warning"
+    assert result.capabilities["ibsrv"]["available"] is False
+    assert result.status == "ok"  # ibsrv gap must not hard-fail doctor
 
 
 def test_run_doctor_env_override_source(

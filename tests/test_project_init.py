@@ -51,6 +51,9 @@ def test_init_project_ok(tmp_path: Path) -> None:
     assert result.manifest["schema"] == "2"
     assert result.manifest["configurations"][0]["source"]["path"] == "src/cf"
     assert result.manifest["runtimes"][0]["path"] == ".1c-dev/runtime/main"
+    assert result.manifest["publish"]["default"] == "local-ibsrv"
+    assert result.manifest["publish"]["profiles"]["local-ibsrv"]["backend"] == "ibsrv"
+    assert result.manifest["publish"]["profiles"]["local-ibsrv"]["runtime"] == "main"
     assert ".1c-dev/project.yaml" in result.created
 
     cursor_mcp = target / ".cursor" / "mcp.json"

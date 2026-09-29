@@ -31,6 +31,18 @@ from core.project import (
     run_clean,
     validate_project,
 )
+from core.publish import (
+    run_down as run_publish_down,
+)
+from core.publish import (
+    run_status as run_publish_status,
+)
+from core.publish import (
+    run_up as run_publish_up,
+)
+from core.publish import (
+    run_url as run_publish_url,
+)
 from core.runtime import run_start, run_status, run_stop
 from mcp_server._path import resolve_path
 
@@ -43,6 +55,9 @@ _PATH_SCOPE = (
 _CONFIG_RUNTIME = (
     " Optional config_id / runtime_id select configurations[] / runtimes[] "
     "(defaults: configuration default:true or sole; runtime global default:true)."
+)
+_PUBLISH_PROFILE = (
+    " Optional profile selects publish.profiles id (default: publish.default)."
 )
 _WRITE_TYPES = (
     "Write types (23 Meta DSL + Subsystem): " + WRITE_OBJECT_TYPES_HELP + "."
@@ -765,6 +780,72 @@ def register_tools(server: FastMCP) -> None:
             config_id=config_id,
             runtime_id=runtime_id,
         )
+        return result.to_payload()
+
+    @server.tool(
+        name="publish.up",
+        description=(
+            "Start ibsrv HTTP publish for a file IB (server config init + daemon). "
+            "Idempotent: if lock.pid is alive, returns existing url."
+            + _PUBLISH_PROFILE
+            + _PATH_SCOPE
+            + _NO_SHELL
+        ),
+    )
+    def publish_up_tool(
+        path: str | None = None,
+        profile: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_publish_up(resolve_path(path), profile_id=profile)
+        return result.to_payload()
+
+    @server.tool(
+        name="publish.down",
+        description=(
+            "Stop ibsrv for the publish profile (TERM/KILL) and clear stale lock.pid."
+            + _PUBLISH_PROFILE
+            + _PATH_SCOPE
+            + _NO_SHELL
+        ),
+    )
+    def publish_down_tool(
+        path: str | None = None,
+        profile: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_publish_down(resolve_path(path), profile_id=profile)
+        return result.to_payload()
+
+    @server.tool(
+        name="publish.status",
+        description=(
+            "Report whether ibsrv for the publish profile is running (pid, url)."
+            + _PUBLISH_PROFILE
+            + _PATH_SCOPE
+            + _NO_SHELL
+        ),
+    )
+    def publish_status_tool(
+        path: str | None = None,
+        profile: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_publish_status(resolve_path(path), profile_id=profile)
+        return result.to_payload()
+
+    @server.tool(
+        name="publish.url",
+        description=(
+            "Return the HTTP publish URL from ibsrv.yaml "
+            "(http://{address}:{port}{base})."
+            + _PUBLISH_PROFILE
+            + _PATH_SCOPE
+            + _NO_SHELL
+        ),
+    )
+    def publish_url_tool(
+        path: str | None = None,
+        profile: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_publish_url(resolve_path(path), profile_id=profile)
         return result.to_payload()
 
     @server.tool(
