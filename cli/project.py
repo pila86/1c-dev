@@ -11,6 +11,7 @@ import typer
 from adapters.platform_ibcmd.constants import CODE_IBCMD_FAILED
 from cli.ide import app as ide_app
 from cli.init import init_command
+from cli.options import ConfigOption, RuntimeOption
 from cli.output import OutputFormat, OutputOption, resolve_output
 from core.exit_codes import (
     BUILD_FAILURE,
@@ -37,8 +38,13 @@ from core.project import (
 from core.project.constants import (
     CODE_CLEAN_FAILED,
     CODE_CLIENT_RUNNING,
+    CODE_CONFIG_AMBIGUOUS,
+    CODE_CONFIG_UNKNOWN,
     CODE_CONFIRM_REQUIRED,
     CODE_MANIFEST_MISSING,
+    CODE_RUNTIME_AMBIGUOUS,
+    CODE_RUNTIME_CONFIG_MISMATCH,
+    CODE_RUNTIME_UNKNOWN,
     DEFAULT_LIST_DEPTH,
 )
 from core.project.result import ProjectResult
@@ -135,7 +141,14 @@ def _clean_exit_for(result: CleanResult) -> None:
     codes = {d.get("code") for d in result.diagnostics}
     if CODE_CONFIRM_REQUIRED in codes or CODE_CLIENT_RUNNING in codes or CODE_CLEAN_FAILED in codes:
         raise typer.Exit(code=RUNTIME_FAILURE)
-    if CODE_MANIFEST_MISSING in codes:
+    if codes & {
+        CODE_MANIFEST_MISSING,
+        CODE_CONFIG_UNKNOWN,
+        CODE_RUNTIME_UNKNOWN,
+        CODE_CONFIG_AMBIGUOUS,
+        CODE_RUNTIME_AMBIGUOUS,
+        CODE_RUNTIME_CONFIG_MISMATCH,
+    }:
         raise typer.Exit(code=PROJECT_ERROR)
     raise typer.Exit(code=RUNTIME_FAILURE)
 
@@ -321,10 +334,17 @@ def project_clean(
         "-y",
         help="Подтвердить удаление source и .1c-dev/runtime/ без запроса.",
     ),
+    config: ConfigOption = None,
+    runtime: RuntimeOption = None,
     output: OutputOption = None,
 ) -> None:
     """Удалить содержимое source и каталог .1c-dev/runtime/ (манифест / IDE intact)."""
-    result = run_clean(Path.cwd(), yes=yes)
+    result = run_clean(
+        Path.cwd(),
+        yes=yes,
+        config_id=config,
+        runtime_id=runtime,
+    )
     _emit(result.to_payload(), resolve_output(ctx, output), text_lines=_clean_text(result))
     _clean_exit_for(result)
 

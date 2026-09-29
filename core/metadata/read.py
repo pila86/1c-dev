@@ -12,17 +12,19 @@ from core.metadata.ir import summary_from_dict
 from core.metadata.result import MetadataResult
 from core.project.detect import detect_manifest
 from core.project.load import load_manifest
-from core.project.paths import (
-    default_source_format,
-    default_source_rel,
-    scope_root_from_manifest,
-)
+from core.project.paths import scope_root_from_manifest
+from core.project.resolve import resolve_config_runtime
 
 Command = Literal["list", "get", "find"]
 ReadFn = Callable[[Command, Path, tuple[str, ...]], dict[str, Any]]
 
 
-def _resolve_source(start: Path | None) -> MetadataResult | tuple[Path, Path, Path]:
+def _resolve_source(
+    start: Path | None,
+    *,
+    config_id: str | None = None,
+    runtime_id: str | None = None,
+) -> MetadataResult | tuple[Path, Path, Path]:
     """
     Resolve project root + source dir.
 
@@ -60,7 +62,27 @@ def _resolve_source(start: Path | None) -> MetadataResult | tuple[Path, Path, Pa
         )
 
     root = scope_root_from_manifest(manifest_path)
-    fmt = default_source_format(data)
+    target, resolve_diags = resolve_config_runtime(
+        data,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        require_runtime=False,
+    )
+    if target is None:
+        return MetadataResult(
+            status="error",
+            root=root,
+            diagnostics=list(resolve_diags)
+            or [
+                error(
+                    "Не удалось разрешить --config/--runtime",
+                    code="1CM001",
+                    source="metadata",
+                )
+            ],
+        )
+
+    fmt = target.source_format
     if fmt != "xml":
         return MetadataResult(
             status="error",
@@ -75,7 +97,7 @@ def _resolve_source(start: Path | None) -> MetadataResult | tuple[Path, Path, Pa
             ],
         )
 
-    rel = default_source_rel(data)
+    rel = target.source_rel
     source_dir = (root / rel).resolve()
     if not source_dir.is_dir():
         return MetadataResult(
@@ -100,9 +122,11 @@ def _run_read(
     start: Path | None,
     command: Command,
     *args: str,
+    config_id: str | None = None,
+    runtime_id: str | None = None,
     read_fn: ReadFn | None = None,
 ) -> MetadataResult:
-    resolved = _resolve_source(start)
+    resolved = _resolve_source(start, config_id=config_id, runtime_id=runtime_id)
     if isinstance(resolved, MetadataResult):
         return resolved
     root, source_dir, _manifest = resolved
@@ -166,27 +190,53 @@ def _run_read(
 def list_metadata(
     start: Path | None = None,
     *,
+    config_id: str | None = None,
+    runtime_id: str | None = None,
     read_fn: ReadFn | None = None,
 ) -> MetadataResult:
     """List metadata objects in project source (IR summaries)."""
-    return _run_read(start, "list", read_fn=read_fn)
+    return _run_read(
+        start,
+        "list",
+        config_id=config_id,
+        runtime_id=runtime_id,
+        read_fn=read_fn,
+    )
 
 
 def get_metadata(
     start: Path | None,
     qualified_name: str,
     *,
+    config_id: str | None = None,
+    runtime_id: str | None = None,
     read_fn: ReadFn | None = None,
 ) -> MetadataResult:
     """Get full IR (or stub) for a QualifiedName."""
-    return _run_read(start, "get", qualified_name, read_fn=read_fn)
+    return _run_read(
+        start,
+        "get",
+        qualified_name,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        read_fn=read_fn,
+    )
 
 
 def find_metadata(
     start: Path | None,
     query: str,
     *,
+    config_id: str | None = None,
+    runtime_id: str | None = None,
     read_fn: ReadFn | None = None,
 ) -> MetadataResult:
     """Find metadata objects by name / synonym substring."""
-    return _run_read(start, "find", query, read_fn=read_fn)
+    return _run_read(
+        start,
+        "find",
+        query,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        read_fn=read_fn,
+    )

@@ -1,4 +1,4 @@
-"""Orchestration: project.clean — wipe source + ``.1c-dev/runtime/`` (ADR-021/022)."""
+"""Orchestration: project.clean — wipe source + runtime (ADR-021/022 / #87)."""
 
 from __future__ import annotations
 
@@ -25,12 +25,9 @@ from core.project.constants import (
 )
 from core.project.detect import detect_manifest
 from core.project.load import load_manifest
-from core.project.paths import default_source_rel, scope_root_from_manifest
+from core.project.paths import scope_root_from_manifest
+from core.project.resolve import resolve_config_runtime
 from core.runtime.run import run_stop
-
-
-def _source_dir_from_manifest(data: dict[str, Any], root: Path) -> Path:
-    return (root / default_source_rel(data)).resolve()
 
 
 def _rel(root: Path, path: Path) -> str:
@@ -95,19 +92,27 @@ def run_clean(
     *,
     yes: bool = False,
     wipe_source: bool = True,
+    config_id: str | None = None,
+    runtime_id: str | None = None,
     is_alive: IsRunningFn | None = None,
     terminate_fn: TerminateFn | None = None,
 ) -> CleanResult:
     """
-    Wipe project source (opt) and runtime home ``.1c-dev/runtime/`` (ADR-021/022).
+    Wipe project source (opt) and runtime (ADR-021/022 / #87).
 
-    Also removes legacy ``.runtime/`` if present. Requires yes=True.
-    Does not touch manifest, AGENTS.md, IDE configs, git.
+    Without ``--config``/``--runtime``: wipe default configuration source and the
+    entire ``.1c-dev/runtime/`` (plus legacy ``.runtime/``).
+
+    With ``--config`` and/or ``--runtime``: wipe resolved source and only the
+    selected runtime path.
+
+    Requires yes=True. Does not touch manifest, AGENTS.md, IDE configs, git.
     Stops a live runtime client first; refuses if stop fails.
     Idempotent when already empty.
     """
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
+    explicit_target = config_id is not None or runtime_id is not None
 
     if not yes:
         return CleanResult(
@@ -159,14 +164,56 @@ def run_clean(
         )
 
     root = scope_root_from_manifest(manifest_path)
-    source_dir = _source_dir_from_manifest(data, root)
+    target, resolve_diags = resolve_config_runtime(
+        data,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        require_runtime=explicit_target,
+    )
+    if target is None:
+        return CleanResult(
+            status="failed",
+            duration=time.perf_counter() - started,
+            root=root,
+            diagnostics=list(resolve_diags)
+            or [
+                error(
+                    "Не удалось разрешить --config/--runtime",
+                    code=CODE_MANIFEST_MISSING,
+                    source="project",
+                )
+            ],
+        )
+
+    if explicit_target:
+        if target.runtime_rel is None:
+            return CleanResult(
+                status="failed",
+                duration=time.perf_counter() - started,
+                root=root,
+                diagnostics=[
+                    error(
+                        "Не удалось разрешить runtime для clean",
+                        code=CODE_MANIFEST_MISSING,
+                        source="project",
+                    )
+                ],
+            )
+        stop_config_id: str | None = target.config_id
+        stop_runtime_id: str | None = target.runtime_id
+        report_runtime = (root / target.runtime_rel).resolve()
+    else:
+        stop_config_id = None
+        stop_runtime_id = None
+        report_runtime = (root / HOME_RUNTIME_DIR_NAME).resolve()
+
+    source_dir = (root / target.source_rel).resolve()
     home_runtime = (root / HOME_RUNTIME_DIR_NAME).resolve()
     legacy_runtime = (root / LEGACY_RUNTIME_DIR_NAME).resolve()
-    # Primary runtime dir reported in result: home layout preferred.
-    if home_runtime.exists() or not legacy_runtime.exists():
-        runtime_dir = home_runtime
-    else:
+    runtime_dir = report_runtime if explicit_target else home_runtime
+    if not explicit_target and not home_runtime.exists() and legacy_runtime.exists():
         runtime_dir = legacy_runtime
+
     diagnostics: list[Any] = []
     removed: list[str] = []
 
@@ -207,6 +254,8 @@ def run_clean(
     alive = is_alive or is_running
     stop_result = run_stop(
         root,
+        config_id=stop_config_id,
+        runtime_id=stop_runtime_id,
         is_alive=alive,
         terminate_fn=terminate_fn,
     )
@@ -263,12 +312,11 @@ def run_clean(
                 )
             )
 
-    for label, directory in (
-        (HOME_RUNTIME_DIR_NAME, home_runtime),
-        (LEGACY_RUNTIME_DIR_NAME, legacy_runtime),
-    ):
+    if explicit_target:
         cleared, cleared_paths, clear_diags = _remove_tree_if_exists(
-            directory, root=root, label=f"{label}/"
+            report_runtime,
+            root=root,
+            label=_rel(root, report_runtime),
         )
         diagnostics.extend(clear_diags)
         if any(d.get("severity") == "error" for d in clear_diags):
@@ -285,12 +333,44 @@ def run_clean(
         if cleared:
             runtime_cleared = True
             removed.extend(cleared_paths)
+    else:
+        for label, directory in (
+            (HOME_RUNTIME_DIR_NAME, home_runtime),
+            (LEGACY_RUNTIME_DIR_NAME, legacy_runtime),
+        ):
+            cleared, cleared_paths, clear_diags = _remove_tree_if_exists(
+                directory, root=root, label=f"{label}/"
+            )
+            diagnostics.extend(clear_diags)
+            if any(d.get("severity") == "error" for d in clear_diags):
+                return CleanResult(
+                    status="failed",
+                    duration=time.perf_counter() - started,
+                    root=root,
+                    source_path=source_dir,
+                    runtime_dir=runtime_dir,
+                    source_cleared=source_cleared,
+                    removed=removed,
+                    diagnostics=diagnostics,
+                )
+            if cleared:
+                runtime_cleared = True
+                removed.extend(cleared_paths)
 
     if not source_cleared and not runtime_cleared:
+        if explicit_target:
+            msg = (
+                "Нечего удалять: source пуст (или wipe_source=false), "
+                f"runtime {_rel(root, report_runtime)} отсутствует"
+            )
+        else:
+            msg = (
+                "Нечего удалять: source пуст (или wipe_source=false), "
+                f"{HOME_RUNTIME_DIR_NAME}/ и {LEGACY_RUNTIME_DIR_NAME}/ отсутствуют"
+            )
         diagnostics.append(
             info(
-                "Нечего удалять: source пуст (или wipe_source=false), "
-                f"{HOME_RUNTIME_DIR_NAME}/ и {LEGACY_RUNTIME_DIR_NAME}/ отсутствуют",
+                msg,
                 code=CODE_ALREADY_CLEAN,
                 source="project",
             )
@@ -301,7 +381,7 @@ def run_clean(
         duration=time.perf_counter() - started,
         root=root,
         source_path=source_dir,
-        runtime_dir=home_runtime,
+        runtime_dir=runtime_dir if explicit_target else home_runtime,
         source_cleared=source_cleared,
         runtime_cleared=runtime_cleared,
         removed=removed,

@@ -26,7 +26,8 @@ from adapters.platform_ibcmd import infobase_exists
 from core.diagnostics import error
 from core.project.detect import detect_manifest
 from core.project.load import load_manifest
-from core.project.paths import default_runtime_rel, scope_root_from_manifest
+from core.project.paths import scope_root_from_manifest
+from core.project.resolve import resolve_config_runtime
 from core.runtime.constants import (
     CODE_CLIENT_FAILED,
     CODE_IB_MISSING,
@@ -60,6 +61,8 @@ def _resolve_project(
     start: Path,
     *,
     started: float,
+    config_id: str | None = None,
+    runtime_id: str | None = None,
 ) -> tuple[Path, Path, RuntimeResult | None]:
     """Return (root, db_path, error_result_or_None)."""
     manifest_path = detect_manifest(start)
@@ -103,8 +106,31 @@ def _resolve_project(
         )
 
     root = scope_root_from_manifest(manifest_path)
-    runtime_rel = default_runtime_rel(data)
-    db_path = (root / runtime_rel).resolve()
+    target, resolve_diags = resolve_config_runtime(
+        data,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        require_runtime=True,
+    )
+    if target is None or target.runtime_rel is None:
+        return (
+            root,
+            root,
+            RuntimeResult(
+                status="failed",
+                duration=time.perf_counter() - started,
+                root=root,
+                diagnostics=list(resolve_diags)
+                or [
+                    error(
+                        "Не удалось разрешить --config/--runtime",
+                        code=CODE_PROJECT,
+                        source="runtime",
+                    )
+                ],
+            ),
+        )
+    db_path = (root / target.runtime_rel).resolve()
     return root, db_path, None
 
 
@@ -133,6 +159,8 @@ def _alive_snapshot(
 def run_status(
     start: Path | None = None,
     *,
+    config_id: str | None = None,
+    runtime_id: str | None = None,
     is_alive: IsRunningFn | None = None,
 ) -> RuntimeResult:
     """Report whether the detached ENTERPRISE client is running."""
@@ -140,7 +168,12 @@ def run_status(
     start_path = (start or Path.cwd()).resolve()
     alive = is_alive or is_running
 
-    root, db_path, err = _resolve_project(start_path, started=started)
+    root, db_path, err = _resolve_project(
+        start_path,
+        started=started,
+        config_id=config_id,
+        runtime_id=runtime_id,
+    )
     if err is not None:
         return err
 
@@ -161,6 +194,8 @@ def run_status(
 def run_stop(
     start: Path | None = None,
     *,
+    config_id: str | None = None,
+    runtime_id: str | None = None,
     is_alive: IsRunningFn | None = None,
     terminate_fn: TerminateFn | None = None,
 ) -> RuntimeResult:
@@ -169,7 +204,12 @@ def run_stop(
     start_path = (start or Path.cwd()).resolve()
     alive = is_alive or is_running
 
-    root, db_path, err = _resolve_project(start_path, started=started)
+    root, db_path, err = _resolve_project(
+        start_path,
+        started=started,
+        config_id=config_id,
+        runtime_id=runtime_id,
+    )
     if err is not None:
         return err
 
@@ -228,6 +268,8 @@ def run_start(
     *,
     client: str = CLIENT_THICK,
     debug: bool = False,
+    config_id: str | None = None,
+    runtime_id: str | None = None,
     discover: Callable[[], DiscoveryResult] | None = None,
     spawn: SpawnFn | None = None,
     is_alive: IsRunningFn | None = None,
@@ -239,7 +281,12 @@ def run_start(
     alive = is_alive or is_running
     client_kind = _normalize_client(client)
 
-    root, db_path, err = _resolve_project(start_path, started=started)
+    root, db_path, err = _resolve_project(
+        start_path,
+        started=started,
+        config_id=config_id,
+        runtime_id=runtime_id,
+    )
     if err is not None:
         return err
 

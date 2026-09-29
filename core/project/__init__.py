@@ -9,6 +9,7 @@ from .detect import detect_manifest, detect_project, list_projects
 from .ide import configure_ide
 from .init import init_project
 from .load import load_manifest
+from .resolve import ResolvedTarget, resolve_config_runtime
 from .result import ProjectResult
 from .validate import validate_manifest, validate_project
 
@@ -17,12 +18,14 @@ __all__ = [
     "MANIFEST_NAME",
     "CleanResult",
     "ProjectResult",
+    "ResolvedTarget",
     "configure_ide",
     "detect_manifest",
     "detect_project",
     "init_project",
     "list_projects",
     "load_manifest",
+    "resolve_config_runtime",
     "run_clean",
     "validate_manifest",
     "validate_project",

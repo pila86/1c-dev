@@ -9,6 +9,7 @@ from typing import Any
 import typer
 
 from adapters.platform_ibcmd.constants import CODE_IBCMD_FAILED
+from cli.options import ConfigOption, RuntimeOption
 from cli.output import OutputFormat, OutputOption, resolve_output
 from core.exit_codes import (
     BUILD_FAILURE,
@@ -22,6 +23,13 @@ from core.import_cf.constants import (
     CODE_CF_MISSING,
     CODE_IBCMD_MISSING,
     CODE_PROJECT,
+)
+from core.project.constants import (
+    CODE_CONFIG_AMBIGUOUS,
+    CODE_CONFIG_UNKNOWN,
+    CODE_RUNTIME_AMBIGUOUS,
+    CODE_RUNTIME_CONFIG_MISMATCH,
+    CODE_RUNTIME_UNKNOWN,
 )
 from core.runtime import (
     CODE_CLIENT_FAILED,
@@ -72,7 +80,15 @@ def _exit_for_client(result: RuntimeResult) -> None:
     codes = {d.get("code") for d in result.diagnostics}
     if codes & {CODE_ONECV8_MISSING, CODE_ONECV8C_MISSING}:
         raise typer.Exit(code=ENV_UNAVAILABLE)
-    if codes & {CODE_RUNTIME_PROJECT, CODE_IB_MISSING}:
+    if codes & {
+        CODE_RUNTIME_PROJECT,
+        CODE_IB_MISSING,
+        CODE_CONFIG_UNKNOWN,
+        CODE_RUNTIME_UNKNOWN,
+        CODE_CONFIG_AMBIGUOUS,
+        CODE_RUNTIME_AMBIGUOUS,
+        CODE_RUNTIME_CONFIG_MISMATCH,
+    }:
         raise typer.Exit(code=PROJECT_ERROR)
     if CODE_CLIENT_FAILED in codes:
         raise typer.Exit(code=RUNTIME_FAILURE)
@@ -172,6 +188,8 @@ def runtime_start(
         "--debug",
         help="Запустить клиент с /Debug (задел под DAP / M6).",
     ),
+    config: ConfigOption = None,
+    runtime: RuntimeOption = None,
     output: OutputOption = None,
 ) -> None:
     """Запустить клиент 1С (ENTERPRISE) к file IB (detach)."""
@@ -179,7 +197,13 @@ def runtime_start(
     if client_norm not in {"thick", "thin"}:
         typer.echo("error: --client должен быть thick или thin", err=True)
         raise typer.Exit(code=PROJECT_ERROR)
-    result = run_start(Path.cwd(), client=client_norm, debug=debug)
+    result = run_start(
+        Path.cwd(),
+        client=client_norm,
+        debug=debug,
+        config_id=config,
+        runtime_id=runtime,
+    )
     _emit(result.to_payload(), resolve_output(ctx, output), text_lines=_client_text(result))
     _exit_for_client(result)
 
@@ -187,10 +211,12 @@ def runtime_start(
 @app.command("stop")
 def runtime_stop(
     ctx: typer.Context,
+    config: ConfigOption = None,
+    runtime: RuntimeOption = None,
     output: OutputOption = None,
 ) -> None:
     """Остановить ранее запущенный клиент 1С."""
-    result = run_stop(Path.cwd())
+    result = run_stop(Path.cwd(), config_id=config, runtime_id=runtime)
     _emit(result.to_payload(), resolve_output(ctx, output), text_lines=_client_text(result))
     _exit_for_client(result)
 
@@ -198,9 +224,11 @@ def runtime_stop(
 @app.command("status")
 def runtime_status_cmd(
     ctx: typer.Context,
+    config: ConfigOption = None,
+    runtime: RuntimeOption = None,
     output: OutputOption = None,
 ) -> None:
     """Статус detached-клиента 1С для file IB."""
-    result = run_status(Path.cwd())
+    result = run_status(Path.cwd(), config_id=config, runtime_id=runtime)
     _emit(result.to_payload(), resolve_output(ctx, output), text_lines=_client_text(result))
     _exit_for_client(result)

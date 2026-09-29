@@ -21,14 +21,8 @@ from adapters.source.xmlgen import (
 from core.diagnostics import error
 from core.metadata.delete import object_xml_path
 from core.metadata.ir import CREATE_OBJECT_TYPES, CatalogObject
+from core.metadata.read import _resolve_source
 from core.metadata.result import MetadataResult
-from core.project.detect import detect_manifest
-from core.project.load import load_manifest
-from core.project.paths import (
-    default_source_format,
-    default_source_rel,
-    scope_root_from_manifest,
-)
 from core.project.validate import validate_project
 
 CompileFn = Callable[[Path, dict[str, Any]], list[str]]
@@ -39,6 +33,8 @@ def create_metadata(
     start: Path | None,
     catalog: CatalogObject,
     *,
+    config_id: str | None = None,
+    runtime_id: str | None = None,
     compile_fn: CompileFn | None = None,
     followup_fn: FollowupFn | None = None,
 ) -> MetadataResult:
@@ -66,68 +62,15 @@ def create_metadata(
             ],
         )
 
-    start_path = (start or Path.cwd()).resolve()
-    manifest_path = detect_manifest(start_path)
-    if manifest_path is None:
+    resolved = _resolve_source(start, config_id=config_id, runtime_id=runtime_id)
+    if isinstance(resolved, MetadataResult):
         return MetadataResult(
             status="error",
-            diagnostics=[
-                error(
-                    "Файл 1c.project.yaml не найден",
-                    code="1CM001",
-                    source="metadata",
-                    suggestion="Выполните 1c-dev init --type configuration",
-                )
-            ],
+            object=catalog.qualified_name,
+            root=resolved.root,
+            diagnostics=list(resolved.diagnostics),
         )
-
-    data, load_diags = load_manifest(manifest_path)
-    if data is None:
-        return MetadataResult(
-            status="error",
-            root=scope_root_from_manifest(manifest_path),
-            diagnostics=list(load_diags)
-            or [
-                error(
-                    "Не удалось прочитать манифест",
-                    code="1CM001",
-                    file=str(manifest_path),
-                    source="metadata",
-                )
-            ],
-        )
-
-    root = scope_root_from_manifest(manifest_path)
-    fmt = default_source_format(data)
-    if fmt != "xml":
-        return MetadataResult(
-            status="error",
-            root=root,
-            diagnostics=[
-                error(
-                    f"source.format={fmt!r}: metadata.create поддерживает только xml",
-                    code="1CM005",
-                    file=str(manifest_path),
-                    source="metadata",
-                )
-            ],
-        )
-
-    rel = default_source_rel(data)
-    source_dir = (root / rel).resolve()
-    if not source_dir.is_dir():
-        return MetadataResult(
-            status="error",
-            root=root,
-            diagnostics=[
-                error(
-                    f"Каталог исходников не найден: {source_dir}",
-                    code="1CM001",
-                    source="metadata",
-                )
-            ],
-        )
-
+    root, source_dir, _manifest = resolved
     object_file = object_xml_path(source_dir, catalog.type, catalog.name)
     if object_file.is_file():
         try:

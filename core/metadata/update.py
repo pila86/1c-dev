@@ -26,15 +26,8 @@ from core.metadata.ir import (
     TabularSection,
     parse_qualified_name,
 )
-from core.metadata.read import get_metadata
+from core.metadata.read import _resolve_source, get_metadata
 from core.metadata.result import MetadataResult
-from core.project.detect import detect_manifest
-from core.project.load import load_manifest
-from core.project.paths import (
-    default_source_format,
-    default_source_rel,
-    scope_root_from_manifest,
-)
 
 EditFn = Callable[[Path, list[EditOp]], EditResult]
 GetFn = Callable[..., MetadataResult]
@@ -288,6 +281,8 @@ def update_metadata(
     qualified_name: str,
     operations: list[EditOp],
     *,
+    config_id: str | None = None,
+    runtime_id: str | None = None,
     edit_fn: EditFn | None = None,
     get_fn: GetFn | None = None,
 ) -> MetadataResult:
@@ -348,71 +343,15 @@ def update_metadata(
         )
 
     qname = f"{obj_type}.{name}"
-    start_path = (start or Path.cwd()).resolve()
-    manifest_path = detect_manifest(start_path)
-    if manifest_path is None:
+    resolved = _resolve_source(start, config_id=config_id, runtime_id=runtime_id)
+    if isinstance(resolved, MetadataResult):
         return MetadataResult(
             status="error",
             object=qname,
-            diagnostics=[
-                error(
-                    "Файл 1c.project.yaml не найден",
-                    code="1CM001",
-                    source="metadata",
-                    suggestion="Выполните 1c-dev init --type configuration",
-                )
-            ],
+            root=resolved.root,
+            diagnostics=list(resolved.diagnostics),
         )
-
-    data, load_diags = load_manifest(manifest_path)
-    if data is None:
-        return MetadataResult(
-            status="error",
-            object=qname,
-            root=scope_root_from_manifest(manifest_path),
-            diagnostics=list(load_diags)
-            or [
-                error(
-                    "Не удалось прочитать манифест",
-                    code="1CM001",
-                    file=str(manifest_path),
-                    source="metadata",
-                )
-            ],
-        )
-
-    root = scope_root_from_manifest(manifest_path)
-    fmt = default_source_format(data)
-    if fmt != "xml":
-        return MetadataResult(
-            status="error",
-            object=qname,
-            root=root,
-            diagnostics=[
-                error(
-                    f"source.format={fmt!r}: M2 update поддерживает только xml",
-                    code="1CM005",
-                    file=str(manifest_path),
-                    source="metadata",
-                )
-            ],
-        )
-
-    rel = default_source_rel(data)
-    source_dir = (root / rel).resolve()
-    if not source_dir.is_dir():
-        return MetadataResult(
-            status="error",
-            object=qname,
-            root=root,
-            diagnostics=[
-                error(
-                    f"Каталог исходников не найден: {source_dir}",
-                    code="1CM001",
-                    source="metadata",
-                )
-            ],
-        )
+    root, source_dir, _manifest = resolved
 
     object_xml = object_xml_path(source_dir, obj_type, name)
     if not object_xml.is_file():
@@ -504,7 +443,15 @@ def update_metadata(
     ]
 
     getter: GetFn = get_fn if get_fn is not None else get_metadata
-    get_result = getter(start_path, qname)
+    if get_fn is None:
+        get_result = getter(
+            start,
+            qname,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+    else:
+        get_result = getter(start, qname)
     ir = get_result.ir if get_result.status == "ok" else None
     if get_result.status != "ok":
         diagnostics.extend(list(get_result.diagnostics))
