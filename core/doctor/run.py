@@ -16,7 +16,12 @@ from core.diagnostics import Diagnostic, error, warning
 from core.doctor.capabilities import resolve_capabilities
 from core.doctor.result import DoctorResult
 from core.toolchain.manifest import load_manifest
-from core.toolchain.resolve import JarResolve, resolve_component_jar, sync_suggestion
+from core.toolchain.resolve import (
+    JarResolve,
+    resolve_apache_home,
+    resolve_component_jar,
+    sync_suggestion,
+)
 
 _PLATFORM_HINT = (
     "Установите платформу 1С 8.3.x в стандартный каталог "
@@ -29,6 +34,14 @@ _IBCMD_HINT = (
 _IBSRV_HINT = (
     "Опционально для publish: добавьте ibsrv в PATH "
     "(рядом с ibcmd в каталоге платформы)."
+)
+_WEBINST_HINT = (
+    "Опционально: бинарь webinst в PATH (1c-dev пишет vrd/conf сам; "
+    "нужны wsap24.so у платформы и Apache в cache)."
+)
+_APACHE_HINT = (
+    "Опционально для publish backend webinst: 1c-dev tools sync "
+    "или ONEC_APACHE_HOME (user-owned httpd, без /etc)."
 )
 _TEMPLATES_HINT = (
     "Опционально для templates.list / import --from-template: "
@@ -150,11 +163,18 @@ def run_doctor(
         if docs_spec is not None
         else JarResolve(found=False)
     )
+    apache = resolve_apache_home(env=env)
 
     tools = {
         "cli": cli,
         "ibcmd": _tool_payload(discovery.ibcmd.found, discovery.ibcmd.path),
         "ibsrv": _tool_payload(discovery.ibsrv.found, discovery.ibsrv.path),
+        "webinst": _tool_payload(discovery.webinst.found, discovery.webinst.path),
+        "apache": _tool_payload(
+            apache.found,
+            apache.home,
+            source=apache.source,
+        ),
         "1cv8": _tool_payload(discovery.onecv8.found, discovery.onecv8.path),
         "templates": _tool_payload(templates_found, templates_path),
         "java": _tool_payload(java.found, java.path, version=java.version),
@@ -170,6 +190,8 @@ def run_doctor(
     tools_found = {
         "ibcmd": discovery.ibcmd.found,
         "ibsrv": discovery.ibsrv.found,
+        "webinst": discovery.webinst.found,
+        "apache": apache.found,
         "1cv8": discovery.onecv8.found,
         "templates": templates_found,
         "java": java.found,
@@ -208,6 +230,24 @@ def run_doctor(
                 code="1CD011",
                 source="doctor",
                 suggestion=_IBSRV_HINT,
+            )
+        )
+    if not discovery.webinst.found:
+        diagnostics.append(
+            warning(
+                "webinst не найден (бинарь опционален; publish пишет vrd/conf сам)",
+                code="1CD013",
+                source="doctor",
+                suggestion=_WEBINST_HINT,
+            )
+        )
+    if not apache.found:
+        diagnostics.append(
+            warning(
+                "Apache httpd (user cache) не найден (нужен для publish/webinst)",
+                code="1CD014",
+                source="doctor",
+                suggestion=_APACHE_HINT,
             )
         )
     if not templates_found:

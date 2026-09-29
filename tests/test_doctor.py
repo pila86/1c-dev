@@ -188,6 +188,8 @@ def test_run_doctor_reports_all_toolchain_tools(
         "cli",
         "ibcmd",
         "ibsrv",
+        "webinst",
+        "apache",
         "1cv8",
         "templates",
         "java",
@@ -201,13 +203,25 @@ def test_run_doctor_reports_all_toolchain_tools(
     codes = {d.get("code") for d in result.diagnostics}
     assert "1CD008" in codes  # docs-facade missing
     assert "1CD011" in codes  # ibsrv missing (not in _make_install default)
+    assert "1CD013" in codes  # webinst missing
+    assert "1CD014" in codes  # apache missing (empty cache)
     docs_diag = next(d for d in result.diagnostics if d.get("code") == "1CD008")
     assert docs_diag["severity"] == "warning"
     ibsrv_diag = next(d for d in result.diagnostics if d.get("code") == "1CD011")
     assert ibsrv_diag["severity"] == "warning"
     assert result.capabilities["ibsrv"]["available"] is False
+    assert result.capabilities["webinst"]["available"] is False
     assert "templates" in result.capabilities
-    assert result.status == "ok"  # ibsrv gap must not hard-fail doctor
+    assert result.status == "ok"  # soft gaps must not hard-fail doctor
+
+
+def test_discover_webinst_sibling(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_path(monkeypatch)
+    _make_install(tmp_path, "8.3.27.1549", tools=("ibcmd", "webinst"))
+    result = discover_environment(search_roots=[tmp_path])
+    assert result.webinst.found is True
+    assert result.webinst.path is not None
+    assert result.webinst.path.name == "webinst"
 
 
 def test_run_doctor_env_override_source(

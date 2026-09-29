@@ -82,8 +82,12 @@ runtimes:
     type: file
     path: .1c-dev/runtime/buh
 publish:
-  default: local-ibsrv
+  default: local-webinst
   profiles:
+    local-webinst:
+      backend: webinst
+      port: 8315
+      runtime: main-dev
     local-ibsrv:
       backend: ibsrv
       port: 8314
@@ -225,7 +229,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 ### Should
 
 - [x] `project.init --config <name>` (сахар) и/или `configuration.remove` / `set-default` / `get`
-- [ ] Publish Apache/`webinst`
+- [x] Publish Apache/`webinst`
 - [x] Import `.cfe` в ИБ при поддержке платформы (#95)
 - [ ] Seed ИБ из `.dt` шаблона (#111)
 - [x] `metadata.*` для nested/standalone extensions (`--extension`, md-reader `CF`) (#112)

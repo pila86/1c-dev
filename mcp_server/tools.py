@@ -71,6 +71,8 @@ _EXTENSION = (
 )
 _PUBLISH_PROFILE = (
     " Optional profile selects publish.profiles id (default: publish.default)."
+    " Optional backend (ibsrv|webinst) selects/ensures a profile by backend:"
+    " on publish.up creates local-<backend> in project.yaml if missing."
 )
 _WRITE_TYPES = (
     "Write types (23 Meta DSL + Subsystem): " + WRITE_OBJECT_TYPES_HELP + "."
@@ -995,8 +997,9 @@ def register_tools(server: FastMCP) -> None:
     @server.tool(
         name="publish.up",
         description=(
-            "Start ibsrv HTTP publish for a file IB (server config init + daemon). "
-            "Idempotent: if lock.pid is alive, returns existing url."
+            "Start publish backend for a file IB (ibsrv HTTP or webinst+user Apache). "
+            "Idempotent: if pid is alive, returns existing url. "
+            "Pass backend=ibsrv|webinst to select or auto-create local-<backend> profile."
             + _PUBLISH_PROFILE
             + _PATH_SCOPE
             + _NO_SHELL
@@ -1005,14 +1008,18 @@ def register_tools(server: FastMCP) -> None:
     def publish_up_tool(
         path: str | None = None,
         profile: str | None = None,
+        backend: str | None = None,
     ) -> dict[str, Any]:
-        result = run_publish_up(resolve_path(path), profile_id=profile)
+        result = run_publish_up(
+            resolve_path(path), profile_id=profile, backend=backend
+        )
         return result.to_payload()
 
     @server.tool(
         name="publish.down",
         description=(
-            "Stop ibsrv for the publish profile (TERM/KILL) and clear stale lock.pid."
+            "Stop publish backend for the profile (TERM/KILL) and clear stale pid; "
+            "webinst also unpublishes from httpd.conf."
             + _PUBLISH_PROFILE
             + _PATH_SCOPE
             + _NO_SHELL
@@ -1021,14 +1028,17 @@ def register_tools(server: FastMCP) -> None:
     def publish_down_tool(
         path: str | None = None,
         profile: str | None = None,
+        backend: str | None = None,
     ) -> dict[str, Any]:
-        result = run_publish_down(resolve_path(path), profile_id=profile)
+        result = run_publish_down(
+            resolve_path(path), profile_id=profile, backend=backend
+        )
         return result.to_payload()
 
     @server.tool(
         name="publish.status",
         description=(
-            "Report whether ibsrv for the publish profile is running (pid, url)."
+            "Report whether publish backend for the profile is running (pid, url)."
             + _PUBLISH_PROFILE
             + _PATH_SCOPE
             + _NO_SHELL
@@ -1037,15 +1047,19 @@ def register_tools(server: FastMCP) -> None:
     def publish_status_tool(
         path: str | None = None,
         profile: str | None = None,
+        backend: str | None = None,
     ) -> dict[str, Any]:
-        result = run_publish_status(resolve_path(path), profile_id=profile)
+        result = run_publish_status(
+            resolve_path(path), profile_id=profile, backend=backend
+        )
         return result.to_payload()
 
     @server.tool(
         name="publish.url",
         description=(
-            "Return the HTTP publish URL from ibsrv.yaml "
-            "(http://{address}:{port}{base})."
+            "Return the HTTP publish URL for the profile "
+            "(ibsrv: http://{address}:{port}{base}; "
+            "webinst: http://127.0.0.1:{port}/{wsdir})."
             + _PUBLISH_PROFILE
             + _PATH_SCOPE
             + _NO_SHELL
@@ -1054,8 +1068,11 @@ def register_tools(server: FastMCP) -> None:
     def publish_url_tool(
         path: str | None = None,
         profile: str | None = None,
+        backend: str | None = None,
     ) -> dict[str, Any]:
-        result = run_publish_url(resolve_path(path), profile_id=profile)
+        result = run_publish_url(
+            resolve_path(path), profile_id=profile, backend=backend
+        )
         return result.to_payload()
 
     @server.tool(

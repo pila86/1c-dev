@@ -1,4 +1,4 @@
-"""Resolve toolchain jars from env override or user cache (ADR-013 / #49)."""
+"""Resolve toolchain jars / apache home from env or user cache (ADR-013 / #49 / #94)."""
 
 from __future__ import annotations
 
@@ -9,9 +9,18 @@ from typing import Literal
 
 from core.toolchain.cache import tools_cache_dir
 from core.toolchain.fetchers import pin_artifact_name
+from core.toolchain.fetchers.apache import (
+    STABLE_NAME as APACHE_STABLE,
+)
+from core.toolchain.fetchers.apache import (
+    httpd_binary,
+    is_bundled_apache_home,
+    read_modules_dir,
+)
 from core.toolchain.manifest import ComponentSpec, ToolchainManifest, load_manifest
 
 JarSource = Literal["env", "cache"]
+ApacheSource = Literal["env", "cache"]
 
 
 @dataclass(frozen=True)
@@ -22,6 +31,17 @@ class JarResolve:
     path: Path | None = None
     source: JarSource | None = None
     deferred: bool = False
+
+
+@dataclass(frozen=True)
+class ApacheResolve:
+    """Resolved user-owned Apache httpd home (ADR-025 / #94)."""
+
+    found: bool
+    home: Path | None = None
+    httpd: Path | None = None
+    modules_dir: Path | None = None
+    source: ApacheSource | None = None
 
 
 def resolve_component_jar(
@@ -70,12 +90,68 @@ def resolve_manifest_jars(
     env: dict[str, str] | None = None,
     cache_env: dict[str, str] | None = None,
 ) -> dict[str, JarResolve]:
-    """Resolve every component in the toolchain manifest."""
+    """Resolve jar components in the toolchain manifest (skip directory homes)."""
     loaded = manifest if manifest is not None else load_manifest()
     return {
         spec.id: resolve_component_jar(spec, env=env, cache_env=cache_env)
         for spec in loaded.components
+        if spec.artifact.endswith(".jar")
     }
+
+
+def resolve_apache_home(
+    *,
+    env: dict[str, str] | None = None,
+    cache_env: dict[str, str] | None = None,
+    manifest: ToolchainManifest | None = None,
+) -> ApacheResolve:
+    """Find Apache home: ONEC_APACHE_HOME → tools/apache → tools/apache-<pin>."""
+    environ = env if env is not None else os.environ
+    tools_dir = tools_cache_dir(env=cache_env if cache_env is not None else env)
+    loaded = manifest if manifest is not None else load_manifest()
+    spec = loaded.get("apache")
+    env_name = (spec.env if spec is not None else None) or "ONEC_APACHE_HOME"
+
+    override = environ.get(env_name, "").strip()
+    if override:
+        home = Path(override).expanduser()
+        httpd = httpd_binary(home)
+        modules = read_modules_dir(home)
+        if httpd is not None and modules is not None:
+            return ApacheResolve(
+                found=True,
+                home=home.resolve(),
+                httpd=httpd,
+                modules_dir=modules,
+                source="env",
+            )
+        return ApacheResolve(found=False, home=home, source="env")
+
+    stable = tools_dir / APACHE_STABLE
+    if is_bundled_apache_home(stable):
+        httpd = httpd_binary(stable)
+        return ApacheResolve(
+            found=True,
+            home=stable.resolve(),
+            httpd=httpd,
+            modules_dir=read_modules_dir(stable),
+            source="cache",
+        )
+
+    pin = (spec.pin if spec is not None else "") or ""
+    if pin.strip() and pin.strip().lower() != "deferred":
+        pinned = tools_dir / f"{APACHE_STABLE}-{pin.strip()}"
+        if is_bundled_apache_home(pinned):
+            httpd = httpd_binary(pinned)
+            return ApacheResolve(
+                found=True,
+                home=pinned.resolve(),
+                httpd=httpd,
+                modules_dir=read_modules_dir(pinned),
+                source="cache",
+            )
+
+    return ApacheResolve(found=False, home=stable)
 
 
 def sync_suggestion() -> str:

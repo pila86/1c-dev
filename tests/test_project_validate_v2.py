@@ -48,7 +48,7 @@ def _bad_runtime_configuration(data: dict[str, Any]) -> None:
 
 
 def _bad_publish_runtime(data: dict[str, Any]) -> None:
-    data["publish"]["profiles"]["local-ibsrv"]["runtime"] = "no-such-rt"
+    data["publish"]["profiles"]["local-webinst"]["runtime"] = "no-such-rt"
 
 
 def _bad_publish_default(data: dict[str, Any]) -> None:

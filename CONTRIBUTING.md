@@ -62,6 +62,7 @@ pwsh scripts/fetch-md-reader.ps1
 
 - xml-gen: JDK 17+, override `ONEC_XMLGEN_JAR`
 - md-reader: JDK 21+ (MDClasses 0.20.0), override `ONEC_MDREADER_JAR`
+- apache (publish/webinst, #94): Unix — `./scripts/fetch-apache.sh` или `1c-dev tools sync` (gcc, make, `libpcre2-dev`); Windows — prebuilt zip из манифеста; override `ONEC_APACHE_HOME`
 
 ## Тесты
 
@@ -70,6 +71,7 @@ pwsh scripts/fetch-md-reader.ps1
 - M3-accept (#52): `poetry run pytest tests/test_m3_acceptance.py -m integration` — CF import round-trip → list/get → ide configure → docs (soft) → build/check; без platform/jars — skip.
 - E-accept (трек E / #71): `poetry run pytest tests/test_e_acceptance.py -m integration` — sample CRUD по волнам E0–E8; без platform/jars — skip.
 - Publish ibsrv (#89): `poetry run pytest tests/test_publish_integration.py -m integration` — build → `publish.up` → HTTP 200 на url → down; без `ibcmd`/`ibsrv` — skip.
+- Publish webinst (#94): `poetry run pytest tests/test_publish_webinst_integration.py -m integration` — `publish.up` (backend webinst) → url → down; без `wsap24.so` / Apache home (`tools sync` / `ONEC_APACHE_HOME`) — skip. Бинарь `webinst` не обязателен (1c-dev пишет vrd/conf сам).
 
 ```bash
 poetry run pytest -m integration
