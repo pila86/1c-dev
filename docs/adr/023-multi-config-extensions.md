@@ -51,6 +51,7 @@ ibcmd extension list         --db-path=… --data=…
 - Metadata API получает `--config` для выбора source tree.
 - Artifact `build --artifact cfe` для выбранного extension.
 - Spike argv (#84) закрыт; реализация adapter/CLI — #88.
+- Should #95: `extension.add --from *.cfe` выгружает XML в `src/cfe/<id>/` через scratch IB (`load --extension` → `apply` → `export`); в манифесте `format: xml`. Опционально `source.format=cfe` + бинарный путь для load без выгрузки. Seed `.dt` — #111.
 
 ## Связанные решения
 

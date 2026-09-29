@@ -151,7 +151,7 @@ def _resolve_cf_from_template(
     if kind != "cf":
         kind_label = kind or "unknown"
         suggestion = (
-            "Seed ИБ из .dt шаблона — should (#95); "
+            "Seed ИБ из .dt шаблона — should (#111); "
             "выберите секцию Source с .cf через templates.list --source-kind cf."
             if kind == "dt"
             else "configuration.import --from-template поддерживает только Source .cf."

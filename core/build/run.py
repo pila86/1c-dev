@@ -32,17 +32,18 @@ def _nested_extensions(
     configuration: dict[str, object],
     *,
     root: Path,
-) -> tuple[list[tuple[str, Path]], list[Diagnostic]]:
+) -> tuple[list[tuple[str, Path, str]], list[Diagnostic]]:
     """
     Collect nested extensions[] for build.
 
-    Returns (extensions as (name, abs_source_dir), diagnostics on error).
+    Returns (extensions as (name, abs_path, kind), diagnostics on error).
+    kind is \"xml\" (directory) or \"cfe\" (file).
     """
     raw = configuration.get("extensions")
     if not isinstance(raw, list) or not raw:
         return [], []
 
-    result: list[tuple[str, Path]] = []
+    result: list[tuple[str, Path, str]] = []
     for item in raw:
         if not isinstance(item, dict):
             continue
@@ -65,13 +66,17 @@ def _nested_extensions(
                 )
             ]
         fmt = source.get("format")
-        if fmt != "xml":
+        if fmt not in ("xml", "cfe"):
             return [], [
                 error(
                     f"extensions[{name!r}]: source.format={fmt!r}; "
-                    "build поддерживает только xml",
+                    "build поддерживает xml и cfe",
                     code=CODE_SOURCE_FORMAT,
                     source="runtime",
+                    suggestion=(
+                        "Укажите format: xml (каталог) или format: cfe (файл .cfe); "
+                        "либо добавьте расширение через extension add --from *.cfe"
+                    ),
                 )
             ]
         path = source.get("path")
@@ -83,8 +88,18 @@ def _nested_extensions(
                     source="runtime",
                 )
             ]
-        ext_dir = (root / path).resolve()
-        if not ext_dir.is_dir():
+        ext_path = (root / path).resolve()
+        if fmt == "cfe":
+            if not ext_path.is_file():
+                return [], [
+                    error(
+                        f"Файл .cfe расширения не найден: {path}",
+                        code=CODE_SOURCE_MISSING,
+                        source="runtime",
+                        suggestion="Укажите существующий путь к .cfe в source.path",
+                    )
+                ]
+        elif not ext_path.is_dir():
             return [], [
                 error(
                     f"Каталог исходников расширения не найден: {path}",
@@ -92,7 +107,7 @@ def _nested_extensions(
                     source="runtime",
                 )
             ]
-        result.append((name, ext_dir))
+        result.append((name, ext_path, str(fmt)))
     return result, []
 
 
@@ -300,20 +315,30 @@ def run_build(
                 run=run,
             )
     except IbcmdError as exc:
+        diags = list(exc.diagnostics) or [
+            error(
+                exc.message,
+                code=exc.code,
+                source="platform",
+            )
+        ]
+        if any(kind == "cfe" for _, _, kind in extensions):
+            # Enrich first error with .cfe-specific suggestion when missing.
+            for diag in diags:
+                if diag.get("severity") == "error" and not diag.get("suggestion"):
+                    diag["suggestion"] = (
+                        "Проверьте, что ibcmd поддерживает "
+                        "infobase config load --extension для .cfe; "
+                        "альтернатива — source.format=xml и каталог выгрузки"
+                    )
+                    break
         return BuildResult(
             status="failed",
             duration=time.perf_counter() - started,
             root=root,
             runtime_path=db_path,
             steps=[],
-            diagnostics=list(exc.diagnostics)
-            or [
-                error(
-                    exc.message,
-                    code=exc.code,
-                    source="platform",
-                )
-            ],
+            diagnostics=diags,
         )
 
     return BuildResult(
