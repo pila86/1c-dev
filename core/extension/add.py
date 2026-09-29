@@ -51,7 +51,7 @@ def add_extension(
                 error(
                     "Манифест проекта не найден",
                     code="1CP001",
-                    suggestion="Выполните 1c-dev init --type configuration",
+                    suggestion="Выполните 1c-dev init, затем 1c-dev configuration add",
                 )
             ],
         )
@@ -85,6 +85,22 @@ def add_extension(
                     "extension add требует манифест schema \"2\"",
                     code=CODE_EXT_NOT_CONFIG,
                     suggestion="Используйте .1c-dev/project.yaml (schema 2)",
+                )
+            ],
+        )
+
+    configurations = data.get("configurations")
+    if isinstance(configurations, list) and not configurations:
+        return ProjectResult(
+            status="error",
+            path=manifest_path,
+            root=root,
+            home=project_home(root),
+            diagnostics=[
+                error(
+                    "В манифесте нет configurations[] — сначала добавьте configuration",
+                    code=CODE_EXT_NOT_CONFIG,
+                    suggestion="Выполните 1c-dev configuration add",
                 )
             ],
         )

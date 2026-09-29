@@ -21,7 +21,8 @@ from core.check import run_check
 from core.docs import get_docs, search_docs
 from core.import_cf import run_import
 from core.metadata import catalog_from_parts, create_metadata, get_metadata, list_metadata
-from core.project import HOME_MANIFEST_REL, configure_ide, init_project
+from core.project import HOME_MANIFEST_REL, configure_ide
+from tests.helpers_project import bootstrap_configuration_project
 
 
 @pytest.mark.integration
@@ -48,7 +49,7 @@ def test_m3_acceptance_import_ide_docs(tmp_path: Path) -> None:
     # --- source project with a Catalog ---
     source = tmp_path / "shop"
     source.mkdir()
-    init = init_project(source, project_type="configuration", name="Shop")
+    init = bootstrap_configuration_project(source, name="Shop")
     assert init.status == "ok", init.to_payload()
 
     created = create_metadata(

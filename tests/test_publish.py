@@ -24,6 +24,7 @@ from core.publish import (
     run_status,
     run_up,
 )
+from tests.helpers_project import bootstrap_configuration_project
 
 runner = CliRunner()
 
@@ -41,7 +42,7 @@ def _fake_discovery(*, ibcmd: Path | None, ibsrv: Path | None) -> DiscoveryResul
 def _init_with_ib(tmp_path: Path) -> Path:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
     ib = target / ".1c-dev" / "runtime" / "main"
     ib.mkdir(parents=True, exist_ok=True)
     (ib / IB_MARKER).write_bytes(b"")

@@ -16,8 +16,8 @@ import yaml
 from adapters.platform import discover_environment
 from adapters.platform_ibcmd.constants import IB_MARKER
 from core.build import run_build
-from core.project import init_project
 from core.publish import run_down, run_up, run_url
+from tests.helpers_project import bootstrap_configuration_project
 
 
 def _free_port() -> int:
@@ -78,7 +78,7 @@ def test_publish_ibsrv_http_accessible(tmp_path: Path) -> None:
 
     target = tmp_path / "shop"
     target.mkdir()
-    init = init_project(target, project_type="configuration", name="Shop")
+    init = bootstrap_configuration_project(target, name="Shop")
     assert init.status == "ok", init.to_payload()
 
     port = _free_port()

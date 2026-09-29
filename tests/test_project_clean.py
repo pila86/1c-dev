@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from cli.main import app
 from core.exit_codes import PROJECT_ERROR, RUNTIME_FAILURE, SUCCESS
-from core.project import init_project, run_clean
+from core.project import run_clean
 from core.project.constants import (
     CODE_ALREADY_CLEAN,
     CODE_CLIENT_RUNNING,
@@ -19,6 +19,7 @@ from core.project.constants import (
     CODE_SOURCE_CLEARED,
 )
 from core.runtime.state import write_state
+from tests.helpers_project import bootstrap_configuration_project
 
 runner = CliRunner()
 
@@ -26,7 +27,7 @@ runner = CliRunner()
 def _seed_dirty_project(tmp_path: Path) -> Path:
     target = tmp_path / "shop"
     target.mkdir()
-    init = init_project(target, project_type="configuration", name="Shop", ide_target="all")
+    init = bootstrap_configuration_project(target, name="Shop", ide_target="all")
     assert init.status == "ok"
     source = target / "src" / "cf"
     source.mkdir(parents=True, exist_ok=True)

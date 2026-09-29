@@ -17,7 +17,7 @@
 | [003](003-diagnostics-exit-codes.md) | Accepted | Diagnostics model + exit codes |
 | [004](004-project-manifest.md) | Accepted | Project manifest `1c.project.yaml` |
 | [005](005-environment-discovery.md) | Accepted | Environment discovery (`doctor`) |
-| [006](006-project-init.md) | Accepted | Project init (bootstrap configuration) |
+| [006](006-project-init.md) | Superseded by [027](027-configuration-lifecycle.md) | Project init (bootstrap; historical M1–M3) |
 | [007](007-metadata-ir.md) | Accepted | Metadata IR v0 + write-backend xml-gen |
 | [008](008-ibcmd-build.md) | Accepted | Platform adapter: ibcmd build |
 | [009](009-ibcmd-check.md) | Accepted | Platform adapter: ibcmd check |
@@ -38,6 +38,7 @@
 | [024](024-platform-templates.md) | Accepted | Platform templates (tmplts / `*.mft`) |
 | [025](025-publish-backends.md) | Accepted | Publish backends (ibsrv / webinst) |
 | [026](026-runtimes-array.md) | Accepted | `runtimes[]`: ИБ ↔ configuration |
+| [027](027-configuration-lifecycle.md) | Accepted | Init = empty scope; `configuration.*` lifecycle |
 
 ## Когда писать ADR
 

@@ -78,7 +78,12 @@ def init_command(
     name: str | None = typer.Option(
         None,
         "--name",
-        help="Имя конфигурации (по умолчанию — имя текущего каталога).",
+        help="Имя проекта (по умолчанию — имя текущего каталога).",
+    ),
+    config: str | None = typer.Option(
+        None,
+        "--config",
+        help="Сахар: после empty init выполнить configuration.add с этим именем.",
     ),
     force: bool = typer.Option(
         False,
@@ -92,13 +97,14 @@ def init_command(
     ),
     output: OutputOption = None,
 ) -> None:
-    """Создать пустой проект configuration или extension (bootstrap)."""
+    """Создать empty scope (configuration) или standalone extension."""
     result = init_project(
         Path.cwd(),
         project_type=project_type,
         name=name,
         force=force,
         ide_target=ide_target.value,
+        config=config,
     )
     payload = result.to_payload(include_manifest=False)
     _emit(payload, resolve_output(ctx, output), text_lines=_init_text(result))

@@ -12,7 +12,7 @@ from adapters.source.xmlgen.resolve import resolve_jar, resolve_java
 from core.build import run_build
 from core.check import run_check
 from core.metadata import catalog_from_parts, create_metadata
-from core.project import init_project
+from tests.helpers_project import bootstrap_configuration_project
 
 
 @pytest.mark.integration
@@ -29,7 +29,7 @@ def test_m1_acceptance_catalog_via_agent(tmp_path: Path) -> None:
 
     target = tmp_path / "shop"
     target.mkdir()
-    init = init_project(target, project_type="configuration", name="Shop")
+    init = bootstrap_configuration_project(target, name="Shop")
     assert init.status == "ok", init.to_payload()
 
     catalog = catalog_from_parts(

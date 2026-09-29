@@ -22,8 +22,8 @@ from core.import_cf.constants import (
     CODE_IBCMD_MISSING,
     CODE_PROJECT,
 )
-from core.project import init_project
 from core.project.constants import HOME_MANIFEST_REL
+from tests.helpers_project import bootstrap_configuration_project
 
 runner = CliRunner()
 
@@ -77,7 +77,7 @@ def test_run_import_cf_missing(tmp_path: Path) -> None:
 def test_run_import_dirty_without_force(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
     cfg = target / "src" / "cf" / "Configuration.xml"
     original = cfg.read_bytes()
     cf_path = tmp_path / "configuration.cf"
@@ -138,7 +138,7 @@ def test_run_import_ensure_manifest(tmp_path: Path) -> None:
 def test_run_import_force_overwrites(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
     cfg = target / "src" / "cf" / "Configuration.xml"
     cfg.write_text("OLD", encoding="utf-8")
     cf_path = tmp_path / "configuration.cf"
@@ -266,7 +266,7 @@ def test_run_runtime_load_requires_manifest(tmp_path: Path) -> None:
 def test_run_runtime_load_happy_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
     cf_path = tmp_path / "configuration.cf"
     cf_path.write_bytes(b"CF")
     ibcmd = tmp_path / "ibcmd"
@@ -324,7 +324,7 @@ def test_cli_project_import(tmp_path: Path, monkeypatch: Any) -> None:
 
 def test_cli_project_import_dirty_exit(tmp_path: Path, monkeypatch: Any) -> None:
     monkeypatch.chdir(tmp_path)
-    assert init_project(tmp_path, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(tmp_path, name="Shop").status == "ok"
     cf_path = tmp_path / "configuration.cf"
     cf_path.write_bytes(b"CF")
     result = runner.invoke(
@@ -338,7 +338,7 @@ def test_cli_project_import_dirty_exit(tmp_path: Path, monkeypatch: Any) -> None
 
 def test_cli_runtime_load(tmp_path: Path, monkeypatch: Any) -> None:
     monkeypatch.chdir(tmp_path)
-    assert init_project(tmp_path, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(tmp_path, name="Shop").status == "ok"
     cf_path = tmp_path / "configuration.cf"
     cf_path.write_bytes(b"CF")
     ibcmd = tmp_path / "ibcmd"
@@ -433,7 +433,7 @@ def test_integration_project_import_roundtrip(tmp_path: Path) -> None:
 
     project = tmp_path / "shop"
     project.mkdir()
-    assert init_project(project, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(project, name="Shop").status == "ok"
 
     build_result = run_build(project, artifact="cf")
     assert build_result.status == "ok", build_result.to_payload()

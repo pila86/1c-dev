@@ -26,7 +26,7 @@ from core.metadata import (
     update_metadata,
 )
 from core.metadata.result import MetadataResult
-from core.project import init_project
+from tests.helpers_project import bootstrap_configuration_project
 
 runner = CliRunner()
 
@@ -34,7 +34,7 @@ runner = CliRunner()
 def _init_shop(tmp_path: Path) -> Path:
     target = tmp_path / "shop"
     target.mkdir()
-    init = init_project(target, project_type="configuration", name="Shop")
+    init = bootstrap_configuration_project(target, name="Shop")
     assert init.status == "ok"
     catalogs = target / "src" / "cf" / "Catalogs"
     catalogs.mkdir(parents=True)
@@ -183,7 +183,7 @@ def test_update_empty_ops(tmp_path: Path) -> None:
 def test_update_not_found(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
     result = update_metadata(
         target,
         "Catalog.Missing",
@@ -1364,7 +1364,7 @@ def test_update_with_real_xmlgen(tmp_path: Path) -> None:
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
     created = create_metadata(
         target,
         catalog_from_parts(
@@ -1470,7 +1470,7 @@ def test_update_ts_document_with_real_xmlgen(tmp_path: Path) -> None:
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
     created = create_metadata(
         target,
         catalog_from_parts(
@@ -1569,7 +1569,7 @@ def test_update_enum_register_with_real_xmlgen(tmp_path: Path) -> None:
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     enum_created = create_metadata(
         target,
@@ -1672,7 +1672,7 @@ def test_update_common_module_flags_preserves_bsl(tmp_path: Path) -> None:
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
     created = create_metadata(
         target,
         catalog_from_parts(

@@ -24,6 +24,11 @@ EXPECTED_TOOLS = {
     "project.get",
     "project.list",
     "project.init",
+    "configuration.add",
+    "configuration.list",
+    "configuration.get",
+    "configuration.remove",
+    "configuration.set-default",
     "extension.add",
     "extension.list",
     "ide.configure",
@@ -123,7 +128,9 @@ def test_project_get_and_init(tmp_path: Path) -> None:
     assert info["home"] == str(target / ".1c-dev")
     assert info["root"] == str(target)
     assert info["manifest_path"] == str(target / ".1c-dev" / "project.yaml")
-    assert info["runtimes"]
+    assert info["summary"]["configurations"] == []
+    assert info["summary"]["runtimes"] == []
+    assert info["manifest"]["configurations"] == []
 
 
 def test_project_import_mocked(tmp_path: Path, monkeypatch: Any) -> None:
@@ -538,12 +545,14 @@ def test_project_init_mocked(tmp_path: Path, monkeypatch: Any) -> None:
         name: str | None = None,
         force: bool = False,
         ide_target: str = "all",
+        config: str | None = None,
     ) -> ProjectResult:
         assert path == target.resolve()
         assert project_type == "configuration"
         assert name == "Demo"
         assert force is True
         assert ide_target == "all"
+        assert config is None
         return ProjectResult(
             status="ok",
             path=path / ".1c-dev" / "project.yaml",

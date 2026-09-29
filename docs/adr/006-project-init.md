@@ -1,11 +1,13 @@
 # ADR-006: Project init (bootstrap configuration)
 
-**Статус:** Accepted  
+**Статус:** Superseded by [ADR-027](027-configuration-lifecycle.md)  
 **Дата:** 2026-09-17
 
 ## Контекст
 
 Issue #4 и M1 требуют bootstrap пустого проекта конфигурации без Конфигуратора: `1c-dev init --type configuration`. PRD §14 также перечисляет `project init`. Нужен контракт CLI, шаблонов и заполнения `platform.version`.
+
+> **M4 / #100:** init больше не создаёт XML configuration и запись в `configurations[]`. Lifecycle conf — `configuration.*` (ADR-027). Ниже — исторический контракт M1–M3.
 
 ## Решение
 

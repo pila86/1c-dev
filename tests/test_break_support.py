@@ -16,8 +16,8 @@ from core.break_support import run_break_support, strip_parent_configurations
 from core.break_support.constants import CODE_ALREADY_OFF_SUPPORT, CODE_SUPPORT_REMOVED
 from core.exit_codes import PROJECT_ERROR, SUCCESS
 from core.import_cf import run_import
-from core.project import init_project
 from core.project.constants import HOME_MANIFEST_REL
+from tests.helpers_project import bootstrap_configuration_project
 
 runner = CliRunner()
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -182,7 +182,7 @@ def test_run_import_break_support_idempotent(tmp_path: Path) -> None:
 
 
 def test_run_break_support_cli_and_core(tmp_path: Path, monkeypatch: Any) -> None:
-    assert init_project(tmp_path, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(tmp_path, name="Shop").status == "ok"
     source = tmp_path / "src" / "cf"
     # replace skeleton with fixture content
     shutil.rmtree(source)

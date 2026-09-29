@@ -324,6 +324,7 @@ def resolve_config_runtime(
                 "В манифесте нет configurations[]",
                 code=CODE_CONFIG_UNKNOWN,
                 source="project",
+                suggestion="Выполните 1c-dev configuration add",
             )
         ]
 

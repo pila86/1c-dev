@@ -20,17 +20,18 @@
    | `default` | нет | `true` — не более одного на весь манифест |
 
 2. **Инварианты validate:**
-   - у каждой `configurations[].id` есть ≥1 элемент в `runtimes` с этим `configuration`;
-   - ровно один элемент с `default: true` (global default для операций без `--runtime`);
+   - empty `configurations: []` / `runtimes: []` допустимы (empty scope до `configuration.add`, ADR-027 / #100);
+   - у каждой `configurations[].id` есть ≥1 элемент в `runtimes` с этим `configuration` (когда conf есть);
+   - ровно один элемент с `default: true` (global default для операций без `--runtime`) — **когда `runtimes` непуст**;
    - `configuration` ссылается на существующий id.
 
 3. У `configurations[]` **нет** поля `runtime:` — связь только из `runtimes[]`.
 
 4. `build` / `runtime.*` / `publish` / clean резолвят ИБ через `runtimes[]`; `--config` уточняет, если у configuration несколько ИБ и runtime не указан (если одна ИБ — можно выбрать её автоматически).
 
-5. Init создаёт одну configuration + один связанный runtime (`path`: `.1c-dev/runtime/<config-id>`, `default: true`).
+5. `configuration.add` (не `project.init`) создаёт configuration + связанный runtime (`path`: `.1c-dev/runtime/<config-id>`, `default: true` если первый). `project.init` пишет empty arrays (ADR-027).
 
-6. Publish-профиль указывает `runtime: <id>` (ADR-025).
+6. Publish-профиль указывает `runtime: <id>` (ADR-025); при первом runtime `configuration.add` может добавить default-профиль `local-ibsrv`.
 
 ## Альтернативы
 

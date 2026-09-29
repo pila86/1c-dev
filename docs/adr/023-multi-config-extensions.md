@@ -15,8 +15,9 @@ Schema `"1"` описывает один `source` и один `project.type`. Н
 4. **`build`:** загрузить configuration, затем каждое extension в ИБ, выбранную через `runtimes[]` (ADR-026).
 5. Adapter `platform_ibcmd`: поддержка `--extension` на import/apply/save/load/export (argv заморожены spike [#84](https://github.com/pila86/1c-dev/issues/84)).
 6. Must: установка extension в ИБ из XML source. Should: из `.cfe` через `infobase config load --extension` (#95).
-7. Scaffold: `templates/extension/` + `init --type extension` (standalone) и добавление extension в configuration-проект.
+7. Scaffold: `templates/extension/` + `init --type extension` (standalone) и добавление extension в configuration-проект (`extension.add`). Lifecycle **configuration** (не extension): `configuration.add|list|…` ([ADR-027](027-configuration-lifecycle.md) / #100).
 8. Связь с ИБ — только через `runtimes[]`, не поле `runtime:` у configuration.
+9. `project.init` (type=configuration) создаёт empty scope без conf; вторая conf в том же scope — снова `configuration.add`, не `init` и не `extension.add`.
 
 ### Замороженный argv (8.3.25.x, spike #84)
 

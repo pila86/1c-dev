@@ -24,7 +24,7 @@ from core.metadata import (
     list_metadata,
     update_metadata,
 )
-from core.project import init_project
+from tests.helpers_project import bootstrap_configuration_project
 
 
 @pytest.mark.integration
@@ -48,7 +48,7 @@ def test_m2_acceptance_document_enum_register_delete(tmp_path: Path) -> None:
 
     target = tmp_path / "shop"
     target.mkdir()
-    init = init_project(target, project_type="configuration", name="Shop")
+    init = bootstrap_configuration_project(target, name="Shop")
     assert init.status == "ok", init.to_payload()
 
     # Ref-target catalog

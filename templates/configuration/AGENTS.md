@@ -11,11 +11,22 @@
 9. Prefer debugger for reproducible runtime failures.
 10. Review semantic diff before completion.
 11. Prefer MCP tools over shell or Designer/Configurator:
-    - **1c-dev** MCP: project init/import/clean, ide.configure, metadata list/get/find/create/update/delete,
-      build (configuration + nested extensions), check, runtime.start/stop/status (client thick|thin, optional debug=/Debug),
-      publish.up/down/status/url (ibsrv), extension.add / extension.list, and docs.* when available.
-      `project.clean` is destructive (wipes source + `.1c-dev/runtime/`); always pass yes=true
-      and confirm intent first — does not touch `.1c-dev/project.yaml` / AGENTS.md / IDE MCP / git.
+    - **1c-dev** MCP happy-path (greenfield):
+      `project.init` → `configuration.add` → `project.get` → metadata.* / build.
+      `project.init` creates only the project home (empty `configurations[]` /
+      `runtimes[]`) — **not** XML configuration.
+      Another configuration in the same scope: `configuration.add` again —
+      **not** a second `project.init` and **not** `extension.add`.
+    - **1c-dev** MCP: project init/import/clean, project.get (summary),
+      configuration.add/list/get/remove/set-default,
+      ide.configure, metadata list/get/find/create/update/delete,
+      build (configuration + nested extensions), check, runtime.start/stop/status
+      (client thick|thin, optional debug=/Debug),
+      publish.up/down/status/url (ibsrv), extension.add / extension.list, and docs.*
+      when available.
+      `project.clean` is destructive (wipes source + `.1c-dev/runtime/`); always pass
+      yes=true and confirm intent first — does not touch `.1c-dev/project.yaml` /
+      AGENTS.md / IDE MCP / git.
       MCP `path` = scope root (parent of `.1c-dev`).
       Write types for metadata.create/update/delete: 23 Meta DSL + Subsystem
       (AccountingRegister, AccumulationRegister, BusinessProcess, CalculationRegister,

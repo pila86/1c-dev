@@ -123,3 +123,35 @@ def test_validate_manifest_schema2_invariants(mutate: Mutator, needle: str) -> N
     assert diags
     assert all(d.get("code") == "1CP003" for d in diags)
     assert any(needle in d["message"] for d in diags), diags
+
+
+def test_validate_manifest_schema2_empty_scope_ok() -> None:
+    """Empty configurations[] / runtimes[] — valid until configuration.add (#100)."""
+    data = {
+        "schema": "2",
+        "project": {"name": "empty", "type": "configuration"},
+        "platform": {"version": "8.3.27"},
+        "configurations": [],
+        "runtimes": [],
+    }
+    assert validate_manifest(data) == []
+
+
+def test_validate_manifest_schema2_conf_without_runtime() -> None:
+    data = {
+        "schema": "2",
+        "project": {"name": "shop", "type": "configuration"},
+        "platform": {"version": "8.3.27"},
+        "configurations": [
+            {
+                "id": "main",
+                "type": "configuration",
+                "default": True,
+                "source": {"format": "xml", "path": "src/cf"},
+            }
+        ],
+        "runtimes": [],
+    }
+    diags = validate_manifest(data)
+    assert diags
+    assert any("нет ни одного runtime" in d["message"] for d in diags)

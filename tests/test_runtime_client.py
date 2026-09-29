@@ -15,7 +15,6 @@ from adapters.platform_1cv8.process import build_enterprise_argv, is_running, te
 from adapters.platform_ibcmd.constants import IB_MARKER
 from cli.main import app
 from core.exit_codes import ENV_UNAVAILABLE, PROJECT_ERROR, RUNTIME_FAILURE, SUCCESS
-from core.project import init_project
 from core.runtime import (
     CODE_CLIENT_FAILED,
     CODE_IB_MISSING,
@@ -27,6 +26,7 @@ from core.runtime import (
     run_stop,
 )
 from core.runtime.state import clear_state, read_meta, read_pid, write_state
+from tests.helpers_project import bootstrap_configuration_project
 
 runner = CliRunner()
 
@@ -48,7 +48,7 @@ def _fake_discovery(
 def _init_with_ib(tmp_path: Path) -> Path:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
     ib = target / ".1c-dev" / "runtime" / "main"
     ib.mkdir(parents=True, exist_ok=True)
     (ib / IB_MARKER).write_bytes(b"")
@@ -80,7 +80,7 @@ def test_run_start_no_project(tmp_path: Path) -> None:
 def test_run_start_missing_ib(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
     result = run_start(
         target,
         discover=lambda: _fake_discovery(onecv8=Path("/fake/1cv8")),
@@ -301,7 +301,7 @@ def test_cli_runtime_start_missing_ib_exit(
 ) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
     monkeypatch.chdir(target)
     monkeypatch.setattr(
         "core.runtime.run.discover_environment",

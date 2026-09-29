@@ -13,7 +13,7 @@ from adapters.source.mdclasses.resolve import resolve_jar, resolve_java
 from cli.main import app
 from core.exit_codes import SUCCESS
 from core.metadata import find_metadata, get_metadata, list_metadata
-from core.project import init_project
+from tests.helpers_project import bootstrap_configuration_project
 
 runner = CliRunner()
 
@@ -21,7 +21,7 @@ runner = CliRunner()
 def test_list_metadata_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    init = init_project(target, project_type="configuration", name="Shop")
+    init = bootstrap_configuration_project(target, name="Shop")
     assert init.status == "ok"
 
     def fake_read(command: str, source_dir: Path, args: tuple[str, ...]) -> dict[str, Any]:
@@ -54,7 +54,7 @@ def test_list_metadata_mock(tmp_path: Path) -> None:
 def test_get_metadata_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     def fake_read(command: str, source_dir: Path, args: tuple[str, ...]) -> dict[str, Any]:
         assert command == "get"
@@ -88,7 +88,7 @@ def test_get_metadata_mock(tmp_path: Path) -> None:
 def test_find_metadata_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     def fake_read(command: str, source_dir: Path, args: tuple[str, ...]) -> dict[str, Any]:
         assert command == "find"
@@ -113,7 +113,7 @@ def test_find_metadata_mock(tmp_path: Path) -> None:
 def test_list_missing_jar(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
     monkeypatch.delenv("ONEC_MDREADER_JAR", raising=False)
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "empty-cache"))
     result = list_metadata(target)
@@ -126,7 +126,7 @@ def test_get_not_found_mock(tmp_path: Path) -> None:
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     def fake_read(command: str, source_dir: Path, args: tuple[str, ...]) -> dict[str, Any]:
         raise MdReaderError("Объект не найден: Catalog.Missing", code="1CM008")
@@ -139,7 +139,7 @@ def test_get_not_found_mock(tmp_path: Path) -> None:
 def test_cli_list_mock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
     monkeypatch.chdir(target)
 
     def fake_list(start: Path | None = None, **_kwargs: Any) -> Any:
@@ -170,7 +170,7 @@ def test_get_common_module_flags_mock(tmp_path: Path) -> None:
     """Smoke: md-reader full IR for CommonModule projects context flags (#61)."""
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     def fake_read(command: str, source_dir: Path, args: tuple[str, ...]) -> dict[str, Any]:
         assert command == "get"
@@ -223,7 +223,7 @@ def test_common_module_get_flags_roundtrip(tmp_path: Path) -> None:
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     created = create_metadata(
         target,
@@ -274,7 +274,7 @@ def test_get_subsystem_full_ir_mock(tmp_path: Path) -> None:
     """Smoke: md-reader full IR for Subsystem content/children (#62)."""
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     def fake_read(command: str, source_dir: Path, args: tuple[str, ...]) -> dict[str, Any]:
         assert command == "get"
@@ -346,7 +346,7 @@ def test_subsystem_get_full_ir_roundtrip(
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     cat = create_metadata(
         target,
@@ -402,7 +402,7 @@ def test_get_constant_and_defined_type_full_ir_mock(tmp_path: Path) -> None:
     """Smoke: md-reader full IR for Constant / DefinedType (#63)."""
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     def fake_read_const(
         command: str, source_dir: Path, args: tuple[str, ...]
@@ -453,7 +453,7 @@ def test_get_report_and_dataprocessor_full_ir_mock(tmp_path: Path) -> None:
     """Smoke: md-reader full IR for Report / DataProcessor (#64)."""
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     def fake_read_report(
         command: str, source_dir: Path, args: tuple[str, ...]
@@ -513,7 +513,7 @@ def test_get_charts_full_ir_mock(tmp_path: Path) -> None:
     """Smoke: md-reader full IR for Chart* types (#68)."""
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     def fake_read_char(
         command: str, source_dir: Path, args: tuple[str, ...]
@@ -597,7 +597,7 @@ def test_get_e8_full_ir_mock(tmp_path: Path) -> None:
     """Smoke: md-reader full IR for BP/Task/ExchangePlan/DocumentJournal (#69)."""
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     def fake_read_task(
         command: str, source_dir: Path, args: tuple[str, ...]
@@ -701,7 +701,7 @@ def test_get_scheduled_job_and_event_subscription_full_ir_mock(tmp_path: Path) -
     """Smoke: md-reader full IR for ScheduledJob / EventSubscription (#65)."""
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     def fake_read_job(
         command: str, source_dir: Path, args: tuple[str, ...]
@@ -762,7 +762,7 @@ def test_get_http_service_and_web_service_full_ir_mock(tmp_path: Path) -> None:
     """Smoke: md-reader full IR for HTTPService / WebService (#66)."""
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     def fake_read_http(
         command: str, source_dir: Path, args: tuple[str, ...]
@@ -836,7 +836,7 @@ def test_get_accounting_and_calculation_register_full_ir_mock(tmp_path: Path) ->
     """Smoke: md-reader full IR for AccountingRegister / CalculationRegister (#67)."""
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     def fake_read_acct(
         command: str, source_dir: Path, args: tuple[str, ...]
@@ -925,7 +925,7 @@ def test_constant_defined_type_get_update_delete_roundtrip(
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     created = create_metadata(
         target,
@@ -1028,7 +1028,7 @@ def test_report_dataprocessor_get_update_delete_roundtrip(
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     created = create_metadata(
         target,
@@ -1190,7 +1190,7 @@ def test_scheduled_job_event_subscription_get_update_delete_roundtrip(
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     assert create_metadata(
         target,
@@ -1338,7 +1338,7 @@ def test_http_service_web_service_get_update_delete_roundtrip(
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     created = create_metadata(
         target,
@@ -1490,7 +1490,7 @@ def test_accounting_calculation_register_get_update_delete_roundtrip(
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     assert create_metadata(
         target,
@@ -1640,7 +1640,7 @@ def test_charts_get_update_delete_roundtrip(
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     created_char = create_metadata(
         target,
@@ -1831,7 +1831,7 @@ def test_e8_get_update_delete_roundtrip(
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     assert create_metadata(
         target, catalog_from_parts(qualified_name="Catalog.Products")
@@ -2003,7 +2003,7 @@ def test_read_with_real_md_reader(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 
     target = tmp_path / "shop"
     target.mkdir()
-    init = init_project(target, project_type="configuration", name="Shop")
+    init = bootstrap_configuration_project(target, name="Shop")
     assert init.status == "ok"
 
     listed = list_metadata(target)

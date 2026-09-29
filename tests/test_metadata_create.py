@@ -23,7 +23,7 @@ from core.metadata import (
     parse_ts_attr_spec,
     parse_ts_spec,
 )
-from core.project import init_project
+from tests.helpers_project import bootstrap_configuration_project
 
 runner = CliRunner()
 
@@ -868,7 +868,7 @@ def test_e8_from_parts_and_json() -> None:
 def test_create_metadata_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    init = init_project(target, project_type="configuration", name="Shop")
+    init = bootstrap_configuration_project(target, name="Shop")
     assert init.status == "ok"
 
     def fake_compile(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
@@ -900,7 +900,7 @@ def test_create_metadata_mock(tmp_path: Path) -> None:
 def test_create_document_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
 
     followups: list[tuple[str, str]] = []
 
@@ -947,7 +947,7 @@ def test_create_document_mock(tmp_path: Path) -> None:
 def test_create_enum_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
 
     def fake_compile(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
         assert dsl["type"] == "Enum"
@@ -978,7 +978,7 @@ def test_create_enum_mock(tmp_path: Path) -> None:
 def test_create_registers_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
 
     seen: list[str] = []
 
@@ -1025,7 +1025,7 @@ def test_create_registers_mock(tmp_path: Path) -> None:
 def test_create_common_module_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
 
     def fake_compile(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
         assert dsl["type"] == "CommonModule"
@@ -1066,7 +1066,7 @@ def test_create_common_module_mock(tmp_path: Path) -> None:
 def test_create_subsystem_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
 
     def fake_compile(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
         assert "type" not in dsl
@@ -1101,7 +1101,7 @@ def test_create_subsystem_mock(tmp_path: Path) -> None:
 def test_create_constant_and_defined_type_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
 
     def fake_compile_const(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
         assert dsl["type"] == "Constant"
@@ -1146,7 +1146,7 @@ def test_create_constant_and_defined_type_mock(tmp_path: Path) -> None:
 def test_create_report_and_dataprocessor_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
 
     def fake_compile_report(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
         assert dsl["type"] == "Report"
@@ -1195,7 +1195,7 @@ def test_create_report_and_dataprocessor_mock(tmp_path: Path) -> None:
 def test_create_scheduled_job_and_event_subscription_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
 
     def fake_compile_job(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
         assert dsl["type"] == "ScheduledJob"
@@ -1248,7 +1248,7 @@ def test_create_scheduled_job_and_event_subscription_mock(tmp_path: Path) -> Non
 def test_create_http_service_and_web_service_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
 
     def fake_compile_http(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
         assert dsl["type"] == "HTTPService"
@@ -1310,7 +1310,7 @@ def test_create_http_service_and_web_service_mock(tmp_path: Path) -> None:
 def test_create_accounting_and_calculation_register_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
 
     def fake_compile_acct(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
         assert dsl["type"] == "AccountingRegister"
@@ -1360,7 +1360,7 @@ def test_create_accounting_and_calculation_register_mock(tmp_path: Path) -> None
 def test_create_charts_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
 
     def fake_compile_char(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
         assert dsl["type"] == "ChartOfCharacteristicTypes"
@@ -1432,7 +1432,7 @@ def test_create_charts_mock(tmp_path: Path) -> None:
 def test_create_e8_mock(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
     followups: list[tuple[str, str]] = []
 
     def fake_compile_task(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
@@ -1525,7 +1525,7 @@ def test_create_e8_mock(tmp_path: Path) -> None:
 def test_create_duplicate(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
     catalogs = target / "src" / "cf" / "Catalogs"
     catalogs.mkdir()
     (catalogs / "Products.xml").write_text("x", encoding="utf-8")
@@ -1542,7 +1542,7 @@ def test_create_duplicate(tmp_path: Path) -> None:
 def test_create_missing_xmlgen(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
     monkeypatch.delenv("ONEC_XMLGEN_JAR", raising=False)
     monkeypatch.setenv("PATH", "")
     monkeypatch.delenv("JAVA_HOME", raising=False)
@@ -1557,7 +1557,7 @@ def test_create_missing_xmlgen(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
 def test_cli_create_mock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     def fake_compile(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
         catalogs = source_dir / "Catalogs"
@@ -1606,7 +1606,7 @@ def test_cli_create_document_mock(
 ) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     def fake_compile(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
         assert dsl["type"] == "Document"
@@ -1661,7 +1661,7 @@ def test_cli_create_enum_and_register_mock(
 ) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     def fake_compile(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
         if dsl["type"] == "Enum":
@@ -1730,7 +1730,7 @@ def test_cli_create_common_module_mock(
 ) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     def fake_compile(source_dir: Path, dsl: dict[str, Any]) -> list[str]:
         assert dsl["type"] == "CommonModule"
@@ -1777,7 +1777,7 @@ def test_cli_create_common_module_mock(
 def test_cli_bad_type(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
     monkeypatch.chdir(target)
     result = runner.invoke(
         app,
@@ -1797,7 +1797,7 @@ def test_create_with_real_xmlgen(tmp_path: Path) -> None:
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
     catalog = catalog_from_parts(
         qualified_name="Catalog.Products",
         synonym="Товары",
@@ -1825,7 +1825,7 @@ def test_create_document_with_real_xmlgen(tmp_path: Path) -> None:
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     # Ref target catalog first
     cat = create_metadata(
@@ -1870,7 +1870,7 @@ def test_create_enum_and_registers_with_real_xmlgen(tmp_path: Path) -> None:
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     cat = create_metadata(
         target,
@@ -1939,7 +1939,7 @@ def test_create_common_module_with_real_xmlgen(tmp_path: Path) -> None:
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     mod = create_metadata(
         target,
@@ -1975,7 +1975,7 @@ def test_create_subsystem_with_real_xmlgen(tmp_path: Path) -> None:
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     # Content refs must exist before subsystem compile (xml-gen fail-fast).
     cat = create_metadata(
@@ -2018,7 +2018,7 @@ def test_create_constant_and_defined_type_with_real_xmlgen(tmp_path: Path) -> No
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     const = create_metadata(
         target,
@@ -2067,7 +2067,7 @@ def test_create_report_and_dataprocessor_with_real_xmlgen(tmp_path: Path) -> Non
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     report = create_metadata(
         target,
@@ -2122,7 +2122,7 @@ def test_create_scheduled_job_and_event_subscription_with_real_xmlgen(
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     module = create_metadata(
         target,
@@ -2200,7 +2200,7 @@ def test_create_http_service_and_web_service_with_real_xmlgen(tmp_path: Path) ->
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     http = create_metadata(
         target,
@@ -2274,7 +2274,7 @@ def test_create_accounting_and_calculation_register_with_real_xmlgen(
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     chart_a = create_metadata(
         target,
@@ -2345,7 +2345,7 @@ def test_create_charts_with_real_xmlgen(tmp_path: Path) -> None:
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     char = create_metadata(
         target,
@@ -2423,7 +2423,7 @@ def test_create_e8_with_real_xmlgen(tmp_path: Path) -> None:
 
     target = tmp_path / "shop"
     target.mkdir()
-    init_project(target, project_type="configuration", name="Shop")
+    bootstrap_configuration_project(target, name="Shop")
 
     assert create_metadata(
         target,
