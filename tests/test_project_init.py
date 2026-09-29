@@ -176,6 +176,22 @@ def test_cli_init_json_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     assert (tmp_path / ".kilo" / "mcp.json").is_file()
 
 
+def test_cli_init_default_type_configuration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``--type`` optional: defaults to configuration empty scope."""
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["init", "--name", "Demo", "--output", "json"])
+    assert result.exit_code == SUCCESS, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "ok"
+    manifest_path = tmp_path / ".1c-dev" / "project.yaml"
+    assert manifest_path.is_file()
+    text = manifest_path.read_text(encoding="utf-8")
+    assert "type: configuration" in text
+    assert "configurations: []" in text
+
+
 def test_cli_init_ide_target_none(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

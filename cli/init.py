@@ -71,9 +71,9 @@ def _init_text(result: ProjectResult) -> list[str]:
 def init_command(
     ctx: typer.Context,
     project_type: str = typer.Option(
-        ...,
+        "configuration",
         "--type",
-        help="Тип проекта: configuration | extension.",
+        help="Тип проекта: configuration | extension (по умолчанию configuration).",
     ),
     name: str | None = typer.Option(
         None,
