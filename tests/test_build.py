@@ -16,6 +16,7 @@ from adapters.platform_ibcmd.constants import (
     CODE_IBCMD_FAILED,
     CODE_IBCMD_MISSING,
     CODE_PROJECT,
+    CODE_SOURCE_MISSING,
     IB_MARKER,
 )
 from cli.main import app
@@ -212,11 +213,19 @@ def _fake_build_ok(
     data_path: Path,
     source_dir: Path,
     cf_path: Path | None = None,
+    primary_extension: str | None = None,
+    extensions: list[tuple[str, Path]] | None = None,
     run: Any = None,
 ) -> list[str]:
     db_path.mkdir(parents=True, exist_ok=True)
     (db_path / IB_MARKER).write_bytes(b"")
-    steps = ["create", "import", "apply"]
+    if primary_extension:
+        steps = [f"import:{primary_extension}", f"apply:{primary_extension}"]
+    else:
+        steps = ["create", "import", "apply"]
+    for name, _dir in extensions or []:
+        steps.append(f"import:{name}")
+        steps.append(f"apply:{name}")
     if cf_path is not None:
         cf_path.parent.mkdir(parents=True, exist_ok=True)
         cf_path.write_bytes(b"CF")
@@ -290,3 +299,90 @@ def test_integration_ibcmd_build(tmp_path: Path) -> None:
     assert "import" in result.steps
     assert "apply" in result.steps
     assert (target / ".1c-dev" / "runtime" / "main" / IB_MARKER).is_file()
+
+
+def test_run_build_with_nested_extensions(tmp_path: Path) -> None:
+    """Build loads configuration then nested extensions with --extension."""
+    import yaml
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+
+    # Add extension sources + manifest entry
+    ext_dir = target / "src" / "cfe" / "custom"
+    ext_dir.mkdir(parents=True)
+    (ext_dir / "Configuration.xml").write_text(
+        '<?xml version="1.0"?><MetaDataObject/>',
+        encoding="utf-8",
+    )
+    manifest_path = target / ".1c-dev" / "project.yaml"
+    data = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    data["configurations"][0]["extensions"] = [
+        {
+            "id": "custom",
+            "name": "CustomExt",
+            "purpose": "product",
+            "source": {"format": "xml", "path": "src/cfe/custom"},
+        }
+    ]
+    manifest_path.write_text(
+        yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    ibcmd = tmp_path / "ibcmd"
+    ibcmd.write_text("", encoding="utf-8")
+    captured: list[list[str]] = []
+
+    def run(argv: list[str]) -> IbcmdRunResult:
+        captured.append(argv)
+        return _ok_run(argv)
+
+    result = run_build(
+        target,
+        discover=lambda: _fake_discovery(ibcmd=ibcmd),
+        run=run,
+    )
+    assert result.status == "ok", result.to_payload()
+    assert result.steps == [
+        "create",
+        "import",
+        "apply",
+        "import:CustomExt",
+        "apply:CustomExt",
+    ]
+    ext_imports = [
+        a for a in captured if "import" in a and "--extension=CustomExt" in a
+    ]
+    assert len(ext_imports) == 1
+    ext_applies = [
+        a for a in captured if "apply" in a and "--extension=CustomExt" in a
+    ]
+    assert len(ext_applies) == 1
+
+
+def test_run_build_missing_extension_source(tmp_path: Path) -> None:
+    import yaml
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert init_project(target, project_type="configuration", name="Shop").status == "ok"
+    manifest_path = target / ".1c-dev" / "project.yaml"
+    data = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    data["configurations"][0]["extensions"] = [
+        {
+            "id": "custom",
+            "name": "CustomExt",
+            "source": {"format": "xml", "path": "src/cfe/missing"},
+        }
+    ]
+    manifest_path.write_text(
+        yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    ibcmd = tmp_path / "ibcmd"
+    ibcmd.write_text("", encoding="utf-8")
+    result = run_build(target, discover=lambda: _fake_discovery(ibcmd=ibcmd), run=_ok_run)
+    assert result.status == "failed"
+    assert any(d.get("code") == CODE_SOURCE_MISSING for d in result.diagnostics)

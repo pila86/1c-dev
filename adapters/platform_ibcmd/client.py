@@ -66,6 +66,12 @@ def _db_args(db_path: Path, data_path: Path) -> list[str]:
     ]
 
 
+def _extension_args(extension: str | None) -> list[str]:
+    if extension is None:
+        return []
+    return [f"--extension={extension}"]
+
+
 def create_infobase(
     ibcmd: Path,
     *,
@@ -90,6 +96,7 @@ def import_xml(
     db_path: Path,
     data_path: Path,
     source_dir: Path,
+    extension: str | None = None,
     run: RunFn | None = None,
 ) -> IbcmdRunResult:
     """Import XML configuration dump into the infobase."""
@@ -100,6 +107,7 @@ def import_xml(
         "config",
         "import",
         *_db_args(db_path, data_path),
+        *_extension_args(extension),
         str(source_dir),
     ]
     return _require_ok(runner(argv), step="import")
@@ -110,6 +118,7 @@ def apply_config(
     *,
     db_path: Path,
     data_path: Path,
+    extension: str | None = None,
     run: RunFn | None = None,
 ) -> IbcmdRunResult:
     """Apply loaded configuration to the database."""
@@ -120,6 +129,7 @@ def apply_config(
         "config",
         "apply",
         *_db_args(db_path, data_path),
+        *_extension_args(extension),
         "--force",
     ]
     return _require_ok(runner(argv), step="apply")
@@ -131,9 +141,10 @@ def save_cf(
     db_path: Path,
     data_path: Path,
     cf_path: Path,
+    extension: str | None = None,
     run: RunFn | None = None,
 ) -> IbcmdRunResult:
-    """Export database configuration to a .cf file."""
+    """Export database configuration to a .cf / .cfe file."""
     runner = run or default_run
     cf_path.parent.mkdir(parents=True, exist_ok=True)
     argv = [
@@ -141,6 +152,7 @@ def save_cf(
         "config",
         "save",
         *_db_args(db_path, data_path),
+        *_extension_args(extension),
         "--db",
         str(cf_path),
     ]
@@ -153,9 +165,10 @@ def load_cf(
     db_path: Path,
     data_path: Path,
     cf_path: Path,
+    extension: str | None = None,
     run: RunFn | None = None,
 ) -> IbcmdRunResult:
-    """Load configuration from a .cf file into the infobase (ADR-014)."""
+    """Load configuration from a .cf / .cfe file into the infobase (ADR-014)."""
     runner = run or default_run
     argv = [
         str(ibcmd),
@@ -163,6 +176,7 @@ def load_cf(
         "config",
         "load",
         *_db_args(db_path, data_path),
+        *_extension_args(extension),
         str(cf_path),
     ]
     return _require_ok(runner(argv), step="load")
@@ -174,6 +188,7 @@ def export_xml(
     db_path: Path,
     data_path: Path,
     target_dir: Path,
+    extension: str | None = None,
     run: RunFn | None = None,
 ) -> IbcmdRunResult:
     """Export configuration from the infobase to hierarchical XML (ADR-014)."""
@@ -185,6 +200,7 @@ def export_xml(
         "config",
         "export",
         *_db_args(db_path, data_path),
+        *_extension_args(extension),
         str(target_dir),
     ]
     return _require_ok(runner(argv), step="export")
@@ -195,6 +211,7 @@ def check_config(
     *,
     db_path: Path,
     data_path: Path,
+    extension: str | None = None,
     run: RunFn | None = None,
 ) -> IbcmdRunResult:
     """Run platform config check on an existing file infobase (ADR-009)."""
@@ -205,8 +222,61 @@ def check_config(
         "config",
         "check",
         *_db_args(db_path, data_path),
+        *_extension_args(extension),
     ]
     return _require_ok(runner(argv), step="check", code=CODE_CHECK_FAILED)
+
+
+@dataclass(frozen=True)
+class ExtensionInfo:
+    """One row from ``ibcmd extension list``."""
+
+    name: str
+    raw: str = ""
+
+
+def parse_extension_list(stdout: str) -> list[ExtensionInfo]:
+    """
+    Parse ``ibcmd extension list`` stdout into extension names.
+
+    Platform output is tabular / free-form; take non-empty lines that look like
+    names (skip headers containing spaces-only or known Russian/English headers).
+    """
+    results: list[ExtensionInfo] = []
+    header_tokens = {"name", "имя", "extension", "расширение", "version", "версия"}
+    for line in stdout.splitlines():
+        raw = line.rstrip()
+        stripped = raw.strip()
+        if not stripped:
+            continue
+        # First column of a whitespace-separated table
+        first = stripped.split()[0]
+        if first.lower() in header_tokens:
+            continue
+        # Skip decorative separators
+        if set(stripped) <= {"-", "=", "+", "|", " "}:
+            continue
+        results.append(ExtensionInfo(name=first, raw=raw))
+    return results
+
+
+def list_extensions(
+    ibcmd: Path,
+    *,
+    db_path: Path,
+    data_path: Path,
+    run: RunFn | None = None,
+) -> tuple[IbcmdRunResult, list[ExtensionInfo]]:
+    """List extensions installed in the file infobase (``ibcmd extension list``)."""
+    runner = run or default_run
+    argv = [
+        str(ibcmd),
+        "extension",
+        "list",
+        *_db_args(db_path, data_path),
+    ]
+    result = _require_ok(runner(argv), step="extension-list")
+    return result, parse_extension_list(result.stdout)
 
 
 def _require_ok(

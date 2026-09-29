@@ -1,4 +1,4 @@
-"""Bootstrap a new 1C project from templates (ADR-006 / ADR-022)."""
+"""Bootstrap a new 1C project from templates (ADR-006 / ADR-022 / ADR-023)."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from core.project.paths import home_manifest_path, project_home
 from core.project.result import ProjectResult
 from core.project.validate import validate_project
 
-SUPPORTED_TYPES = frozenset({"configuration"})
+SUPPORTED_TYPES = frozenset({"configuration", "extension"})
 DEFAULT_PLATFORM_VERSION = "8.3.27"
 
 _PLACEHOLDER_RE = re.compile(r"\{\{(\w+)\}\}")
@@ -34,7 +34,7 @@ def templates_root() -> Path:
         here.parents[3] / "templates",
     ]
     for candidate in candidates:
-        if (candidate / "configuration").is_dir():
+        if (candidate / "configuration").is_dir() or (candidate / "extension").is_dir():
             return candidate
     raise FileNotFoundError("Каталог templates/ не найден рядом с установкой 1c-dev")
 
@@ -47,6 +47,17 @@ def sanitize_project_name(raw: str) -> str:
         return "Configuration"
     if cleaned[0].isdigit():
         cleaned = f"C_{cleaned}"
+    return cleaned
+
+
+def sanitize_ext_id(raw: str) -> str:
+    """Normalize extension id / folder name (lowercase-friendly id)."""
+    cleaned = _NAME_SAFE_RE.sub("_", raw.strip())
+    cleaned = cleaned.strip("_")
+    if not cleaned:
+        return "custom"
+    if cleaned[0].isdigit():
+        cleaned = f"e_{cleaned}"
     return cleaned
 
 
@@ -80,6 +91,11 @@ def compatibility_mode_for(platform_version: str) -> str:
     if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
         return f"Version{parts[0]}_{parts[1]}_0"
     return "Version8_3_27"
+
+
+def name_prefix_for(name: str) -> str:
+    """Default NamePrefix for an extension (``Name_``)."""
+    return f"{name}_"
 
 
 def _render(template: str, values: dict[str, str]) -> str:
@@ -128,8 +144,54 @@ def _placeholder_values(name: str, platform_version: str) -> dict[str, str]:
         "runtime_id": DEFAULT_RUNTIME_ID,
         "uuid_cfg": str(uuid.uuid4()),
         "uuid_lang": str(uuid.uuid4()),
+        "uuid_role": str(uuid.uuid4()),
         **{f"uuid_co{i}": str(uuid.uuid4()) for i in range(7)},
     }
+
+
+def _scaffold_extension_sources(
+    target: Path,
+    *,
+    ext_id: str,
+    name: str,
+    platform_version: str,
+    force: bool,
+) -> list[str]:
+    """Copy templates/extension/src/cfe/_ext → src/cfe/<ext_id>/."""
+    tmpl_dir = templates_root() / "extension"
+    src_tmpl = tmpl_dir / "src" / "cfe" / "_ext"
+    if not src_tmpl.is_dir():
+        raise FileNotFoundError(f"Шаблон extension не найден: {src_tmpl}")
+
+    dest_root = target / "src" / "cfe" / ext_id
+    cfg = dest_root / "Configuration.xml"
+    if cfg.exists() and not force:
+        raise FileExistsError(f"Исходники расширения уже существуют: {cfg}")
+
+    prefix = name_prefix_for(name)
+    base = {
+        **_placeholder_values(name, platform_version),
+        "ext_id": ext_id,
+        "name_prefix": prefix,
+    }
+    xml_values = {
+        **base,
+        "name": xml_escape(name),
+        "synonym": xml_escape(name),
+        "name_prefix": xml_escape(prefix),
+    }
+
+    created: list[str] = []
+    for path in sorted(src_tmpl.rglob("*")):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(src_tmpl)
+        if path.name.startswith("_MainRole"):
+            dest = dest_root / rel.parent / f"{prefix}MainRole.xml.tmpl"
+        else:
+            dest = dest_root / rel
+        _copy_rendered(path, dest, xml_values, created=created, root=target)
+    return created
 
 
 def _scaffold_configuration(
@@ -202,6 +264,75 @@ def _scaffold_configuration(
     return created
 
 
+def _scaffold_extension_project(
+    target: Path,
+    *,
+    name: str,
+    platform_version: str,
+    force: bool,
+) -> list[str]:
+    """Standalone extension project (schema 2, configurations[].type=extension)."""
+    tmpl_dir = templates_root() / "extension"
+    if not tmpl_dir.is_dir():
+        raise FileNotFoundError(f"Шаблон extension не найден: {tmpl_dir}")
+
+    ext_id = sanitize_ext_id(name)
+    created: list[str] = []
+    home = project_home(target)
+    home.mkdir(parents=True, exist_ok=True)
+
+    base = {
+        **_placeholder_values(name, platform_version),
+        "ext_id": ext_id,
+        "name_prefix": name_prefix_for(name),
+    }
+
+    _copy_rendered(
+        tmpl_dir / "1c.project.yaml.tmpl",
+        home_manifest_path(target),
+        base,
+        created=created,
+        root=target,
+    )
+    _copy_rendered(
+        tmpl_dir / "AGENTS.md",
+        target / "AGENTS.md",
+        base,
+        created=created,
+        root=target,
+    )
+    _copy_rendered(
+        tmpl_dir / ".gitignore",
+        target / ".gitignore",
+        base,
+        created=created,
+        root=target,
+    )
+
+    created.extend(
+        _scaffold_extension_sources(
+            target,
+            ext_id=ext_id,
+            name=name,
+            platform_version=platform_version,
+            force=force,
+        )
+    )
+
+    runtime_ib = target / HOME_RUNTIME_DIR_NAME / DEFAULT_CONFIG_ID
+    for directory in (
+        target / "build",
+        target / HOME_RUNTIME_DIR_NAME,
+        runtime_ib,
+    ):
+        directory.mkdir(parents=True, exist_ok=True)
+        rel_dir = str(directory.relative_to(target))
+        if rel_dir not in created:
+            created.append(rel_dir)
+
+    return created
+
+
 def init_project(
     target: Path | None = None,
     *,
@@ -227,9 +358,9 @@ def init_project(
             root=root,
             diagnostics=[
                 error(
-                    f"Тип проекта не поддерживается в M1: {project_type}",
+                    f"Тип проекта не поддерживается: {project_type}",
                     code="1CP005",
-                    suggestion="Используйте --type configuration",
+                    suggestion="Используйте --type configuration или --type extension",
                 )
             ],
         )
@@ -259,7 +390,10 @@ def init_project(
                     f"Проект уже инициализирован: {HOME_MANIFEST_REL}",
                     code="1CP004",
                     file=HOME_MANIFEST_REL,
-                    suggestion="Укажите --force для перезаписи или выберите другой каталог",
+                    suggestion=(
+                        "Укажите --force для перезаписи, выберите другой каталог "
+                        "или используйте 1c-dev extension add"
+                    ),
                 )
             ],
         )
@@ -270,12 +404,20 @@ def init_project(
 
     mcp_diagnostics: list[Diagnostic] = []
     try:
-        created = _scaffold_configuration(
-            root,
-            name=project_name,
-            platform_version=platform_version,
-            force=force,
-        )
+        if project_type == "extension":
+            created = _scaffold_extension_project(
+                root,
+                name=project_name,
+                platform_version=platform_version,
+                force=force,
+            )
+        else:
+            created = _scaffold_configuration(
+                root,
+                name=project_name,
+                platform_version=platform_version,
+                force=force,
+            )
         m_created, _, _, mcp_diagnostics = _configure_ide_mcp(
             root,
             ides_to_configure(ide_target),

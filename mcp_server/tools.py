@@ -10,6 +10,7 @@ from adapters.source.xmlgen import EditOp, edit_op_from_dict
 from core.build import run_build
 from core.check import run_check
 from core.docs import get_docs, search_docs
+from core.extension import add_extension, run_extension_list
 from core.import_cf import run_import
 from core.metadata import (
     IrError,
@@ -135,8 +136,9 @@ def register_tools(server: FastMCP) -> None:
     @server.tool(
         name="project.init",
         description=(
-            "Bootstrap an empty 1C configuration project "
+            "Bootstrap an empty 1C project "
             "(.1c-dev/project.yaml schema 2 + XML source skeleton + IDE MCP configs). "
+            "type: configuration (default) or extension (standalone). "
             "ide_target: all (default), cursor, kilocode, or none."
             + _PATH_SCOPE
             + _NO_SHELL
@@ -157,6 +159,57 @@ def register_tools(server: FastMCP) -> None:
             ide_target=ide_target,
         )
         return result.to_payload(include_manifest=False)
+
+    @server.tool(
+        name="extension.add",
+        description=(
+            "Add an extension to an existing configuration project: scaffold "
+            "src/cfe/<id>/ and append configurations[].extensions[]. "
+            "purpose: product (default), tests, or other."
+            + _PATH_SCOPE
+            + _CONFIG_RUNTIME
+            + _NO_SHELL
+        ),
+    )
+    def extension_add_tool(
+        path: str | None = None,
+        id: str | None = None,
+        name: str | None = None,
+        purpose: str = "product",
+        config_id: str | None = None,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        result = add_extension(
+            resolve_path(path),
+            ext_id=id,
+            name=name,
+            purpose=purpose,
+            config_id=config_id,
+            force=force,
+        )
+        return result.to_payload(include_manifest=False)
+
+    @server.tool(
+        name="extension.list",
+        description=(
+            "List extensions installed in the selected/default file IB "
+            "(ibcmd extension list)."
+            + _PATH_SCOPE
+            + _CONFIG_RUNTIME
+            + _NO_SHELL
+        ),
+    )
+    def extension_list_tool(
+        path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_extension_list(
+            resolve_path(path),
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        return result.to_payload()
 
     @server.tool(
         name="ide.configure",
@@ -614,8 +667,9 @@ def register_tools(server: FastMCP) -> None:
     @server.tool(
         name="build",
         description=(
-            "Load XML configuration into a file infobase via ibcmd. "
-            "Optional artifact='cf' exports a .cf file."
+            "Load XML configuration into a file infobase via ibcmd, then each "
+            "nested configurations[].extensions[] (XML) with --extension. "
+            "Optional artifact='cf' exports a .cf file for the main configuration."
             + _CONFIG_RUNTIME
             + _NO_SHELL
         ),

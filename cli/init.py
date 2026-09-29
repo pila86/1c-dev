@@ -73,7 +73,7 @@ def init_command(
     project_type: str = typer.Option(
         ...,
         "--type",
-        help="Тип проекта: configuration (M1).",
+        help="Тип проекта: configuration | extension.",
     ),
     name: str | None = typer.Option(
         None,
@@ -92,7 +92,7 @@ def init_command(
     ),
     output: OutputOption = None,
 ) -> None:
-    """Создать пустой проект конфигурации (bootstrap)."""
+    """Создать пустой проект configuration или extension (bootstrap)."""
     result = init_project(
         Path.cwd(),
         project_type=project_type,
