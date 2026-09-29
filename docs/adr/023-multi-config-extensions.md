@@ -13,10 +13,29 @@ Schema `"1"` описывает один `source` и один `project.type`. Н
 2. Элемент extension: `id`, `name` (имя для ibcmd `--extension`), `source`, опционально `purpose` (`product` | `tests` | …).
 3. CLI/MCP: `--config` / `config_id`; default = configuration с `default: true` (ровно одна) или единственная configuration.
 4. **`build`:** загрузить configuration, затем каждое extension в ИБ, выбранную через `runtimes[]` (ADR-026).
-5. Adapter `platform_ibcmd`: поддержка `--extension` на import/apply/save/load/export (точные argv — spike на целевой платформе до freeze).
-6. Must: установка extension в ИБ из XML source. Should: из `.cfe`, если платформа умеет (`config update` и т.п.).
+5. Adapter `platform_ibcmd`: поддержка `--extension` на import/apply/save/load/export (argv заморожены spike [#84](https://github.com/pila86/1c-dev/issues/84)).
+6. Must: установка extension в ИБ из XML source. Should: из `.cfe` через `infobase config load --extension` (#95).
 7. Scaffold: `templates/extension/` + `init --type extension` (standalone) и добавление extension в configuration-проект.
 8. Связь с ИБ — только через `runtimes[]`, не поле `runtime:` у configuration.
+
+### Замороженный argv (8.3.25.x, spike #84)
+
+Канон совместим с ADR-008 (`infobase config` + `config save`):
+
+```text
+ibcmd extension create --db-path=… --data=… --name=<Name> --name-prefix=<Prefix> [--purpose=add-on]
+ibcmd infobase config import --db-path=… --data=… --extension=<Name> <xml_dir>
+ibcmd infobase config apply  --db-path=… --data=… --extension=<Name> --force
+ibcmd infobase config export --db-path=… --data=… --extension=<Name> <xml_dir>
+ibcmd config save            --db-path=… --data=… --extension=<Name> --db <file.cfe>
+ibcmd infobase config load   --db-path=… --data=… --extension=<Name> [--force] <file.cfe>
+ibcmd infobase config check  --db-path=… --data=… --extension=<Name> [--force]
+ibcmd extension list         --db-path=… --data=…
+```
+
+- `--extension` = имя расширения (`extensions[].name`), не manifest `id`.
+- `extension create` до XML-import **не обязателен** (import/load сами создают расширение); create нужен, если заранее задаём prefix/purpose.
+- Полный протокол и gaps: [docs/spikes/084-ibcmd-extension-ibsrv.md](../spikes/084-ibcmd-extension-ibsrv.md).
 
 ## Альтернативы
 
@@ -30,10 +49,11 @@ Schema `"1"` описывает один `source` и один `project.type`. Н
 
 - Metadata API получает `--config` для выбора source tree.
 - Artifact `build --artifact cfe` для выбранного extension.
-- Перед реализацией — spike `ibcmd … --extension`.
+- Spike argv (#84) закрыт; реализация adapter/CLI — #88.
 
 ## Связанные решения
 
 - ADR-008, ADR-014, ADR-015, ADR-022, ADR-026
 - [M4](../milestones/m4-project-model.md)
+- [Spike #84](../spikes/084-ibcmd-extension-ibsrv.md)
 - [draft-tests](../milestones/draft-tests.md)
