@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from adapters.platform.discovery import DiscoveryResult, discover_environment
+from adapters.platform.templates import discover_template_roots
 from adapters.source.mdclasses.resolve import resolve_jar as resolve_mdreader_jar
 from adapters.source.xmlgen.resolve import resolve_jar as resolve_xmlgen_jar
 from adapters.source.xmlgen.resolve import resolve_java
@@ -28,6 +29,11 @@ _IBCMD_HINT = (
 _IBSRV_HINT = (
     "Опционально для publish: добавьте ibsrv в PATH "
     "(рядом с ibcmd в каталоге платформы)."
+)
+_TEMPLATES_HINT = (
+    "Опционально для templates.list / import --from-template: "
+    "установите шаблоны конфигураций (tmplts) "
+    "или задайте ConfigurationTemplatesLocation в 1cestart.cfg."
 )
 _ONECV8_HINT = (
     "Опционально для M1: добавьте 1cv8 в PATH, если нужен конфигуратор/толстый клиент."
@@ -115,6 +121,8 @@ def run_doctor(
     *,
     search_roots: list[Path] | None = None,
     env: dict[str, str] | None = None,
+    template_cfg_paths: list[Path] | None = None,
+    template_default_roots: list[Path] | None = None,
 ) -> DoctorResult:
     """Discover environment and build doctor report."""
     discovery = discover_environment(search_roots=search_roots)
@@ -122,6 +130,12 @@ def run_doctor(
     xmlgen = resolve_xmlgen_jar(env=env)
     mdreader = resolve_mdreader_jar(env=env)
     cli = _resolve_cli()
+    tmplts = discover_template_roots(
+        cfg_paths=template_cfg_paths,
+        default_roots=template_default_roots,
+    )
+    templates_found = bool(tmplts.roots)
+    templates_path = tmplts.roots[0] if tmplts.roots else None
 
     manifest = load_manifest()
     bsl_spec = manifest.get("bsl-language-server")
@@ -142,6 +156,7 @@ def run_doctor(
         "ibcmd": _tool_payload(discovery.ibcmd.found, discovery.ibcmd.path),
         "ibsrv": _tool_payload(discovery.ibsrv.found, discovery.ibsrv.path),
         "1cv8": _tool_payload(discovery.onecv8.found, discovery.onecv8.path),
+        "templates": _tool_payload(templates_found, templates_path),
         "java": _tool_payload(java.found, java.path, version=java.version),
         "xml-gen": _adapter_jar_payload(
             xmlgen.found, xmlgen.path, env_name=_XMLGEN_ENV, env=env
@@ -156,6 +171,7 @@ def run_doctor(
         "ibcmd": discovery.ibcmd.found,
         "ibsrv": discovery.ibsrv.found,
         "1cv8": discovery.onecv8.found,
+        "templates": templates_found,
         "java": java.found,
         "xml-gen": xmlgen.found,
         "md-reader": mdreader.found,
@@ -192,6 +208,15 @@ def run_doctor(
                 code="1CD011",
                 source="doctor",
                 suggestion=_IBSRV_HINT,
+            )
+        )
+    if not templates_found:
+        diagnostics.append(
+            warning(
+                "Каталог шаблонов платформы (tmplts) не найден",
+                code="1CD012",
+                source="doctor",
+                suggestion=_TEMPLATES_HINT,
             )
         )
     if not discovery.onecv8.found:

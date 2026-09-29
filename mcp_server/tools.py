@@ -51,6 +51,7 @@ from core.publish import (
     run_url as run_publish_url,
 )
 from core.runtime import run_start, run_status, run_stop
+from core.templates import templates_get, templates_list, templates_roots
 from mcp_server._path import resolve_path
 
 _NO_SHELL = (
@@ -371,6 +372,55 @@ def register_tools(server: FastMCP) -> None:
             runtime_id=runtime_id,
         )
         return result.to_payload()
+
+    @server.tool(
+        name="templates.roots",
+        description=(
+            "List platform configuration template directories (tmplts): "
+            "ConfigurationTemplatesLocation from 1cestart.cfg plus OS defaults. "
+            "Not related to git templates/configuration/ in this monorepo."
+            + _NO_SHELL
+        ),
+    )
+    def templates_roots_tool() -> dict[str, Any]:
+        return templates_roots().to_payload()
+
+    @server.tool(
+        name="templates.list",
+        description=(
+            "List installed platform configuration templates by scanning *.mft "
+            "under tmplts roots. Returns id, vendor, name, version, Source "
+            "(.cf/.dt/.cfu), sourcePath. Optional filters: vendor, name, version, "
+            "source_kind (cf|dt|cfu), query. Use id with templates.get or later "
+            "configuration.import --from-template."
+            + _NO_SHELL
+        ),
+    )
+    def templates_list_tool(
+        vendor: str | None = None,
+        name: str | None = None,
+        version: str | None = None,
+        source_kind: str | None = None,
+        query: str | None = None,
+    ) -> dict[str, Any]:
+        return templates_list(
+            vendor=vendor,
+            name=name,
+            version=version,
+            source_kind_filter=source_kind,
+            query=query,
+        ).to_payload()
+
+    @server.tool(
+        name="templates.get",
+        description=(
+            "Get one platform template by stable id from templates.list "
+            "(vendor/name/version/section + Source path)."
+            + _NO_SHELL
+        ),
+    )
+    def templates_get_tool(id: str = "") -> dict[str, Any]:
+        return templates_get(id).to_payload()
 
     @server.tool(
         name="ide.configure",

@@ -1,4 +1,4 @@
-"""Capability matrix for doctor (ADR-005, ADR-007, ADR-012, ADR-018, ADR-028, #25, #49, #60)."""
+"""Capability matrix for doctor (ADR-005/007/012/018/024/028, #25, #49, #60, #91)."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ CAPABILITY_REQUIREMENTS: dict[str, list[str]] = {
     "check": ["ibcmd"],
     "configuration.import": ["ibcmd"],
     "ibsrv": ["ibsrv"],
+    "templates": ["templates"],
     "metadata.create": ["java", "xml-gen"],
     "metadata.update": ["java", "xml-gen"],
     "metadata.delete": ["java", "xml-gen"],
@@ -34,6 +35,11 @@ _TOOL_HINTS: dict[str, str] = {
     "ibsrv": (
         "Установите платформу 1С с автономным сервером и добавьте ibsrv в PATH "
         "(рядом с ibcmd; нужен для publish.up)."
+    ),
+    "templates": (
+        "Установите шаблоны конфигураций платформы (tmplts) "
+        "или задайте ConfigurationTemplatesLocation в 1cestart.cfg "
+        "(нужно для templates.list / import --from-template)."
     ),
     "java": "Установите JDK 17+ и добавьте java в PATH (или задайте JAVA_HOME).",
     "xml-gen": "{suggest} (или задайте ONEC_XMLGEN_JAR).",
