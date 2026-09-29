@@ -36,12 +36,14 @@ def delete_metadata(
     *,
     config_id: str | None = None,
     runtime_id: str | None = None,
+    extension_id: str | None = None,
     remove_fn: RemoveFn | None = None,
 ) -> MetadataResult:
     """
     Delete a whole metadata object via xml-gen meta remove.
 
     remove_fn: optional injectable (source_dir, qname) -> deleted relative paths.
+    extension_id: nested extensions[] id or name (#112).
     """
     try:
         obj_type, name = parse_qualified_name(qualified_name)
@@ -55,7 +57,12 @@ def delete_metadata(
         )
 
     qname = f"{obj_type}.{name}"
-    resolved = _resolve_source(start, config_id=config_id, runtime_id=runtime_id)
+    resolved = _resolve_source(
+        start,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        extension_id=extension_id,
+    )
     if isinstance(resolved, MetadataResult):
         return MetadataResult(
             status="error",

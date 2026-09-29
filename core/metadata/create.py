@@ -35,6 +35,7 @@ def create_metadata(
     *,
     config_id: str | None = None,
     runtime_id: str | None = None,
+    extension_id: str | None = None,
     compile_fn: CompileFn | None = None,
     followup_fn: FollowupFn | None = None,
 ) -> MetadataResult:
@@ -46,6 +47,7 @@ def create_metadata(
 
     compile_fn: optional injectable (source_dir, dsl) -> list[str] for tests.
     followup_fn: optional injectable for tabular-section synonym edits.
+    extension_id: nested extensions[] id or name (#112).
     """
     if catalog.type not in CREATE_OBJECT_TYPES:
         return MetadataResult(
@@ -62,7 +64,12 @@ def create_metadata(
             ],
         )
 
-    resolved = _resolve_source(start, config_id=config_id, runtime_id=runtime_id)
+    resolved = _resolve_source(
+        start,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        extension_id=extension_id,
+    )
     if isinstance(resolved, MetadataResult):
         return MetadataResult(
             status="error",

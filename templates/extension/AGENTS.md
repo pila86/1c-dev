@@ -11,5 +11,9 @@
 9. Prefer MCP tools over shell or Designer/Configurator:
     - **1c-dev** MCP: project.*, metadata.*, build, check, runtime.*, extension.list, docs.*.
       MCP `path` = scope root (parent of `.1c-dev`).
+      Nested extension under a configuration: `metadata.list` / create / …
+      with `extension_id` (CLI: `--extension <id|name>`) → `src/cfe/<id>/`.
+      Standalone `type=extension`: use `config_id` (source already under `src/cfe/`).
+      Borrow / module interceptors (`xml-gen extension.*`) — not in MVP.
       `build` loads nested extensions into the selected runtime IB after the configuration.
     - **bsl-language-server** MCP: BSL code analysis — not for metadata or build.

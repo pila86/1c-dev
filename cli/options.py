@@ -21,3 +21,14 @@ RuntimeOption = Annotated[
         help="Id runtime из runtimes[] (schema \"2\").",
     ),
 ]
+
+ExtensionOption = Annotated[
+    str | None,
+    typer.Option(
+        "--extension",
+        help=(
+            "Id или name nested extension из configurations[].extensions[] "
+            "(metadata.* → src/cfe/…; #112)."
+        ),
+    ),
+]

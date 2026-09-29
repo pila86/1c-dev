@@ -25,6 +25,10 @@
       (client thick|thin, optional debug=/Debug),
       publish.up/down/status/url (ibsrv), extension.add / extension.list, and docs.*
       when available.
+      Nested extension metadata: pass `extension_id` (CLI `--extension`) to
+      metadata.* — id or name from `configurations[].extensions[]`.
+      Standalone extension project: `config_id` only (source under `src/cfe/`).
+      Borrow / interceptors — not in MVP.
       `project.clean` is destructive (wipes source + `.1c-dev/runtime/`); always pass
       yes=true and confirm intent first — does not touch `.1c-dev/project.yaml` /
       AGENTS.md / IDE MCP / git.

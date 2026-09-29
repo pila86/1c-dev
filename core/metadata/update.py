@@ -283,6 +283,7 @@ def update_metadata(
     *,
     config_id: str | None = None,
     runtime_id: str | None = None,
+    extension_id: str | None = None,
     edit_fn: EditFn | None = None,
     get_fn: GetFn | None = None,
 ) -> MetadataResult:
@@ -291,6 +292,7 @@ def update_metadata(
 
     Subsystem uses ``subsystem edit``; other types use ``meta edit``.
     edit_fn / get_fn: injectable for unit tests.
+    extension_id: nested extensions[] id or name (#112).
     """
     if not operations:
         return MetadataResult(
@@ -343,7 +345,12 @@ def update_metadata(
         )
 
     qname = f"{obj_type}.{name}"
-    resolved = _resolve_source(start, config_id=config_id, runtime_id=runtime_id)
+    resolved = _resolve_source(
+        start,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        extension_id=extension_id,
+    )
     if isinstance(resolved, MetadataResult):
         return MetadataResult(
             status="error",
@@ -449,6 +456,7 @@ def update_metadata(
             qname,
             config_id=config_id,
             runtime_id=runtime_id,
+            extension_id=extension_id,
         )
     else:
         get_result = getter(start, qname)
