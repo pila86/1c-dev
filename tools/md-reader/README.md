@@ -2,6 +2,9 @@
 
 Thin Java CLI over [MDClasses](https://github.com/1c-syntax/mdclasses) → Metadata IR v1 JSON (ADR-012).
 
+Читает и конфигурацию, и расширение: `MDClasses.createConfiguration` → cast к `CF`
+(`Configuration` и `ConfigurationExtension` реализуют один интерфейс).
+
 В git — исходники и **Gradle Wrapper** (8.10.2). Готовый jar **не** в репозитории: ставится в пользовательский cache через `1c-dev tools sync` или скрипт fetch.
 
 ```bash

@@ -1,6 +1,6 @@
 package dev.onec.mdreader;
 
-import com.github._1c_syntax.bsl.mdclasses.Configuration;
+import com.github._1c_syntax.bsl.mdclasses.CF;
 import com.github._1c_syntax.bsl.mdclasses.MDClasses;
 import com.github._1c_syntax.bsl.mdo.AccountingRegister;
 import com.github._1c_syntax.bsl.mdo.AccumulationRegister;
@@ -118,7 +118,8 @@ public final class Main {
       if (!Files.isDirectory(sourceDir)) {
         fail("1CM001", "Каталог исходников не найден: " + sourceDir);
       }
-      Configuration configuration = (Configuration) MDClasses.createConfiguration(sourceDir);
+      // Configuration and ConfigurationExtension both implement CF (#112).
+      CF configuration = (CF) MDClasses.createConfiguration(sourceDir);
       switch (command) {
         case "list" -> emitOkObjects(listObjects(configuration, null));
         case "find" -> {
@@ -185,7 +186,7 @@ public final class Main {
     System.out.println(GSON.toJson(root));
   }
 
-  private static List<JsonObject> listObjects(Configuration configuration, String query) {
+  private static List<JsonObject> listObjects(CF configuration, String query) {
     String needle = query == null ? null : query.toLowerCase(Locale.ROOT);
     List<JsonObject> result = new ArrayList<>();
     for (MD md : configuration.getChildren()) {
@@ -206,7 +207,7 @@ public final class Main {
     return result;
   }
 
-  private static JsonObject getObject(Configuration configuration, String qname) {
+  private static JsonObject getObject(CF configuration, String qname) {
     Optional<MD> found = configuration.findChild(MdoReference.create(qname));
     if (found.isEmpty()) {
       // try case-insensitive scan

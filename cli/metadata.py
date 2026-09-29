@@ -9,7 +9,7 @@ from typing import Any
 import typer
 
 from adapters.source.xmlgen import EditOp, edit_op_from_dict
-from cli.options import ConfigOption, RuntimeOption
+from cli.options import ConfigOption, ExtensionOption, RuntimeOption
 from cli.output import OutputFormat, OutputOption, resolve_output
 from core.exit_codes import ENV_UNAVAILABLE, PROJECT_ERROR, SUCCESS
 from core.metadata import (
@@ -265,11 +265,17 @@ def list_command(
     ctx: typer.Context,
     config: ConfigOption = None,
     runtime: RuntimeOption = None,
+    extension: ExtensionOption = None,
     output: OutputOption = None,
 ) -> None:
     """Список объектов метаданных (IR summaries)."""
     fmt = resolve_output(ctx, output)
-    result = list_metadata(Path.cwd(), config_id=config, runtime_id=runtime)
+    result = list_metadata(
+        Path.cwd(),
+        config_id=config,
+        runtime_id=runtime,
+        extension_id=extension,
+    )
     _emit(result.to_payload(), fmt, text_lines=_list_text(result))
     _exit_for(result)
 
@@ -283,6 +289,7 @@ def get_command(
     ),
     config: ConfigOption = None,
     runtime: RuntimeOption = None,
+    extension: ExtensionOption = None,
     output: OutputOption = None,
 ) -> None:
     """Получить IR объекта по QualifiedName."""
@@ -292,6 +299,7 @@ def get_command(
         qualified_name,
         config_id=config,
         runtime_id=runtime,
+        extension_id=extension,
     )
     _emit(result.to_payload(), fmt, text_lines=_get_text(result))
     _exit_for(result)
@@ -306,11 +314,18 @@ def find_command(
     ),
     config: ConfigOption = None,
     runtime: RuntimeOption = None,
+    extension: ExtensionOption = None,
     output: OutputOption = None,
 ) -> None:
     """Поиск объектов по имени / синониму."""
     fmt = resolve_output(ctx, output)
-    result = find_metadata(Path.cwd(), query, config_id=config, runtime_id=runtime)
+    result = find_metadata(
+        Path.cwd(),
+        query,
+        config_id=config,
+        runtime_id=runtime,
+        extension_id=extension,
+    )
     _emit(result.to_payload(), fmt, text_lines=_list_text(result))
     _exit_for(result)
 
@@ -422,6 +437,7 @@ def update_command(
     ),
     config: ConfigOption = None,
     runtime: RuntimeOption = None,
+    extension: ExtensionOption = None,
     output: OutputOption = None,
 ) -> None:
     """Изменить объект метаданных (Meta DSL 23 + Subsystem)."""
@@ -472,6 +488,7 @@ def update_command(
         operations,
         config_id=config,
         runtime_id=runtime,
+        extension_id=extension,
     )
     _emit(result.to_payload(), fmt, text_lines=_update_text(result))
     _exit_for(result)
@@ -490,6 +507,7 @@ def delete_command(
     ),
     config: ConfigOption = None,
     runtime: RuntimeOption = None,
+    extension: ExtensionOption = None,
     output: OutputOption = None,
 ) -> None:
     """Удалить объект метаданных из source (Meta DSL / Subsystem)."""
@@ -499,6 +517,7 @@ def delete_command(
         qualified_name,
         config_id=config,
         runtime_id=runtime,
+        extension_id=extension,
     )
     _emit(result.to_payload(), fmt, text_lines=_delete_text(result))
     _exit_for(result)
@@ -715,6 +734,7 @@ def create_command(
     ),
     config: ConfigOption = None,
     runtime: RuntimeOption = None,
+    extension: ExtensionOption = None,
     output: OutputOption = None,
 ) -> None:
     """Создать объект метаданных (Meta DSL 23 + Subsystem)."""
@@ -888,6 +908,7 @@ def create_command(
         catalog,
         config_id=config,
         runtime_id=runtime,
+        extension_id=extension,
     )
     _emit(result.to_payload(), fmt, text_lines=_create_text(result))
     _exit_for(result)

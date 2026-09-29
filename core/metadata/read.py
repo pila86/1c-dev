@@ -20,14 +20,41 @@ Command = Literal["list", "get", "find"]
 ReadFn = Callable[[Command, Path, tuple[str, ...]], dict[str, Any]]
 
 
+def _lookup_nested_extension(
+    configuration: dict[str, Any],
+    extension_id: str,
+) -> dict[str, Any] | None:
+    """Find nested extensions[] entry by id, else by name."""
+    raw = configuration.get("extensions")
+    if not isinstance(raw, list):
+        return None
+    by_id: dict[str, Any] | None = None
+    by_name: dict[str, Any] | None = None
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        eid = item.get("id")
+        if isinstance(eid, str) and eid == extension_id:
+            by_id = item
+            break
+        ename = item.get("name")
+        if by_name is None and isinstance(ename, str) and ename == extension_id:
+            by_name = item
+    return by_id if by_id is not None else by_name
+
+
 def _resolve_source(
     start: Path | None,
     *,
     config_id: str | None = None,
     runtime_id: str | None = None,
+    extension_id: str | None = None,
 ) -> MetadataResult | tuple[Path, Path, Path]:
     """
     Resolve project root + source dir.
+
+    When ``extension_id`` is set, resolves nested ``extensions[]`` source
+    (by id or name) under the selected configuration (#112).
 
     Returns MetadataResult on error, or (root, source_dir, manifest_path).
     """
@@ -83,6 +110,87 @@ def _resolve_source(
             ],
         )
 
+    if extension_id:
+        ext = _lookup_nested_extension(target.configuration, extension_id)
+        if ext is None:
+            return MetadataResult(
+                status="error",
+                root=root,
+                diagnostics=[
+                    error(
+                        f"Расширение не найдено: {extension_id!r}",
+                        code="1CM001",
+                        source="metadata",
+                        suggestion=(
+                            "Укажите id или name из configurations[].extensions[]; "
+                            "добавьте через extension add"
+                        ),
+                    )
+                ],
+            )
+        source = ext.get("source")
+        if not isinstance(source, dict):
+            return MetadataResult(
+                status="error",
+                root=root,
+                diagnostics=[
+                    error(
+                        f"extensions[{extension_id!r}]: отсутствует source",
+                        code="1CM001",
+                        file=str(manifest_path),
+                        source="metadata",
+                    )
+                ],
+            )
+        fmt = source.get("format")
+        if fmt != "xml":
+            return MetadataResult(
+                status="error",
+                root=root,
+                diagnostics=[
+                    error(
+                        f"extensions[{extension_id!r}]: source.format={fmt!r}; "
+                        "metadata поддерживает только xml",
+                        code="1CM005",
+                        file=str(manifest_path),
+                        source="metadata",
+                        suggestion=(
+                            "Выгрузите XML через extension add --from *.cfe "
+                            "или укажите format: xml"
+                        ),
+                    )
+                ],
+            )
+        path = source.get("path")
+        if not isinstance(path, str) or not path:
+            return MetadataResult(
+                status="error",
+                root=root,
+                diagnostics=[
+                    error(
+                        f"extensions[{extension_id!r}]: отсутствует source.path",
+                        code="1CM001",
+                        file=str(manifest_path),
+                        source="metadata",
+                    )
+                ],
+            )
+        source_dir = (root / path).resolve()
+        if not source_dir.is_dir():
+            return MetadataResult(
+                status="error",
+                root=root,
+                diagnostics=[
+                    error(
+                        f"Каталог исходников расширения не найден: {source_dir}",
+                        code="1CM001",
+                        source="metadata",
+                        suggestion="Добавьте расширение через extension add",
+                    )
+                ],
+            )
+        return root, source_dir, manifest_path
+
     fmt = target.source_format
     if fmt != "xml":
         return MetadataResult(
@@ -125,9 +233,15 @@ def _run_read(
     *args: str,
     config_id: str | None = None,
     runtime_id: str | None = None,
+    extension_id: str | None = None,
     read_fn: ReadFn | None = None,
 ) -> MetadataResult:
-    resolved = _resolve_source(start, config_id=config_id, runtime_id=runtime_id)
+    resolved = _resolve_source(
+        start,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        extension_id=extension_id,
+    )
     if isinstance(resolved, MetadataResult):
         return resolved
     root, source_dir, _manifest = resolved
@@ -193,6 +307,7 @@ def list_metadata(
     *,
     config_id: str | None = None,
     runtime_id: str | None = None,
+    extension_id: str | None = None,
     read_fn: ReadFn | None = None,
 ) -> MetadataResult:
     """List metadata objects in project source (IR summaries)."""
@@ -201,6 +316,7 @@ def list_metadata(
         "list",
         config_id=config_id,
         runtime_id=runtime_id,
+        extension_id=extension_id,
         read_fn=read_fn,
     )
 
@@ -211,6 +327,7 @@ def get_metadata(
     *,
     config_id: str | None = None,
     runtime_id: str | None = None,
+    extension_id: str | None = None,
     read_fn: ReadFn | None = None,
 ) -> MetadataResult:
     """Get full IR (or stub) for a QualifiedName."""
@@ -220,6 +337,7 @@ def get_metadata(
         qualified_name,
         config_id=config_id,
         runtime_id=runtime_id,
+        extension_id=extension_id,
         read_fn=read_fn,
     )
 
@@ -230,6 +348,7 @@ def find_metadata(
     *,
     config_id: str | None = None,
     runtime_id: str | None = None,
+    extension_id: str | None = None,
     read_fn: ReadFn | None = None,
 ) -> MetadataResult:
     """Find metadata objects by name / synonym substring."""
@@ -239,5 +358,6 @@ def find_metadata(
         query,
         config_id=config_id,
         runtime_id=runtime_id,
+        extension_id=extension_id,
         read_fn=read_fn,
     )

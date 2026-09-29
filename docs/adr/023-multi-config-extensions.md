@@ -49,6 +49,12 @@ ibcmd extension list         --db-path=… --data=…
 ## Последствия
 
 - Metadata API получает `--config` для выбора source tree.
+- `#112`: `metadata.* --extension` / MCP `extension_id` — nested `extensions[]`
+  (id или name) → `src/cfe/<id>/`. Standalone `type=extension` — через `--config`
+  (source уже под `src/cfe/`). md-reader читает через `CF` (ADR-012).
+- MVP #112: свои объекты расширения (create/update/delete / list/get/find).
+  **Out of MVP:** borrow / `xml-gen extension.*` (diff, patch-method), IR
+  `ObjectBelonging` (Own vs Adopted) — follow-up.
 - Artifact `build --artifact cfe` для выбранного extension.
 - Spike argv (#84) закрыт; реализация adapter/CLI — #88.
 - Should #95: `extension.add --from *.cfe` выгружает XML в `src/cfe/<id>/` через scratch IB (`load --extension` → `apply` → `export`); в манифесте `format: xml`. Опционально `source.format=cfe` + бинарный путь для load без выгрузки. Seed `.dt` — #111.
@@ -59,3 +65,4 @@ ibcmd extension list         --db-path=… --data=…
 - [M4](../milestones/m4-project-model.md)
 - [Spike #84](../spikes/084-ibcmd-extension-ibsrv.md)
 - [draft-tests](../milestones/draft-tests.md)
+- [ADR-012](012-metadata-read-mdclasses.md) / #112

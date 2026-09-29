@@ -228,7 +228,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 - [ ] Publish Apache/`webinst`
 - [x] Import `.cfe` в ИБ при поддержке платформы (#95)
 - [ ] Seed ИБ из `.dt` шаблона (#111)
-- [ ] `metadata.*` для nested/standalone extensions (`--extension`, md-reader `CF`) (#112)
+- [x] `metadata.*` для nested/standalone extensions (`--extension`, md-reader `CF`) (#112)
 - [ ] Несколько ИБ на одну configuration (dev/demo) в acceptance
 
 ## Out of scope (M4)

@@ -64,6 +64,11 @@ _CONFIG_RUNTIME = (
     " Optional config_id / runtime_id select configurations[] / runtimes[] "
     "(defaults: configuration default:true or sole; runtime global default:true)."
 )
+_EXTENSION = (
+    " Optional extension_id selects nested configurations[].extensions[] "
+    "by id or name (metadata on src/cfe/…; #112). "
+    "Standalone type=extension uses config_id (source already under src/cfe)."
+)
 _PUBLISH_PROFILE = (
     " Optional profile selects publish.profiles id (default: publish.default)."
 )
@@ -499,6 +504,7 @@ def register_tools(server: FastMCP) -> None:
             "({type, name, qname, synonym?}). Use to survey the configuration "
             "before get/update/create/delete. Works from source without the 1C platform."
             + _CONFIG_RUNTIME
+            + _EXTENSION
             + _PATH_SCOPE
             + _NO_SHELL
         ),
@@ -507,11 +513,13 @@ def register_tools(server: FastMCP) -> None:
         path: str | None = None,
         config_id: str | None = None,
         runtime_id: str | None = None,
+        extension_id: str | None = None,
     ) -> dict[str, Any]:
         result = list_metadata(
             resolve_path(path),
             config_id=config_id,
             runtime_id=runtime_id,
+            extension_id=extension_id,
         )
         return result.to_payload()
 
@@ -523,6 +531,7 @@ def register_tools(server: FastMCP) -> None:
             "existing attributes/tabular sections/values. Works from source "
             "without the 1C platform."
             + _CONFIG_RUNTIME
+            + _EXTENSION
             + _NO_SHELL
         ),
     )
@@ -531,12 +540,14 @@ def register_tools(server: FastMCP) -> None:
         path: str | None = None,
         config_id: str | None = None,
         runtime_id: str | None = None,
+        extension_id: str | None = None,
     ) -> dict[str, Any]:
         result = get_metadata(
             resolve_path(path),
             qualified_name,
             config_id=config_id,
             runtime_id=runtime_id,
+            extension_id=extension_id,
         )
         return result.to_payload()
 
@@ -547,6 +558,7 @@ def register_tools(server: FastMCP) -> None:
             "Returns IR summaries like metadata.list. Prefer over list when "
             "looking for a specific object."
             + _CONFIG_RUNTIME
+            + _EXTENSION
             + _NO_SHELL
         ),
     )
@@ -555,12 +567,14 @@ def register_tools(server: FastMCP) -> None:
         path: str | None = None,
         config_id: str | None = None,
         runtime_id: str | None = None,
+        extension_id: str | None = None,
     ) -> dict[str, Any]:
         result = find_metadata(
             resolve_path(path),
             query,
             config_id=config_id,
             runtime_id=runtime_id,
+            extension_id=extension_id,
         )
         return result.to_payload()
 
@@ -621,6 +635,7 @@ def register_tools(server: FastMCP) -> None:
             "session_max_age, operations "
             "{Name: {returnType?, handler?, parameters?}}."
             + _CONFIG_RUNTIME
+            + _EXTENSION
             + _NO_SHELL
         ),
     )
@@ -673,6 +688,7 @@ def register_tools(server: FastMCP) -> None:
         path: str | None = None,
         config_id: str | None = None,
         runtime_id: str | None = None,
+        extension_id: str | None = None,
     ) -> dict[str, Any]:
         try:
             data: dict[str, Any] = {}
@@ -787,6 +803,7 @@ def register_tools(server: FastMCP) -> None:
             catalog,
             config_id=config_id,
             runtime_id=runtime_id,
+            extension_id=extension_id,
         )
         return result.to_payload()
 
@@ -814,6 +831,7 @@ def register_tools(server: FastMCP) -> None:
             "{op:'add-exchange-content', value:'Catalog.Products'}. "
             "Does not create new objects — use metadata.create."
             + _CONFIG_RUNTIME
+            + _EXTENSION
             + _NO_SHELL
         ),
     )
@@ -823,6 +841,7 @@ def register_tools(server: FastMCP) -> None:
         path: str | None = None,
         config_id: str | None = None,
         runtime_id: str | None = None,
+        extension_id: str | None = None,
     ) -> dict[str, Any]:
         parsed = _parse_update_operations(operations)
         if isinstance(parsed, MetadataResult):
@@ -834,6 +853,7 @@ def register_tools(server: FastMCP) -> None:
             parsed,
             config_id=config_id,
             runtime_id=runtime_id,
+            extension_id=extension_id,
         )
         return result.to_payload()
 
@@ -848,6 +868,7 @@ def register_tools(server: FastMCP) -> None:
             "To remove attributes/tabular sections/values use metadata.update "
             "remove-* ops instead."
             + _CONFIG_RUNTIME
+            + _EXTENSION
             + _NO_SHELL
         ),
     )
@@ -856,12 +877,14 @@ def register_tools(server: FastMCP) -> None:
         path: str | None = None,
         config_id: str | None = None,
         runtime_id: str | None = None,
+        extension_id: str | None = None,
     ) -> dict[str, Any]:
         result = delete_metadata(
             resolve_path(path),
             qualified_name,
             config_id=config_id,
             runtime_id=runtime_id,
+            extension_id=extension_id,
         )
         return result.to_payload()
 
