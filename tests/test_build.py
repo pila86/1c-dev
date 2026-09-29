@@ -387,3 +387,84 @@ def test_run_build_missing_extension_source(tmp_path: Path) -> None:
     result = run_build(target, discover=lambda: _fake_discovery(ibcmd=ibcmd), run=_ok_run)
     assert result.status == "failed"
     assert any(d.get("code") == CODE_SOURCE_MISSING for d in result.diagnostics)
+
+
+def test_run_build_with_cfe_extension(tmp_path: Path) -> None:
+    """Build loads nested extension from .cfe via config load --extension (#95)."""
+    import yaml
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
+
+    cfe_path = target / "src" / "cfe" / "custom.cfe"
+    cfe_path.parent.mkdir(parents=True)
+    cfe_path.write_bytes(b"CFE")
+    manifest_path = target / ".1c-dev" / "project.yaml"
+    data = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    data["configurations"][0]["extensions"] = [
+        {
+            "id": "custom",
+            "name": "CustomExt",
+            "purpose": "product",
+            "source": {"format": "cfe", "path": "src/cfe/custom.cfe"},
+        }
+    ]
+    manifest_path.write_text(
+        yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    ibcmd = tmp_path / "ibcmd"
+    ibcmd.write_text("", encoding="utf-8")
+    captured: list[list[str]] = []
+
+    def run(argv: list[str]) -> IbcmdRunResult:
+        captured.append(argv)
+        return _ok_run(argv)
+
+    result = run_build(
+        target,
+        discover=lambda: _fake_discovery(ibcmd=ibcmd),
+        run=run,
+    )
+    assert result.status == "ok", result.to_payload()
+    assert result.steps == [
+        "create",
+        "import",
+        "apply",
+        "load:CustomExt",
+        "apply:CustomExt",
+    ]
+    loads = [a for a in captured if "load" in a and "--extension=CustomExt" in a]
+    assert len(loads) == 1
+    assert str(cfe_path.resolve()) in loads[0]
+    assert not any(
+        "import" in a and "--extension=CustomExt" in a for a in captured
+    )
+
+
+def test_run_build_missing_cfe_file(tmp_path: Path) -> None:
+    import yaml
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
+    manifest_path = target / ".1c-dev" / "project.yaml"
+    data = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    data["configurations"][0]["extensions"] = [
+        {
+            "id": "custom",
+            "name": "CustomExt",
+            "source": {"format": "cfe", "path": "src/cfe/missing.cfe"},
+        }
+    ]
+    manifest_path.write_text(
+        yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    ibcmd = tmp_path / "ibcmd"
+    ibcmd.write_text("", encoding="utf-8")
+    result = run_build(target, discover=lambda: _fake_discovery(ibcmd=ibcmd), run=_ok_run)
+    assert result.status == "failed"
+    assert any(d.get("code") == CODE_SOURCE_MISSING for d in result.diagnostics)

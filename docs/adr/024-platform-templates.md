@@ -16,7 +16,7 @@
 3. Публичный API:
    - `templates.roots` / `templates.list` / `templates.get`;
    - `configuration.import --from-template <id>`: resolve путь к `.cf` → reuse pipeline ADR-014/028;
-   - для Source `.dt`: seed выбранного runtime (create/load), **не** подмена XML source без явного флага.
+   - для Source `.dt`: seed выбранного runtime (create/load), **не** подмена XML source без явного флага (#111).
 4. Doctor capability `templates` (gap ≠ hard-fail всего CLI).
 5. MCP-зеркала `templates.*` + `from_template` у `configuration.import`.
 

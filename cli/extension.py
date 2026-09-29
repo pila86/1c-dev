@@ -90,7 +90,7 @@ def extension_add_command(
     ext_id: str | None = typer.Option(
         None,
         "--id",
-        help="Id расширения в манифесте и каталог src/cfe/<id>/.",
+        help="Id расширения в манифесте и каталог/файл src/cfe/<id>.",
     ),
     name: str | None = typer.Option(
         None,
@@ -102,15 +102,24 @@ def extension_add_command(
         "--purpose",
         help="purpose: product | tests | other.",
     ),
+    from_cfe: Path | None = typer.Option(
+        None,
+        "--from",
+        help="Путь к файлу .cfe: зарегистрировать format=cfe без XML-scaffold.",
+        exists=False,
+        dir_okay=False,
+        file_okay=True,
+        resolve_path=False,
+    ),
     config: ConfigOption = None,
     force: bool = typer.Option(
         False,
         "--force",
-        help="Перезаписать исходники расширения, если каталог уже есть.",
+        help="Перезаписать исходники/файл .cfe, если уже есть.",
     ),
     output: OutputOption = None,
 ) -> None:
-    """Добавить расширение в configuration-проект (scaffold + манифест)."""
+    """Добавить расширение в configuration-проект (XML scaffold или --from .cfe)."""
     result = add_extension(
         Path.cwd(),
         ext_id=ext_id,
@@ -118,6 +127,7 @@ def extension_add_command(
         purpose=purpose,
         config_id=config,
         force=force,
+        from_cfe=from_cfe,
     )
     payload = result.to_payload(include_manifest=False)
     _emit(payload, resolve_output(ctx, output), text_lines=_add_text(result))

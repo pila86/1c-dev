@@ -109,6 +109,76 @@ def test_cli_extension_add_no_project(
     assert result.exit_code == PROJECT_ERROR
 
 
+def test_add_extension_from_cfe(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    _init_config_project(target)
+    cfe = tmp_path / "CustomExt.cfe"
+    cfe.write_bytes(b"CFE")
+
+    result = add_extension(
+        target, from_cfe=cfe, name="CustomExt", purpose="product"
+    )
+    assert result.status == "ok", result.diagnostics
+    data = yaml.safe_load(
+        (target / ".1c-dev" / "project.yaml").read_text(encoding="utf-8")
+    )
+    exts = data["configurations"][0]["extensions"]
+    assert len(exts) == 1
+    assert exts[0]["id"] == "CustomExt"
+    assert exts[0]["name"] == "CustomExt"
+    assert exts[0]["source"]["format"] == "cfe"
+    assert exts[0]["source"]["path"] == "src/cfe/CustomExt.cfe"
+    assert (target / "src" / "cfe" / "CustomExt.cfe").is_file()
+    assert not (target / "src" / "cfe" / "CustomExt" / "Configuration.xml").exists()
+
+
+def test_add_extension_from_cfe_inside_scope(tmp_path: Path) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    _init_config_project(target)
+    cfe = target / "vendor" / "CustomExt.cfe"
+    cfe.parent.mkdir(parents=True)
+    cfe.write_bytes(b"CFE")
+
+    result = add_extension(target, from_cfe=cfe, ext_id="custom", name="CustomExt")
+    assert result.status == "ok", result.diagnostics
+    data = yaml.safe_load(
+        (target / ".1c-dev" / "project.yaml").read_text(encoding="utf-8")
+    )
+    assert data["configurations"][0]["extensions"][0]["source"] == {
+        "format": "cfe",
+        "path": "vendor/CustomExt.cfe",
+    }
+
+
+def test_cli_extension_add_from_cfe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+    _init_config_project(target)
+    cfe = tmp_path / "Ext.cfe"
+    cfe.write_bytes(b"CFE")
+    monkeypatch.chdir(target)
+    result = runner.invoke(
+        app,
+        [
+            "extension",
+            "add",
+            "--from",
+            str(cfe),
+            "--name",
+            "Ext",
+            "--output",
+            "json",
+        ],
+    )
+    assert result.exit_code == SUCCESS, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "ok"
+
+
 def test_run_extension_list_ok(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()

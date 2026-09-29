@@ -79,7 +79,7 @@ ibcmd infobase config check --db-path=… --data=… --extension=<Name> [--force
 |-----|--------|
 | Нет `--extension` → работает с основной конфигурацией | ожидаемо |
 | Дублирующий `extension create` | exit 255 — adapter должен трактовать как already-exists / skip |
-| `.cfe` load — should-путь #95 | платформа умеет; product API позже |
+| `.cfe` load — should-путь #95 | платформа умеет; product: `extension.add --from` + `build` (`source.format=cfe`) |
 | Совместимость режима XML export | spike на 8.3.25; version в XML `2.18` |
 
 ---

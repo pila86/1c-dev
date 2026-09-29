@@ -153,3 +153,34 @@ def test_parse_extension_list_skips_headers() -> None:
     stdout = "Name Version\nCustomExt 1.0\n-----------\nTests\n"
     items = parse_extension_list(stdout)
     assert [i.name for i in items] == ["CustomExt", "Tests"]
+
+
+def test_load_cf_with_ibcmd_extension_argv(tmp_path: Path) -> None:
+    from adapters.platform_ibcmd import load_cf_with_ibcmd
+
+    ibcmd = tmp_path / "ibcmd"
+    ibcmd.write_text("", encoding="utf-8")
+    db_path = tmp_path / "ib"
+    data_path = tmp_path / "data"
+    cfe = tmp_path / "ext.cfe"
+    cfe.write_bytes(b"CFE")
+    captured: list[list[str]] = []
+
+    def run(argv: list[str]) -> IbcmdRunResult:
+        captured.append(argv)
+        return _ok_run(argv)
+
+    steps = load_cf_with_ibcmd(
+        ibcmd,
+        db_path=db_path,
+        data_path=data_path,
+        cf_path=cfe,
+        extension="CustomExt",
+        run=run,
+    )
+    assert steps == ["create", "load:CustomExt", "apply:CustomExt"]
+    assert any(
+        "load" in a and "--extension=CustomExt" in a and str(cfe) in a
+        for a in captured
+    )
+    assert any("apply" in a and "--extension=CustomExt" in a for a in captured)

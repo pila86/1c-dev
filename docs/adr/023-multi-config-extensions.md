@@ -51,6 +51,7 @@ ibcmd extension list         --db-path=… --data=…
 - Metadata API получает `--config` для выбора source tree.
 - Artifact `build --artifact cfe` для выбранного extension.
 - Spike argv (#84) закрыт; реализация adapter/CLI — #88.
+- Should #95: `extensions[].source.format=cfe` + `extension.add --from *.cfe`; `build` грузит через `infobase config load --extension` (нужен ibcmd с поддержкой `--extension` на load). Seed `.dt` — #111.
 
 ## Связанные решения
 

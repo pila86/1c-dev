@@ -328,8 +328,11 @@ def register_tools(server: FastMCP) -> None:
     @server.tool(
         name="extension.add",
         description=(
-            "Add an extension to an existing configuration project: scaffold "
-            "src/cfe/<id>/ and append configurations[].extensions[]. "
+            "Add an extension to an existing configuration project. "
+            "Default: scaffold src/cfe/<id>/ (XML) and append "
+            "configurations[].extensions[]. "
+            "With from_cfe: register source.format=cfe (copy into scope if needed), "
+            "no XML scaffold; then use build to load into IB. "
             "purpose: product (default), tests, or other. "
             "Requires at least one configuration (use configuration.add first)."
             + _PATH_SCOPE
@@ -344,6 +347,7 @@ def register_tools(server: FastMCP) -> None:
         purpose: str = "product",
         config_id: str | None = None,
         force: bool = False,
+        from_cfe: str | None = None,
     ) -> dict[str, Any]:
         result = add_extension(
             resolve_path(path),
@@ -352,6 +356,7 @@ def register_tools(server: FastMCP) -> None:
             purpose=purpose,
             config_id=config_id,
             force=force,
+            from_cfe=from_cfe,
         )
         return result.to_payload(include_manifest=False)
 
@@ -863,7 +868,8 @@ def register_tools(server: FastMCP) -> None:
         name="build",
         description=(
             "Load XML configuration into a file infobase via ibcmd, then each "
-            "nested configurations[].extensions[] (XML) with --extension. "
+            "nested configurations[].extensions[] (XML import or .cfe load) "
+            "with --extension. "
             "Optional artifact='cf' exports a .cf file for the main configuration."
             + _CONFIG_RUNTIME
             + _NO_SHELL

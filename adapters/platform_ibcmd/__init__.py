@@ -49,14 +49,15 @@ def build_with_ibcmd(
     source_dir: Path,
     cf_path: Path | None = None,
     primary_extension: str | None = None,
-    extensions: list[tuple[str, Path]] | None = None,
+    extensions: list[tuple[str, Path]] | list[tuple[str, Path, str]] | None = None,
     run: RunFn | None = None,
 ) -> list[str]:
     """
     Create (if needed) → import XML → apply; then each nested extension; optionally save .cf.
 
     primary_extension: when set, the main source is an extension (standalone project).
-    extensions: nested (ibcmd_name, xml_source_dir) loaded after the main configuration.
+    extensions: nested (ibcmd_name, path[, kind]) loaded after the main configuration.
+      kind defaults to \"xml\"; \"cfe\" uses config load --extension (#95).
     Returns list of completed step names: create?, import|import:Name, apply|apply:Name, …, save?.
     """
     steps: list[str] = []
@@ -86,16 +87,32 @@ def build_with_ibcmd(
     )
     steps.append(f"apply:{primary_extension}" if primary_extension else "apply")
 
-    for ext_name, ext_dir in extensions or []:
-        import_xml(
-            ibcmd,
-            db_path=db_path,
-            data_path=data_path,
-            source_dir=ext_dir,
-            extension=ext_name,
-            run=run,
-        )
-        steps.append(f"import:{ext_name}")
+    for item in extensions or []:
+        if len(item) == 3:
+            ext_name, ext_path, kind = item[0], item[1], item[2]
+        else:
+            ext_name, ext_path = item[0], item[1]
+            kind = "xml"
+        if kind == "cfe":
+            load_cf(
+                ibcmd,
+                db_path=db_path,
+                data_path=data_path,
+                cf_path=ext_path,
+                extension=ext_name,
+                run=run,
+            )
+            steps.append(f"load:{ext_name}")
+        else:
+            import_xml(
+                ibcmd,
+                db_path=db_path,
+                data_path=data_path,
+                source_dir=ext_path,
+                extension=ext_name,
+                run=run,
+            )
+            steps.append(f"import:{ext_name}")
         apply_config(
             ibcmd,
             db_path=db_path,
@@ -125,12 +142,14 @@ def load_cf_with_ibcmd(
     db_path: Path,
     data_path: Path,
     cf_path: Path,
+    extension: str | None = None,
     run: RunFn | None = None,
 ) -> list[str]:
     """
-    Create (if needed) → load .cf → apply (no export; ADR-015 runtime.load).
+    Create (if needed) → load .cf/.cfe → apply (no export; ADR-015 / #95).
 
-    Returns list of completed step names: create?, load, apply.
+    extension: when set, load/apply use --extension (`.cfe` into IB).
+    Returns list of completed step names: create?, load|load:Name, apply|apply:Name.
     """
     steps: list[str] = []
     db_path.mkdir(parents=True, exist_ok=True)
@@ -145,12 +164,19 @@ def load_cf_with_ibcmd(
         db_path=db_path,
         data_path=data_path,
         cf_path=cf_path,
+        extension=extension,
         run=run,
     )
-    steps.append("load")
+    steps.append(f"load:{extension}" if extension else "load")
 
-    apply_config(ibcmd, db_path=db_path, data_path=data_path, run=run)
-    steps.append("apply")
+    apply_config(
+        ibcmd,
+        db_path=db_path,
+        data_path=data_path,
+        extension=extension,
+        run=run,
+    )
+    steps.append(f"apply:{extension}" if extension else "apply")
 
     return steps
 
