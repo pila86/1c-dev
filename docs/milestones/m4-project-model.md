@@ -121,6 +121,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 - Adapter ibcmd: `--extension` на import/apply/save/load/export (spike argv до freeze API).
 - `build`: configuration, затем extensions в ИБ из `runtimes[]` (`--runtime` / default / `--config`); без conf — ошибка со suggestion `configuration.add`.
 - MCP/CLI: `extension.list`; установка в ИБ из XML (must); из `.cfe` — should (`extension.add --from` + `build`, #95).
+- Should #112: `metadata.*` с `--extension` / nested `src/cfe/` (md-reader через `CF`; MVP — свои объекты; borrow/interceptors — xml-gen `extension.*`, follow-up).
 - Несколько configurations: `--config <id>`; несколько ИБ: `--runtime <id>`.
 - Отдельный `runtime.add` — **не** MVP (#100); вторая ИБ на conf — should.
 
@@ -189,6 +190,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 
 ```
 1. extension.add / metadata в src/cfe/…   # или extension.add --from *.cfe → XML dump
+   # metadata.* --extension → #112
 2. build   # conf + extensions → default runtime IB
 3. runtime.start
 ```
@@ -226,6 +228,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 - [ ] Publish Apache/`webinst`
 - [x] Import `.cfe` в ИБ при поддержке платформы (#95)
 - [ ] Seed ИБ из `.dt` шаблона (#111)
+- [ ] `metadata.*` для nested/standalone extensions (`--extension`, md-reader `CF`) (#112)
 - [ ] Несколько ИБ на одну configuration (dev/demo) в acceptance
 
 ## Out of scope (M4)
@@ -258,6 +261,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 | [#94](https://github.com/pila86/1c-dev/issues/94) | 3 | should: Publish Apache/`webinst` + doctor `webinst` | #89 |
 | [#95](https://github.com/pila86/1c-dev/issues/95) | 3 | should: установка extension в ИБ из `.cfe` | #88 |
 | [#111](https://github.com/pila86/1c-dev/issues/111) | 3 | should: seed ИБ из `.dt` шаблона (`configuration.import --from-template`) | #92 |
+| [#112](https://github.com/pila86/1c-dev/issues/112) | 3 | should: `metadata.*` для расширений (`--extension`, md-reader `CF`) | #88, #95 |
 | [#96](https://github.com/pila86/1c-dev/issues/96) | 3 | Acceptance: E2E nested + multi-config + extension + templates + publish | #86–#92, #100 |
 
 ## Links
