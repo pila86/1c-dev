@@ -1,3 +1,5 @@
 build/
+.1c-dev/runtime/
+.1c-dev/publish/
 .runtime/
 .cache/

@@ -13,13 +13,15 @@ Status = Literal["ok", "error"]
 
 @dataclass
 class ProjectResult:
-    """Structured result for project detect/validate/info/init/ide configure."""
+    """Structured result for project detect/validate/info/init/ide/list."""
 
     status: Status
     diagnostics: list[Diagnostic] = field(default_factory=list)
     path: Path | None = None
     root: Path | None = None
+    home: Path | None = None
     manifest: dict[str, Any] | None = None
+    runtimes: list[dict[str, Any]] = field(default_factory=list)
     created: list[str] = field(default_factory=list)
     updated: list[str] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
@@ -29,8 +31,13 @@ class ProjectResult:
         payload: dict[str, Any] = {"status": self.status}
         if self.path is not None:
             payload["path"] = str(self.path)
+            payload["manifest_path"] = str(self.path)
         if self.root is not None:
             payload["root"] = str(self.root)
+        if self.home is not None:
+            payload["home"] = str(self.home)
+        if self.runtimes:
+            payload["runtimes"] = list(self.runtimes)
         if include_manifest and self.manifest is not None:
             payload["manifest"] = self.manifest
         elif self.manifest is not None and self.status == "ok" and not include_manifest:

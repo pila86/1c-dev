@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/pila86/1c-dev/schemas/1c.project.schema.v2.json",
-  "title": "1c-dev project.yaml (schema 2, draft)",
-  "description": "Эскиз манифеста schema \"2\" для M4 (ADR-022–026). НЕ подключён к коду: рабочий контракт — 1c.project.schema.json (schema \"1\").",
+  "title": "1c-dev project.yaml (schema 2)",
+  "description": "Манифест schema \"2\" для M4 (ADR-022–026). Dual-compat: schema \"1\" — 1c.project.schema.json. Семантические инварианты runtimes/publish — в core/project/validate.py.",
   "type": "object",
   "required": ["schema", "project", "platform", "configurations", "runtimes"],
   "additionalProperties": false,

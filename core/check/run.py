@@ -20,6 +20,7 @@ from core.check.result import CheckResult
 from core.diagnostics import error
 from core.project.detect import detect_manifest
 from core.project.load import load_manifest
+from core.project.paths import default_runtime_rel, scope_root_from_manifest
 
 CheckFn = Callable[..., Any]
 
@@ -59,7 +60,7 @@ def run_check(
         return CheckResult(
             status="failed",
             duration=time.perf_counter() - started,
-            root=manifest_path.parent,
+            root=scope_root_from_manifest(manifest_path),
             diagnostics=list(load_diags)
             or [
                 error(
@@ -71,11 +72,8 @@ def run_check(
             ],
         )
 
-    root = manifest_path.parent
-    runtime_raw = data.get("runtime")
-    runtime: dict[str, Any] = runtime_raw if isinstance(runtime_raw, dict) else {}
-
-    runtime_rel = str(runtime.get("path") or ".runtime/ib")
+    root = scope_root_from_manifest(manifest_path)
+    runtime_rel = default_runtime_rel(data)
     db_path = (root / runtime_rel).resolve()
     data_path = (root / IBCMD_DATA_REL).resolve()
 

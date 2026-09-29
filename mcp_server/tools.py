@@ -23,12 +23,25 @@ from core.metadata import (
     update_metadata,
 )
 from core.metadata.types import WRITE_OBJECT_TYPES_HELP
-from core.project import configure_ide, init_project, run_clean, validate_project
+from core.project import (
+    configure_ide,
+    init_project,
+    list_projects,
+    run_clean,
+    validate_project,
+)
 from core.runtime import run_start, run_status, run_stop
 from mcp_server._path import resolve_path
 
 _NO_SHELL = (
     " Do not use shell, Designer/Configurator, or raw ibcmd for this operation — use this tool."
+)
+_PATH_SCOPE = (
+    " Argument path is the scope root (parent of .1c-dev), not the home directory itself."
+)
+_CONFIG_RUNTIME = (
+    " Optional config_id / runtime_id select configurations[] / runtimes[] "
+    "(defaults: configuration default:true or sole; runtime global default:true)."
 )
 _WRITE_TYPES = (
     "Write types (23 Meta DSL + Subsystem): " + WRITE_OBJECT_TYPES_HELP + "."
@@ -88,8 +101,11 @@ def register_tools(server: FastMCP) -> None:
     @server.tool(
         name="project.get",
         description=(
-            "Read and validate the 1C project (1c.project.yaml) and return structured JSON "
-            "including the full manifest." + _NO_SHELL
+            "Read and validate the 1C project (.1c-dev/project.yaml or legacy "
+            "1c.project.yaml) and return structured JSON including home, root, "
+            "manifest_path, runtimes, and the full manifest."
+            + _PATH_SCOPE
+            + _NO_SHELL
         ),
     )
     def project_get(path: str | None = None) -> dict[str, Any]:
@@ -97,11 +113,32 @@ def register_tools(server: FastMCP) -> None:
         return result.to_payload(include_manifest=True)
 
     @server.tool(
+        name="project.list",
+        description=(
+            "Scan downward from path for nested 1C projects (.1c-dev/project.yaml) "
+            "with a limited depth (monorepo discovery). "
+            "Returns a list of projects with root/home/manifest_path."
+            + _PATH_SCOPE
+            + _NO_SHELL
+        ),
+    )
+    def project_list_tool(
+        path: str | None = None,
+        depth: int = 4,
+    ) -> dict[str, Any]:
+        results = list_projects(resolve_path(path), max_depth=depth)
+        return {
+            "status": "ok",
+            "projects": [r.to_payload(include_manifest=False) for r in results],
+        }
+
+    @server.tool(
         name="project.init",
         description=(
             "Bootstrap an empty 1C configuration project "
-            "(1c.project.yaml + XML source skeleton + IDE MCP configs). "
+            "(.1c-dev/project.yaml schema 2 + XML source skeleton + IDE MCP configs). "
             "ide_target: all (default), cursor, kilocode, or none."
+            + _PATH_SCOPE
             + _NO_SHELL
         ),
     )
@@ -129,6 +166,7 @@ def register_tools(server: FastMCP) -> None:
             "target: all (default), cursor, kilocode, or none. "
             "Without force, does not overwrite AGENTS.md; merges missing MCP servers "
             "and .gitignore lines."
+            + _PATH_SCOPE
             + _NO_SHELL
         ),
     )
@@ -148,11 +186,12 @@ def register_tools(server: FastMCP) -> None:
         name="project.import",
         description=(
             "Import a .cf configuration into project XML source via ibcmd "
-            "(load → apply → export). Creates 1c.project.yaml if missing. "
+            "(load → apply → export). Creates .1c-dev/project.yaml (schema 2) if missing. "
             "Refuses to overwrite existing Configuration.xml unless force=true. "
             "Set break_support=true to strip ParentConfigurations* support "
             "artifacts after export (vendor update will no longer be possible). "
             "Does not write AGENTS.md or IDE MCP configs (use ide.configure for that)."
+            + _PATH_SCOPE
             + _NO_SHELL
         ),
     )
@@ -173,19 +212,30 @@ def register_tools(server: FastMCP) -> None:
     @server.tool(
         name="project.clean",
         description=(
-            "DESTRUCTIVE: wipe project XML source (source.path contents) and the "
-            "entire .runtime/ directory (file IB, ibcmd-data, client state). "
-            "Requires yes=true. Does not touch 1c.project.yaml, AGENTS.md, IDE MCP "
+            "DESTRUCTIVE: wipe project XML source (default configuration source.path) "
+            "and the entire .1c-dev/runtime/ directory (file IB, ibcmd-data, client state). "
+            "Also removes legacy .runtime/ if present. "
+            "Requires yes=true. Does not touch .1c-dev/project.yaml, AGENTS.md, IDE MCP "
             "configs, .gitignore, or git. Stops a live runtime client first. "
             "Idempotent if already empty. Typical follow-up: project.import or init."
+            " Optional config_id/runtime_id wipe only that source/runtime; "
+            "without them wipe default source and entire .1c-dev/runtime/."
+            + _PATH_SCOPE
             + _NO_SHELL
         ),
     )
     def project_clean_tool(
         yes: bool = False,
         path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
     ) -> dict[str, Any]:
-        result = run_clean(resolve_path(path), yes=yes)
+        result = run_clean(
+            resolve_path(path),
+            yes=yes,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
         return result.to_payload()
 
     @server.tool(
@@ -194,11 +244,21 @@ def register_tools(server: FastMCP) -> None:
             "List metadata objects in project XML source as IR summaries "
             "({type, name, qname, synonym?}). Use to survey the configuration "
             "before get/update/create/delete. Works from source without the 1C platform."
+            + _CONFIG_RUNTIME
+            + _PATH_SCOPE
             + _NO_SHELL
         ),
     )
-    def metadata_list(path: str | None = None) -> dict[str, Any]:
-        result = list_metadata(resolve_path(path))
+    def metadata_list(
+        path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = list_metadata(
+            resolve_path(path),
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
         return result.to_payload()
 
     @server.tool(
@@ -208,14 +268,22 @@ def register_tools(server: FastMCP) -> None:
             "(e.g. Catalog.Products). Call before metadata.update to inspect "
             "existing attributes/tabular sections/values. Works from source "
             "without the 1C platform."
+            + _CONFIG_RUNTIME
             + _NO_SHELL
         ),
     )
     def metadata_get(
         qualified_name: str,
         path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
     ) -> dict[str, Any]:
-        result = get_metadata(resolve_path(path), qualified_name)
+        result = get_metadata(
+            resolve_path(path),
+            qualified_name,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
         return result.to_payload()
 
     @server.tool(
@@ -224,14 +292,22 @@ def register_tools(server: FastMCP) -> None:
             "Find metadata objects by substring of name or synonym. "
             "Returns IR summaries like metadata.list. Prefer over list when "
             "looking for a specific object."
+            + _CONFIG_RUNTIME
             + _NO_SHELL
         ),
     )
     def metadata_find(
         query: str,
         path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
     ) -> dict[str, Any]:
-        result = find_metadata(resolve_path(path), query)
+        result = find_metadata(
+            resolve_path(path),
+            query,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
         return result.to_payload()
 
     @server.tool(
@@ -290,6 +366,7 @@ def register_tools(server: FastMCP) -> None:
             "for WebService: optional namespace, xdto_packages, reuse_sessions, "
             "session_max_age, operations "
             "{Name: {returnType?, handler?, parameters?}}."
+            + _CONFIG_RUNTIME
             + _NO_SHELL
         ),
     )
@@ -340,6 +417,8 @@ def register_tools(server: FastMCP) -> None:
         columns: list[dict[str, Any]] | None = None,
         registered_documents: list[str] | None = None,
         path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
     ) -> dict[str, Any]:
         try:
             data: dict[str, Any] = {}
@@ -449,7 +528,12 @@ def register_tools(server: FastMCP) -> None:
                     }
                 ],
             ).to_payload()
-        result = create_metadata(resolve_path(path), catalog)
+        result = create_metadata(
+            resolve_path(path),
+            catalog,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
         return result.to_payload()
 
     @server.tool(
@@ -475,6 +559,7 @@ def register_tools(server: FastMCP) -> None:
             "{op:'add-content', value:'Catalog.Products'}, "
             "{op:'add-exchange-content', value:'Catalog.Products'}. "
             "Does not create new objects — use metadata.create."
+            + _CONFIG_RUNTIME
             + _NO_SHELL
         ),
     )
@@ -482,12 +567,20 @@ def register_tools(server: FastMCP) -> None:
         qualified_name: str,
         operations: list[dict[str, Any]] | None = None,
         path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
     ) -> dict[str, Any]:
         parsed = _parse_update_operations(operations)
         if isinstance(parsed, MetadataResult):
             parsed.object = qualified_name
             return parsed.to_payload()
-        result = update_metadata(resolve_path(path), qualified_name, parsed)
+        result = update_metadata(
+            resolve_path(path),
+            qualified_name,
+            parsed,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
         return result.to_payload()
 
     @server.tool(
@@ -500,28 +593,45 @@ def register_tools(server: FastMCP) -> None:
             "Does not cascade references. Prefer metadata.get first. "
             "To remove attributes/tabular sections/values use metadata.update "
             "remove-* ops instead."
+            + _CONFIG_RUNTIME
             + _NO_SHELL
         ),
     )
     def metadata_delete(
         qualified_name: str,
         path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
     ) -> dict[str, Any]:
-        result = delete_metadata(resolve_path(path), qualified_name)
+        result = delete_metadata(
+            resolve_path(path),
+            qualified_name,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
         return result.to_payload()
 
     @server.tool(
         name="build",
         description=(
             "Load XML configuration into a file infobase via ibcmd. "
-            "Optional artifact='cf' exports a .cf file." + _NO_SHELL
+            "Optional artifact='cf' exports a .cf file."
+            + _CONFIG_RUNTIME
+            + _NO_SHELL
         ),
     )
     def build_tool(
         path: str | None = None,
         artifact: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
     ) -> dict[str, Any]:
-        result = run_build(resolve_path(path), artifact=artifact)
+        result = run_build(
+            resolve_path(path),
+            artifact=artifact,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
         return result.to_payload()
 
     @server.tool(
@@ -541,37 +651,66 @@ def register_tools(server: FastMCP) -> None:
             "Detach-start the 1C ENTERPRISE client against the project file IB. "
             "client=thick uses 1cv8; client=thin uses 1cv8c (default thick). "
             "Requires a prior build or runtime load. "
-            "Set debug=true to pass /Debug (DAP attach is M6)." + _NO_SHELL
+            "Set debug=true to pass /Debug (DAP attach is M6)."
+            + _CONFIG_RUNTIME
+            + _NO_SHELL
         ),
     )
     def runtime_start_tool(
         path: str | None = None,
         client: str = "thick",
         debug: bool = False,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
     ) -> dict[str, Any]:
-        result = run_start(resolve_path(path), client=client, debug=debug)
+        result = run_start(
+            resolve_path(path),
+            client=client,
+            debug=debug,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
         return result.to_payload()
 
     @server.tool(
         name="runtime.stop",
         description=(
             "Stop the detached ENTERPRISE client previously started via runtime.start."
+            + _CONFIG_RUNTIME
             + _NO_SHELL
         ),
     )
-    def runtime_stop_tool(path: str | None = None) -> dict[str, Any]:
-        result = run_stop(resolve_path(path))
+    def runtime_stop_tool(
+        path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_stop(
+            resolve_path(path),
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
         return result.to_payload()
 
     @server.tool(
         name="runtime.status",
         description=(
             "Report whether the detached ENTERPRISE client is running "
-            "(pid, mode, client, debug.enabled)." + _NO_SHELL
+            "(pid, mode, client, debug.enabled)."
+            + _CONFIG_RUNTIME
+            + _NO_SHELL
         ),
     )
-    def runtime_status_tool(path: str | None = None) -> dict[str, Any]:
-        result = run_status(resolve_path(path))
+    def runtime_status_tool(
+        path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_status(
+            resolve_path(path),
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
         return result.to_payload()
 
     @server.tool(

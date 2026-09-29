@@ -11,6 +11,7 @@ import typer
 from adapters.platform_ibcmd.constants import CODE_IBCMD_FAILED
 from cli.ide import app as ide_app
 from cli.init import init_command
+from cli.options import ConfigOption, RuntimeOption
 from cli.output import OutputFormat, OutputOption, resolve_output
 from core.exit_codes import (
     BUILD_FAILURE,
@@ -27,18 +28,30 @@ from core.import_cf.constants import (
     CODE_IBCMD_MISSING,
     CODE_PROJECT,
 )
-from core.project import CleanResult, detect_project, run_clean, validate_project
+from core.project import (
+    CleanResult,
+    detect_project,
+    list_projects,
+    run_clean,
+    validate_project,
+)
 from core.project.constants import (
     CODE_CLEAN_FAILED,
     CODE_CLIENT_RUNNING,
+    CODE_CONFIG_AMBIGUOUS,
+    CODE_CONFIG_UNKNOWN,
     CODE_CONFIRM_REQUIRED,
     CODE_MANIFEST_MISSING,
+    CODE_RUNTIME_AMBIGUOUS,
+    CODE_RUNTIME_CONFIG_MISMATCH,
+    CODE_RUNTIME_UNKNOWN,
+    DEFAULT_LIST_DEPTH,
 )
 from core.project.result import ProjectResult
 
 app = typer.Typer(
     name="project",
-    help="Манифест проекта (1c.project.yaml).",
+    help="Манифест проекта (.1c-dev/project.yaml / legacy 1c.project.yaml).",
     add_completion=False,
     no_args_is_help=True,
 )
@@ -128,7 +141,14 @@ def _clean_exit_for(result: CleanResult) -> None:
     codes = {d.get("code") for d in result.diagnostics}
     if CODE_CONFIRM_REQUIRED in codes or CODE_CLIENT_RUNNING in codes or CODE_CLEAN_FAILED in codes:
         raise typer.Exit(code=RUNTIME_FAILURE)
-    if CODE_MANIFEST_MISSING in codes:
+    if codes & {
+        CODE_MANIFEST_MISSING,
+        CODE_CONFIG_UNKNOWN,
+        CODE_RUNTIME_UNKNOWN,
+        CODE_CONFIG_AMBIGUOUS,
+        CODE_RUNTIME_AMBIGUOUS,
+        CODE_RUNTIME_CONFIG_MISMATCH,
+    }:
         raise typer.Exit(code=PROJECT_ERROR)
     raise typer.Exit(code=RUNTIME_FAILURE)
 
@@ -185,6 +205,8 @@ def _detect_text(result: ProjectResult) -> list[str]:
         f"path: {result.path}",
         f"root: {result.root}",
     ]
+    if result.home is not None:
+        lines.append(f"home: {result.home}")
     if result.manifest:
         project = result.manifest.get("project")
         if isinstance(project, dict):
@@ -192,6 +214,11 @@ def _detect_text(result: ProjectResult) -> list[str]:
                 lines.append(f"name: {project['name']}")
             if "type" in project:
                 lines.append(f"type: {project['type']}")
+    for diag in result.diagnostics:
+        if diag.get("severity") == "warning":
+            code = diag.get("code", "")
+            prefix = f"[{code}] " if code else ""
+            lines.append(f"warning: {prefix}{diag.get('message', '')}")
     return lines
 
 
@@ -216,17 +243,47 @@ def _info_text(result: ProjectResult) -> list[str]:
     m = result.manifest
     project = m.get("project", {})
     platform = m.get("platform", {})
-    source = m.get("source", {})
-    runtime = m.get("runtime", {})
-    return [
+    lines = [
         "status: ok",
         f"path: {result.path}",
-        f"name: {project.get('name', '')}",
-        f"type: {project.get('type', '')}",
-        f"platform: {platform.get('version', '')}",
-        f"source: {source.get('format', '')} ({source.get('path', '')})",
-        f"runtime: {runtime.get('type', '')} ({runtime.get('path', '')})",
+        f"root: {result.root}",
     ]
+    if result.home is not None:
+        lines.append(f"home: {result.home}")
+    lines.extend(
+        [
+            f"name: {project.get('name', '')}",
+            f"type: {project.get('type', '')}",
+            f"platform: {platform.get('version', '')}",
+        ]
+    )
+    if result.runtimes:
+        for rt in result.runtimes:
+            rid = rt.get("id", "")
+            rpath = rt.get("path", "")
+            lines.append(f"runtime: {rid} ({rpath})")
+    else:
+        source = m.get("source", {})
+        runtime = m.get("runtime", {})
+        lines.append(f"source: {source.get('format', '')} ({source.get('path', '')})")
+        lines.append(f"runtime: {runtime.get('type', '')} ({runtime.get('path', '')})")
+    return lines
+
+
+def _list_text(results: list[ProjectResult]) -> list[str]:
+    if not results:
+        return ["status: ok", "projects: 0"]
+    lines = ["status: ok", f"projects: {len(results)}"]
+    for item in results:
+        lines.append(f"- root: {item.root}")
+        lines.append(f"  path: {item.path}")
+        if item.home is not None:
+            lines.append(f"  home: {item.home}")
+        if item.manifest:
+            project = item.manifest.get("project")
+            if isinstance(project, dict) and "name" in project:
+                lines.append(f"  name: {project['name']}")
+    return lines
 
 
 @app.command("import")
@@ -275,12 +332,19 @@ def project_clean(
         False,
         "--yes",
         "-y",
-        help="Подтвердить удаление source.path и .runtime/ без запроса.",
+        help="Подтвердить удаление source и .1c-dev/runtime/ без запроса.",
     ),
+    config: ConfigOption = None,
+    runtime: RuntimeOption = None,
     output: OutputOption = None,
 ) -> None:
-    """Удалить содержимое source.path и весь .runtime/ (манифест / IDE intact)."""
-    result = run_clean(Path.cwd(), yes=yes)
+    """Удалить содержимое source и каталог .1c-dev/runtime/ (манифест / IDE intact)."""
+    result = run_clean(
+        Path.cwd(),
+        yes=yes,
+        config_id=config,
+        runtime_id=runtime,
+    )
     _emit(result.to_payload(), resolve_output(ctx, output), text_lines=_clean_text(result))
     _clean_exit_for(result)
 
@@ -290,11 +354,41 @@ def project_detect(
     ctx: typer.Context,
     output: OutputOption = None,
 ) -> None:
-    """Найти 1c.project.yaml от текущего каталога вверх."""
+    """Найти манифест (.1c-dev/project.yaml или legacy) от текущего каталога вверх."""
     result = detect_project(Path.cwd())
     payload = result.to_payload(include_manifest=False)
     _emit(payload, resolve_output(ctx, output), text_lines=_detect_text(result))
     _exit_for(result)
+
+
+@app.command("list")
+def project_list(
+    ctx: typer.Context,
+    path: Path | None = typer.Option(
+        None,
+        "--path",
+        help="Корень сканирования (по умолчанию CWD).",
+        exists=False,
+        file_okay=False,
+        dir_okay=True,
+        resolve_path=True,
+    ),
+    depth: int = typer.Option(
+        DEFAULT_LIST_DEPTH,
+        "--depth",
+        min=0,
+        help="Максимальная глубина сканирования вниз.",
+    ),
+    output: OutputOption = None,
+) -> None:
+    """Найти nested проекты (.1c-dev/project.yaml) вниз от path."""
+    results = list_projects(path or Path.cwd(), max_depth=depth)
+    payload = {
+        "status": "ok",
+        "projects": [r.to_payload(include_manifest=False) for r in results],
+    }
+    _emit(payload, resolve_output(ctx, output), text_lines=_list_text(results))
+    raise typer.Exit(code=SUCCESS)
 
 
 @app.command("validate")

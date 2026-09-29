@@ -1,6 +1,6 @@
 # ADR-026: Runtimes array (ИБ ↔ configuration)
 
-**Статус:** Proposed  
+**Статус:** Accepted  
 **Дата:** 2026-09-29
 
 ## Контекст
@@ -36,7 +36,7 @@
 
 | Вариант | Плюсы | Минусы | Вердикт |
 |---------|-------|--------|---------|
-| `runtimes[]` со связью на configuration | Явно; N ИБ на config | Чуть длиннее yaml | **Принято (Proposed)** |
+| `runtimes[]` со связью на configuration | Явно; N ИБ на config | Чуть длиннее yaml | **Принято** |
 | `runtime:` у каждой configuration | Короче | Несколько ИБ на config неудобны | Отвергнуто |
 | Map `runtimes: { id: {…} }` без configuration | Привычный map | Связь с config неочевидна | Отвергнуто |
 
@@ -49,4 +49,4 @@
 
 - ADR-004, ADR-019, ADR-021, ADR-022, ADR-023, ADR-025
 - [M4](../milestones/m4-project-model.md)
-- Эскиз: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json)
+- Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json)

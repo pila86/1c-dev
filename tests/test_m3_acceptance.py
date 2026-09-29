@@ -21,7 +21,7 @@ from core.check import run_check
 from core.docs import get_docs, search_docs
 from core.import_cf import run_import
 from core.metadata import catalog_from_parts, create_metadata, get_metadata, list_metadata
-from core.project import MANIFEST_NAME, configure_ide, init_project
+from core.project import HOME_MANIFEST_REL, configure_ide, init_project
 
 
 @pytest.mark.integration
@@ -74,7 +74,7 @@ def test_m3_acceptance_import_ide_docs(tmp_path: Path) -> None:
     imported_result = run_import(imported, from_path=cf_path, break_support=True)
     assert imported_result.status == "ok", imported_result.to_payload()
     assert "export" in imported_result.steps
-    assert (imported / MANIFEST_NAME).is_file()
+    assert (imported / HOME_MANIFEST_REL).is_file()
     assert (imported / "src" / "cf" / "Configuration.xml").is_file()
     assert not (imported / "AGENTS.md").exists()
 
@@ -122,7 +122,7 @@ def test_m3_acceptance_import_ide_docs(tmp_path: Path) -> None:
     # --- build / check on imported source ---
     build = run_build(imported)
     assert build.status == "ok", build.to_payload()
-    assert (imported / ".runtime" / "ib" / IB_MARKER).is_file()
+    assert (imported / ".1c-dev" / "runtime" / "main" / IB_MARKER).is_file()
 
     check = run_check(imported)
     assert check.status == "ok", check.to_payload()

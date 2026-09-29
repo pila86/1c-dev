@@ -60,7 +60,7 @@ def _fail_check_run(argv: list[str]) -> IbcmdRunResult:
 
 
 def _ensure_ib(target: Path) -> None:
-    ib_dir = target / ".runtime" / "ib"
+    ib_dir = target / ".1c-dev" / "runtime" / "main"
     ib_dir.mkdir(parents=True, exist_ok=True)
     (ib_dir / IB_MARKER).write_bytes(b"")
 
@@ -109,7 +109,7 @@ def test_run_check_happy_mock(tmp_path: Path) -> None:
     assert result.status == "ok"
     payload = result.to_payload()
     assert payload["status"] == "ok"
-    assert payload["runtimePath"] == ".runtime/ib"
+    assert payload["runtimePath"] == ".1c-dev/runtime/main"
     assert "duration" in payload
 
 
@@ -277,4 +277,4 @@ def test_integration_ibcmd_check(tmp_path: Path) -> None:
 
     result = run_check(target)
     assert result.status == "ok", result.to_payload()
-    assert (target / ".runtime" / "ib" / IB_MARKER).is_file()
+    assert (target / ".1c-dev" / "runtime" / "main" / IB_MARKER).is_file()

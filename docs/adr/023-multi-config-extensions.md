@@ -1,6 +1,6 @@
 # ADR-023: Multi-configuration и extensions
 
-**Статус:** Proposed  
+**Статус:** Accepted  
 **Дата:** 2026-09-29
 
 ## Контекст
@@ -41,7 +41,7 @@ ibcmd extension list         --db-path=… --data=…
 
 | Вариант | Плюсы | Минусы | Вердикт |
 |---------|-------|--------|---------|
-| `configurations[]` + `extensions[]` в одном манифесте | Один scope, один detect | Сложнее schema | **Принято (Proposed)** |
+| `configurations[]` + `extensions[]` в одном манифесте | Один scope, один detect | Сложнее schema | **Принято** |
 | Только несколько отдельных `.1c-dev` без multi-config | Проще | Хуже DX «конфа + расширения» | Допустимо дополнительно; не вместо |
 | Один source + extensions как «второй project.type» | Ближе к schema 1 | Не закрывает несколько conf | Отвергнуто |
 

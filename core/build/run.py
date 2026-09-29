@@ -5,7 +5,6 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 from adapters.platform import DiscoveryResult, discover_environment
 from adapters.platform_ibcmd import IbcmdError, RunFn, build_with_ibcmd
@@ -22,6 +21,8 @@ from core.build.result import BuildResult
 from core.diagnostics import error
 from core.project.detect import detect_manifest
 from core.project.load import load_manifest
+from core.project.paths import scope_root_from_manifest
+from core.project.resolve import resolve_config_runtime
 
 BuildFn = Callable[..., list[str]]
 
@@ -30,6 +31,8 @@ def run_build(
     start: Path | None = None,
     *,
     artifact: str | None = None,
+    config_id: str | None = None,
+    runtime_id: str | None = None,
     run: RunFn | None = None,
     build_fn: BuildFn | None = None,
     discover: Callable[[], DiscoveryResult] | None = None,
@@ -38,6 +41,7 @@ def run_build(
     Load XML configuration into file IB via ibcmd.
 
     artifact: None | \"cf\"
+    config_id / runtime_id: selection from configurations[] / runtimes[] (#87).
     run / build_fn / discover: injectable for tests.
     """
     started = time.perf_counter()
@@ -77,7 +81,7 @@ def run_build(
         return BuildResult(
             status="failed",
             duration=time.perf_counter() - started,
-            root=manifest_path.parent,
+            root=scope_root_from_manifest(manifest_path),
             diagnostics=list(load_diags)
             or [
                 error(
@@ -89,13 +93,30 @@ def run_build(
             ],
         )
 
-    root = manifest_path.parent
-    source_raw = data.get("source")
-    source: dict[str, Any] = source_raw if isinstance(source_raw, dict) else {}
-    runtime_raw = data.get("runtime")
-    runtime: dict[str, Any] = runtime_raw if isinstance(runtime_raw, dict) else {}
+    root = scope_root_from_manifest(manifest_path)
 
-    fmt = source.get("format")
+    target, resolve_diags = resolve_config_runtime(
+        data,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        require_runtime=True,
+    )
+    if target is None or target.runtime_rel is None:
+        return BuildResult(
+            status="failed",
+            duration=time.perf_counter() - started,
+            root=root,
+            diagnostics=list(resolve_diags)
+            or [
+                error(
+                    "Не удалось разрешить --config/--runtime",
+                    code=CODE_PROJECT,
+                    source="runtime",
+                )
+            ],
+        )
+
+    fmt = target.source_format
     if fmt != "xml":
         return BuildResult(
             status="failed",
@@ -111,7 +132,7 @@ def run_build(
             ],
         )
 
-    source_rel = str(source.get("path") or "src/cf")
+    source_rel = target.source_rel
     source_dir = (root / source_rel).resolve()
     if not source_dir.is_dir():
         return BuildResult(
@@ -127,7 +148,7 @@ def run_build(
             ],
         )
 
-    runtime_rel = str(runtime.get("path") or ".runtime/ib")
+    runtime_rel = target.runtime_rel
     db_path = (root / runtime_rel).resolve()
     data_path = (root / IBCMD_DATA_REL).resolve()
 

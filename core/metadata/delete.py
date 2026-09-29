@@ -15,10 +15,9 @@ from adapters.source.xmlgen import (
 )
 from core.diagnostics import error
 from core.metadata.ir import IrError, parse_qualified_name
+from core.metadata.read import _resolve_source
 from core.metadata.result import MetadataResult
 from core.metadata.types import TYPE_DIRS
-from core.project.detect import detect_manifest
-from core.project.load import load_manifest
 
 RemoveFn = Callable[[Path, str], list[str]]
 
@@ -35,6 +34,8 @@ def delete_metadata(
     start: Path | None,
     qualified_name: str,
     *,
+    config_id: str | None = None,
+    runtime_id: str | None = None,
     remove_fn: RemoveFn | None = None,
 ) -> MetadataResult:
     """
@@ -54,73 +55,15 @@ def delete_metadata(
         )
 
     qname = f"{obj_type}.{name}"
-    start_path = (start or Path.cwd()).resolve()
-    manifest_path = detect_manifest(start_path)
-    if manifest_path is None:
+    resolved = _resolve_source(start, config_id=config_id, runtime_id=runtime_id)
+    if isinstance(resolved, MetadataResult):
         return MetadataResult(
             status="error",
             object=qname,
-            diagnostics=[
-                error(
-                    "Файл 1c.project.yaml не найден",
-                    code="1CM001",
-                    source="metadata",
-                    suggestion="Выполните 1c-dev init --type configuration",
-                )
-            ],
+            root=resolved.root,
+            diagnostics=list(resolved.diagnostics),
         )
-
-    data, load_diags = load_manifest(manifest_path)
-    if data is None:
-        return MetadataResult(
-            status="error",
-            object=qname,
-            root=manifest_path.parent,
-            diagnostics=list(load_diags)
-            or [
-                error(
-                    "Не удалось прочитать манифест",
-                    code="1CM001",
-                    file=str(manifest_path),
-                    source="metadata",
-                )
-            ],
-        )
-
-    root = manifest_path.parent
-    source_raw = data.get("source")
-    source: dict[str, Any] = source_raw if isinstance(source_raw, dict) else {}
-    fmt = source.get("format")
-    if fmt != "xml":
-        return MetadataResult(
-            status="error",
-            object=qname,
-            root=root,
-            diagnostics=[
-                error(
-                    f"source.format={fmt!r}: M2 delete поддерживает только xml",
-                    code="1CM005",
-                    file=str(manifest_path),
-                    source="metadata",
-                )
-            ],
-        )
-
-    rel = str(source.get("path") or "src/cf")
-    source_dir = (root / rel).resolve()
-    if not source_dir.is_dir():
-        return MetadataResult(
-            status="error",
-            object=qname,
-            root=root,
-            diagnostics=[
-                error(
-                    f"Каталог исходников не найден: {source_dir}",
-                    code="1CM001",
-                    source="metadata",
-                )
-            ],
-        )
+    root, source_dir, _manifest = resolved
 
     object_xml = object_xml_path(source_dir, obj_type, name)
     if not object_xml.is_file():

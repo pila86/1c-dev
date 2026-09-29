@@ -15,9 +15,17 @@ from adapters.platform_ibcmd.constants import (
     CODE_SOURCE_FORMAT,
     CODE_SOURCE_MISSING,
 )
+from cli.options import ConfigOption, RuntimeOption
 from cli.output import OutputFormat, OutputOption, resolve_output
 from core.build import BuildResult, run_build
 from core.exit_codes import BUILD_FAILURE, ENV_UNAVAILABLE, PROJECT_ERROR, SUCCESS
+from core.project.constants import (
+    CODE_CONFIG_AMBIGUOUS,
+    CODE_CONFIG_UNKNOWN,
+    CODE_RUNTIME_AMBIGUOUS,
+    CODE_RUNTIME_CONFIG_MISMATCH,
+    CODE_RUNTIME_UNKNOWN,
+)
 
 
 def _emit(payload: dict[str, Any], output: OutputFormat, *, text_lines: list[str]) -> None:
@@ -67,6 +75,11 @@ def _exit_for(result: BuildResult) -> None:
         CODE_SOURCE_FORMAT,
         CODE_SOURCE_MISSING,
         CODE_ARTIFACT,
+        CODE_CONFIG_UNKNOWN,
+        CODE_RUNTIME_UNKNOWN,
+        CODE_CONFIG_AMBIGUOUS,
+        CODE_RUNTIME_AMBIGUOUS,
+        CODE_RUNTIME_CONFIG_MISMATCH,
     }:
         raise typer.Exit(code=PROJECT_ERROR)
     raise typer.Exit(code=BUILD_FAILURE)
@@ -79,9 +92,16 @@ def build_command(
         "--artifact",
         help="Тип артефакта: cf (выгрузка .cf в build/out/).",
     ),
+    config: ConfigOption = None,
+    runtime: RuntimeOption = None,
     output: OutputOption = None,
 ) -> None:
     """Собрать конфигурацию: XML → file IB через ibcmd."""
-    result = run_build(Path.cwd(), artifact=artifact)
+    result = run_build(
+        Path.cwd(),
+        artifact=artifact,
+        config_id=config,
+        runtime_id=runtime,
+    )
     _emit(result.to_payload(), resolve_output(ctx, output), text_lines=_build_text(result))
     _exit_for(result)

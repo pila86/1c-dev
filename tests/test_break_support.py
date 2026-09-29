@@ -17,7 +17,7 @@ from core.break_support.constants import CODE_ALREADY_OFF_SUPPORT, CODE_SUPPORT_
 from core.exit_codes import PROJECT_ERROR, SUCCESS
 from core.import_cf import run_import
 from core.project import init_project
-from core.project.constants import MANIFEST_NAME
+from core.project.constants import HOME_MANIFEST_REL
 
 runner = CliRunner()
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -262,4 +262,4 @@ def test_cli_project_import_break_support(tmp_path: Path, monkeypatch: Any) -> N
     assert payload["status"] == "ok"
     assert payload.get("removed")
     assert not (tmp_path / "src" / "cf" / "Ext" / "ParentConfigurations.bin").exists()
-    assert (tmp_path / MANIFEST_NAME).is_file()
+    assert (tmp_path / HOME_MANIFEST_REL).is_file()

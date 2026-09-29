@@ -1,0 +1,42 @@
+schema: "2"
+project:
+  name: shop
+platform:
+  version: "8.3.27"
+configurations:
+  - id: main
+    type: configuration
+    default: true
+    source:
+      format: xml
+      path: src/cf
+    extensions:
+      - id: custom
+        name: CustomExt
+        purpose: product
+        source:
+          format: xml
+          path: src/cfe/custom
+  - id: buh
+    type: configuration
+    source:
+      format: xml
+      path: src/buh
+runtimes:
+  - id: main-dev
+    configuration: main
+    type: file
+    path: .1c-dev/runtime/main
+    default: true
+  - id: buh-dev
+    configuration: buh
+    type: file
+    path: .1c-dev/runtime/buh
+publish:
+  default: local-ibsrv
+  profiles:
+    local-ibsrv:
+      backend: ibsrv
+      port: 8314
+      runtime: main-dev
+      config: .1c-dev/publish/ibsrv.yaml

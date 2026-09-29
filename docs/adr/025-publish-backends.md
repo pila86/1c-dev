@@ -1,6 +1,6 @@
 # ADR-025: Publish backends (ibsrv / webinst)
 
-**Статус:** Proposed  
+**Статус:** Accepted  
 **Дата:** 2026-09-29
 
 ## Контекст
@@ -46,7 +46,7 @@ Stop: `kill -TERM` по `<data>/lock.pid` (при необходимости KIL
 
 | Вариант | Плюсы | Минусы | Вердикт |
 |---------|-------|--------|---------|
-| ibsrv first, webinst second | Dev без sudo; привычный Apache later | Два адаптера | **Принято (Proposed)** |
+| ibsrv first, webinst second | Dev без sudo; привычный Apache later | Два адаптера | **Принято** |
 | Только Apache/webinst | Один путь | Хрупкий local DX | Отвергнуто как MVP |
 | Только ручной default.vrd | Просто | Нет lifecycle API | Отвергнуто |
 

@@ -1,12 +1,19 @@
-schema: "1"
+schema: "2"
 project:
   name: "{{name}}"
   type: configuration
 platform:
   version: "{{platform_version}}"
-source:
-  format: xml
-  path: src/cf
-runtime:
-  type: file
-  path: .runtime/ib
+configurations:
+  - id: "{{config_id}}"
+    type: configuration
+    default: true
+    source:
+      format: xml
+      path: src/cf
+runtimes:
+  - id: "{{runtime_id}}"
+    configuration: "{{config_id}}"
+    type: file
+    path: .1c-dev/runtime/{{config_id}}
+    default: true

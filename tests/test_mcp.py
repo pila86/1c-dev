@@ -22,6 +22,7 @@ runner = CliRunner()
 
 EXPECTED_TOOLS = {
     "project.get",
+    "project.list",
     "project.init",
     "ide.configure",
     "project.import",
@@ -107,12 +108,16 @@ def test_project_get_and_init(tmp_path: Path) -> None:
         {"path": str(target), "type": "configuration", "name": "Shop"},
     )
     assert created["status"] == "ok"
-    assert (target / "1c.project.yaml").is_file()
+    assert (target / ".1c-dev" / "project.yaml").is_file()
 
     info = _call("project.get", {"path": str(target)})
     assert info["status"] == "ok"
     assert "manifest" in info
     assert info["manifest"]["project"]["name"] == "Shop"
+    assert info["home"] == str(target / ".1c-dev")
+    assert info["root"] == str(target)
+    assert info["manifest_path"] == str(target / ".1c-dev" / "project.yaml")
+    assert info["runtimes"]
 
 
 def test_project_import_mocked(tmp_path: Path, monkeypatch: Any) -> None:
@@ -139,7 +144,7 @@ def test_project_import_mocked(tmp_path: Path, monkeypatch: Any) -> None:
             root=start,
             from_path=Path(from_path),
             steps=["create", "load", "apply", "export"],
-            created=["1c.project.yaml"],
+            created=[".1c-dev/project.yaml"],
         )
 
     monkeypatch.setattr("mcp_server.tools.run_import", fake_import)
@@ -216,7 +221,7 @@ def test_project_clean_mocked(tmp_path: Path, monkeypatch: Any) -> None:
             root=start,
             source_cleared=True,
             runtime_cleared=True,
-            removed=["src/cf/Configuration.xml", ".runtime"],
+            removed=["src/cf/Configuration.xml", ".1c-dev/runtime"],
         )
 
     monkeypatch.setattr("mcp_server.tools.run_clean", fake_clean)
@@ -533,7 +538,12 @@ def test_project_init_mocked(tmp_path: Path, monkeypatch: Any) -> None:
         assert name == "Demo"
         assert force is True
         assert ide_target == "all"
-        return ProjectResult(status="ok", path=path / "1c.project.yaml", root=path, created=["a"])
+        return ProjectResult(
+            status="ok",
+            path=path / ".1c-dev" / "project.yaml",
+            root=path,
+            created=["a"],
+        )
 
     monkeypatch.setattr("mcp_server.tools.init_project", fake_init)
     payload = _call(

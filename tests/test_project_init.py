@@ -38,18 +38,20 @@ def test_init_project_ok(tmp_path: Path) -> None:
     target.mkdir()
     result = init_project(target, project_type="configuration", name="Shop")
     assert result.status == "ok"
-    assert result.path == target / "1c.project.yaml"
+    assert result.path == target / ".1c-dev" / "project.yaml"
     assert (target / "AGENTS.md").is_file()
     assert (target / ".gitignore").is_file()
     assert (target / "src" / "cf" / "Configuration.xml").is_file()
     assert (target / "src" / "cf" / "Languages" / "Русский.xml").is_file()
     assert (target / "build").is_dir()
-    assert (target / ".runtime" / "ib").is_dir()
+    assert (target / ".1c-dev" / "runtime" / "main").is_dir()
     assert result.manifest is not None
     assert result.manifest["project"]["name"] == "Shop"
     assert result.manifest["project"]["type"] == "configuration"
-    assert result.manifest["source"]["path"] == "src/cf"
-    assert "1c.project.yaml" in result.created
+    assert result.manifest["schema"] == "2"
+    assert result.manifest["configurations"][0]["source"]["path"] == "src/cf"
+    assert result.manifest["runtimes"][0]["path"] == ".1c-dev/runtime/main"
+    assert ".1c-dev/project.yaml" in result.created
 
     cursor_mcp = target / ".cursor" / "mcp.json"
     kilo_mcp = target / ".kilo" / "mcp.json"
@@ -96,7 +98,7 @@ def test_init_project_invalid_ide_target(tmp_path: Path) -> None:
     result = init_project(tmp_path, project_type="configuration", ide_target="vscode")
     assert result.status == "error"
     assert any(d.get("code") == "1CP007" for d in result.diagnostics)
-    assert not (tmp_path / "1c.project.yaml").exists()
+    assert not (tmp_path / ".1c-dev" / "project.yaml").exists()
 
 
 def test_init_project_default_name_from_cwd(tmp_path: Path) -> None:
@@ -134,7 +136,7 @@ def test_init_project_unsupported_type(tmp_path: Path) -> None:
     result = init_project(tmp_path, project_type="extension")
     assert result.status == "error"
     assert any(d.get("code") == "1CP005" for d in result.diagnostics)
-    assert not (tmp_path / "1c.project.yaml").exists()
+    assert not (tmp_path / ".1c-dev" / "project.yaml").exists()
 
 
 def test_cli_init_json_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -147,7 +149,7 @@ def test_cli_init_json_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     payload = json.loads(result.stdout)
     assert payload["status"] == "ok"
     assert payload["created"]
-    assert (tmp_path / "1c.project.yaml").is_file()
+    assert (tmp_path / ".1c-dev" / "project.yaml").is_file()
     assert (tmp_path / ".cursor" / "mcp.json").is_file()
     assert (tmp_path / ".kilo" / "mcp.json").is_file()
 

@@ -33,11 +33,11 @@
 | [019](019-runtime-client-lifecycle.md) | Accepted | Runtime client lifecycle (`start` / `stop` / `status`, `/Debug`) |
 | [020](020-break-support.md) | Accepted | Снятие конфигурации с поддержки (XML / `--break-support`) |
 | [021](021-project-clean.md) | Accepted | Product API: `project.clean` (source + runtime) |
-| [022](022-project-home.md) | Proposed | Project home `.1c-dev/` (scope root, dual detect) |
-| [023](023-multi-config-extensions.md) | Proposed | Multi-configuration + extensions |
-| [024](024-platform-templates.md) | Proposed | Platform templates (tmplts / `*.mft`) |
-| [025](025-publish-backends.md) | Proposed | Publish backends (ibsrv / webinst) |
-| [026](026-runtimes-array.md) | Proposed | `runtimes[]`: ИБ ↔ configuration |
+| [022](022-project-home.md) | Accepted | Project home `.1c-dev/` (scope root, dual detect) |
+| [023](023-multi-config-extensions.md) | Accepted | Multi-configuration + extensions |
+| [024](024-platform-templates.md) | Accepted | Platform templates (tmplts / `*.mft`) |
+| [025](025-publish-backends.md) | Accepted | Publish backends (ibsrv / webinst) |
+| [026](026-runtimes-array.md) | Accepted | `runtimes[]`: ИБ ↔ configuration |
 
 ## Когда писать ADR
 

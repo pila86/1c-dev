@@ -142,7 +142,7 @@ def test_cli_list_mock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     init_project(target, project_type="configuration", name="Shop")
     monkeypatch.chdir(target)
 
-    def fake_list(start: Path | None = None, *, read_fn: Any = None) -> Any:
+    def fake_list(start: Path | None = None, **_kwargs: Any) -> Any:
         from core.metadata.result import MetadataResult
 
         return MetadataResult(

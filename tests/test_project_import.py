@@ -23,7 +23,7 @@ from core.import_cf.constants import (
     CODE_PROJECT,
 )
 from core.project import init_project
-from core.project.constants import MANIFEST_NAME
+from core.project.constants import HOME_MANIFEST_REL
 
 runner = CliRunner()
 
@@ -124,8 +124,8 @@ def test_run_import_ensure_manifest(tmp_path: Path) -> None:
         import_fn=import_fn,
     )
     assert result.status == "ok", result.to_payload()
-    assert (target / MANIFEST_NAME).is_file()
-    assert MANIFEST_NAME in result.created
+    assert (target / HOME_MANIFEST_REL).is_file()
+    assert ".1c-dev/project.yaml" in result.created
     assert (target / "src" / "cf" / "Configuration.xml").is_file()
     assert not (target / "AGENTS.md").exists()
     assert result.steps == ["create", "load", "apply", "export"]
@@ -180,7 +180,7 @@ def test_run_import_missing_ibcmd(tmp_path: Path) -> None:
     )
     assert result.status == "failed"
     assert any(d.get("code") == CODE_IBCMD_MISSING for d in result.diagnostics)
-    assert (target / MANIFEST_NAME).is_file()
+    assert (target / HOME_MANIFEST_REL).is_file()
 
 
 def test_run_import_ibcmd_failure(tmp_path: Path) -> None:
@@ -279,7 +279,7 @@ def test_run_runtime_load_happy_mock(tmp_path: Path) -> None:
     )
     assert result.status == "ok"
     assert result.steps == ["create", "load", "apply"]
-    assert (target / ".runtime" / "ib" / IB_MARKER).is_file()
+    assert (target / ".1c-dev" / "runtime" / "main" / IB_MARKER).is_file()
     assert "export" not in result.steps
 
 
@@ -318,7 +318,7 @@ def test_cli_project_import(tmp_path: Path, monkeypatch: Any) -> None:
     assert result.exit_code == SUCCESS, result.output
     payload = json.loads(result.output)
     assert payload["status"] == "ok"
-    assert (tmp_path / MANIFEST_NAME).is_file()
+    assert (tmp_path / HOME_MANIFEST_REL).is_file()
 
 
 def test_cli_project_import_dirty_exit(tmp_path: Path, monkeypatch: Any) -> None:
@@ -447,5 +447,5 @@ def test_integration_project_import_roundtrip(tmp_path: Path) -> None:
     assert result.status == "ok", result.to_payload()
     assert "export" in result.steps
     assert (import_root / "src" / "cf" / "Configuration.xml").is_file()
-    assert (import_root / MANIFEST_NAME).is_file()
+    assert (import_root / HOME_MANIFEST_REL).is_file()
     assert not (import_root / "AGENTS.md").exists()

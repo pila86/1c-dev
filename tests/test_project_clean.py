@@ -33,9 +33,9 @@ def _seed_dirty_project(tmp_path: Path) -> Path:
     (source / "Configuration.xml").write_text("<Configuration/>\n", encoding="utf-8")
     (source / "Catalogs").mkdir(exist_ok=True)
     (source / "Catalogs" / "Products.xml").write_text("<Catalog/>\n", encoding="utf-8")
-    runtime = target / ".runtime"
-    (runtime / "ib").mkdir(parents=True, exist_ok=True)
-    (runtime / "ib" / "1Cv8.1cd").write_bytes(b"IB")
+    runtime = target / ".1c-dev" / "runtime"
+    (runtime / "main").mkdir(parents=True, exist_ok=True)
+    (runtime / "main" / "1Cv8.1cd").write_bytes(b"IB")
     (runtime / "ibcmd-data").mkdir(exist_ok=True)
     (runtime / "ibcmd-data" / "tmp").write_text("x", encoding="utf-8")
     write_state(target, pid=4242, debug=False)
@@ -49,7 +49,7 @@ def test_run_clean_requires_yes(tmp_path: Path) -> None:
     assert any(d.get("code") == CODE_CONFIRM_REQUIRED for d in result.diagnostics)
     assert any(d.get("source") == "project" for d in result.diagnostics)
     assert (target / "src" / "cf" / "Configuration.xml").is_file()
-    assert (target / ".runtime" / "ib" / "1Cv8.1cd").is_file()
+    assert (target / ".1c-dev" / "runtime" / "main" / "1Cv8.1cd").is_file()
 
 
 def test_run_clean_no_manifest(tmp_path: Path) -> None:
@@ -62,7 +62,7 @@ def test_run_clean_wipes_source_and_runtime(tmp_path: Path) -> None:
     target = _seed_dirty_project(tmp_path)
     agents = target / "AGENTS.md"
     agents_text = agents.read_text(encoding="utf-8")
-    manifest = target / "1c.project.yaml"
+    manifest = target / ".1c-dev" / "project.yaml"
     manifest_text = manifest.read_text(encoding="utf-8")
     gitignore = target / ".gitignore"
     assert gitignore.is_file()
@@ -81,7 +81,7 @@ def test_run_clean_wipes_source_and_runtime(tmp_path: Path) -> None:
     source = target / "src" / "cf"
     assert source.is_dir()
     assert list(source.iterdir()) == []
-    assert not (target / ".runtime").exists()
+    assert not (target / ".1c-dev" / "runtime").exists()
 
     assert manifest.read_text(encoding="utf-8") == manifest_text
     assert agents.read_text(encoding="utf-8") == agents_text
@@ -119,7 +119,7 @@ def test_run_clean_stops_live_client(tmp_path: Path) -> None:
     )
     assert result.status == "ok"
     assert terminated == [4242]
-    assert not (target / ".runtime").exists()
+    assert not (target / ".1c-dev" / "runtime").exists()
 
 
 def test_run_clean_refuses_when_stop_fails(tmp_path: Path) -> None:
@@ -135,7 +135,7 @@ def test_run_clean_refuses_when_stop_fails(tmp_path: Path) -> None:
     assert any(d.get("code") == CODE_CLIENT_RUNNING for d in result.diagnostics)
     assert any(d.get("source") == "runtime" for d in result.diagnostics)
     assert (target / "src" / "cf" / "Configuration.xml").is_file()
-    assert (target / ".runtime" / "ib" / "1Cv8.1cd").is_file()
+    assert (target / ".1c-dev" / "runtime" / "main" / "1Cv8.1cd").is_file()
 
 
 def test_cli_project_clean_requires_yes(tmp_path: Path, monkeypatch: Any) -> None:
@@ -153,7 +153,7 @@ def test_cli_project_clean_yes(tmp_path: Path, monkeypatch: Any) -> None:
     result = runner.invoke(app, ["project", "clean", "--yes", "--output", "json"])
     assert result.exit_code == SUCCESS
     assert '"status": "ok"' in result.stdout
-    assert not (target / ".runtime").exists()
+    assert not (target / ".1c-dev" / "runtime").exists()
     assert list((target / "src" / "cf").iterdir()) == []
 
 

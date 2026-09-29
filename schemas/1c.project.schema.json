@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/pila86/1c-dev/schemas/1c.project.schema.json",
   "title": "1c.project.yaml",
-  "description": "Манифест проекта 1c-dev schema \"1\" (PRD §8, ADR-004). Эскиз schema \"2\" (M4): 1c.project.schema.v2.json — не используется кодом.",
+  "description": "Манифест проекта 1c-dev schema \"1\" (PRD §8, ADR-004). Schema \"2\" (M4): 1c.project.schema.v2.json — dual-compat в core/project/validate.py.",
   "type": "object",
   "required": ["schema", "project", "platform", "source", "runtime"],
   "additionalProperties": false,

@@ -48,7 +48,7 @@ def _init_with_ib(tmp_path: Path) -> Path:
     target = tmp_path / "shop"
     target.mkdir()
     assert init_project(target, project_type="configuration", name="Shop").status == "ok"
-    ib = target / ".runtime" / "ib"
+    ib = target / ".1c-dev" / "runtime" / "main"
     ib.mkdir(parents=True, exist_ok=True)
     (ib / IB_MARKER).write_bytes(b"")
     return target
@@ -274,7 +274,7 @@ def test_cli_runtime_start_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
         return RuntimeResult(
             status="ok",
             root=target,
-            runtime_path=target / ".runtime" / "ib",
+            runtime_path=target / ".1c-dev" / "runtime" / "main",
             running=True,
             pid=111,
             mode="enterprise",

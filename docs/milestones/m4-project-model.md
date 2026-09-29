@@ -28,7 +28,7 @@
 | Platform templates | Discovery tmplts / `1cestart.cfg`; parse `*.mft`; `templates.*` + `project.import --from-template` | [024](../adr/024-platform-templates.md) |
 | Publish | Фасад `publish.*`; MVP `ibsrv`; Apache/`webinst` вторым адаптером | [025](../adr/025-publish-backends.md) |
 | Runtimes | Массив `runtimes[]`: `{id, configuration, type, path, default?}`; ≥1 IB на configuration; один global `default` | [026](../adr/026-runtimes-array.md) |
-| Schema | Манифест schema `"2"`; рабочий код M3 остаётся на `"1"` до реализации | эскиз [`1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json) |
+| Schema | Манифест schema `"2"`; dual-compat с `"1"` в validate | [`1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json) |
 | Compat | Dual detect: `.1c-dev/project.yaml`, иначе legacy `1c.project.yaml` + warning; `project migrate` — should | ADR-022 |
 | IDE root | `ide configure --ide-root` отдельно от scope root (monorepo / оркестратор) | ADR-022 / ADR-016 |
 | Drafts вне roadmap | EDT / Tests не нумеруются; файлы `draft-*` | [roadmap](../roadmap.md) |
@@ -90,7 +90,7 @@ publish:
       config: .1c-dev/publish/ibsrv.yaml
 ```
 
-Полный JSON Schema-эскиз: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json) (не подключён к коду до реализации M4).
+JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json) (подключён в `core/project/validate.py`, #85).
 
 ## Scope
 
@@ -233,6 +233,6 @@ publish:
 - [draft-source-formats](draft-source-formats.md) · [draft-tests](draft-tests.md)
 - ADR: [022](../adr/022-project-home.md) · [023](../adr/023-multi-config-extensions.md) · [024](../adr/024-platform-templates.md) · [025](../adr/025-publish-backends.md) · [026](../adr/026-runtimes-array.md)
 - Spike argv: [084-ibcmd-extension-ibsrv](../spikes/084-ibcmd-extension-ibsrv.md)
-- Schema v1 (код): [`schemas/1c.project.schema.json`](../../schemas/1c.project.schema.json)
-- Schema v2 (эскиз): [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json)
+- Schema v1: [`schemas/1c.project.schema.json`](../../schemas/1c.project.schema.json)
+- Schema v2: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json)
 - PRD §8 Project Model, §9 Project Types

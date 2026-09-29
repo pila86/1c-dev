@@ -10,12 +10,18 @@ from typing import Any, Literal
 from adapters.platform import discover_environment
 from adapters.source.xmlgen.resolve import resolve_java
 from core.diagnostics import Diagnostic, error, warning
-from core.project.constants import MANIFEST_NAME
+from core.project.constants import (
+    DEFAULT_CONFIG_ID,
+    DEFAULT_RUNTIME_ID,
+    HOME_MANIFEST_REL,
+    HOME_RUNTIME_DIR_NAME,
+)
 from core.project.init import (
     default_project_name,
     platform_version_for_manifest,
     templates_root,
 )
+from core.project.paths import home_manifest_path, project_home
 from core.project.result import ProjectResult
 from core.project.validate import validate_project
 from core.toolchain.cache import tools_cache_dir
@@ -68,9 +74,9 @@ def _write_text(path: Path, content: str) -> None:
 
 
 def _ensure_manifest(root: Path) -> list[str]:
-    """Create 1c.project.yaml + runtime dirs if missing. Never overwrite fields."""
+    """Create ``.1c-dev/project.yaml`` + runtime dirs if missing. Never overwrite."""
     created: list[str] = []
-    manifest_path = root / MANIFEST_NAME
+    manifest_path = home_manifest_path(root)
     if not manifest_path.is_file():
         tmpl = templates_root() / "configuration" / "1c.project.yaml.tmpl"
         if not tmpl.is_file():
@@ -78,19 +84,22 @@ def _ensure_manifest(root: Path) -> list[str]:
         discovery = discover_environment()
         platform_version = platform_version_for_manifest(discovery.platform.version)
         name = default_project_name(root)
+        project_home(root).mkdir(parents=True, exist_ok=True)
         text = _render(
             tmpl.read_text(encoding="utf-8"),
             {
                 "name": name,
                 "platform_version": platform_version,
+                "config_id": DEFAULT_CONFIG_ID,
+                "runtime_id": DEFAULT_RUNTIME_ID,
             },
         )
         _write_text(manifest_path, text)
-        created.append(MANIFEST_NAME)
+        created.append(HOME_MANIFEST_REL)
 
     for directory in (
-        root / ".runtime",
-        root / ".runtime" / "ib",
+        root / HOME_RUNTIME_DIR_NAME,
+        root / HOME_RUNTIME_DIR_NAME / DEFAULT_CONFIG_ID,
         root / "build",
     ):
         if not directory.exists():

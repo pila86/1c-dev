@@ -1,6 +1,6 @@
 # ADR-024: Platform templates (tmplts)
 
-**Статус:** Proposed  
+**Статус:** Accepted  
 **Дата:** 2026-09-29
 
 ## Контекст
@@ -26,7 +26,7 @@
 
 | Вариант | Плюсы | Минусы | Вердикт |
 |---------|-------|--------|---------|
-| Discovery tmplts + reuse import `.cf` | Дёшево на базе M3 | Парсер mft / OS paths | **Принято (Proposed)** |
+| Discovery tmplts + reuse import `.cf` | Дёшево на базе M3 | Парсер mft / OS paths | **Принято** |
 | Только ручной путь к `.cf` | Уже есть | Плохой DX | Недостаточно |
 | Вызов GUI стартера 1С | «Как у пользователя» | Не agent-friendly | Отвергнуто |
 
