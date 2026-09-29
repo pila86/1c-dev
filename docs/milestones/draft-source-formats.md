@@ -1,4 +1,6 @@
-# M4: source formats (EDT)
+# Draft: source formats (EDT)
+
+**Статус:** Draft (вне roadmap) — бывший план «M4 EDT»; активный M4 сейчас — [project model](m4-project-model.md).
 
 ## Goal
 
@@ -46,12 +48,12 @@
 - [ ] Integration-тесты: skip с сообщением, если нет EDT CLI
 - [ ] Contract tests Source Adapter: XML и EDT на общем наборе capabilities (PRD §50)
 
-## Out of scope M4
+## Out of scope (этого черновика)
 
 - Import из `.cf` (уже [M3](m3-product-adopt.md))
-- YAxUnit / Vanessa (→ M5)
-- DAP, semantic diff, verify (→ M6)
-- Remote runtime / Docker / lockfile (→ M7)
+- Project home / multi-config / templates / publish (→ [M4](m4-project-model.md))
+- YAxUnit / Vanessa (→ [draft-tests](draft-tests.md))
+- DAP, semantic diff, verify; Remote / Docker / lockfile — вне активного roadmap
 - `.cf` как постоянный source format в манифесте (`source.format: cf`)
 - Публичный `source.write` как замена `metadata.create`
 
@@ -72,13 +74,14 @@
 - [Roadmap](../roadmap.md)
 - [M2](m2-metadata-api.md)
 - [M3](m3-product-adopt.md)
+- [M4 project model](m4-project-model.md)
 - [PRD §12 Source API](../../1c-dev-runtime-PRD-v0.1.md), [§13 Sync](../../1c-dev-runtime-PRD-v0.1.md), [§49 Format switching](../../1c-dev-runtime-PRD-v0.1.md)
-- ADR: XML/EDT adapters, source sync — завести при старте реализации M4
+- ADR: XML/EDT adapters, source sync — завести при возврате темы в roadmap
 
 ## Suggested work packages
 
 | Тема | Зависит от |
 |------|------------|
-| EDT Source Adapter + doctor capability | M2 metadata read |
+| EDT Source Adapter + doctor capability | M2 metadata read; желательно M4 project home |
 | `source.convert` XML ↔ EDT | оба adapters |
-| Contract tests + acceptance M4 | convert |
+| Contract tests + acceptance | convert |

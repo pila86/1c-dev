@@ -24,7 +24,7 @@ Upstream xml-gen уже поддерживает **23** типа Meta DSL и о�
 |---------|-----------|
 | 23 типа Meta DSL xml-gen | Role, Form, Command, SessionParameter, FunctionalOption, XDTOPackage, … |
 | `Subsystem` | `xml-gen interface edit` (CommandInterface) — later |
-| Sync **create + get (full IR) + update + delete** на тип | Cascade delete / reference graph (→ M6) |
+| Sync **create + get (full IR) + update + delete** на тип | Cascade delete / reference graph (later) |
 
 Список Meta DSL (23): Catalog, Document, Enum, Constant, InformationRegister,
 AccumulationRegister, AccountingRegister, CalculationRegister, ChartOfAccounts,

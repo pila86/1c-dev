@@ -62,9 +62,11 @@ require --yes (иначе отказ + diagnostic)
 - Агент обязан передавать confirm; в AGENTS.md — предупреждение о destructive.
 - Unit-тесты на tmp fixture (файлы в `source.path` + `.runtime/ib`) без platform.
 - `runtime.reset` (только IB) и режим «только runtime» — later, не M3 must.
+- **M4 (Proposed):** clean по путям из `runtimes[]` / `.1c-dev/runtime` ([ADR-022](022-project-home.md), [ADR-026](026-runtimes-array.md)).
 
 ## Связанные решения
 
-- [ADR-004](004-project-manifest.md), [ADR-013](013-packaging-toolchain-cache.md), [ADR-015](015-project-import-cf.md), [ADR-019](019-runtime-client-lifecycle.md)
+- [ADR-004](004-project-manifest.md), [ADR-013](013-packaging-toolchain-cache.md), [ADR-015](015-project-import-cf.md), [ADR-019](019-runtime-client-lifecycle.md), [ADR-022](022-project-home.md), [ADR-026](026-runtimes-array.md)
 - Issue [#76](https://github.com/pila86/1c-dev/issues/76)
 - [M3 Product adopt](../milestones/m3-product-adopt.md)
+- [M4](../milestones/m4-project-model.md)

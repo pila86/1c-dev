@@ -68,9 +68,12 @@ ibcmd config save --db-path=… --data=… --db <root>/build/out/configuration.c
 - MCP `build` (#6) переиспользует `core.build.run_build`.
 - Doctor capability `build` уже требует `ibcmd`.
 - Integration-тесты skip без платформы.
+- **M4 (Proposed):** build загружает configuration + extensions в ИБ из `runtimes[]` ([ADR-023](023-multi-config-extensions.md), [ADR-026](026-runtimes-array.md)).
 
 ## Связанные решения
 
 - ADR-003, ADR-005, ADR-006, ADR-007
+- ADR-023, ADR-026 (Proposed)
 - Issue #7
 - PRD §22–§23, §35–§36, §52
+- [M4](../milestones/m4-project-model.md)

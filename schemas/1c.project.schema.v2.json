@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pila86/1c-dev/schemas/1c.project.schema.v2.json",
+  "title": "1c-dev project.yaml (schema 2, draft)",
+  "description": "Эскиз манифеста schema \"2\" для M4 (ADR-022–026). НЕ подключён к коду: рабочий контракт — 1c.project.schema.json (schema \"1\").",
+  "type": "object",
+  "required": ["schema", "project", "platform", "configurations", "runtimes"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "2",
+      "description": "Версия schema манифеста."
+    },
+    "project": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "configuration",
+            "extension",
+            "external-data-processor",
+            "external-report"
+          ],
+          "description": "Опционально для multi-config scope; для standalone extension-проекта — extension."
+        }
+      }
+    },
+    "platform": {
+      "type": "object",
+      "required": ["version"],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Версия платформы 1С (например 8.3.27)."
+        }
+      }
+    },
+    "configurations": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Конфигурации (и вложенные расширения) в scope.",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "source"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "configuration",
+              "extension",
+              "external-data-processor",
+              "external-report"
+            ]
+          },
+          "default": {
+            "type": "boolean",
+            "description": "Default configuration для CLI/MCP без --config. Не более одной true."
+          },
+          "source": {
+            "type": "object",
+            "required": ["format", "path"],
+            "additionalProperties": false,
+            "properties": {
+              "format": {
+                "type": "string",
+                "enum": ["xml", "edt"]
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Относительно scope root (родитель .1c-dev)."
+              }
+            }
+          },
+          "extensions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "name", "source"],
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Имя расширения для ibcmd --extension."
+                },
+                "purpose": {
+                  "type": "string",
+                  "enum": ["product", "tests", "other"]
+                },
+                "source": {
+                  "type": "object",
+                  "required": ["format", "path"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "format": {
+                      "type": "string",
+                      "enum": ["xml", "edt"]
+                    },
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "runtimes": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Массив ИБ: каждая связана с configuration (ADR-026).",
+      "items": {
+        "type": "object",
+        "required": ["id", "configuration", "type", "path"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "configuration": {
+            "type": "string",
+            "minLength": 1,
+            "description": "id из configurations[]."
+          },
+          "type": {
+            "type": "string",
+            "enum": ["file"],
+            "description": "Тип runtime. server — later."
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Путь к ИБ относительно scope root."
+          },
+          "default": {
+            "type": "boolean",
+            "description": "Global default runtime (не более одного true)."
+          }
+        }
+      }
+    },
+    "publish": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "type": "string",
+          "minLength": 1,
+          "description": "id default publish profile."
+        },
+        "profiles": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["backend", "runtime"],
+            "additionalProperties": true,
+            "properties": {
+              "backend": {
+                "type": "string",
+                "enum": ["ibsrv", "webinst"]
+              },
+              "runtime": {
+                "type": "string",
+                "minLength": 1,
+                "description": "id из runtimes[]."
+              },
+              "port": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "config": {
+                "type": "string",
+                "description": "Путь к yaml ibsrv / иным артефактам публикации."
+              },
+              "server": {
+                "type": "string",
+                "description": "Для webinst: apache24 и т.п."
+              },
+              "wsdir": {
+                "type": "string"
+              },
+              "dir": {
+                "type": "string"
+              },
+              "confpath": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "description": "Опционально; глубокая валидация отложена (forward-compat)."
+    },
+    "tests": {
+      "type": "object",
+      "description": "Опционально; глубокая валидация отложена (forward-compat)."
+    },
+    "tools": {
+      "type": "object",
+      "description": "Опционально; глубокая валидация отложена (forward-compat)."
+    }
+  }
+}

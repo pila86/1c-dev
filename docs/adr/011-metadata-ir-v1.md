@@ -167,8 +167,8 @@ JSON-пример атрибута-ссылки:
 
 ### Out of scope M2
 
-- Import `.cf` / install / docs (→ M3); EDT / `source.convert` (→ M4)
-- Graph API: `references` / `dependencies` / `impact` (→ M6)
+- Import `.cf` / install / docs (→ M3); EDT / `source.convert` (→ [draft-source-formats](../milestones/draft-source-formats.md)); project home (→ [M4](../milestones/m4-project-model.md))
+- Graph API: `references` / `dependencies` / `impact` (→ later)
 - Публичный `source.write`
 - Полное покрытие видов метаданных платформы
 - Расширения (`project.type: extension`)

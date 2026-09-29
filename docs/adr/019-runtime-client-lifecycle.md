@@ -75,10 +75,11 @@ Must: **Linux + Windows** (паритет с ADR-005). Helpers `is_running` / `t
 - README / AGENTS.md / ADR-010: runtime tools с `client` / `--client`.
 - Doctor по-прежнему warning без `1cv8`; `runtime.start` thick — жёсткий `1CR001`,
   thin — `1CR005`. Doctor не требует `1cv8c`.
-- M6: `debug.start` attach к уже запущенному клиенту с `/Debug`.
+- Client state / pid per runtime path под `.1c-dev/` ([ADR-022](022-project-home.md), [ADR-026](026-runtimes-array.md) Proposed).
+- DAP attach к уже запущенному клиенту с `/Debug` — вне активного roadmap (отдельный draft при появлении).
 
 ## Связанные решения
 
-- ADR-005, ADR-008, ADR-010, ADR-015
+- ADR-005, ADR-008, ADR-010, ADR-015, ADR-022, ADR-026 (Proposed)
 - PRD §27, §28
-- Roadmap M6
+- [M4](../milestones/m4-project-model.md)

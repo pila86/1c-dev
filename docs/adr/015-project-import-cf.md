@@ -66,11 +66,14 @@ ensure 1c.project.yaml (если нет — только манифест + .run
 - Doctor capability `project.import` → `ibcmd`.
 - Integration: `build --artifact cf` → `run_import`; skip без platform.
 - Бинарный `.cf` в git не коммитим.
+- **M4 (Proposed):** import в layout `.1c-dev/` + `project.import --from-template` ([ADR-022](022-project-home.md), [ADR-024](024-platform-templates.md)).
 
 ## Связанные решения
 
 - ADR-003, ADR-004, ADR-006, ADR-008, ADR-014
 - [ADR-020](020-break-support.md) (`--break-support` после export)
 - [ADR-021](021-project-clean.md) (`project.clean` — wipe source + runtime перед повторным import)
+- ADR-022, ADR-024 (Proposed)
 - Issue #47
 - [M3 Product adopt](../milestones/m3-product-adopt.md)
+- [M4](../milestones/m4-project-model.md)

@@ -4,9 +4,9 @@
 
 **M3: Product adopt** закрыт: `uv tool` + toolchain, import `.cf`, `ide configure`, BSL LS MCP, docs (bsl-context), acceptance E2E (#52).
 
-**M4: Source formats** — EDT adapter + `source.convert` XML ↔ EDT.
+**M4: Project home, multi-config, templates, publish** — якорь `.1c-dev/`, несколько конфигураций и расширений, `runtimes[]`, каталог шаблонов платформы, публикация (ibsrv / Apache).
 
-→ [Acceptance criteria M4](milestones/m4-source-formats.md)  
+→ [Acceptance criteria M4](milestones/m4-project-model.md)  
 → [M3 product adopt](milestones/m3-product-adopt.md)  
 → [GitHub milestone M3](https://github.com/pila86/1c-dev/milestone/3)
 
@@ -16,13 +16,21 @@
 |-----------|------|--------|
 | **M1** | Init → metadata.create(Catalog) → build → check через MCP | Done |
 | **M2** | Metadata API: list/get/find + update + create (Document, registers, …) + delete | Done |
-| **M3** | Product adopt: import `.cf`, user install/PATH **+ автозагрузка toolchain** (xml-gen, md-reader/MDClasses, …), `ide configure` (IDE/agents/MCP), BSL LS MCP wiring, docs/context (bsl-context); **should (temporary):** metadata types coverage (трек E — 23 meta + Subsystem) | Done |
-| M4 | Source formats: EDT adapter + `source.convert` XML ↔ EDT | Planned |
-| M5 | Tests (YAxUnit / Vanessa) | Planned (draft) |
-| M6 | Debug (DAP), semantic diff, verify; attach к клиенту после `runtime.start --debug` (ADR-019) | Planned |
-| M7 | Remote runtime, Docker, lockfile | Planned |
+| **M3** | Product adopt: import `.cf`, user install/PATH **+ автозагрузка toolchain**, `ide configure`, BSL LS MCP, docs/context; **should (temporary):** metadata types coverage | Done |
+| **M4** | Project home `.1c-dev/`, multi-config + extensions, platform templates, publish (ibsrv / webinst), `runtimes[]` | Planned |
 
-Документы этапов: [M1](milestones/m1-catalog-via-agent.md) · [M2](milestones/m2-metadata-api.md) · [M3](milestones/m3-product-adopt.md) · [M4](milestones/m4-source-formats.md) · [M5](milestones/m5-tests.md)
+Документы этапов: [M1](milestones/m1-catalog-via-agent.md) · [M2](milestones/m2-metadata-api.md) · [M3](milestones/m3-product-adopt.md) · [M4](milestones/m4-project-model.md)
+
+## Черновики (вне нумерации)
+
+Темы вне активного roadmap; файлы сохранены без номера milestone:
+
+| Черновик | Было | Документ |
+|----------|------|----------|
+| Source formats (EDT) | M4 EDT | [draft-source-formats](milestones/draft-source-formats.md) |
+| Tests (YAxUnit / Vanessa) | M5 | [draft-tests](milestones/draft-tests.md) |
+
+Debug (DAP) / Remote (Docker, lockfile) — при появлении текстов сразу как `draft-debug.md` / `draft-remote.md`.
 
 ## Принципы (из PRD)
 

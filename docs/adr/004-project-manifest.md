@@ -61,9 +61,12 @@ runtime:
 - `project init` (#4) должен генерировать манифест, валидный по этой schema.
 - Расширение (`runtime.type: server`, lockfile) — через bump `schema` или additive optional fields + ADR.
 - MCP `project.get` / `project.validate` (#6) переиспользуют `core/project`.
+- **M4 (Proposed):** layout `.1c-dev/project.yaml` и schema `"2"` (`configurations[]`, `runtimes[]`) — [ADR-022](022-project-home.md), [ADR-026](026-runtimes-array.md); эскиз [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json). До реализации кода контракт этого ADR (`schema: "1"`, корневой `1c.project.yaml`) остаётся рабочим.
 
 ## Связанные решения
 
 - ADR-002, ADR-003
+- ADR-022–026 (Proposed, M4)
 - Issue #2
 - PRD §8, §14, §69
+- [M4](../milestones/m4-project-model.md)

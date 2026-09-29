@@ -88,7 +88,7 @@ metadata.get(Catalog.Products)
 
 - Удаляет артефакты объекта из `source.path` и регистрацию в `Configuration.xml`
 - Объект не найден → structured diagnostic, source не меняется
-- Без cascade по ссылкам (битые `Ref` допустимы до graph / M6)
+- Без cascade по ссылкам (битые `Ref` допустимы до graph API)
 - Удаление атрибутов — через `metadata.update` `remove-attribute`; nested ТЧ / values / … — later, не must `metadata.delete`
 
 ## Agent workflows
@@ -183,13 +183,14 @@ Feature-issues #20–#26, #28, #29, #35, #39, #40 и сквозной acceptance
 ## Out of scope M2
 
 - Import `.cf`, user install, `ide configure`, BSL LS MCP, docs/context (→ [M3](m3-product-adopt.md))
-- EDT / `source.convert` (→ [M4](m4-source-formats.md))
-- `references` / `dependencies` / `impact` (→ later / M6 graph)
+- EDT / `source.convert` (→ [draft-source-formats](draft-source-formats.md))
+- Project home / multi-config / extensions (→ [M4](m4-project-model.md))
+- `references` / `dependencies` / `impact` (→ later / graph)
 - Nested delete ТЧ / values / dimensions через `metadata.delete` (атрибуты / ТЧ / values / dimensions / resources — через `metadata.update`; Enum/регистры — #39)
 - Публичный `source.write` как замена Metadata API
 - Полное покрытие всех видов метаданных платформы
 - Расширения (`project.type: extension`) и изменение объектов базовой конфигурации через extension
-- YAxUnit / DAP (→ M5 / M6)
+- YAxUnit / DAP (→ [draft-tests](draft-tests.md); debug вне roadmap)
 
 ## Manual verification
 
@@ -248,7 +249,8 @@ Feature-issues #20–#26, #28, #29, #35, #39, #40 и сквозной acceptance
 - [Roadmap](../roadmap.md)
 - [M1](m1-catalog-via-agent.md)
 - [M3](m3-product-adopt.md)
-- [M4](m4-source-formats.md)
+- [M4](m4-project-model.md)
+- [draft-source-formats](draft-source-formats.md)
 - [ADR-007](../adr/007-metadata-ir.md) (IR v0 + xml-gen)
 - [ADR-011](../adr/011-metadata-ir-v1.md) (IR v1)
 - [PRD §16–§18](../../1c-dev-runtime-PRD-v0.1.md), [§47](../../1c-dev-runtime-PRD-v0.1.md)

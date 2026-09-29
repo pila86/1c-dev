@@ -64,9 +64,11 @@ Issue #50 и [M3](../milestones/m3-product-adopt.md) требуют идемпо
 - `init` и `ide configure` делят шаблон `AGENTS.md` и запись IDE MCP через `_configure_ide_mcp`.
 - `init --ide-target all` (default) сразу создаёт `.cursor/mcp.json` и `.kilo/mcp.json`; `ide configure` — adopt (после import/clone) и повторный merge.
 - Doctor / `tools sync` обеспечивают jar для рабочего BSL LS MCP.
+- **M4 (Proposed):** `--ide-root` отдельно от scope root ([ADR-022](022-project-home.md)); не затирать оркестраторский корневой AGENTS без opt-in.
 
 ## Связанные решения
 
-- ADR-006, ADR-010, ADR-013, ADR-015
+- ADR-006, ADR-010, ADR-013, ADR-015, ADR-022 (Proposed)
 - Issue #50
 - [M3 Product adopt](../milestones/m3-product-adopt.md)
+- [M4](../milestones/m4-project-model.md)

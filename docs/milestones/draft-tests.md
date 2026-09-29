@@ -1,6 +1,6 @@
-# M5: Tests (YAxUnit / Vanessa)
+# Draft: Tests (YAxUnit / Vanessa)
 
-**Статус:** Draft (черновик стратегии, реализация не начата)
+**Статус:** Draft (вне roadmap) — бывший план «M5 Tests»; активный M4 — [project model](m4-project-model.md) (multi-source / test-extension — блокер этого черновика).
 
 ## Goal
 
@@ -33,11 +33,11 @@
 
 - M1–M2: init, metadata, build, check
 - M3: file IB, `runtime.*`, `ide configure` (шаблон MCP без test-runner)
-- Модель **расширений** / multi-source в манифесте (сейчас один `source.path`, init только `configuration`) — блокер или первый трек M5
+- Модель **расширений** / multi-source в манифесте — блокер; закрывается в [M4](m4-project-model.md)
 - Платформа 1С + YaXUnit в тестовом расширении user project
 - JDK не обязателен для своего runner’а (в отличие от METR jar)
 
-M4 (EDT) **не** блокер для XML-ветки M5; EDT + tests — после/параллельно M4 при необходимости.
+EDT ([draft-source-formats](draft-source-formats.md)) **не** блокер для XML-ветки тестов.
 
 ## Scope
 
@@ -127,14 +127,14 @@ AI читает BSL
 
 - [ ] Инкрементальная сборка перед тестами (как идея METR) — только если не ломает простой pipeline
 
-## Out of scope M5
+## Out of scope (этого черновика)
 
 - Vendor-in / дистрибуция `mcp-yaxunit-runner.jar` в `tools sync`
 - Замена `build` / `check` / `runtime` на METR
 - Генерация текста тестов отдельным MCP tool
-- DAP / debug (→ M6)
-- Remote runtime / Docker / lockfile (→ M7)
+- DAP / debug; Remote / Docker / lockfile — вне активного roadmap
 - Собственный unit-test framework вместо YaXUnit
+- Реализация multi-source (делается в [M4](m4-project-model.md))
 
 ## Manual verification (эскиз)
 
@@ -166,7 +166,7 @@ AI читает BSL
 - [Roadmap](../roadmap.md)
 - [PRD §25 Test API](../../1c-dev-runtime-PRD-v0.1.md), [§26 Test Result](../../1c-dev-runtime-PRD-v0.1.md), [§8 manifest tests](../../1c-dev-runtime-PRD-v0.1.md)
 - [ADR-003](../adr/003-diagnostics-exit-codes.md) (exit 5), [ADR-004](../adr/004-project-manifest.md), [ADR-010](../adr/010-mcp-architecture.md)
-- [M3](m3-product-adopt.md), [M4](m4-source-formats.md)
+- [M3](m3-product-adopt.md), [M4 project model](m4-project-model.md), [draft-source-formats](draft-source-formats.md)
 - Внешние: [bia-technologies/yaxunit](https://github.com/bia-technologies/yaxunit), [alkoleft/mcp-onec-test-runner](https://github.com/alkoleft/mcp-onec-test-runner) (референс / spike only)
 
 ## Suggested work packages

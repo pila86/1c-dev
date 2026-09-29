@@ -50,11 +50,14 @@ IDE MCP (`.cursor/mcp.json`, `.kilo/mcp.json`) пишется через `_confi
 
 - MCP `project.init` (#6) переиспользует `core.project.init_project` (включая IDE MCP).
 - Greenfield path: после `init` агент готов без отдельного `ide configure`.
-- Templates для extension/EPF/ERF — отдельные issues.
+- Templates для extension/EPF/ERF — отдельные issues; в M4 — [ADR-023](023-multi-config-extensions.md) (Proposed).
 - ibcmd load/build (#7) опирается на созданный XML-скелет.
+- **M4 (Proposed):** init пишет `.1c-dev/project.yaml` ([ADR-022](022-project-home.md)); до реализации — текущий корневой layout.
 
 ## Связанные решения
 
 - ADR-002, ADR-004, ADR-005, ADR-016
+- ADR-022, ADR-023 (Proposed)
 - Issue #4
 - PRD §15, §43, §44
+- [M4](../milestones/m4-project-model.md)
