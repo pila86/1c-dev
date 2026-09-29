@@ -1,6 +1,6 @@
 # ADR-022: Project home (`.1c-dev/`)
 
-**Статус:** Proposed  
+**Статус:** Accepted  
 **Дата:** 2026-09-29
 
 ## Контекст
@@ -18,19 +18,19 @@
 7. **`ide configure`:** флаги `--project` (scope) и `--ide-root` (куда писать `.cursor` / `.kilo`); по умолчанию ide-root = scope; в monorepo указывают git/workspace root. Не затирать чужой корневой `AGENTS.md` без явного opt-in.
 8. Should: `project migrate` — перенос legacy манифеста в `.1c-dev/` + один элемент `runtimes[]`.
 
-Эскиз schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json). Milestone: [M4](../milestones/m4-project-model.md).
+Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json). Milestone: [M4](../milestones/m4-project-model.md).
 
 ## Альтернативы
 
 | Вариант | Плюсы | Минусы | Вердикт |
 |---------|-------|--------|---------|
-| `.1c-dev/` + manifest внутри | Не мешает другим тулам; namespaced | Dot-dir менее заметен агентам | **Принято (Proposed)** |
+| `.1c-dev/` + manifest внутри | Не мешает другим тулам; namespaced | Dot-dir менее заметен агентам | **Принято** |
 | Манифест только в git root | Привычно | Конфликт monorepo | Отвергнуто |
 | Произвольный `project.root` в env без home | Гибко | Нет единого якоря discovery | Отвергнуто как единственный механизм |
 
 ## Последствия
 
-- Supersede path-assumptions в ADR-004/006/016/021 при реализации (код пока на schema `"1"`).
+- Supersede path-assumptions в ADR-004/006/016/021 при реализации project home (#86); validate schema `"2"` уже в коде (#85).
 - MCP descriptions: `path` = scope root (родитель `.1c-dev`).
 - Clean не трогает git root вне scope; wipe source — отдельный confirm.
 
