@@ -68,6 +68,7 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 | `1c-dev init --type extension` | Bootstrap standalone-проекта расширения (`src/cfe/<name>/`) |
 | `1c-dev extension add [--id] [--name] [--purpose] [--config]` | Добавить расширение в configuration-проект |
 | `1c-dev extension list [--config] [--runtime]` | Список расширений в выбранной file IB |
+| `1c-dev templates roots\|list\|get` | Каталог шаблонов платформы (tmplts / `*.mft`) |
 | `1c-dev project detect\|validate\|info` | Манифест `.1c-dev/project.yaml` (`project init` = алиас `init`) |
 | `1c-dev configuration import --from <file.cf>` | Импорт `.cf` → XML source (`--force` перезаписывает; `--break-support` снимает с поддержки) |
 | `1c-dev configuration add\|list\|get\|remove\|set-default` | Lifecycle конфигураций в scope |
@@ -173,9 +174,11 @@ Tools: `project.get`, `project.init`, `ide.configure`, `configuration.import`,
 `metadata.update`, `metadata.delete`, `build`, `check`,
 `runtime.start`, `runtime.stop`, `runtime.status`,
 `publish.up`, `publish.down`, `publish.status`, `publish.url`,
+`templates.roots`, `templates.list`, `templates.get`,
 `docs.search`, `docs.get`
 ([ADR-010](docs/adr/010-mcp-architecture.md), [ADR-016](docs/adr/016-ide-configure.md),
 [ADR-019](docs/adr/019-runtime-client-lifecycle.md), [ADR-021](docs/adr/021-project-clean.md),
+[ADR-024](docs/adr/024-platform-templates.md),
 [ADR-028](docs/adr/028-configuration-import.md)).
 `project.clean` — destructive (нужен `yes=true`); не трогает манифест / IDE / git.`metadata.create` / `update` / `delete` покрывают те же 24 write-типа, что и CLI
 (список — в описании tool и в `doctor` → `supportedTypes`).

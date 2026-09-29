@@ -21,6 +21,7 @@ from cli.project import app as project_app
 from cli.publish import app as publish_app
 from cli.runtime import app as runtime_app
 from cli.source import app as source_app
+from cli.templates import app as templates_app
 from cli.tools import app as tools_app
 from cli.uninstall import uninstall_command
 from core.version import __version__
@@ -37,6 +38,7 @@ app.add_typer(runtime_app, name="runtime")
 app.add_typer(publish_app, name="publish")
 app.add_typer(configuration_app, name="configuration")
 app.add_typer(extension_app, name="extension")
+app.add_typer(templates_app, name="templates")
 app.add_typer(source_app, name="source")
 app.add_typer(tools_app, name="tools")
 app.add_typer(ide_app, name="ide")

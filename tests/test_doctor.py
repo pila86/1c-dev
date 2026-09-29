@@ -189,6 +189,7 @@ def test_run_doctor_reports_all_toolchain_tools(
         "ibcmd",
         "ibsrv",
         "1cv8",
+        "templates",
         "java",
         "xml-gen",
         "md-reader",
@@ -205,6 +206,7 @@ def test_run_doctor_reports_all_toolchain_tools(
     ibsrv_diag = next(d for d in result.diagnostics if d.get("code") == "1CD011")
     assert ibsrv_diag["severity"] == "warning"
     assert result.capabilities["ibsrv"]["available"] is False
+    assert "templates" in result.capabilities
     assert result.status == "ok"  # ibsrv gap must not hard-fail doctor
 
 
