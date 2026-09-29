@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -490,4 +491,6 @@ def test_publish_up_profile_backend_mismatch(tmp_path: Path) -> None:
 def test_cli_publish_up_backend_help() -> None:
     result = runner.invoke(app, ["publish", "up", "--help"])
     assert result.exit_code == 0
-    assert "--backend" in result.stdout
+    # Rich may insert ANSI mid-token (e.g. styled "--backend") when COLUMNS is set (CI).
+    plain = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", result.stdout)
+    assert "--backend" in plain
