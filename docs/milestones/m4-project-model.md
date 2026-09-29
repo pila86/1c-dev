@@ -211,7 +211,7 @@ publish:
 
 | # | Wave | Задача | Depends on |
 |---|------|--------|------------|
-| [#84](https://github.com/pila86/1c-dev/issues/84) | 0 | Spike: ibcmd `--extension` + ibsrv config/lifecycle (argv freeze) | — |
+| [#84](https://github.com/pila86/1c-dev/issues/84) | 0 | Spike: ibcmd `--extension` + ibsrv config/lifecycle (argv freeze) — [note](../spikes/084-ibcmd-extension-ibsrv.md) | — |
 | [#85](https://github.com/pila86/1c-dev/issues/85) | 1 | Schema `"2"` в коде + validate configurations/runtimes/publish + ADR 022–026 → Accepted | #84 |
 | [#86](https://github.com/pila86/1c-dev/issues/86) | 1 | Project home `.1c-dev`: detect/legacy, init/import, clean, `project.list`/`get`, MCP path | #85 |
 | [#87](https://github.com/pila86/1c-dev/issues/87) | 1 | Resolve `--config` / `--runtime` в build/runtime/clean/metadata + defaults | #86 |
@@ -232,6 +232,7 @@ publish:
 - [M3](m3-product-adopt.md)
 - [draft-source-formats](draft-source-formats.md) · [draft-tests](draft-tests.md)
 - ADR: [022](../adr/022-project-home.md) · [023](../adr/023-multi-config-extensions.md) · [024](../adr/024-platform-templates.md) · [025](../adr/025-publish-backends.md) · [026](../adr/026-runtimes-array.md)
+- Spike argv: [084-ibcmd-extension-ibsrv](../spikes/084-ibcmd-extension-ibsrv.md)
 - Schema v1 (код): [`schemas/1c.project.schema.json`](../../schemas/1c.project.schema.json)
 - Schema v2 (эскиз): [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json)
 - PRD §8 Project Model, §9 Project Types
