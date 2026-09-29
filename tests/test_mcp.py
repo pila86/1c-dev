@@ -40,6 +40,10 @@ EXPECTED_TOOLS = {
     "runtime.start",
     "runtime.stop",
     "runtime.status",
+    "publish.up",
+    "publish.down",
+    "publish.status",
+    "publish.url",
     "docs.search",
     "docs.get",
 }

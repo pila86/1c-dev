@@ -279,6 +279,35 @@ def list_extensions(
     return result, parse_extension_list(result.stdout)
 
 
+def server_config_init(
+    ibcmd: Path,
+    *,
+    out: Path,
+    db_path: Path,
+    http_port: int,
+    name: str,
+    http_address: str = "localhost",
+    http_base: str = "/",
+    run: RunFn | None = None,
+) -> IbcmdRunResult:
+    """Generate ibsrv YAML via ``ibcmd server config init`` (ADR-025 / spike #84)."""
+    runner = run or default_run
+    out.parent.mkdir(parents=True, exist_ok=True)
+    argv = [
+        str(ibcmd),
+        "server",
+        "config",
+        "init",
+        f"--out={out}",
+        f"--db-path={db_path}",
+        f"--http-address={http_address}",
+        f"--http-port={http_port}",
+        f"--http-base={http_base}",
+        f"--name={name}",
+    ]
+    return _require_ok(runner(argv), step="server-config-init")
+
+
 def _require_ok(
     result: IbcmdRunResult,
     *,

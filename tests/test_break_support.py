@@ -30,6 +30,7 @@ def _fake_discovery(*, ibcmd: Path | None) -> DiscoveryResult:
         ibcmd=ToolInfo(found=ibcmd is not None, path=ibcmd),
         onecv8=ToolInfo(found=False, path=None),
         onecv8c=ToolInfo(found=False, path=None),
+        ibsrv=ToolInfo(found=False, path=None),
     )
 
 

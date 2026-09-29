@@ -33,6 +33,7 @@
       "required": [
         "cli",
         "ibcmd",
+        "ibsrv",
         "1cv8",
         "java",
         "xml-gen",
@@ -44,6 +45,7 @@
       "properties": {
         "cli": { "$ref": "#/$defs/tool" },
         "ibcmd": { "$ref": "#/$defs/tool" },
+        "ibsrv": { "$ref": "#/$defs/tool" },
         "1cv8": { "$ref": "#/$defs/tool" },
         "java": { "$ref": "#/$defs/tool" },
         "xml-gen": { "$ref": "#/$defs/tool" },
@@ -59,6 +61,7 @@
         "build": { "$ref": "#/$defs/capability" },
         "check": { "$ref": "#/$defs/capability" },
         "project.import": { "$ref": "#/$defs/capability" },
+        "ibsrv": { "$ref": "#/$defs/capability" },
         "metadata.create": { "$ref": "#/$defs/capability" },
         "metadata.update": { "$ref": "#/$defs/capability" },
         "metadata.delete": { "$ref": "#/$defs/capability" },

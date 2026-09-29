@@ -25,6 +25,10 @@ _IBCMD_HINT = (
     "Установите платформу 1С и добавьте ibcmd в PATH "
     "(или используйте стандартный каталог установки)."
 )
+_IBSRV_HINT = (
+    "Опционально для publish: добавьте ibsrv в PATH "
+    "(рядом с ibcmd в каталоге платформы)."
+)
 _ONECV8_HINT = (
     "Опционально для M1: добавьте 1cv8 в PATH, если нужен конфигуратор/толстый клиент."
 )
@@ -136,6 +140,7 @@ def run_doctor(
     tools = {
         "cli": cli,
         "ibcmd": _tool_payload(discovery.ibcmd.found, discovery.ibcmd.path),
+        "ibsrv": _tool_payload(discovery.ibsrv.found, discovery.ibsrv.path),
         "1cv8": _tool_payload(discovery.onecv8.found, discovery.onecv8.path),
         "java": _tool_payload(java.found, java.path, version=java.version),
         "xml-gen": _adapter_jar_payload(
@@ -149,6 +154,7 @@ def run_doctor(
     }
     tools_found = {
         "ibcmd": discovery.ibcmd.found,
+        "ibsrv": discovery.ibsrv.found,
         "1cv8": discovery.onecv8.found,
         "java": java.found,
         "xml-gen": xmlgen.found,
@@ -177,6 +183,15 @@ def run_doctor(
                 code="1CD002",
                 source="doctor",
                 suggestion=_IBCMD_HINT,
+            )
+        )
+    if not discovery.ibsrv.found:
+        diagnostics.append(
+            warning(
+                "ibsrv не найден (нужен для publish.up)",
+                code="1CD011",
+                source="doctor",
+                suggestion=_IBSRV_HINT,
             )
         )
     if not discovery.onecv8.found:

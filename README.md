@@ -49,6 +49,7 @@ poetry run 1c-dev --help
 poetry run pytest
 poetry run pytest -m integration   # E2E с platform/xml-gen/md-reader; иначе skip
 # M3 accept: poetry run pytest tests/test_m3_acceptance.py -m integration
+# publish ibsrv HTTP: poetry run pytest tests/test_publish_integration.py -m integration
 ```
 
 Fallback для разработчиков (те же pin’ы): `./scripts/fetch-xml-gen.sh`, `./scripts/fetch-md-reader.sh` (Windows: `pwsh scripts/fetch-*.ps1`).
@@ -75,6 +76,9 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 | `1c-dev runtime start [--client thick|thin] [--debug]` | Запуск клиента (ENTERPRISE) к file IB |
 | `1c-dev runtime stop` | Остановка клиента |
 | `1c-dev runtime status` | Статус клиента (pid / client / debug) |
+| `1c-dev publish up [--profile]` | Публикация file IB через `ibsrv` (init yaml + daemon) |
+| `1c-dev publish down [--profile]` | Остановка `ibsrv` |
+| `1c-dev publish status\|url [--profile]` | Статус / URL веб-клиента |
 | `1c-dev metadata list` | Список объектов (IR summaries) |
 | `1c-dev metadata get <QualifiedName>` | IR объекта по QName |
 | `1c-dev metadata find <query>` | Поиск по имени / синониму |
@@ -136,6 +140,10 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 1c-dev runtime start --debug --output json
 1c-dev runtime status --output json
 1c-dev runtime stop --output json
+1c-dev publish up --output json
+1c-dev publish status --output json
+1c-dev publish url
+1c-dev publish down --output json
 1c-dev check --output json
 1c-dev ide configure --output json
 1c-dev ide configure --target cursor --output json
@@ -158,7 +166,9 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 Tools: `project.get`, `project.init`, `ide.configure`, `project.import`, `project.clean`,
 `metadata.list`, `metadata.get`, `metadata.find`, `metadata.create`,
 `metadata.update`, `metadata.delete`, `build`, `check`,
-`runtime.start`, `runtime.stop`, `runtime.status`, `docs.search`, `docs.get`
+`runtime.start`, `runtime.stop`, `runtime.status`,
+`publish.up`, `publish.down`, `publish.status`, `publish.url`,
+`docs.search`, `docs.get`
 ([ADR-010](docs/adr/010-mcp-architecture.md), [ADR-016](docs/adr/016-ide-configure.md),
 [ADR-019](docs/adr/019-runtime-client-lifecycle.md), [ADR-021](docs/adr/021-project-clean.md)).
 `project.clean` — destructive (нужен `yes=true`); не трогает манифест / IDE / git.`metadata.create` / `update` / `delete` покрывают те же 24 write-типа, что и CLI

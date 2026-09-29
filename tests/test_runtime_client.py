@@ -41,6 +41,7 @@ def _fake_discovery(
         ibcmd=ToolInfo(found=True, path=Path("/fake/ibcmd")),
         onecv8=ToolInfo(found=onecv8 is not None, path=onecv8),
         onecv8c=ToolInfo(found=onecv8c is not None, path=onecv8c),
+        ibsrv=ToolInfo(found=False, path=None),
     )
 
 

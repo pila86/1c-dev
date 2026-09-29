@@ -17,6 +17,7 @@ from cli.mcp_cmd import mcp_command
 from cli.metadata import app as metadata_app
 from cli.output import OutputFormat
 from cli.project import app as project_app
+from cli.publish import app as publish_app
 from cli.runtime import app as runtime_app
 from cli.source import app as source_app
 from cli.tools import app as tools_app
@@ -32,6 +33,7 @@ app = typer.Typer(
 app.add_typer(project_app, name="project")
 app.add_typer(metadata_app, name="metadata")
 app.add_typer(runtime_app, name="runtime")
+app.add_typer(publish_app, name="publish")
 app.add_typer(extension_app, name="extension")
 app.add_typer(source_app, name="source")
 app.add_typer(tools_app, name="tools")

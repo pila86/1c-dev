@@ -11,6 +11,7 @@ from pathlib import Path
 VERSION_RE = re.compile(r"(?<!\d)(\d+\.\d+\.\d+(?:\.\d+)?)(?!\d)")
 
 _IBCMD = "ibcmd"
+_IBSRV = "ibsrv"
 _ONECV8 = "1cv8"
 _ONECV8C = "1cv8c"
 
@@ -40,6 +41,7 @@ class DiscoveryResult:
     ibcmd: ToolInfo
     onecv8: ToolInfo
     onecv8c: ToolInfo
+    ibsrv: ToolInfo
 
 
 def version_from_path(path: Path) -> str | None:
@@ -166,16 +168,22 @@ def discover_environment(
     installs = _iter_install_dirs(roots)
 
     ibcmd_which = _which_tool(_IBCMD)
+    ibsrv_which = _which_tool(_IBSRV)
     onecv8_which = _which_tool(_ONECV8)
     onecv8c_which = _which_tool(_ONECV8C)
 
     ibcmd = _tool_from_installs(_IBCMD, installs, ibcmd_which)
+    ibsrv = _tool_from_installs(_IBSRV, installs, ibsrv_which)
     onecv8 = _tool_from_installs(_ONECV8, installs, onecv8_which)
     onecv8c = _tool_from_installs(_ONECV8C, installs, onecv8c_which)
     if not onecv8c.found and onecv8.path is not None:
         sibling = _find_binary_in_dir(onecv8.path.parent, _ONECV8C)
         if sibling is not None:
             onecv8c = ToolInfo(found=True, path=sibling)
+    if not ibsrv.found and ibcmd.path is not None:
+        sibling = _find_binary_in_dir(ibcmd.path.parent, _IBSRV)
+        if sibling is not None:
+            ibsrv = ToolInfo(found=True, path=sibling)
     platform = _platform_from(installs, ibcmd, onecv8)
 
     return DiscoveryResult(
@@ -183,4 +191,5 @@ def discover_environment(
         ibcmd=ibcmd,
         onecv8=onecv8,
         onecv8c=onecv8c,
+        ibsrv=ibsrv,
     )

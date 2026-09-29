@@ -13,7 +13,7 @@
 11. Prefer MCP tools over shell or Designer/Configurator:
     - **1c-dev** MCP: project init/import/clean, ide.configure, metadata list/get/find/create/update/delete,
       build (configuration + nested extensions), check, runtime.start/stop/status (client thick|thin, optional debug=/Debug),
-      extension.add / extension.list, and docs.* when available.
+      publish.up/down/status/url (ibsrv), extension.add / extension.list, and docs.* when available.
       `project.clean` is destructive (wipes source + `.1c-dev/runtime/`); always pass yes=true
       and confirm intent first — does not touch `.1c-dev/project.yaml` / AGENTS.md / IDE MCP / git.
       MCP `path` = scope root (parent of `.1c-dev`).
