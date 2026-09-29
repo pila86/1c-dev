@@ -1,4 +1,4 @@
-"""Idempotent IDE configure: AGENTS, gitignore, IDE MCP (ADR-016 / #50)."""
+"""Idempotent IDE configure: AGENTS, gitignore, IDE MCP (ADR-016 / #50 / #90)."""
 
 from __future__ import annotations
 
@@ -29,8 +29,13 @@ from core.toolchain.manifest import load_manifest
 from core.toolchain.resolve import resolve_component_jar
 
 IdeName = Literal["cursor", "kilocode"]
+AgentsMode = Literal["auto", "scope", "none"]
 
 SUPPORTED_TARGETS: frozenset[str] = frozenset({"all", "cursor", "kilocode", "none"})
+SUPPORTED_AGENTS: frozenset[str] = frozenset({"auto", "scope", "none"})
+
+AGENTS_BEGIN = "<!-- BEGIN 1c-dev -->"
+AGENTS_END = "<!-- END 1c-dev -->"
 
 _IDE_MCP_REL: dict[IdeName, str] = {
     "cursor": ".cursor/mcp.json",
@@ -56,6 +61,14 @@ def ides_to_configure(target: str) -> list[IdeName]:
 def mcp_rel_path(ide: IdeName) -> str:
     """Relative path of MCP config for IDE."""
     return _IDE_MCP_REL[ide]
+
+
+def _should_write_agents(agents: str, project: Path, ide_root: Path) -> bool:
+    if agents == "none":
+        return False
+    if agents == "scope":
+        return True
+    return project == ide_root
 
 
 def _render(template: str, values: dict[str, str]) -> str:
@@ -149,15 +162,41 @@ def _merge_gitignore(
     return [], [rel], []
 
 
-def _write_agents(
-    root: Path,
-    *,
-    force: bool,
-) -> tuple[list[str], list[str], list[str], list[Diagnostic]]:
+def _agents_template_text() -> str:
     tmpl = templates_root() / "configuration" / "AGENTS.md"
     template_text = tmpl.read_text(encoding="utf-8")
     if not template_text.endswith("\n"):
         template_text += "\n"
+    return template_text
+
+
+def _upsert_agents_block(existing: str, block: str) -> str:
+    """Insert or replace the managed 1c-dev block; preserve surrounding text."""
+    begin_idx = existing.find(AGENTS_BEGIN)
+    end_idx = existing.find(AGENTS_END)
+    block_body = block.rstrip("\n") + "\n"
+
+    if begin_idx == -1 or end_idx == -1 or end_idx < begin_idx:
+        base = existing
+        if base and not base.endswith("\n"):
+            base += "\n"
+        if base and not base.endswith("\n\n"):
+            base += "\n"
+        return base + block_body
+
+    end_pos = end_idx + len(AGENTS_END)
+    if end_pos < len(existing) and existing[end_pos] == "\n":
+        end_pos += 1
+    return existing[:begin_idx] + block_body + existing[end_pos:]
+
+
+def _merge_agents(
+    root: Path,
+    *,
+    force: bool,
+) -> tuple[list[str], list[str], list[str], list[Diagnostic]]:
+    """Create or merge managed AGENTS.md block. Return (created, updated, skipped, diags)."""
+    template_text = _agents_template_text()
     dest = root / "AGENTS.md"
     rel = "AGENTS.md"
     diagnostics: list[Diagnostic] = []
@@ -170,15 +209,13 @@ def _write_agents(
         _write_text(dest, template_text)
         return [], [rel], [], diagnostics
 
-    diagnostics.append(
-        warning(
-            "AGENTS.md уже существует — пропущен (укажите --force для перезаписи)",
-            code="1CP008",
-            file=rel,
-            suggestion="Проверьте правила вручную или перезапишите шаблоном с --force",
-        )
-    )
-    return [], [], [rel], diagnostics
+    existing = dest.read_text(encoding="utf-8")
+    merged = _upsert_agents_block(existing, template_text)
+    if merged == existing:
+        return [], [], [rel], diagnostics
+
+    _write_text(dest, merged)
+    return [], [rel], [], diagnostics
 
 
 def build_mcp_servers_payload(
@@ -302,26 +339,46 @@ def _configure_ide_mcp(
 def configure_ide(
     path: Path | None = None,
     *,
+    ide_root: Path | None = None,
     target: str = "all",
     force: bool = False,
+    agents: str = "auto",
 ) -> ProjectResult:
     """
     Idempotent configure of agent/IDE artifacts in an existing project directory.
 
-    Does not scaffold empty Configuration.xml (use init) and does not import .cf.
+    ``path`` / project = scope root (manifest, gitignore, AGENTS).
+    ``ide_root`` = where to write ``.cursor`` / ``.kilo`` (default = project).
     """
-    root = (path or Path.cwd()).resolve()
-    root.mkdir(parents=True, exist_ok=True)
+    project = (path or Path.cwd()).resolve()
+    project.mkdir(parents=True, exist_ok=True)
+    resolved_ide_root = (ide_root or project).resolve()
+    resolved_ide_root.mkdir(parents=True, exist_ok=True)
 
     if target not in SUPPORTED_TARGETS:
         return ProjectResult(
             status="error",
-            root=root,
+            root=project,
+            ide_root=resolved_ide_root,
             diagnostics=[
                 error(
                     f"Неизвестное значение --target: {target}",
                     code="1CP007",
                     suggestion="Используйте all, cursor, kilocode или none",
+                )
+            ],
+        )
+
+    if agents not in SUPPORTED_AGENTS:
+        return ProjectResult(
+            status="error",
+            root=project,
+            ide_root=resolved_ide_root,
+            diagnostics=[
+                error(
+                    f"Неизвестное значение --agents: {agents}",
+                    code="1CP010",
+                    suggestion="Используйте auto, scope или none",
                 )
             ],
         )
@@ -334,20 +391,23 @@ def configure_ide(
     diagnostics: list[Diagnostic] = []
 
     try:
-        created.extend(_ensure_manifest(root))
+        created.extend(_ensure_manifest(project))
 
-        a_c, a_u, a_s, a_d = _write_agents(root, force=force)
-        created.extend(a_c)
-        updated.extend(a_u)
-        skipped.extend(a_s)
-        diagnostics.extend(a_d)
+        if _should_write_agents(agents, project, resolved_ide_root):
+            a_c, a_u, a_s, a_d = _merge_agents(project, force=force)
+            created.extend(a_c)
+            updated.extend(a_u)
+            skipped.extend(a_s)
+            diagnostics.extend(a_d)
 
-        g_c, g_u, g_s = _merge_gitignore(root, force=force)
+        g_c, g_u, g_s = _merge_gitignore(project, force=force)
         created.extend(g_c)
         updated.extend(g_u)
         skipped.extend(g_s)
 
-        m_c, m_u, m_s, m_d = _configure_ide_mcp(root, ides, force=force)
+        m_c, m_u, m_s, m_d = _configure_ide_mcp(
+            resolved_ide_root, ides, force=force
+        )
         created.extend(m_c)
         updated.extend(m_u)
         skipped.extend(m_s)
@@ -355,7 +415,8 @@ def configure_ide(
     except (OSError, FileNotFoundError, KeyError) as exc:
         return ProjectResult(
             status="error",
-            root=root,
+            root=project,
+            ide_root=resolved_ide_root,
             diagnostics=[
                 error(
                     f"Ошибка настройки IDE проекта: {exc}",
@@ -364,7 +425,8 @@ def configure_ide(
             ],
         )
 
-    result = validate_project(root)
+    result = validate_project(project)
+    result.ide_root = resolved_ide_root
     result.created = created
     result.updated = updated
     result.skipped = skipped

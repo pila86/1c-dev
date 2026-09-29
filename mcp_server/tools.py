@@ -377,22 +377,30 @@ def register_tools(server: FastMCP) -> None:
         description=(
             "Configure IDE MCP configs (cursor/kilocode), AGENTS.md, and .gitignore "
             "for an existing 1C project. "
+            "path = scope root (manifest / gitignore / AGENTS). "
+            "ide_root = where to write .cursor/.kilo (default = path). "
+            "agents: auto (AGENTS only when ide_root=path), scope (always in path), "
+            "none (skip AGENTS). "
             "target: all (default), cursor, kilocode, or none. "
-            "Without force, does not overwrite AGENTS.md; merges missing MCP servers "
-            "and .gitignore lines."
+            "Without force: merge AGENTS managed block (<!-- BEGIN 1c-dev -->), "
+            "merge missing MCP servers and .gitignore lines."
             + _PATH_SCOPE
             + _NO_SHELL
         ),
     )
     def ide_configure_tool(
         path: str | None = None,
+        ide_root: str | None = None,
         target: str = "all",
         force: bool = False,
+        agents: str = "auto",
     ) -> dict[str, Any]:
         result = configure_ide(
             resolve_path(path),
+            ide_root=resolve_path(ide_root) if ide_root else None,
             target=target,
             force=force,
+            agents=agents,
         )
         return result.to_payload(include_manifest=False)
 

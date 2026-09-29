@@ -1,3 +1,4 @@
+<!-- BEGIN 1c-dev -->
 # 1C Development Rules
 
 1. Never modify generated artifacts.
@@ -39,3 +40,4 @@
       Before analyze_file / hover / definition / etc.: call `list_workspace_folders`;
       if the project root is missing, call `register_workspace_folder` with the IDE
       workspace root (not `src/cf`). Then analyze files inside that folder.
+<!-- END 1c-dev -->
