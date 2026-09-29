@@ -42,3 +42,20 @@ components:
       path: tools/docs-facade
     min_java: 21
     env: ONEC_DOCS_FACADE_JAR
+
+  # Soft: user-owned httpd home for publish/webinst (#94).
+  # Unix: tools sync собирает ASF httpd+apr+apr-util в ~/.cache/1c-dev/tools/apache/
+  # (нужны gcc/make/libpcre2-dev). Fallback для разработчиков: ./scripts/fetch-apache.sh
+  # Windows: prebuilt zip (Apache Lounge). Override: ONEC_APACHE_HOME.
+  - id: apache
+    artifact: apache
+    pin: "2.4.68"
+    source:
+      type: apache-home
+      build:
+        httpd: https://downloads.apache.org/httpd/httpd-2.4.68.tar.gz
+        apr: https://downloads.apache.org/apr/apr-1.7.6.tar.gz
+        apr_util: https://downloads.apache.org/apr/apr-util-1.6.5.tar.gz
+      urls:
+        windows_amd64: https://www.apachelounge.com/download/VS17/binaries/httpd-2.4.66-251206-Win64-VS17.zip
+    env: ONEC_APACHE_HOME

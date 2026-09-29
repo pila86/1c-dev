@@ -119,15 +119,21 @@ def register_configuration_entry(
         runtimes.append(rt_entry)
 
         if is_first_rt and "publish" not in data:
+            from core.publish.resolve import (
+                DEFAULT_BACKEND,
+                build_default_profile_entry,
+                default_profile_id_for_backend,
+            )
+
+            profile_id = default_profile_id_for_backend(DEFAULT_BACKEND)
             data["publish"] = {
-                "default": "local-ibsrv",
+                "default": profile_id,
                 "profiles": {
-                    "local-ibsrv": {
-                        "backend": "ibsrv",
-                        "port": 8314,
-                        "runtime": resolved_id,
-                        "config": ".1c-dev/publish/local-ibsrv/ibsrv.yaml",
-                    }
+                    profile_id: build_default_profile_entry(
+                        DEFAULT_BACKEND,
+                        runtime_id=resolved_id,
+                        profile_id=profile_id,
+                    )
                 },
             }
 

@@ -2,7 +2,7 @@
 
 **Статус:** Accepted  
 **Дата:** 2026-09-26  
-**Обновлено:** 2026-09-26 — публичная команда bootstrap jars: `1c-dev tools sync` (вместо `1c-dev install`)
+**Обновлено:** 2026-09-29 — soft `apache` в cache: ASF source build / prebuilt zip (#94)
 
 ## Контекст
 
@@ -53,10 +53,11 @@ Windows:      %LOCALAPPDATA%\1c-dev\
     md-reader.jar / md-reader-{pin}.jar
     bsl-language-server.jar / bsl-language-server-{ver}.jar
     docs-facade.jar / docs-facade-{pin}.jar   # фасад bsl-context — ADR-017 / #51
+    apache/                                  # soft: user-owned httpd home (#94 / ADR-025)
   docs/                                      # lazy index по platform.version (ADR-017)
 ```
 
-Совпадает с `tools_cache_dir()` / `core.toolchain.cache` (каталог `tools/`).
+Совпадает с `tools_cache_dir()` / `core.toolchain.cache` (каталог `tools/`). Soft-компонент `apache`: **user-owned** httpd home — `1c-dev tools sync` собирает ASF `httpd`+`apr`+`apr-util` в `tools/apache/` (Unix; нужны gcc/make/libpcre2-dev) или качает prebuilt zip (Windows `urls`); override `ONEC_APACHE_HOME`; ручной fallback `./scripts/fetch-apache.sh`. Thin wrapper на системный `/usr/sbin/apache2` **не** используем. Отсутствие → doctor gap, не ломает must jars.
 
 ### Манифест toolchain
 

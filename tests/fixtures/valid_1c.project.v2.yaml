@@ -33,8 +33,12 @@ runtimes:
     type: file
     path: .1c-dev/runtime/buh
 publish:
-  default: local-ibsrv
+  default: local-webinst
   profiles:
+    local-webinst:
+      backend: webinst
+      port: 8315
+      runtime: main-dev
     local-ibsrv:
       backend: ibsrv
       port: 8314

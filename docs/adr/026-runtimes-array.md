@@ -31,7 +31,7 @@
 
 5. `configuration.add` (не `project.init`) создаёт configuration + связанный runtime (`path`: `.1c-dev/runtime/<config-id>`, `default: true` если первый). `project.init` пишет empty arrays (ADR-027).
 
-6. Publish-профиль указывает `runtime: <id>` (ADR-025); при первом runtime `configuration.add` может добавить default-профиль `local-ibsrv`.
+6. Publish-профиль указывает `runtime: <id>` (ADR-025); при первом runtime `configuration.add` может добавить default-профиль `local-webinst` (Apache).
 
 ## Альтернативы
 

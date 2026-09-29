@@ -13,6 +13,7 @@ CAPABILITY_REQUIREMENTS: dict[str, list[str]] = {
     "check": ["ibcmd"],
     "configuration.import": ["ibcmd"],
     "ibsrv": ["ibsrv"],
+    "webinst": ["webinst", "apache"],
     "templates": ["templates"],
     "metadata.create": ["java", "xml-gen"],
     "metadata.update": ["java", "xml-gen"],
@@ -35,6 +36,15 @@ _TOOL_HINTS: dict[str, str] = {
     "ibsrv": (
         "Установите платформу 1С с автономным сервером и добавьте ibsrv в PATH "
         "(рядом с ibcmd; нужен для publish.up)."
+    ),
+    "webinst": (
+        "Опционально: бинарь webinst в PATH (диагностика). "
+        "Для publish backend webinst достаточно платформы с wsap24.so "
+        "рядом с ibcmd и Apache в cache (1c-dev tools sync)."
+    ),
+    "apache": (
+        "Выполните 1c-dev tools sync или задайте ONEC_APACHE_HOME "
+        "(user-owned httpd prefix в cache; без /etc и sudo)."
     ),
     "templates": (
         "Установите шаблоны конфигураций платформы (tmplts) "

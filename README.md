@@ -50,6 +50,7 @@ poetry run pytest
 poetry run pytest -m integration   # E2E с platform/xml-gen/md-reader; иначе skip
 # M3 accept: poetry run pytest tests/test_m3_acceptance.py -m integration
 # publish ibsrv HTTP: poetry run pytest tests/test_publish_integration.py -m integration
+# publish webinst: poetry run pytest tests/test_publish_webinst_integration.py -m integration
 ```
 
 Fallback для разработчиков (те же pin’ы): `./scripts/fetch-xml-gen.sh`, `./scripts/fetch-md-reader.sh` (Windows: `pwsh scripts/fetch-*.ps1`).
@@ -61,7 +62,7 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 | Команда | Назначение |
 |---------|------------|
 | `1c-dev doctor [--fix]` | Проверка окружения; `--fix` запускает `tools sync` и повторяет проверку |
-| `1c-dev tools sync` | Bootstrap jars toolchain в user cache |
+| `1c-dev tools sync` | Bootstrap jars + user Apache (`tools/apache`) в cache |
 | `1c-dev tools clean --yes` | Удалить user cache toolchain |
 | `1c-dev uninstall --yes` | Cache + `uv tool uninstall 1c-dev` |
 | `1c-dev init --type configuration [--ide-target all\|cursor\|kilocode\|none]` | Bootstrap пустого проекта конфигурации (+ IDE MCP) |
@@ -79,9 +80,9 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 | `1c-dev runtime start [--client thick|thin] [--debug]` | Запуск клиента (ENTERPRISE) к file IB |
 | `1c-dev runtime stop` | Остановка клиента |
 | `1c-dev runtime status` | Статус клиента (pid / client / debug) |
-| `1c-dev publish up [--profile]` | Публикация file IB через `ibsrv` (init yaml + daemon) |
-| `1c-dev publish down [--profile]` | Остановка `ibsrv` |
-| `1c-dev publish status\|url [--profile]` | Статус / URL веб-клиента |
+| `1c-dev publish up [--profile] [--backend]` | Публикация file IB (default: `webinst`+user Apache; опционально `ibsrv`); `--backend` создаёт `local-*` профиль при необходимости |
+| `1c-dev publish down [--profile] [--backend]` | Остановка publish-backend (`ibsrv` / httpd) |
+| `1c-dev publish status\|url [--profile] [--backend]` | Статус / URL веб-клиента |
 | `1c-dev metadata list` | Список объектов (IR summaries) |
 | `1c-dev metadata get <QualifiedName>` | IR объекта по QName |
 | `1c-dev metadata find <query>` | Поиск по имени / синониму |
@@ -149,6 +150,7 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 1c-dev runtime status --output json
 1c-dev runtime stop --output json
 1c-dev publish up --output json
+1c-dev publish up --backend ibsrv --output json
 1c-dev publish status --output json
 1c-dev publish url
 1c-dev publish down --output json

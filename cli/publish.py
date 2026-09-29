@@ -11,6 +11,7 @@ import typer
 from cli.output import OutputFormat, OutputOption, resolve_output
 from core.exit_codes import ENV_UNAVAILABLE, PROJECT_ERROR, RUNTIME_FAILURE, SUCCESS
 from core.publish import (
+    CODE_APACHE_FAILED,
     CODE_BACKEND_UNSUPPORTED,
     CODE_IB_MISSING,
     CODE_IBCMD_MISSING,
@@ -18,6 +19,7 @@ from core.publish import (
     CODE_IBSRV_MISSING,
     CODE_PROFILE_UNKNOWN,
     CODE_PROJECT,
+    CODE_WEBINST_MISSING,
     PublishResult,
     run_down,
     run_status,
@@ -27,7 +29,7 @@ from core.publish import (
 
 app = typer.Typer(
     name="publish",
-    help="Публикация file IB через ibsrv (HTTP).",
+    help="Публикация file IB: ibsrv или webinst+Apache (HTTP).",
     add_completion=False,
     no_args_is_help=True,
 )
@@ -37,6 +39,17 @@ ProfileOption = Annotated[
     typer.Option(
         "--profile",
         help="Id профиля из publish.profiles (по умолчанию publish.default).",
+    ),
+]
+
+BackendOption = Annotated[
+    str | None,
+    typer.Option(
+        "--backend",
+        help=(
+            "Способ публикации: ibsrv|webinst. "
+            "На up при отсутствии профиля создаёт local-<backend> в project.yaml."
+        ),
     ),
 ]
 
@@ -53,7 +66,12 @@ def _exit_for(result: PublishResult) -> None:
     if result.status == "ok":
         raise typer.Exit(code=SUCCESS)
     codes = {d.get("code") for d in result.diagnostics}
-    if codes & {CODE_IBSRV_MISSING, CODE_IBCMD_MISSING}:
+    if codes & {
+        CODE_IBSRV_MISSING,
+        CODE_IBCMD_MISSING,
+        CODE_WEBINST_MISSING,
+        CODE_APACHE_FAILED,
+    }:
         raise typer.Exit(code=ENV_UNAVAILABLE)
     if codes & {
         CODE_PROJECT,
@@ -103,10 +121,11 @@ def _text(result: PublishResult) -> list[str]:
 def publish_up(
     ctx: typer.Context,
     profile: ProfileOption = None,
+    backend: BackendOption = None,
     output: OutputOption = None,
 ) -> None:
-    """Сгенерировать yaml ibsrv (при необходимости) и запустить daemon."""
-    result = run_up(Path.cwd(), profile_id=profile)
+    """Поднять publish-backend (ibsrv или webinst); --backend создаёт профиль при необходимости."""
+    result = run_up(Path.cwd(), profile_id=profile, backend=backend)
     _emit(result.to_payload(), resolve_output(ctx, output), text_lines=_text(result))
     _exit_for(result)
 
@@ -115,10 +134,11 @@ def publish_up(
 def publish_down(
     ctx: typer.Context,
     profile: ProfileOption = None,
+    backend: BackendOption = None,
     output: OutputOption = None,
 ) -> None:
-    """Остановить ibsrv (TERM/KILL) и очистить stale lock.pid."""
-    result = run_down(Path.cwd(), profile_id=profile)
+    """Остановить publish-backend и очистить pid / unpublish webinst."""
+    result = run_down(Path.cwd(), profile_id=profile, backend=backend)
     _emit(result.to_payload(), resolve_output(ctx, output), text_lines=_text(result))
     _exit_for(result)
 
@@ -127,10 +147,11 @@ def publish_down(
 def publish_status(
     ctx: typer.Context,
     profile: ProfileOption = None,
+    backend: BackendOption = None,
     output: OutputOption = None,
 ) -> None:
-    """Статус ibsrv для publish-профиля (pid / url)."""
-    result = run_status(Path.cwd(), profile_id=profile)
+    """Статус publish-профиля (pid / url)."""
+    result = run_status(Path.cwd(), profile_id=profile, backend=backend)
     _emit(result.to_payload(), resolve_output(ctx, output), text_lines=_text(result))
     _exit_for(result)
 
@@ -139,10 +160,11 @@ def publish_status(
 def publish_url(
     ctx: typer.Context,
     profile: ProfileOption = None,
+    backend: BackendOption = None,
     output: OutputOption = None,
 ) -> None:
-    """URL веб-клиента из ibsrv.yaml."""
-    result = run_url(Path.cwd(), profile_id=profile)
+    """URL веб-клиента для publish-профиля."""
+    result = run_url(Path.cwd(), profile_id=profile, backend=backend)
     out = resolve_output(ctx, output)
     if out is OutputFormat.json:
         _emit(result.to_payload(), out, text_lines=_text(result))

@@ -29,10 +29,20 @@ def _free_port() -> int:
 def _set_publish_port(root: Path, port: int) -> None:
     manifest = root / ".1c-dev" / "project.yaml"
     data = yaml.safe_load(manifest.read_text(encoding="utf-8"))
-    profiles = data.setdefault("publish", {}).setdefault("profiles", {})
-    profile = profiles.setdefault("local-ibsrv", {})
+    publish = data.setdefault("publish", {})
+    profiles = publish.setdefault("profiles", {})
+    runtime_id = data["runtimes"][0]["id"]
+    profile = profiles.setdefault(
+        "local-ibsrv",
+        {
+            "backend": "ibsrv",
+            "runtime": runtime_id,
+            "config": ".1c-dev/publish/local-ibsrv/ibsrv.yaml",
+        },
+    )
     profile["port"] = port
     profile.setdefault("backend", "ibsrv")
+    publish["default"] = "local-ibsrv"
     manifest.write_text(
         yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
         encoding="utf-8",

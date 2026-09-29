@@ -53,6 +53,7 @@ def _fake_discovery(*, ibcmd: Path | None) -> DiscoveryResult:
         onecv8=ToolInfo(found=False, path=None),
         onecv8c=ToolInfo(found=False, path=None),
         ibsrv=ToolInfo(found=False, path=None),
+        webinst=ToolInfo(found=False, path=None),
     )
 
 
