@@ -10,6 +10,7 @@ from cli.build import build_command
 from cli.check import check_command
 from cli.docs import app as docs_app
 from cli.doctor import doctor_command
+from cli.extension import app as extension_app
 from cli.ide import app as ide_app
 from cli.init import init_command
 from cli.mcp_cmd import mcp_command
@@ -31,6 +32,7 @@ app = typer.Typer(
 app.add_typer(project_app, name="project")
 app.add_typer(metadata_app, name="metadata")
 app.add_typer(runtime_app, name="runtime")
+app.add_typer(extension_app, name="extension")
 app.add_typer(source_app, name="source")
 app.add_typer(tools_app, name="tools")
 app.add_typer(ide_app, name="ide")

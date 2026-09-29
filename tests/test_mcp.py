@@ -24,6 +24,8 @@ EXPECTED_TOOLS = {
     "project.get",
     "project.list",
     "project.init",
+    "extension.add",
+    "extension.list",
     "ide.configure",
     "project.import",
     "project.clean",

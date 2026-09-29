@@ -132,8 +132,29 @@ def test_init_project_force_overwrites(tmp_path: Path) -> None:
     assert result.manifest["project"]["name"] == "Shop2"
 
 
+def test_init_project_extension_ok(tmp_path: Path) -> None:
+    target = tmp_path / "myext"
+    target.mkdir()
+    result = init_project(target, project_type="extension", name="CustomExt")
+    assert result.status == "ok", result.diagnostics
+    assert result.manifest is not None
+    assert result.manifest["project"]["type"] == "extension"
+    assert result.manifest["configurations"][0]["type"] == "extension"
+    assert result.manifest["configurations"][0]["source"]["path"] == "src/cfe/CustomExt"
+    cfg = target / "src" / "cfe" / "CustomExt" / "Configuration.xml"
+    assert cfg.is_file()
+    text = cfg.read_text(encoding="utf-8-sig")
+    assert "<Name>CustomExt</Name>" in text
+    assert "<NamePrefix>CustomExt_</NamePrefix>" in text
+    assert "<ObjectBelonging>Adopted</ObjectBelonging>" in text
+    role = target / "src" / "cfe" / "CustomExt" / "Roles" / "CustomExt_MainRole.xml"
+    assert role.is_file()
+    validated = validate_project(target)
+    assert validated.status == "ok"
+
+
 def test_init_project_unsupported_type(tmp_path: Path) -> None:
-    result = init_project(tmp_path, project_type="extension")
+    result = init_project(tmp_path, project_type="external-report")
     assert result.status == "error"
     assert any(d.get("code") == "1CP005" for d in result.diagnostics)
     assert not (tmp_path / ".1c-dev" / "project.yaml").exists()
@@ -190,13 +211,27 @@ def test_cli_project_init_alias(
     assert payload["status"] == "ok"
 
 
+def test_cli_init_extension_ok(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(
+        app,
+        ["--output", "json", "init", "--type", "extension", "--name", "MyExt"],
+    )
+    assert result.exit_code == SUCCESS, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "ok"
+    assert (tmp_path / "src" / "cfe" / "MyExt" / "Configuration.xml").is_file()
+
+
 def test_cli_init_unsupported_type(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
     result = runner.invoke(
         app,
-        ["--output", "json", "init", "--type", "extension"],
+        ["--output", "json", "init", "--type", "external-report"],
     )
     assert result.exit_code == PROJECT_ERROR
     payload = json.loads(result.stdout)

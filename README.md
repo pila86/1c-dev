@@ -63,8 +63,11 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 | `1c-dev tools sync` | Bootstrap jars toolchain в user cache |
 | `1c-dev tools clean --yes` | Удалить user cache toolchain |
 | `1c-dev uninstall --yes` | Cache + `uv tool uninstall 1c-dev` |
-| `1c-dev init --type configuration [--ide-target all\|cursor\|kilocode\|none]` | Bootstrap пустого проекта (+ IDE MCP) |
-| `1c-dev project detect\|validate\|info` | Манифест `1c.project.yaml` (`project init` = алиас `init`) |
+| `1c-dev init --type configuration [--ide-target all\|cursor\|kilocode\|none]` | Bootstrap пустого проекта конфигурации (+ IDE MCP) |
+| `1c-dev init --type extension` | Bootstrap standalone-проекта расширения (`src/cfe/<name>/`) |
+| `1c-dev extension add [--id] [--name] [--purpose] [--config]` | Добавить расширение в configuration-проект |
+| `1c-dev extension list [--config] [--runtime]` | Список расширений в выбранной file IB |
+| `1c-dev project detect\|validate\|info` | Манифест `.1c-dev/project.yaml` / legacy (`project init` = алиас `init`) |
 | `1c-dev project import --from <file.cf>` | Импорт `.cf` → XML source (`--force` перезаписывает; `--break-support` снимает с поддержки) |
 | `1c-dev source break-support` | Удалить `ParentConfigurations*` из `source.path` (без повторного import) |
 | `1c-dev project clean --yes` | Destructive: wipe `source.path` + `.runtime/` (манифест/IDE intact) |
@@ -78,7 +81,7 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 | `1c-dev metadata create <QualifiedName>` | Создать объект (23 Meta DSL + `Subsystem`) |
 | `1c-dev metadata update <QualifiedName>` | Ops над существующим объектом (те же write-типы) |
 | `1c-dev metadata delete <QualifiedName>` | Удалить объект из source + `Configuration.xml` |
-| `1c-dev build [--artifact cf]` | Загрузить XML в file IB через `ibcmd` |
+| `1c-dev build [--artifact cf] [--config] [--runtime]` | Загрузить XML configuration (+ nested extensions) в file IB через `ibcmd` |
 | `1c-dev check [--platform]` | Платформенная проверка конфигурации (`ibcmd config check`) |
 | `1c-dev mcp` | MCP server (stdio) для AI-агентов |
 | `1c-dev ide configure [--target all\|cursor\|kilocode\|none]` | AGENTS.md, `.gitignore`, IDE MCP |
@@ -89,6 +92,9 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 
 ```bash
 1c-dev init --type configuration --output json
+1c-dev extension add --id custom --name CustomExt
+1c-dev build   # configuration, затем extensions → default runtime IB
+1c-dev extension list
 1c-dev doctor --output json
 1c-dev metadata create Catalog.Products --synonym "Товары" --attr "Article:String:50:Артикул"
 1c-dev metadata create Document.Sales --synonym "Продажи" \
