@@ -92,7 +92,7 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 | `1c-dev build [--artifact cf] [--config] [--runtime]` | Загрузить configuration (+ nested extensions XML/`.cfe`) в file IB через `ibcmd` |
 | `1c-dev check [--platform]` | Платформенная проверка конфигурации (`ibcmd config check`) |
 | `1c-dev mcp` | MCP server (stdio) для AI-агентов |
-| `1c-dev ide configure [--project] [--ide-root] [--agents] [--target …]` | AGENTS.md (merge), `.gitignore`, IDE MCP |
+| `1c-dev ide configure [--project] [--ide-root] [--agents] [--target …]` | AGENTS.md (merge), `.gitignore`, IDE MCP + rules |
 
 **Write-типы** (`metadata.create` / `update` / `delete`; также `doctor` → `supportedTypes`, [ADR-018](docs/adr/018-metadata-types-coverage.md)): AccountingRegister, AccumulationRegister, BusinessProcess, CalculationRegister, Catalog, ChartOfAccounts, ChartOfCalculationTypes, ChartOfCharacteristicTypes, CommonModule, Constant, DataProcessor, DefinedType, Document, DocumentJournal, Enum, EventSubscription, ExchangePlan, HTTPService, InformationRegister, Report, ScheduledJob, **Subsystem**, Task, WebService.
 

@@ -27,7 +27,7 @@
 | [013](013-packaging-toolchain-cache.md) | Accepted | Packaging (`uv tool`) / user cache / pin toolchain |
 | [014](014-ibcmd-import-cf.md) | Accepted | Platform adapter: ibcmd import from `.cf` |
 | [015](015-project-import-cf.md) | Superseded by [028](028-configuration-import.md) | Product API: historical `project.import` / `runtime.load` |
-| [016](016-ide-configure.md) | Accepted | IDE configure (MCP + AGENTS merge) |
+| [016](016-ide-configure.md) | Accepted | IDE configure (MCP + rules + AGENTS merge) |
 | [017](017-docs-bsl-context.md) | Accepted | Docs API via bsl-context (lazy index) |
 | [018](018-metadata-types-coverage.md) | Accepted | Metadata types coverage (23 meta + Subsystem) |
 | [019](019-runtime-client-lifecycle.md) | Accepted | Runtime client lifecycle (`start` / `stop` / `status`, `/Debug`) |

@@ -255,6 +255,7 @@ Out of this track: Role / Form / Command / SessionParameter / …; `xml-gen inte
 
 - [x] `1c-dev ide configure --target cursor|kilocode` пишет/мержит манифест, `AGENTS.md`, MCP-конфиг IDE, `.gitignore` по политике merge выше — #50
 - [x] Повторный `ide configure` без `--force` не затирает пользовательские правки (`AGENTS.md` skip; MCP — только недостающие servers; `.gitignore` — append) — #50
+- [x] `ide configure` / `init` также ставят IDE rules от `1c-dev` (`.cursor/rules/*.mdc`, `.kilo/rules/*.md`) с managed-маркерами; чужие same-name — skip + `1CP011` — ADR-016
 - [x] После `ide configure` агент в Cursor (и Kilocode) может вызвать `1c-dev` MCP без ручного копирования репо — #50
 
 ### BSL LS + docs

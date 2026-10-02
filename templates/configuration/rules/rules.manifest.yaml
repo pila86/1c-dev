@@ -1,0 +1,10 @@
+# IDE rules shipped by 1c-dev for ide configure / project.init (ADR-016).
+rules:
+  - id: bsl-string-literals
+    title: "BSL: строковые литералы"
+  - id: bsl-module-structure
+    title: "Структура модуля 1С"
+  - id: 1c-service-addresses
+    title: "Адреса опубликованных сервисов 1С"
+  - id: bsl-transactions
+    title: "Транзакции 1С"
