@@ -5,7 +5,7 @@
 
 ## Контекст
 
-Schema `"1"` описывает один `source` и один `project.type`. Нужны несколько конфигураций в одном scope и расширения (разработка + загрузка в ИБ), в том числе test-extension для будущего test runner ([draft-tests](../milestones/draft-tests.md)).
+Schema `"1"` описывает один `source` и один `project.type`. Нужны несколько конфигураций в одном scope и расширения (разработка + загрузка в ИБ), в том числе test-extension для будущего test runner ([M5](../milestones/m5-tests.md)).
 
 ## Решение
 
@@ -64,5 +64,5 @@ ibcmd extension list         --db-path=… --data=…
 - ADR-008, ADR-014, ADR-015, ADR-022, ADR-026
 - [M4](../milestones/m4-project-model.md)
 - [Spike #84](../spikes/084-ibcmd-extension-ibsrv.md)
-- [draft-tests](../milestones/draft-tests.md)
+- [M5 tests](../milestones/m5-tests.md)
 - [ADR-012](012-metadata-read-mdclasses.md) / #112

@@ -52,7 +52,7 @@
 
 - Import из `.cf` (уже [M3](m3-product-adopt.md))
 - Project home / multi-config / templates / publish (→ [M4](m4-project-model.md))
-- YAxUnit / Vanessa (→ [draft-tests](draft-tests.md))
+- YAxUnit / Vanessa (→ [M5](m5-tests.md))
 - DAP, semantic diff, verify; Remote / Docker / lockfile — вне активного roadmap
 - `.cf` как постоянный source format в манифесте (`source.format: cf`)
 - Публичный `source.write` как замена `metadata.create`

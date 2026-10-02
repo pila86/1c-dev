@@ -269,7 +269,7 @@ Out of this track: Role / Form / Command / SessionParameter / …; `xml-gen inte
 ## Out of scope M3
 
 - EDT adapter / `source.convert` (→ [draft-source-formats](draft-source-formats.md))
-- YAxUnit / Vanessa (→ [draft-tests](draft-tests.md))
+- YAxUnit / Vanessa (→ [M5](m5-tests.md))
 - DAP, semantic diff, verify против `.cf` как baseline — вне активного roadmap
 - Remote runtime / Docker / lockfile / marketplace — вне активного roadmap
 - Project home / multi-config / templates / publish (→ [M4](m4-project-model.md))

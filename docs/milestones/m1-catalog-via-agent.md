@@ -43,7 +43,7 @@ AI-агент через MCP создаёт конфигурацию 1С с од
 - `metadata.list` / `get` / `find`, `metadata.update`, create кроме `Catalog` (→ [M2](m2-metadata-api.md))
 - User install / `ide configure` / BSL LS MCP / docs index (→ [M3](m3-product-adopt.md))
 - Project home / multi-config / templates / publish (→ [M4](m4-project-model.md))
-- YAxUnit / Vanessa (→ [draft-tests](draft-tests.md))
+- YAxUnit / Vanessa (→ [M5](m5-tests.md))
 - Semantic diff / verify / DAP — вне активного roadmap
 - `source.write` как отдельный API (write только через `metadata.create`)
 

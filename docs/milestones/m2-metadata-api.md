@@ -190,7 +190,7 @@ Feature-issues #20–#26, #28, #29, #35, #39, #40 и сквозной acceptance
 - Публичный `source.write` как замена Metadata API
 - Полное покрытие всех видов метаданных платформы
 - Расширения (`project.type: extension`) и изменение объектов базовой конфигурации через extension
-- YAxUnit / DAP (→ [draft-tests](draft-tests.md); debug вне roadmap)
+- YAxUnit / DAP (→ [M5](m5-tests.md); debug вне roadmap)
 
 ## Manual verification
 

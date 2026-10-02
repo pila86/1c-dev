@@ -18,8 +18,9 @@
 | **M2** | Metadata API: list/get/find + update + create (Document, registers, …) + delete | Done |
 | **M3** | Product adopt: import `.cf`, user install/PATH **+ автозагрузка toolchain**, `ide configure`, BSL LS MCP, docs/context; **should (temporary):** metadata types coverage | Done |
 | **M4** | Project home `.1c-dev/`, multi-config + extensions, platform templates, publish (ibsrv / webinst), `runtimes[]` | In progress |
+| **M5** | Test API: YAxUnit adapter, CLI/MCP `test.*`, `configurations[].tests`; Vanessa — follow-up | Planned |
 
-Документы этапов: [M1](milestones/m1-catalog-via-agent.md) · [M2](milestones/m2-metadata-api.md) · [M3](milestones/m3-product-adopt.md) · [M4](milestones/m4-project-model.md)
+Документы этапов: [M1](milestones/m1-catalog-via-agent.md) · [M2](milestones/m2-metadata-api.md) · [M3](milestones/m3-product-adopt.md) · [M4](milestones/m4-project-model.md) · [M5](milestones/m5-tests.md)
 
 ## Черновики (вне нумерации)
 
@@ -28,7 +29,6 @@
 | Черновик | Было | Документ |
 |----------|------|----------|
 | Source formats (EDT) | M4 EDT | [draft-source-formats](milestones/draft-source-formats.md) |
-| Tests (YAxUnit / Vanessa) | M5 | [draft-tests](milestones/draft-tests.md) |
 
 Debug (DAP) / Remote (Docker, lockfile) — при появлении текстов сразу как `draft-debug.md` / `draft-remote.md`.
 
