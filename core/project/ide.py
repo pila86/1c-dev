@@ -1,11 +1,14 @@
-"""Idempotent IDE configure: AGENTS, gitignore, IDE MCP (ADR-016 / #50 / #90)."""
+"""Idempotent IDE configure: AGENTS, gitignore, IDE MCP + rules (ADR-016 / #50 / #90)."""
 
 from __future__ import annotations
 
 import json
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
+
+import yaml
 
 from adapters.platform import discover_environment
 from adapters.source.xmlgen.resolve import resolve_java
@@ -37,12 +40,29 @@ SUPPORTED_AGENTS: frozenset[str] = frozenset({"auto", "scope", "none"})
 AGENTS_BEGIN = "<!-- BEGIN 1c-dev -->"
 AGENTS_END = "<!-- END 1c-dev -->"
 
+RULES_MANAGED_BY = "1c-dev"
+RULES_MD_MARKER = f"<!-- managed-by: {RULES_MANAGED_BY} -->"
+
 _IDE_MCP_REL: dict[IdeName, str] = {
     "cursor": ".cursor/mcp.json",
     "kilocode": ".kilo/mcp.json",
 }
 
+_IDE_RULES_REL: dict[IdeName, str] = {
+    "cursor": ".cursor/rules",
+    "kilocode": ".kilo/rules",
+}
+
 _PLACEHOLDER_RE = re.compile(r"\{\{(\w+)\}\}")
+
+
+@dataclass(frozen=True)
+class RuleSpec:
+    """One IDE rule shipped by 1c-dev (id + title + markdown body)."""
+
+    id: str
+    title: str
+    body: str
 
 
 def ides_to_configure(target: str) -> list[IdeName]:
@@ -61,6 +81,17 @@ def ides_to_configure(target: str) -> list[IdeName]:
 def mcp_rel_path(ide: IdeName) -> str:
     """Relative path of MCP config for IDE."""
     return _IDE_MCP_REL[ide]
+
+
+def rules_dir_rel(ide: IdeName) -> str:
+    """Relative directory of IDE rules for IDE."""
+    return _IDE_RULES_REL[ide]
+
+
+def rule_file_rel(ide: IdeName, rule_id: str) -> str:
+    """Relative path of a single rule file for IDE."""
+    suffix = ".mdc" if ide == "cursor" else ".md"
+    return f"{rules_dir_rel(ide)}/{rule_id}{suffix}"
 
 
 def _should_write_agents(agents: str, project: Path, ide_root: Path) -> bool:
@@ -336,6 +367,155 @@ def _configure_ide_mcp(
     return created, updated, skipped, diagnostics
 
 
+def _normalize_rule_body(body: str) -> str:
+    text = body.replace("\r\n", "\n").replace("\r", "\n")
+    return text.rstrip("\n") + "\n"
+
+
+def _load_rules_pack() -> list[RuleSpec]:
+    """Load IDE rules shipped by 1c-dev from templates/configuration/rules."""
+    rules_root = templates_root() / "configuration" / "rules"
+    manifest_path = rules_root / "rules.manifest.yaml"
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"Манифест IDE rules не найден: {manifest_path}")
+
+    raw = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict) or not isinstance(raw.get("rules"), list):
+        raise ValueError(f"Некорректный манифест IDE rules: {manifest_path}")
+
+    specs: list[RuleSpec] = []
+    for entry in raw["rules"]:
+        if not isinstance(entry, dict):
+            raise ValueError(f"Некорректная запись в манифесте IDE rules: {entry!r}")
+        rule_id = entry.get("id")
+        title = entry.get("title")
+        if not isinstance(rule_id, str) or not rule_id:
+            raise ValueError(f"В манифесте IDE rules отсутствует id: {entry!r}")
+        if not isinstance(title, str) or not title:
+            raise ValueError(f"В манифесте IDE rules отсутствует title: {entry!r}")
+        body_path = rules_root / f"{rule_id}.md"
+        if not body_path.is_file():
+            raise FileNotFoundError(f"Тело IDE rule не найдено: {body_path}")
+        specs.append(
+            RuleSpec(
+                id=rule_id,
+                title=title,
+                body=_normalize_rule_body(body_path.read_text(encoding="utf-8")),
+            )
+        )
+    return specs
+
+
+def render_cursor_rule(spec: RuleSpec) -> str:
+    """Render Cursor .mdc content (frontmatter + body)."""
+    return (
+        "---\n"
+        f"description: {spec.title}\n"
+        "alwaysApply: true\n"
+        f"managedBy: {RULES_MANAGED_BY}\n"
+        "---\n"
+        "\n"
+        f"{spec.body}"
+    )
+
+
+def render_kilocode_rule(spec: RuleSpec) -> str:
+    """Render Kilocode .md content (managed marker + body)."""
+    return f"{RULES_MD_MARKER}\n\n{spec.body}"
+
+
+def _is_managed_cursor_rule(text: str) -> bool:
+    if not text.startswith("---"):
+        return False
+    end = text.find("\n---", 3)
+    if end == -1:
+        return False
+    frontmatter = text[3:end]
+    return re.search(
+        rf"(?m)^managedBy:\s*{re.escape(RULES_MANAGED_BY)}\s*$",
+        frontmatter,
+    ) is not None
+
+
+def _is_managed_kilocode_rule(text: str) -> bool:
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        return stripped == RULES_MD_MARKER
+    return False
+
+
+def _configure_ide_rules(
+    root: Path,
+    ides: list[IdeName],
+    *,
+    force: bool,
+) -> tuple[list[str], list[str], list[str], list[Diagnostic]]:
+    """Write 1c-dev IDE rules under ide-root. Return created/updated/skipped/diags.
+
+    ``force`` kept for API parity with MCP configure; foreign same-name files are
+    never overwritten (managed updates happen whenever content differs).
+    """
+    del force  # foreign files are never overwritten; see docstring
+    created: list[str] = []
+    updated: list[str] = []
+    skipped: list[str] = []
+    diagnostics: list[Diagnostic] = []
+
+    if not ides:
+        return created, updated, skipped, diagnostics
+
+    specs = _load_rules_pack()
+    renders: dict[IdeName, dict[str, str]] = {
+        "cursor": {spec.id: render_cursor_rule(spec) for spec in specs},
+        "kilocode": {spec.id: render_kilocode_rule(spec) for spec in specs},
+    }
+
+    for ide in ides:
+        for spec in specs:
+            rel = rule_file_rel(ide, spec.id)
+            dest = root / rel
+            desired = renders[ide][spec.id]
+            existed = dest.is_file()
+
+            if not existed:
+                _write_text(dest, desired)
+                created.append(rel)
+                continue
+
+            existing = dest.read_text(encoding="utf-8")
+            is_managed = (
+                _is_managed_cursor_rule(existing)
+                if ide == "cursor"
+                else _is_managed_kilocode_rule(existing)
+            )
+
+            if not is_managed:
+                skipped.append(rel)
+                diagnostics.append(
+                    warning(
+                        f"Пропущен чужой IDE rule (нет managed-маркера): {rel}",
+                        code="1CP011",
+                        file=rel,
+                        suggestion=(
+                            "Переименуйте файл или удалите его вручную, "
+                            "чтобы установить правило из 1c-dev"
+                        ),
+                    )
+                )
+                continue
+
+            if existing == desired:
+                skipped.append(rel)
+                continue
+
+            _write_text(dest, desired)
+            updated.append(rel)
+
+    return created, updated, skipped, diagnostics
+
+
 def configure_ide(
     path: Path | None = None,
     *,
@@ -412,7 +592,15 @@ def configure_ide(
         updated.extend(m_u)
         skipped.extend(m_s)
         diagnostics.extend(m_d)
-    except (OSError, FileNotFoundError, KeyError) as exc:
+
+        r_c, r_u, r_s, r_d = _configure_ide_rules(
+            resolved_ide_root, ides, force=force
+        )
+        created.extend(r_c)
+        updated.extend(r_u)
+        skipped.extend(r_s)
+        diagnostics.extend(r_d)
+    except (OSError, FileNotFoundError, KeyError, ValueError) as exc:
         return ProjectResult(
             status="error",
             root=project,

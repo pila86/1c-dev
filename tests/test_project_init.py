@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 from cli.main import app
 from core.exit_codes import PROJECT_ERROR, SUCCESS
 from core.project import init_project, validate_project
+from core.project.ide import RULES_MD_MARKER, rule_file_rel
 from core.project.init import (
     compatibility_mode_for,
     platform_version_for_manifest,
@@ -18,6 +19,13 @@ from core.project.init import (
 )
 
 runner = CliRunner()
+
+RULE_IDS = (
+    "bsl-string-literals",
+    "bsl-module-structure",
+    "1c-service-addresses",
+    "bsl-transactions",
+)
 
 
 def test_sanitize_project_name() -> None:
@@ -64,6 +72,16 @@ def test_init_project_ok(tmp_path: Path) -> None:
         assert "1c-dev" in servers
         assert "bsl-language-server" in servers
 
+    for rule_id in RULE_IDS:
+        cursor_rule = target / rule_file_rel("cursor", rule_id)
+        kilo_rule = target / rule_file_rel("kilocode", rule_id)
+        assert cursor_rule.is_file()
+        assert kilo_rule.is_file()
+        assert "managedBy: 1c-dev" in cursor_rule.read_text(encoding="utf-8")
+        assert kilo_rule.read_text(encoding="utf-8").startswith(RULES_MD_MARKER)
+        assert f".cursor/rules/{rule_id}.mdc" in result.created
+        assert f".kilo/rules/{rule_id}.md" in result.created
+
     validated = validate_project(target)
     assert validated.status == "ok"
 
@@ -91,6 +109,8 @@ def test_init_project_ide_target_none(tmp_path: Path) -> None:
     assert not (target / ".kilo" / "mcp.json").exists()
     assert ".cursor/mcp.json" not in result.created
     assert ".kilo/mcp.json" not in result.created
+    assert not (target / ".cursor" / "rules").exists()
+    assert not (target / ".kilo" / "rules").exists()
 
 
 def test_init_project_ide_target_cursor(tmp_path: Path) -> None:
@@ -103,6 +123,10 @@ def test_init_project_ide_target_cursor(tmp_path: Path) -> None:
     assert (target / ".cursor" / "mcp.json").is_file()
     assert not (target / ".kilo" / "mcp.json").exists()
     assert ".cursor/mcp.json" in result.created
+    for rule_id in RULE_IDS:
+        assert (target / rule_file_rel("cursor", rule_id)).is_file()
+        assert not (target / rule_file_rel("kilocode", rule_id)).exists()
+        assert f".cursor/rules/{rule_id}.mdc" in result.created
 
 
 def test_init_project_invalid_ide_target(tmp_path: Path) -> None:

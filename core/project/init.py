@@ -321,7 +321,7 @@ def _scaffold_extension_project(
         root=target,
     )
     _copy_rendered(
-        tmpl_dir / "AGENTS.md",
+        templates_root() / "configuration" / "AGENTS.md",
         target / "AGENTS.md",
         base,
         created=created,
@@ -379,6 +379,7 @@ def init_project(
     from core.project.ide import (
         SUPPORTED_TARGETS,
         _configure_ide_mcp,
+        _configure_ide_rules,
         ides_to_configure,
     )
 
@@ -464,12 +465,20 @@ def init_project(
                 platform_version=platform_version,
                 force=force,
             )
+        ides = ides_to_configure(ide_target)
         m_created, _, _, mcp_diagnostics = _configure_ide_mcp(
             root,
-            ides_to_configure(ide_target),
+            ides,
             force=True,
         )
         created.extend(m_created)
+        r_created, _, _, rules_diagnostics = _configure_ide_rules(
+            root,
+            ides,
+            force=True,
+        )
+        created.extend(r_created)
+        mcp_diagnostics.extend(rules_diagnostics)
     except FileExistsError as exc:
         return ProjectResult(
             status="error",
@@ -482,7 +491,7 @@ def init_project(
                 )
             ],
         )
-    except (OSError, FileNotFoundError, KeyError) as exc:
+    except (OSError, FileNotFoundError, KeyError, ValueError) as exc:
         return ProjectResult(
             status="error",
             root=root,

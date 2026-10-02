@@ -169,7 +169,7 @@ def register_tools(server: FastMCP) -> None:
         description=(
             "Bootstrap an empty 1C project scope "
             "(.1c-dev/project.yaml schema 2 with empty configurations[]/runtimes[], "
-            "AGENTS/gitignore, IDE MCP). Does NOT create XML configuration — "
+            "AGENTS/gitignore, IDE MCP + rules). Does NOT create XML configuration — "
             "use configuration.add (or pass config=name for DX sugar). "
             "type: configuration (default) or extension (standalone). "
             "ide_target: all (default), cursor, kilocode, or none."
@@ -238,7 +238,8 @@ def register_tools(server: FastMCP) -> None:
             "Configuration.xml unless force=true. "
             "Set break_support=true to strip ParentConfigurations* support "
             "artifacts after export (vendor update will no longer be possible). "
-            "Does not write AGENTS.md or IDE MCP configs (use ide.configure for that)."
+            "Does not write AGENTS.md, IDE MCP configs, or rules "
+            "(use ide.configure for that)."
             + _PATH_SCOPE
             + _NO_SHELL
         ),
@@ -442,15 +443,16 @@ def register_tools(server: FastMCP) -> None:
     @server.tool(
         name="ide.configure",
         description=(
-            "Configure IDE MCP configs (cursor/kilocode), AGENTS.md, and .gitignore "
-            "for an existing 1C project. "
+            "Configure IDE MCP configs and rules (cursor/kilocode), AGENTS.md, "
+            "and .gitignore for an existing 1C project. "
             "path = scope root (manifest / gitignore / AGENTS). "
             "ide_root = where to write .cursor/.kilo (default = path). "
             "agents: auto (AGENTS only when ide_root=path), scope (always in path), "
             "none (skip AGENTS). "
             "target: all (default), cursor, kilocode, or none. "
             "Without force: merge AGENTS managed block (<!-- BEGIN 1c-dev -->), "
-            "merge missing MCP servers and .gitignore lines."
+            "merge missing MCP servers and .gitignore lines, create/update managed "
+            "IDE rules (managedBy / managed-by markers); skip foreign same-name rules."
             + _PATH_SCOPE
             + _NO_SHELL
         ),
@@ -477,7 +479,7 @@ def register_tools(server: FastMCP) -> None:
             "DESTRUCTIVE: wipe project XML source (default configuration source.path) "
             "and the entire .1c-dev/runtime/ directory (file IB, ibcmd-data, client state). "
             "Requires yes=true. Does not touch .1c-dev/project.yaml, AGENTS.md, IDE MCP "
-            "configs, .gitignore, or git. Stops a live runtime client first. "
+            "configs, IDE rules, .gitignore, or git. Stops a live runtime client first. "
             "Idempotent if already empty. Typical follow-up: configuration.import or init."
             " Optional config_id/runtime_id wipe only that source/runtime; "
             "without them wipe default source and entire .1c-dev/runtime/."

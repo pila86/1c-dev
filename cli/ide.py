@@ -16,7 +16,7 @@ from core.project.result import ProjectResult
 
 app = typer.Typer(
     name="ide",
-    help="Настройки IDE и агента (MCP, AGENTS.md).",
+    help="Настройки IDE и агента (MCP, rules, AGENTS.md).",
     add_completion=False,
     no_args_is_help=True,
 )
@@ -111,16 +111,16 @@ def configure_command(
     target: TargetChoice = typer.Option(
         TargetChoice.all,
         "--target",
-        help="IDE MCP: all (default), cursor, kilocode, или none (без MCP).",
+        help="IDE MCP + rules: all (default), cursor, kilocode, или none (без MCP/rules).",
     ),
     force: bool = typer.Option(
         False,
         "--force",
-        help="Перезаписать AGENTS.md, .gitignore и IDE MCP шаблоном.",
+        help="Перезаписать AGENTS.md, .gitignore, IDE MCP и managed rules шаблоном.",
     ),
     output: OutputOption = None,
 ) -> None:
-    """Настроить IDE MCP, AGENTS.md и .gitignore для существующего проекта."""
+    """Настроить IDE MCP, rules, AGENTS.md и .gitignore для существующего проекта."""
     project_path = (project or Path.cwd()).resolve()
     result = configure_ide(
         project_path,
