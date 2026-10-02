@@ -1,47 +1,29 @@
 <!-- BEGIN 1c-dev -->
-# 1C Development Rules
+# Правила 1c-dev
 
-1. Never modify generated artifacts.
-2. Respect the configured source format.
-3. Never manually export configuration through Designer.
-4. Use metadata tools for metadata operations.
-5. Do not invent platform APIs.
-6. Use documentation tools (`docs.search` / `docs.get`) for unfamiliar platform APIs.
-7. Run static checks after relevant changes.
-8. Build and run relevant tests before declaring a task complete.
-9. Prefer debugger for reproducible runtime failures.
-10. Review semantic diff before completion.
-11. Prefer MCP tools over shell or Designer/Configurator:
-    - **1c-dev** MCP happy-path (greenfield):
-      `project.init` → `configuration.add` → `project.get` → metadata.* / build.
-      `project.init` creates only the project home (empty `configurations[]` /
-      `runtimes[]`) — **not** XML configuration.
-      Another configuration in the same scope: `configuration.add` again —
-      **not** a second `project.init` and **not** `extension.add`.
-    - **1c-dev** MCP: project init/clean, project.get (summary),
-      configuration.add/list/get/remove/set-default/import,
-      ide.configure, metadata list/get/find/create/update/delete,
-      build (configuration + nested extensions), check, runtime.start/stop/status
-      (client thick|thin, optional debug=/Debug),
-      publish.up/down/status/url (ibsrv), extension.add / extension.list, and docs.*
-      when available.
-      Nested extension metadata: pass `extension_id` (CLI `--extension`) to
-      metadata.* — id or name from `configurations[].extensions[]`.
-      Standalone extension project: `config_id` only (source under `src/cfe/`).
-      Borrow / interceptors — not in MVP.
-      `project.clean` is destructive (wipes source + `.1c-dev/runtime/`); always pass
-      yes=true and confirm intent first — does not touch `.1c-dev/project.yaml` /
-      AGENTS.md / IDE MCP / git.
-      MCP `path` = scope root (parent of `.1c-dev`).
-      Write types for metadata.create/update/delete: 23 Meta DSL + Subsystem
-      (AccountingRegister, AccumulationRegister, BusinessProcess, CalculationRegister,
-      Catalog, ChartOfAccounts, ChartOfCalculationTypes, ChartOfCharacteristicTypes,
-      CommonModule, Constant, DataProcessor, DefinedType, Document, DocumentJournal,
-      Enum, EventSubscription, ExchangePlan, HTTPService, InformationRegister, Report,
-      ScheduledJob, Subsystem, Task, WebService) — see `doctor` → `supportedTypes`.
-    - **bsl-language-server** MCP: BSL code analysis (diagnostics, symbols, references,
-      hover, definitions) — not for metadata or build.
-      Before analyze_file / hover / definition / etc.: call `list_workspace_folders`;
-      if the project root is missing, call `register_workspace_folder` with the IDE
-      workspace root (not `src/cf`). Then analyze files inside that folder.
+## Запреты
+- Не править generated artifacts; уважать source format проекта.
+- Не выгружать конфигурацию вручную через Конфигуратор.
+- Не выдумывать API платформы — только `docs.search` / `docs.get`.
+
+## Порядок
+- Предпочитать MCP `1c-dev` и `bsl-language-server`, не shell и не Конфигуратор.
+- Greenfield: `project.init` → `configuration.add` → `project.get` → metadata.* / build.
+- `project.init` создаёт только home (пустые `configurations[]` / `runtimes[]`), не XML.
+- После правок: check → build → релевантные тесты; перед завершением — semantic diff.
+- Воспроизводимые runtime-сбои — debugger.
+- BSL-анализ — MCP bsl-ls: сначала `list_workspace_folders`; при отсутствии корня — `register_workspace_folder` на корень IDE (не `src/cf`).
+
+## Публикация
+- `publish.up` / `down` / `status` / `url` — локальный dev-контур проекта (`.1c-dev/publish/`: ibsrv или Apache+webinst). Это не сервер 1С:Предприятие на машине пользователя и не системный IIS/Apache.
+- HTTP-сервисы публиковать только через webinst (`backend=webinst` / профиль `local-webinst`). Не через ibsrv.
+
+## Опасное
+- `project.clean` — только с `yes=true` после подтверждения. Стирает source и `.1c-dev/runtime/`. Не трогает манифест, AGENTS.md, IDE MCP, git.
+
+## MCP
+- `path` = корень scope (родитель `.1c-dev`).
+- Nested extension: `extension_id` в metadata.* (id/имя из `configurations[].extensions[]`).
+- Standalone extension: только `config_id` (source под `src/cfe/`).
+- Write-типы metadata — `doctor` → `supportedTypes` (не перечислять вручную).
 <!-- END 1c-dev -->

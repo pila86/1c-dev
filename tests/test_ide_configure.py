@@ -192,7 +192,7 @@ def test_configure_merges_agents_into_existing_foreign_file(tmp_path: Path) -> N
     assert "Keep me." in text
     assert AGENTS_BEGIN in text
     assert AGENTS_END in text
-    assert "1C Development Rules" in text
+    assert "# Правила 1c-dev" in text
 
 
 def test_configure_updates_stale_agents_block(tmp_path: Path) -> None:
@@ -205,7 +205,7 @@ def test_configure_updates_stale_agents_block(tmp_path: Path) -> None:
     assert "AGENTS.md" in result.updated
     text = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
     assert "# stale" not in text
-    assert "1C Development Rules" in text
+    assert "# Правила 1c-dev" in text
     assert "# user note" in text
 
 
@@ -229,7 +229,7 @@ def test_configure_force_overwrites_agents_and_mcp(tmp_path: Path) -> None:
     assert result.status == "ok"
     agents = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
     assert "# user" not in agents
-    assert "1C Development Rules" in agents
+    assert "# Правила 1c-dev" in agents
     assert AGENTS_BEGIN in agents
     assert "AGENTS.md" in result.updated
 
