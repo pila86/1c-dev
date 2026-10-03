@@ -1,6 +1,6 @@
 # M4: Project home, multi-config, templates, publish
 
-**Статус:** In progress — контракт зафиксирован (ADR 022–026); уточнение API конфигураций [#100](https://github.com/pila86/1c-dev/issues/100); реализация [#84](https://github.com/pila86/1c-dev/issues/84)–[#96](https://github.com/pila86/1c-dev/issues/96), [GitHub milestone M4](https://github.com/pila86/1c-dev/milestone/4)
+**Статус:** Done — acceptance E2E [#96](https://github.com/pila86/1c-dev/issues/96) (`tests/test_m4_acceptance.py`); [GitHub milestone M4](https://github.com/pila86/1c-dev/milestone/4)
 
 ## Goal
 
@@ -211,20 +211,20 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 
 ### Must
 
-- [ ] Layout `.1c-dev/project.yaml`; пути relative к scope root
+- [x] Layout `.1c-dev/project.yaml`; пути relative к scope root
 - [x] `runtimes[]`: связь ИБ↔configuration; validate ≥1 IB на config (когда conf есть); один global `default` (когда runtimes непусты)
 - [x] `project.init` создаёт empty scope (без XML conf); detect только `.1c-dev/project.yaml`
 - [x] `configuration.add` / `list` (CLI+MCP): scaffold + манифест + runtime; вторая conf в том же scope
 - [x] `configuration.import` (CLI+MCP): empty ensure + register conf/runtime; без `project.import` (ADR-028 / #105)
 - [x] `project.get` — summary состава configurations / runtimes / defaults
-- [ ] `configurations[]` + `extensions[]`; build в выбранную/default ИБ
-- [ ] Extension scaffold; установка extension в ИБ из XML через ibcmd
-- [ ] `templates.list` / `configuration.import --from-template` для `.cf` из tmplts
-- [ ] `publish` через ibsrv для default (или указанного) runtime
-- [ ] MCP `path` = scope root; `project.list` находит nested `.1c-dev`
+- [x] `configurations[]` + `extensions[]`; build в выбранную/default ИБ
+- [x] Extension scaffold; установка extension в ИБ из XML через ibcmd
+- [x] `templates.list` / `configuration.import --from-template` для `.cf` из tmplts
+- [x] `publish` через ibsrv для default (или указанного) runtime
+- [x] MCP `path` = scope root; `project.list` находит nested `.1c-dev`
 - [x] `ide configure --ide-root` не требует совпадения с scope root
-- [ ] Doctor: templates / ibsrv / webinst capabilities
-- [ ] ADR 022–028 Accepted (при закрытии реализации); roadmap M1–M4; EDT/Tests в `draft-*`
+- [x] Doctor: templates / ibsrv / webinst capabilities
+- [x] ADR 022–028 Accepted (при закрытии реализации); roadmap M1–M4; EDT/Tests в `draft-*`
 
 ### Should
 
