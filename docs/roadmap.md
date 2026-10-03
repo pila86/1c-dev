@@ -8,6 +8,7 @@
 
 → [Acceptance criteria M5](milestones/m5-tests.md)  
 → [M4 project model](milestones/m4-project-model.md)  
+→ [GitHub milestone M5](https://github.com/pila86/1c-dev/milestone/5)  
 → [GitHub milestone M4](https://github.com/pila86/1c-dev/milestone/4)
 
 ## Этапы

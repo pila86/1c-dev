@@ -1,6 +1,6 @@
 # M5: Tests (YAxUnit / Vanessa)
 
-**Статус:** Planned — после [M4](m4-project-model.md); контракт зафиксирован ниже, ADR Test API — при старте реализации (Proposed → Accepted).
+**Статус:** Planned — после [M4](m4-project-model.md); [GitHub milestone M5](https://github.com/pila86/1c-dev/milestone/5); контракт зафиксирован ниже, ADR Test API — при старте реализации (Proposed → Accepted).
 
 ## Goal
 
@@ -176,18 +176,27 @@ AI читает BSL
 
 ## Links
 
+- [GitHub milestone M5](https://github.com/pila86/1c-dev/milestone/5)
 - [Roadmap](../roadmap.md)
 - [PRD §25 Test API](../../1c-dev-runtime-PRD-v0.1.md), [§26 Test Result](../../1c-dev-runtime-PRD-v0.1.md)
 - [ADR-003](../adr/003-diagnostics-exit-codes.md) (exit 5), [ADR-010](../adr/010-mcp-architecture.md), [ADR-023](../adr/023-multi-config-extensions.md), [ADR-026](../adr/026-runtimes-array.md)
 - [M3](m3-product-adopt.md), [M4](m4-project-model.md), [draft-source-formats](draft-source-formats.md)
 - Внешние: [bia-technologies/yaxunit](https://github.com/bia-technologies/yaxunit), [alkoleft/mcp-onec-test-runner](https://github.com/alkoleft/mcp-onec-test-runner) (референс / spike only)
 
-## Suggested work packages
+## Issues
 
-| Тема | Зависит от |
-|------|------------|
-| Spike: RunUnitTests + jUnit parse | платформа, fixture, M4 extensions |
-| ADR Test API / граница METR / schema `tests` | spike |
-| `adapters/test_yaxunit` + CLI | ADR + M4 build+extension |
-| MCP `test.*` + AGENTS + doctor | CLI зелёный |
-| Vanessa adapter | тот же Test API (follow-up) |
+[GitHub milestone M5](https://github.com/pila86/1c-dev/milestone/5). Волны: **0** spike → **1** ADR + schema → **2** adapter + core + CLI → **3** MCP + DX + acceptance.
+
+| # | Wave | Задача | Depends on |
+|---|------|--------|------------|
+| [#119](https://github.com/pila86/1c-dev/issues/119) | 0 | Spike: YaXUnit `RunUnitTests` + jUnit (fixture, формат отчёта) | M4 Done |
+| [#120](https://github.com/pila86/1c-dev/issues/120) | 1 | ADR-029: Test API и граница с METR | #119 |
+| [#121](https://github.com/pila86/1c-dev/issues/121) | 1 | Манифест: валидируемая `configurations[].tests` | #120 |
+| [#122](https://github.com/pila86/1c-dev/issues/122) | 2 | `adapters/test_yaxunit`: RunUnitTests + разбор jUnit | #119, #120 |
+| [#123](https://github.com/pila86/1c-dev/issues/123) | 2 | `core/test`: discover / list / run / runOne / report | #121, #122 |
+| [#124](https://github.com/pila86/1c-dev/issues/124) | 2 | CLI `1c-dev test` + exit 5 | #123 |
+| [#125](https://github.com/pila86/1c-dev/issues/125) | 3 | MCP `test.*` | #123 |
+| [#126](https://github.com/pila86/1c-dev/issues/126) | 3 | Doctor capability YaXUnit + AGENTS: `build → test.*` | #122, #125 |
+| [#127](https://github.com/pila86/1c-dev/issues/127) | 3 | should: контракт `runner: vanessa` (без adapter) | #121 |
+| [#128](https://github.com/pila86/1c-dev/issues/128) | follow-up | `adapters/test_vanessa` (carry-over) | #127, #124 |
+| [#129](https://github.com/pila86/1c-dev/issues/129) | 3 | Acceptance: E2E `build → test.run` | #121–#126 |
