@@ -69,6 +69,7 @@ pwsh scripts/fetch-md-reader.ps1
 - Unit-тесты — для каждого PR с логикой: `poetry run pytest`.
 - Integration-тесты (маркер `integration`) — platform 1С / `ibcmd`, jar xml-gen / md-reader; без них — skip с явным сообщением:
 - M3-accept (#52): `poetry run pytest tests/test_m3_acceptance.py -m integration` — CF import round-trip → list/get → ide configure → docs (soft) → build/check; без platform/jars — skip.
+- M4-accept (#96): `poetry run pytest tests/test_m4_acceptance.py -m integration` — nested `.1c-dev` → ≥2 configurations + extension → build → `ide --ide-root` → doctor → soft templates / publish ibsrv / publish webinst; без `ibcmd`/xml-gen — skip всего теста; без tmplts / `ibsrv` / `wsap24.so`+Apache — soft-skip соответствующих секций.
 - E-accept (трек E / #71): `poetry run pytest tests/test_e_acceptance.py -m integration` — sample CRUD по волнам E0–E8; без platform/jars — skip.
 - Publish ibsrv (#89): `poetry run pytest tests/test_publish_integration.py -m integration` — build → `publish.up` → HTTP 200 на url → down; без `ibcmd`/`ibsrv` — skip.
 - Publish webinst (#94): `poetry run pytest tests/test_publish_webinst_integration.py -m integration` — `publish.up` (backend webinst) → url → down; без `wsap24.so` / Apache home (`tools sync` / `ONEC_APACHE_HOME`) — skip. Бинарь `webinst` не обязателен (1c-dev пишет vrd/conf сам).
