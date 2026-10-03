@@ -57,7 +57,7 @@ ibcmd extension list         --db-path=… --data=…
   `ObjectBelonging` (Own vs Adopted) — follow-up.
 - Artifact `build --artifact cfe` для выбранного extension.
 - Spike argv (#84) закрыт; реализация adapter/CLI — #88.
-- Should #95: `extension.add --from *.cfe` выгружает XML в `src/cfe/<id>/` через scratch IB (`load --extension` → `apply` → `export`); в манифесте `format: xml`. Опционально `source.format=cfe` + бинарный путь для load без выгрузки. Seed `.dt` — #111.
+- Should #95: `extension.add --from *.cfe` выгружает XML в `src/cfe/<id>/` через scratch IB (`load --extension` → `apply` → `export`); в манифесте `format: xml`. Опционально `source.format=cfe` + бинарный путь для load без выгрузки. Seed `.dt` из tmplts — not planned (#111 cancelled).
 
 ## Связанные решения
 

@@ -134,7 +134,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 - Discovery: `ConfigurationTemplatesLocation` из `1cestart.cfg` + default tmplts (Linux/Windows).
 - Парсер `*.mft` → list (vendor, name, version, Source `.cf`/`.dt`/`.cfu`).
 - CLI/MCP: `templates.roots`, `templates.list`, `templates.get`.
-- `configuration.import --from-template <id>`: `.cf` → reuse import pipeline; `.dt` → seed runtime (#111; не подмена XML source без явного флага).
+- `configuration.import --from-template <id>`: только Source `.cf` → reuse import pipeline; `.dt`/`.cfu` — discovery в `templates.*`, import не поддерживается (#111 cancelled).
 - Doctor capability `templates`.
 
 ### D. Publish
@@ -231,7 +231,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 - [x] `project.init --config <name>` (сахар) и/или `configuration.remove` / `set-default` / `get`
 - [x] Publish Apache/`webinst`
 - [x] Import `.cfe` в ИБ при поддержке платформы (#95)
-- [ ] Seed ИБ из `.dt` шаблона (#111)
+- [x] ~~Seed ИБ из `.dt` шаблона (#111)~~ — **cancelled** (not planned)
 - [x] `metadata.*` для nested/standalone extensions (`--extension`, md-reader `CF`) (#112)
 - [ ] Несколько ИБ на одну configuration (dev/demo) в acceptance
 
@@ -264,7 +264,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 | [#93](https://github.com/pila86/1c-dev/issues/93) | — | **Cancelled:** `project migrate` / dual-compat не нужны | — |
 | [#94](https://github.com/pila86/1c-dev/issues/94) | 3 | should: Publish Apache/`webinst` + doctor `webinst` | #89 |
 | [#95](https://github.com/pila86/1c-dev/issues/95) | 3 | should: установка extension в ИБ из `.cfe` | #88 |
-| [#111](https://github.com/pila86/1c-dev/issues/111) | 3 | should: seed ИБ из `.dt` шаблона (`configuration.import --from-template`) | #92 |
+| [#111](https://github.com/pila86/1c-dev/issues/111) | — | **Cancelled:** seed ИБ из `.dt` шаблона (`--from-template`) | — |
 | [#112](https://github.com/pila86/1c-dev/issues/112) | 3 | should: `metadata.*` для расширений (`--extension`, md-reader `CF`) | #88, #95 |
 | [#96](https://github.com/pila86/1c-dev/issues/96) | 3 | Acceptance: E2E nested + multi-config + extension + templates + publish | #86–#92, #100 |
 
