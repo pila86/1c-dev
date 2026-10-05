@@ -140,7 +140,7 @@
                 "runner": {
                   "type": "string",
                   "enum": ["yaxunit", "vanessa"],
-                  "description": "Test runner. vanessa — контракт; adapter later."
+                  "description": "Test runner. vanessa — контракт (#127); adapter — follow-up #128."
                 },
                 "extensions": {
                   "type": "array",

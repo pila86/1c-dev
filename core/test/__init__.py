@@ -13,6 +13,7 @@ from core.test.constants import (
     CODE_STORE,
     CODE_SUITE_UNKNOWN,
     LAST_RESULT_REL,
+    RUNNER_VANESSA,
     RUNNER_YAXUNIT,
     TEST_DIR_NAME,
 )
@@ -38,6 +39,7 @@ __all__ = [
     "CODE_STORE",
     "CODE_SUITE_UNKNOWN",
     "LAST_RESULT_REL",
+    "RUNNER_VANESSA",
     "RUNNER_YAXUNIT",
     "TEST_DIR_NAME",
     "RunnerEnsureResult",

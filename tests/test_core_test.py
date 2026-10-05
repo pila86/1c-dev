@@ -350,13 +350,47 @@ def test_run_tests_vanessa_unsupported(tmp_path: Path) -> None:
     _ensure_ib(target)
     onecv8 = tmp_path / "1cv8"
     onecv8.write_text("", encoding="utf-8")
+    called: list[str] = []
+
+    def _should_not_run(*_a: Any, **_k: Any) -> TestRunResult:
+        called.append("run")
+        return _ok_run_result()
+
     result = run_tests(
         target,
+        discover=lambda: _fake_discovery(onecv8=onecv8),
+        run_unit_tests_fn=_should_not_run,
+    )
+    assert called == []
+    assert result.status == "failed"
+    assert result.exit_code == PROJECT_ERROR
+    diag = next(d for d in result.diagnostics if d.get("code") == CODE_RUNNER_UNSUPPORTED)
+    assert "adapter" in diag["message"]
+    assert "не реализован" in diag["message"]
+    assert "#128" in diag["message"]
+    assert "vanessa" in diag["message"]
+
+
+def test_run_one_vanessa_unsupported(tmp_path: Path) -> None:
+    target = _bootstrap_test_project(tmp_path)
+    _patch_manifest_with_tests(
+        target,
+        suites=[{"id": "bdd", "runner": "vanessa", "extensions": ["test_ext1"]}],
+    )
+    _ensure_ib(target)
+    onecv8 = tmp_path / "1cv8"
+    onecv8.write_text("", encoding="utf-8")
+    result = run_one_test(
+        "ОМ_Строки.ТестСложить",
+        target,
+        suite_id="bdd",
         discover=lambda: _fake_discovery(onecv8=onecv8),
         run_unit_tests_fn=lambda *a, **k: _ok_run_result(),
     )
     assert result.status == "failed"
+    assert result.exit_code == PROJECT_ERROR
     assert any(d.get("code") == CODE_RUNNER_UNSUPPORTED for d in result.diagnostics)
+    assert any("#128" in d.get("message", "") for d in result.diagnostics)
 
 
 def test_run_multi_suite_union_extensions(tmp_path: Path) -> None:

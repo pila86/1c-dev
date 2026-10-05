@@ -77,7 +77,7 @@ configurations:
 | Поле suite | Обязательно | Смысл |
 |------------|-------------|--------|
 | `id` | да | id suite для `--suite` / MCP |
-| `runner` | да | `yaxunit` \| `vanessa` (vanessa — контракт; adapter later) |
+| `runner` | да | `yaxunit` \| `vanessa` (vanessa — контракт [#127](https://github.com/pila86/1c-dev/issues/127); adapter — [#128](https://github.com/pila86/1c-dev/issues/128)) |
 | `extensions` | да, непустой | id из `extensions[]` с тестовыми модулями (**не** включать `YAXUNIT`) |
 
 **Schema version:** additive внутри schema **`"2"`** — необязательная `configurations[].tests`.
@@ -229,6 +229,8 @@ MCP: те же статусы и `diagnostics[]` в JSON; exit codes CLI на MC
   [#122](https://github.com/pila86/1c-dev/issues/122) adapter; [#123](https://github.com/pila86/1c-dev/issues/123) core;
   [#124](https://github.com/pila86/1c-dev/issues/124) CLI+exit 5; [#125](https://github.com/pila86/1c-dev/issues/125) MCP;
   [#126](https://github.com/pila86/1c-dev/issues/126) doctor/AGENTS;
+  [#127](https://github.com/pila86/1c-dev/issues/127) контракт `runner: vanessa` (без adapter);
+  [#128](https://github.com/pila86/1c-dev/issues/128) `adapters/test_vanessa` (carry-over);
   runner cache + `ensure` (§7a) — отдельная под-задача волны 3 (toolchain `yaxunit`,
   `core/test/runner_ensure.py`, `1c-dev yaxunit ensure`, doctor `test.yaxunit`).
 - Документировать METR только как «механика spike», не product guide (Nice M5).

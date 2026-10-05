@@ -15,6 +15,7 @@ from core.test.constants import (
     CODE_NO_SUITES,
     CODE_RUNNER_UNSUPPORTED,
     CODE_SUITE_UNKNOWN,
+    RUNNER_VANESSA,
     RUNNER_YAXUNIT,
     SUPPORTED_RUNNERS,
 )
@@ -173,18 +174,31 @@ def require_supported_runners(suites: list[SuiteRef]) -> list[Diagnostic]:
     """Reject vanessa / unknown runners for run / runOne (v1 = yaxunit only)."""
     diags: list[Diagnostic] = []
     for suite in suites:
-        if suite.runner not in SUPPORTED_RUNNERS:
-            diags.append(
-                error(
-                    (
-                        f"suite {suite.id!r}: runner {suite.runner!r} не поддерживается "
-                        f"(доступен {RUNNER_YAXUNIT}; vanessa — follow-up)"
-                    ),
-                    code=CODE_RUNNER_UNSUPPORTED,
-                    source="test",
-                    suggestion="Укажите runner: yaxunit или --suite с yaxunit",
-                )
+        if suite.runner in SUPPORTED_RUNNERS:
+            continue
+        if suite.runner == RUNNER_VANESSA:
+            message = (
+                f"suite {suite.id!r}: adapter для runner {RUNNER_VANESSA!r} "
+                f"не реализован (follow-up #128)"
             )
+            suggestion = (
+                f"Укажите runner: {RUNNER_YAXUNIT} или --suite с yaxunit; "
+                f"adapters/test_vanessa — #128"
+            )
+        else:
+            message = (
+                f"suite {suite.id!r}: runner {suite.runner!r} не поддерживается "
+                f"(доступен {RUNNER_YAXUNIT})"
+            )
+            suggestion = f"Укажите runner: {RUNNER_YAXUNIT} или --suite с yaxunit"
+        diags.append(
+            error(
+                message,
+                code=CODE_RUNNER_UNSUPPORTED,
+                source="test",
+                suggestion=suggestion,
+            )
+        )
     return diags
 
 

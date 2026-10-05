@@ -28,7 +28,7 @@ EDT ([draft-source-formats](draft-source-formats.md)) **не** блокер дл
 | Манифест `tests` | Внутри `configurations[]`; список suites; у suite несколько extensions | См. эскиз ниже |
 | Build перед тестами | `test.*` **не** собирает ИБ; агент/CI: `build` → `test.*` | Узкий preflight `ensure` (YAXUNIT из cache + safe-mode) — не build; `--no-runner-ensure` |
 | Выбор ИБ | `--runtime` / MCP-аналог; default = default runtime выбранной `--config` | ADR-026 |
-| Vanessa | Контракт и место в схеме в M5; `adapters/test_vanessa` — follow-up | Should / carry-over |
+| Vanessa | Контракт и место в схеме в M5 ([#127](https://github.com/pila86/1c-dev/issues/127)); `adapters/test_vanessa` — follow-up [#128](https://github.com/pila86/1c-dev/issues/128) | Should / carry-over |
 | Doctor | Soft gap: предупреждение, остальной CLI не hard-fail | |
 | Schema version | `"2"` additive vs bump — **TBD** в ADR / после spike | |
 | `test.run` без фильтров при нескольких suites | Все suites выбранной `--config`: `filter.extensions` = объединение `tests[].extensions` (пустой фильтр не оставлять) — [spike #119](../spikes/119-yaxunit-runuittests.md); финал в ADR-029 | |
@@ -64,7 +64,7 @@ configurations:
       - id: unit
         runner: yaxunit
         extensions: [test-ext1, test-ext2]
-      # later / schema-ready:
+      # schema-ready (#127); adapter — #128:
       # - id: bdd
       #   runner: vanessa
       #   extensions: […]
@@ -105,8 +105,9 @@ Must: полный набор PRD. Фильтры suite / runtime — CLI/MCP ф
 
 ### 5. Vanessa (Should / follow-up)
 
-- Контракт `runner: vanessa` в схеме / API.
-- `adapters/test_vanessa/` — не блокирует acceptance YAxUnit-среза; явный carry-over.
+- Контракт `runner: vanessa` в схеме / API — [#127](https://github.com/pila86/1c-dev/issues/127).
+- `adapters/test_vanessa/` — не блокирует acceptance YAxUnit-среза; carry-over
+  [#128](https://github.com/pila86/1c-dev/issues/128).
 
 ## Фазы внедрения
 
@@ -148,7 +149,7 @@ AI читает BSL
 ### Should
 
 - [ ] Фильтр suite / модуля (после spike; default multi-suite — TBD)
-- [ ] Vanessa: schema/контракт `runner: vanessa`; adapter — follow-up issue
+- [x] Vanessa: schema/контракт `runner: vanessa` ([#127](https://github.com/pila86/1c-dev/issues/127)); adapter — follow-up [#128](https://github.com/pila86/1c-dev/issues/128)
 - [ ] Решение schema version (additive `"2"` vs bump) в ADR
 
 ### Nice
@@ -164,7 +165,7 @@ AI читает BSL
 - Auto-build / incremental build внутри `test.run`
 - DAP / debug; Remote / Docker / lockfile
 - Собственный unit-test framework вместо YaXUnit
-- Реализация `adapters/test_vanessa` (carry-over)
+- Реализация `adapters/test_vanessa` (carry-over [#128](https://github.com/pila86/1c-dev/issues/128))
 
 ## Manual verification (эскиз)
 
