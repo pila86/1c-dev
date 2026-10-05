@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:v8="http://v8.1c.ru/8.1/data/core" xmlns:xr="http://v8.1c.ru/8.3/xcf/readable" version="2.17">
+	<Role uuid="c855e650-f9b4-4b04-9bc5-ce21b4fe14d8">
+		<Properties>
+			<Name>Tests2_MainRole</Name>
+			<Synonym>
+				<v8:item>
+					<v8:lang>ru</v8:lang>
+					<v8:content>Основная роль расширения</v8:content>
+				</v8:item>
+			</Synonym>
+			<Comment/>
+		</Properties>
+	</Role>
+</MetaDataObject>

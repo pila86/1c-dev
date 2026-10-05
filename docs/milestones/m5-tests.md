@@ -31,7 +31,7 @@ EDT ([draft-source-formats](draft-source-formats.md)) **не** блокер дл
 | Vanessa | Контракт и место в схеме в M5; `adapters/test_vanessa` — follow-up | Should / carry-over |
 | Doctor | Soft gap: предупреждение, остальной CLI не hard-fail | |
 | Schema version | `"2"` additive vs bump — **TBD** в ADR / после spike | |
-| `test.run` без фильтров при нескольких suites | **TBD** после spike YaXUnit | |
+| `test.run` без фильтров при нескольких suites | Все suites выбранной `--config`: `filter.extensions` = объединение `tests[].extensions` (пустой фильтр не оставлять) — [spike #119](../spikes/119-yaxunit-runuittests.md); финал в ADR-029 | |
 
 ### Почему не METR как основной MCP
 
@@ -78,7 +78,7 @@ configurations:
 
 - Fixture XML-проект + YaXUnit extension.
 - Локально при желании METR (`tools/mcp/`, вне git) — только чтобы понять вызов.
-- Результат: понятен `/C RunUnitTests=…` и формат отчёта → заметки в ADR Test API.
+- Результат: понятен `/C RunUnitTests=…` и формат отчёта → заметки в ADR Test API: [docs/spikes/119-yaxunit-runuittests.md](../spikes/119-yaxunit-runuittests.md), fixture — [tests/fixtures/yaxunit_spike/](../../tests/fixtures/yaxunit_spike/README.md).
 
 ### 2. Манифест `configurations[].tests`
 
@@ -132,7 +132,7 @@ AI читает BSL
 
 ### Must (YAxUnit vertical slice)
 
-- [ ] Spike: RunUnitTests + разбор jUnit; заметки для ADR
+- [x] Spike: RunUnitTests + разбор jUnit; заметки для ADR ([#119](../spikes/119-yaxunit-runuittests.md))
 - [ ] ADR: Test API + граница с METR (own facade)
 - [ ] Манифест: валидируемая `configurations[].tests` (suite: `id`, `runner`, `extensions[]`)
 - [ ] `1c-dev test` + `discover` / `list` / `run` / `runOne` / `report` → structured JSON (PRD §25–26)

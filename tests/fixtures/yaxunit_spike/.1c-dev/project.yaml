@@ -1,0 +1,32 @@
+schema: '2'
+project:
+  name: YaxunitSpike
+  type: configuration
+platform:
+  version: 8.3.25
+configurations:
+- id: main
+  type: configuration
+  source:
+    format: xml
+    path: src/main
+  default: true
+  extensions:
+  - id: test_ext1
+    name: Tests1
+    purpose: tests
+    source:
+      format: xml
+      path: src/cfe/test_ext1
+  - id: test_ext2
+    name: Tests2
+    purpose: tests
+    source:
+      format: xml
+      path: src/cfe/test_ext2
+runtimes:
+- id: main
+  configuration: main
+  type: file
+  path: .1c-dev/runtime/main
+  default: true
