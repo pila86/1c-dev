@@ -1,10 +1,10 @@
 # Roadmap
 
-## Текущий фокус: M5
+## Текущий фокус: после M5
+
+**M5: Tests** закрыт: Test API (YAxUnit), CLI/MCP `test.*`, `configurations[].tests`, runner cache + ensure, acceptance E2E (#129). Vanessa adapter — follow-up [#128](https://github.com/pila86/1c-dev/issues/128).
 
 **M4: Project home, multi-config, templates, publish** закрыт: якорь `.1c-dev/`, несколько конфигураций и расширений, `runtimes[]`, tmplts, publish (ibsrv / webinst), acceptance E2E (#96).
-
-**M5: Tests** — Test API: YAxUnit adapter, CLI/MCP `test.*`, `configurations[].tests`; Vanessa — follow-up.
 
 → [Acceptance criteria M5](milestones/m5-tests.md)  
 → [M4 project model](milestones/m4-project-model.md)  
@@ -19,7 +19,7 @@
 | **M2** | Metadata API: list/get/find + update + create (Document, registers, …) + delete | Done |
 | **M3** | Product adopt: import `.cf`, user install/PATH **+ автозагрузка toolchain**, `ide configure`, BSL LS MCP, docs/context; **should (temporary):** metadata types coverage | Done |
 | **M4** | Project home `.1c-dev/`, multi-config + extensions, platform templates, publish (ibsrv / webinst), `runtimes[]` | Done |
-| **M5** | Test API: YAxUnit adapter, CLI/MCP `test.*`, `configurations[].tests`; Vanessa — follow-up | Planned |
+| **M5** | Test API: YAxUnit adapter, CLI/MCP `test.*`, `configurations[].tests`; Vanessa — follow-up | Done |
 
 Документы этапов: [M1](milestones/m1-catalog-via-agent.md) · [M2](milestones/m2-metadata-api.md) · [M3](milestones/m3-product-adopt.md) · [M4](milestones/m4-project-model.md) · [M5](milestones/m5-tests.md)
 

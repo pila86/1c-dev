@@ -1,6 +1,6 @@
 # M5: Tests (YAxUnit / Vanessa)
 
-**Статус:** Planned — после [M4](m4-project-model.md); [GitHub milestone M5](https://github.com/pila86/1c-dev/milestone/5); контракт зафиксирован ниже, ADR Test API — при старте реализации (Proposed → Accepted).
+**Статус:** Done — acceptance E2E [#129](https://github.com/pila86/1c-dev/issues/129) (`tests/test_m5_acceptance.py`); [GitHub milestone M5](https://github.com/pila86/1c-dev/milestone/5); ADR-029 Accepted. Vanessa adapter — follow-up [#128](https://github.com/pila86/1c-dev/issues/128).
 
 ## Goal
 
@@ -135,22 +135,22 @@ AI читает BSL
 ### Must (YAxUnit vertical slice)
 
 - [x] Spike: RunUnitTests + разбор jUnit; заметки для ADR ([#119](../spikes/119-yaxunit-runuittests.md))
-- [ ] ADR: Test API + граница с METR (own facade)
-- [ ] Манифест: валидируемая `configurations[].tests` (suite: `id`, `runner`, `extensions[]`)
-- [ ] `1c-dev test` + `discover` / `list` / `run` / `runOne` / `report` → structured JSON (PRD §25–26)
-- [ ] Падения тестов → exit code `TEST_FAILURE` (5), ADR-003
-- [ ] MCP: `test.discover`, `test.list`, `test.run`, `test.runOne`, `test.report` без shell.exec
-- [ ] Выбор ИБ: `--runtime` (default = default runtime `--config`)
-- [ ] YaXUnit `.cfe` в user cache (`tools sync`, `ONEC_YAXUNIT_CFE`) + implicit `ensure` перед `test run` и `1c-dev yaxunit ensure` (ADR-029 §7a)
+- [x] ADR: Test API + граница с METR (own facade) — [ADR-029](../adr/029-test-api.md) Accepted
+- [x] Манифест: валидируемая `configurations[].tests` (suite: `id`, `runner`, `extensions[]`)
+- [x] `1c-dev test` + `discover` / `list` / `run` / `runOne` / `report` → structured JSON (PRD §25–26)
+- [x] Падения тестов → exit code `TEST_FAILURE` (5), ADR-003
+- [x] MCP: `test.discover`, `test.list`, `test.run`, `test.runOne`, `test.report` без shell.exec
+- [x] Выбор ИБ: `--runtime` (default = default runtime `--config`)
+- [x] YaXUnit `.cfe` в user cache (`tools sync`, `ONEC_YAXUNIT_CFE`) + implicit `ensure` перед `test run` и `1c-dev yaxunit ensure` (ADR-029 §7a)
 - [x] `doctor` сообщает о наличии/отсутствии runner capability (soft gap)
 - [x] `AGENTS.md`: цикл `build → test.*`
-- [ ] Integration-тесты: skip без платформы / YaXUnit, с понятным сообщением
+- [x] Integration-тесты: skip без платформы / YaXUnit, с понятным сообщением (`tests/test_m5_acceptance.py`, #129)
 
 ### Should
 
-- [ ] Фильтр suite / модуля (после spike; default multi-suite — TBD)
+- [x] Фильтр suite / модуля (`--suite`, `runOne` / `Module.Method[.Context]`; multi-suite default — ADR-029)
 - [x] Vanessa: schema/контракт `runner: vanessa` ([#127](https://github.com/pila86/1c-dev/issues/127)); adapter — follow-up [#128](https://github.com/pila86/1c-dev/issues/128)
-- [ ] Решение schema version (additive `"2"` vs bump) в ADR
+- [x] Решение schema version (additive `"2"` vs bump) в ADR-029
 
 ### Nice
 
