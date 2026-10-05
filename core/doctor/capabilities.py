@@ -19,6 +19,8 @@ CAPABILITY_REQUIREMENTS: dict[str, list[str]] = {
     "metadata.update": ["java", "xml-gen"],
     "metadata.delete": ["java", "xml-gen"],
     "metadata.read": ["java", "md-reader"],
+    # ADR-029 §7a: runner YaXUnit — .cfe из user cache (tools sync).
+    "test.yaxunit": ["1cv8", "ibcmd", "yaxunit"],
 }
 
 # Write capabilities → ADR-018 coverage catalog (23 Meta DSL + Subsystem).
@@ -54,6 +56,10 @@ _TOOL_HINTS: dict[str, str] = {
     "java": "Установите JDK 17+ и добавьте java в PATH (или задайте JAVA_HOME).",
     "xml-gen": "{suggest} (или задайте ONEC_XMLGEN_JAR).",
     "md-reader": "{suggest} (или задайте ONEC_MDREADER_JAR).",
+    "1cv8": (
+        "Добавьте 1cv8 в PATH (платформа 1С; нужен для test run / YaXUnit)."
+    ),
+    "yaxunit": "{suggest} (или задайте ONEC_YAXUNIT_CFE).",
 }
 
 

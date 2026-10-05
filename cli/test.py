@@ -26,6 +26,17 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
+NoRunnerEnsureOption = Annotated[
+    bool,
+    typer.Option(
+        "--no-runner-ensure",
+        help=(
+            "Не подключать YAXUNIT из cache и не снимать safe-mode перед прогоном "
+            "(ИБ уже подготовлена)."
+        ),
+    ),
+]
+
 SuiteOption = Annotated[
     str | None,
     typer.Option(
@@ -74,6 +85,21 @@ def _counts_line(result: TestResult) -> str | None:
     return "counts: " + ", ".join(parts) if parts else None
 
 
+def _runner_ensure_lines(info: dict[str, Any]) -> list[str]:
+    lines = [f"runnerEnsure: {info.get('status', '')}"]
+    if info.get("reason"):
+        lines.append(f"  reason: {info['reason']}")
+    if info.get("cfePath"):
+        pin = f" ({info['pin']})" if info.get("pin") else ""
+        lines.append(f"  cfe: {info['cfePath']}{pin}")
+    if info.get("loaded"):
+        lines.append("  loaded: YAXUNIT")
+    steps = info.get("steps") or []
+    if steps:
+        lines.append("  steps: " + ", ".join(str(step) for step in steps))
+    return lines
+
+
 def _result_text(result: TestResult) -> list[str]:
     lines = [f"status: {result.status}"]
     if result.config_id:
@@ -95,6 +121,8 @@ def _result_text(result: TestResult) -> list[str]:
         lines.append("incomplete: true")
     if result.report_path:
         lines.append(f"report: {result.report_path}")
+    if result.runner_ensure:
+        lines.extend(_runner_ensure_lines(result.runner_ensure))
     if result.suites:
         lines.append(f"suitesFound: {len(result.suites)}")
     if result.modules:
@@ -118,7 +146,8 @@ def _result_text(result: TestResult) -> list[str]:
     return lines
 
 
-def _finish(result: TestResult, ctx: typer.Context, output: OutputOption) -> None:
+def finish(result: TestResult, ctx: typer.Context, output: OutputOption) -> None:
+    """Emit result (json/text) and exit with ``result.exit_code``."""
     _emit(
         result.to_payload(),
         resolve_output(ctx, output),
@@ -142,7 +171,7 @@ def discover_command(
         runtime_id=runtime,
         suite_id=suite,
     )
-    _finish(result, ctx, output)
+    finish(result, ctx, output)
 
 
 @app.command("list")
@@ -160,7 +189,7 @@ def list_command(
         runtime_id=runtime,
         suite_id=suite,
     )
-    _finish(result, ctx, output)
+    finish(result, ctx, output)
 
 
 @app.command("run")
@@ -173,6 +202,7 @@ def run_command(
     config: ConfigOption = None,
     runtime: RuntimeOption = None,
     suite: SuiteOption = None,
+    no_runner_ensure: NoRunnerEnsureOption = False,
     output: OutputOption = None,
 ) -> None:
     """Прогнать тесты (run) или один тест (runOne). Не вызывает build."""
@@ -183,6 +213,7 @@ def run_command(
             config_id=config,
             runtime_id=runtime,
             suite_id=suite,
+            skip_runner_ensure=no_runner_ensure,
         )
     else:
         result = run_tests(
@@ -190,8 +221,9 @@ def run_command(
             config_id=config,
             runtime_id=runtime,
             suite_id=suite,
+            skip_runner_ensure=no_runner_ensure,
         )
-    _finish(result, ctx, output)
+    finish(result, ctx, output)
 
 
 @app.command("report")
@@ -207,4 +239,4 @@ def report_command(
         config_id=config,
         runtime_id=runtime,
     )
-    _finish(result, ctx, output)
+    finish(result, ctx, output)

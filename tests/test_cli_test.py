@@ -325,3 +325,114 @@ def test_cli_test_run_text_output(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.exit_code == SUCCESS
     assert "status: passed" in result.stdout
     assert "counts: passed=1" in result.stdout
+
+
+def test_cli_test_run_no_runner_ensure_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: list[dict[str, Any]] = []
+
+    def fake_run(*_args: Any, **kwargs: Any) -> ApiTestResult:
+        captured.append(kwargs)
+        return _result(status="passed", exit_code=SUCCESS, passed=1, total=1)
+
+    def fake_one(*_args: Any, **kwargs: Any) -> ApiTestResult:
+        captured.append(kwargs)
+        return _result(status="passed", exit_code=SUCCESS, passed=1, total=1)
+
+    monkeypatch.setattr("cli.test.run_tests", fake_run)
+    monkeypatch.setattr("cli.test.run_one_test", fake_one)
+
+    assert runner.invoke(app, ["test", "run", "--output", "json"]).exit_code == SUCCESS
+    assert (
+        runner.invoke(app, ["test", "run", "--no-runner-ensure", "--output", "json"]).exit_code
+        == SUCCESS
+    )
+    assert (
+        runner.invoke(
+            app, ["test", "run", "Mod.Method", "--no-runner-ensure", "--output", "json"]
+        ).exit_code
+        == SUCCESS
+    )
+    assert [c["skip_runner_ensure"] for c in captured] == [False, True, True]
+
+
+def test_cli_test_run_prints_runner_ensure(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(*_args: Any, **_kwargs: Any) -> ApiTestResult:
+        return _result(
+            status="passed",
+            exit_code=SUCCESS,
+            passed=1,
+            total=1,
+            runner_ensure={
+                "status": "ok",
+                "loaded": True,
+                "steps": ["load:YAXUNIT", "apply:YAXUNIT"],
+                "cfePath": "/cache/yaxunit.cfe",
+                "pin": "25.12",
+            },
+        )
+
+    monkeypatch.setattr("cli.test.run_tests", fake_run)
+    as_json = runner.invoke(app, ["test", "run", "--output", "json"])
+    assert json.loads(as_json.stdout)["runnerEnsure"]["steps"] == ["load:YAXUNIT", "apply:YAXUNIT"]
+
+    as_text = runner.invoke(app, ["test", "run", "--output", "text"])
+    assert "runnerEnsure: ok" in as_text.stdout
+    assert "loaded: YAXUNIT" in as_text.stdout
+    assert "25.12" in as_text.stdout
+
+
+def test_cli_yaxunit_help() -> None:
+    result = runner.invoke(app, ["yaxunit", "--help"])
+    assert result.exit_code == 0
+    assert "ensure" in result.stdout
+
+
+def test_cli_yaxunit_ensure_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_ensure(
+        start: Path | None = None,
+        *,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+        **_kwargs: Any,
+    ) -> ApiTestResult:
+        captured.update({"config_id": config_id, "runtime_id": runtime_id})
+        return _result(
+            status="ok",
+            exit_code=SUCCESS,
+            runner_ensure={"status": "ok", "loaded": False, "steps": []},
+        )
+
+    monkeypatch.setattr("cli.yaxunit.ensure_runner", fake_ensure)
+    result = runner.invoke(
+        app, ["yaxunit", "ensure", "--config", "main", "--runtime", "main", "--output", "json"]
+    )
+    assert result.exit_code == SUCCESS
+    payload = json.loads(result.stdout)
+    assert payload["runnerEnsure"]["status"] == "ok"
+    assert captured == {"config_id": "main", "runtime_id": "main"}
+
+
+def test_cli_yaxunit_ensure_cfe_missing_exit_3(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_ensure(*_args: Any, **_kwargs: Any) -> ApiTestResult:
+        return _result(
+            status="failed",
+            exit_code=ENV_UNAVAILABLE,
+            runner_ensure={"status": "failed", "loaded": False, "steps": []},
+            diagnostics=[
+                {
+                    "severity": "error",
+                    "message": "YAxUnit.cfe не найден в user cache",
+                    "source": "test",
+                    "code": "1CT110",
+                    "suggestion": "Выполните 1c-dev tools sync",
+                }
+            ],
+        )
+
+    monkeypatch.setattr("cli.yaxunit.ensure_runner", fake_ensure)
+    result = runner.invoke(app, ["yaxunit", "ensure", "--output", "text"])
+    assert result.exit_code == ENV_UNAVAILABLE
+    assert "1CT110" in result.stdout
+    assert "tools sync" in result.stdout

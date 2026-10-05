@@ -42,7 +42,8 @@
         "xml-gen",
         "md-reader",
         "bsl-language-server",
-        "docs-facade"
+        "docs-facade",
+        "yaxunit"
       ],
       "additionalProperties": false,
       "properties": {
@@ -57,7 +58,8 @@
         "xml-gen": { "$ref": "#/$defs/tool" },
         "md-reader": { "$ref": "#/$defs/tool" },
         "bsl-language-server": { "$ref": "#/$defs/tool" },
-        "docs-facade": { "$ref": "#/$defs/tool" }
+        "docs-facade": { "$ref": "#/$defs/tool" },
+        "yaxunit": { "$ref": "#/$defs/tool" }
       }
     },
     "capabilities": {
@@ -73,7 +75,8 @@
         "metadata.create": { "$ref": "#/$defs/capability" },
         "metadata.update": { "$ref": "#/$defs/capability" },
         "metadata.delete": { "$ref": "#/$defs/capability" },
-        "metadata.read": { "$ref": "#/$defs/capability" }
+        "metadata.read": { "$ref": "#/$defs/capability" },
+        "test.yaxunit": { "$ref": "#/$defs/capability" }
       }
     },
     "gaps": {
