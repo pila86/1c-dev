@@ -51,8 +51,98 @@ def _invariant_error(message: str) -> Diagnostic:
     )
 
 
+_RUNNER_EXTENSION_NAME = "YAXUNIT"
+
+
+def _extension_index(
+    extensions: list[Any],
+) -> dict[str, dict[str, Any]]:
+    """Map extension id → extension object (first wins)."""
+    by_id: dict[str, dict[str, Any]] = {}
+    for ext in extensions:
+        if not isinstance(ext, dict):
+            continue
+        ext_id = ext.get("id")
+        if isinstance(ext_id, str) and ext_id and ext_id not in by_id:
+            by_id[ext_id] = ext
+    return by_id
+
+
+def _validate_configuration_tests(
+    conf_idx: int,
+    conf: dict[str, Any],
+) -> list[Diagnostic]:
+    """Инварианты configurations[].tests (ADR-029)."""
+    tests = conf.get("tests")
+    if tests is None:
+        return []
+    if not isinstance(tests, list):
+        return []
+
+    diags: list[Diagnostic] = []
+    raw_extensions = conf.get("extensions")
+    extensions = raw_extensions if isinstance(raw_extensions, list) else []
+    ext_by_id = _extension_index(extensions)
+
+    suite_ids: list[str] = []
+    for suite_idx, suite in enumerate(tests):
+        if not isinstance(suite, dict):
+            continue
+        suite_id = suite.get("id")
+        if isinstance(suite_id, str) and suite_id:
+            if suite_id in suite_ids:
+                diags.append(
+                    _invariant_error(
+                        f"configurations[{conf_idx}].tests[{suite_idx}].id: "
+                        f"дублируется id {suite_id!r}"
+                    )
+                )
+            else:
+                suite_ids.append(suite_id)
+
+        ext_refs = suite.get("extensions")
+        if not isinstance(ext_refs, list):
+            continue
+        for ref_idx, ref in enumerate(ext_refs):
+            if not isinstance(ref, str) or not ref:
+                continue
+            path = (
+                f"configurations[{conf_idx}].tests[{suite_idx}]"
+                f".extensions[{ref_idx}]"
+            )
+            ext = ext_by_id.get(ref)
+            if ext is None:
+                diags.append(
+                    _invariant_error(
+                        f"{path}: нет extension с id {ref!r} "
+                        f"в configurations[{conf_idx}].extensions[]"
+                    )
+                )
+                continue
+            purpose = ext.get("purpose")
+            if purpose != "tests":
+                shown = purpose if isinstance(purpose, str) else "отсутствует"
+                diags.append(
+                    _invariant_error(
+                        f"{path}: extension {ref!r} должен иметь "
+                        f"purpose: tests (сейчас {shown})"
+                    )
+                )
+            name = ext.get("name")
+            if isinstance(name, str) and name.upper() == _RUNNER_EXTENSION_NAME:
+                diags.append(
+                    _invariant_error(
+                        f"{path}: не включать runner-extension "
+                        f"{_RUNNER_EXTENSION_NAME} (id {ref!r}) в "
+                        f"tests[].extensions"
+                    )
+                )
+
+    return diags
+
+
 def _validate_v2_invariants(data: dict[str, Any]) -> list[Diagnostic]:
-    """Семантические инварианты ADR-023/025/026 поверх JSON Schema v2."""
+    """Семантические инварианты ADR-023/025/026/029 поверх JSON Schema v2."""
     diags: list[Diagnostic] = []
 
     configurations = data.get("configurations")
@@ -77,6 +167,7 @@ def _validate_v2_invariants(data: dict[str, Any]) -> list[Diagnostic]:
                 config_ids.append(conf_id)
         if conf.get("default") is True:
             default_configs += 1
+        diags.extend(_validate_configuration_tests(idx, conf))
 
     if default_configs > 1:
         diags.append(
