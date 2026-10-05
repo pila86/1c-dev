@@ -52,6 +52,13 @@ from core.publish import (
 )
 from core.runtime import run_start, run_status, run_stop
 from core.templates import templates_get, templates_list, templates_roots
+from core.test import (
+    discover_tests,
+    list_tests,
+    report_tests,
+    run_one_test,
+    run_tests,
+)
 from mcp_server._path import resolve_path
 
 _NO_SHELL = (
@@ -73,6 +80,10 @@ _PUBLISH_PROFILE = (
     " Optional profile selects publish.profiles id (default: publish.default)."
     " Optional backend (ibsrv|webinst) selects/ensures a profile by backend:"
     " on publish.up creates local-<backend> in project.yaml if missing."
+)
+_TEST_SUITE = (
+    " Optional suite selects configurations[].tests[] id "
+    "(without it — all suites of the selected config)."
 )
 _WRITE_TYPES = (
     "Write types (23 Meta DSL + Subsystem): " + WRITE_OBJECT_TYPES_HELP + "."
@@ -1108,4 +1119,138 @@ def register_tools(server: FastMCP) -> None:
         path: str | None = None,
     ) -> dict[str, Any]:
         result = get_docs(resolve_path(path), name)
+        return result.to_payload()
+
+    @server.tool(
+        name="test.discover",
+        description=(
+            "Static inventory of test suites / extensions / modules with "
+            "exported ИсполняемыеСценарии from purpose:tests sources. "
+            "Does not touch the platform or IB. Does not call build."
+            + _CONFIG_RUNTIME
+            + _TEST_SUITE
+            + _PATH_SCOPE
+            + _NO_SHELL
+        ),
+    )
+    def test_discover_tool(
+        path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+        suite: str | None = None,
+    ) -> dict[str, Any]:
+        result = discover_tests(
+            resolve_path(path),
+            config_id=config_id,
+            runtime_id=runtime_id,
+            suite_id=suite,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="test.list",
+        description=(
+            "Best-effort list of tests: prefer the last saved report, else "
+            "discover modules (may be incomplete on a clean project)."
+            + _CONFIG_RUNTIME
+            + _TEST_SUITE
+            + _PATH_SCOPE
+            + _NO_SHELL
+        ),
+    )
+    def test_list_tool(
+        path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+        suite: str | None = None,
+    ) -> dict[str, Any]:
+        result = list_tests(
+            resolve_path(path),
+            config_id=config_id,
+            runtime_id=runtime_id,
+            suite_id=suite,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="test.run",
+        description=(
+            "Run selected (or all) YaXUnit suites in one 1cv8 process. "
+            "Does not call build — prepare the IB with build first. "
+            "Implicit ensure loads YAXUNIT from toolchain cache and clears "
+            "safe-mode unless no_runner_ensure=true."
+            + _CONFIG_RUNTIME
+            + _TEST_SUITE
+            + _PATH_SCOPE
+            + _NO_SHELL
+        ),
+    )
+    def test_run_tool(
+        path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+        suite: str | None = None,
+        no_runner_ensure: bool = False,
+    ) -> dict[str, Any]:
+        result = run_tests(
+            resolve_path(path),
+            config_id=config_id,
+            runtime_id=runtime_id,
+            suite_id=suite,
+            skip_runner_ensure=no_runner_ensure,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="test.runOne",
+        description=(
+            "Run a single test Module.Method[.Context] via YaXUnit filter.tests. "
+            "Does not call build — prepare the IB with build first. "
+            "Pass suite when the module name is ambiguous across extensions. "
+            "Implicit ensure loads YAXUNIT from toolchain cache unless "
+            "no_runner_ensure=true."
+            + _CONFIG_RUNTIME
+            + _TEST_SUITE
+            + _PATH_SCOPE
+            + _NO_SHELL
+        ),
+    )
+    def test_run_one_tool(
+        name: str,
+        path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+        suite: str | None = None,
+        no_runner_ensure: bool = False,
+    ) -> dict[str, Any]:
+        result = run_one_test(
+            name,
+            resolve_path(path),
+            config_id=config_id,
+            runtime_id=runtime_id,
+            suite_id=suite,
+            skip_runner_ensure=no_runner_ensure,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="test.report",
+        description=(
+            "Return the last saved structured test result "
+            "(.1c-dev/test/last-result.json) from a prior test.run / test.runOne."
+            + _CONFIG_RUNTIME
+            + _PATH_SCOPE
+            + _NO_SHELL
+        ),
+    )
+    def test_report_tool(
+        path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = report_tests(
+            resolve_path(path),
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
         return result.to_payload()

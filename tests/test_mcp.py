@@ -15,6 +15,7 @@ from core.check import CheckResult
 from core.metadata import MetadataResult
 from core.metadata.types import WRITE_OBJECT_TYPES_HELP, WRITE_OBJECT_TYPES_SORTED
 from core.project import ProjectResult
+from core.test.result import TestResult as TestApiResult
 from mcp_server import create_server
 from mcp_server._path import resolve_path
 
@@ -54,6 +55,11 @@ EXPECTED_TOOLS = {
     "publish.url",
     "docs.search",
     "docs.get",
+    "test.discover",
+    "test.list",
+    "test.run",
+    "test.runOne",
+    "test.report",
 }
 
 
@@ -535,6 +541,186 @@ def test_build_and_check_mocked(tmp_path: Path, monkeypatch: Any) -> None:
 
     check_payload = _call("check", {"path": str(target)})
     assert check_payload["status"] == "ok"
+
+
+def test_test_api_mocked(tmp_path: Path, monkeypatch: Any) -> None:
+    target = tmp_path / "shop"
+    target.mkdir()
+
+    def fake_discover(
+        start: Path | None = None,
+        *,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+        suite_id: str | None = None,
+    ) -> TestApiResult:
+        assert start == target.resolve()
+        assert config_id == "main"
+        assert runtime_id == "dev"
+        assert suite_id == "unit"
+        return TestApiResult(
+            status="ok",
+            root=start,
+            config_id=config_id,
+            runtime_id=runtime_id,
+            suite_ids=["unit"],
+            modules=[{"name": "ТестМодуль", "extension": "Tests1"}],
+            exit_code=0,
+        )
+
+    def fake_list(
+        start: Path | None = None,
+        *,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+        suite_id: str | None = None,
+    ) -> TestApiResult:
+        assert start == target.resolve()
+        assert suite_id == "unit"
+        return TestApiResult(
+            status="ok",
+            root=start,
+            suite_ids=["unit"],
+            tests=[{"name": "ТестМодуль.Тест1", "status": "unknown"}],
+            source="discover",
+            incomplete=True,
+            total=1,
+            exit_code=0,
+        )
+
+    def fake_run(
+        start: Path | None = None,
+        *,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+        suite_id: str | None = None,
+        skip_runner_ensure: bool = False,
+        **kwargs: Any,
+    ) -> TestApiResult:
+        assert start == target.resolve()
+        assert config_id == "main"
+        assert suite_id == "unit"
+        assert skip_runner_ensure is True
+        return TestApiResult(
+            status="passed",
+            root=start,
+            config_id=config_id,
+            suite_ids=["unit"],
+            passed=1,
+            failed=0,
+            error=0,
+            skipped=0,
+            total=1,
+            tests=[{"name": "ТестМодуль.Тест1", "status": "passed"}],
+            exit_code=0,
+        )
+
+    def fake_run_one(
+        test_id: str,
+        start: Path | None = None,
+        *,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+        suite_id: str | None = None,
+        skip_runner_ensure: bool = False,
+        **kwargs: Any,
+    ) -> TestApiResult:
+        assert test_id == "ТестМодуль.Тест1"
+        assert start == target.resolve()
+        assert suite_id == "unit"
+        assert skip_runner_ensure is False
+        return TestApiResult(
+            status="passed",
+            root=start,
+            suite_ids=["unit"],
+            passed=1,
+            failed=0,
+            error=0,
+            skipped=0,
+            total=1,
+            tests=[{"name": "ТестМодуль.Тест1", "status": "passed"}],
+            exit_code=0,
+        )
+
+    def fake_report(
+        start: Path | None = None,
+        *,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> TestApiResult:
+        assert start == target.resolve()
+        assert config_id == "main"
+        return TestApiResult(
+            status="passed",
+            root=start,
+            config_id=config_id,
+            suite_ids=["unit"],
+            passed=1,
+            failed=0,
+            total=1,
+            source="report",
+            report_path=".1c-dev/test/junit.xml",
+            exit_code=0,
+        )
+
+    monkeypatch.setattr("mcp_server.tools.discover_tests", fake_discover)
+    monkeypatch.setattr("mcp_server.tools.list_tests", fake_list)
+    monkeypatch.setattr("mcp_server.tools.run_tests", fake_run)
+    monkeypatch.setattr("mcp_server.tools.run_one_test", fake_run_one)
+    monkeypatch.setattr("mcp_server.tools.report_tests", fake_report)
+
+    discover_payload = _call(
+        "test.discover",
+        {
+            "path": str(target),
+            "config_id": "main",
+            "runtime_id": "dev",
+            "suite": "unit",
+        },
+    )
+    assert discover_payload["status"] == "ok"
+    assert discover_payload["modules"][0]["name"] == "ТестМодуль"
+    assert discover_payload["suiteIds"] == ["unit"]
+
+    list_payload = _call(
+        "test.list",
+        {"path": str(target), "suite": "unit"},
+    )
+    assert list_payload["status"] == "ok"
+    assert list_payload["incomplete"] is True
+    assert list_payload["source"] == "discover"
+
+    run_payload = _call(
+        "test.run",
+        {
+            "path": str(target),
+            "config_id": "main",
+            "suite": "unit",
+            "no_runner_ensure": True,
+        },
+    )
+    assert run_payload["status"] == "passed"
+    assert run_payload["passed"] == 1
+    assert run_payload["total"] == 1
+
+    run_one_payload = _call(
+        "test.runOne",
+        {
+            "path": str(target),
+            "name": "ТестМодуль.Тест1",
+            "suite": "unit",
+        },
+    )
+    assert run_one_payload["status"] == "passed"
+    assert run_one_payload["tests"][0]["name"] == "ТестМодуль.Тест1"
+
+    report_payload = _call(
+        "test.report",
+        {"path": str(target), "config_id": "main"},
+    )
+    assert report_payload["status"] == "passed"
+    assert report_payload["source"] == "report"
+    assert report_payload["reportPath"] == ".1c-dev/test/junit.xml"
 
 
 def test_project_init_mocked(tmp_path: Path, monkeypatch: Any) -> None:
