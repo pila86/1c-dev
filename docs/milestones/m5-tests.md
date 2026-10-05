@@ -142,8 +142,8 @@ AI читает BSL
 - [ ] MCP: `test.discover`, `test.list`, `test.run`, `test.runOne`, `test.report` без shell.exec
 - [ ] Выбор ИБ: `--runtime` (default = default runtime `--config`)
 - [ ] YaXUnit `.cfe` в user cache (`tools sync`, `ONEC_YAXUNIT_CFE`) + implicit `ensure` перед `test run` и `1c-dev yaxunit ensure` (ADR-029 §7a)
-- [ ] `doctor` сообщает о наличии/отсутствии runner capability (soft gap)
-- [ ] `AGENTS.md`: цикл `build → test.*`
+- [x] `doctor` сообщает о наличии/отсутствии runner capability (soft gap)
+- [x] `AGENTS.md`: цикл `build → test.*`
 - [ ] Integration-тесты: skip без платформы / YaXUnit, с понятным сообщением
 
 ### Should
