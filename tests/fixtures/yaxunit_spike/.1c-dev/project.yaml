@@ -24,6 +24,12 @@ configurations:
     source:
       format: xml
       path: src/cfe/test_ext2
+  tests:
+  - id: unit
+    runner: yaxunit
+    extensions:
+    - test_ext1
+    - test_ext2
 runtimes:
 - id: main
   configuration: main

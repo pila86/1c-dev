@@ -43,6 +43,19 @@ components:
     min_java: 21
     env: ONEC_DOCS_FACADE_JAR
 
+  # Soft: YaXUnit runner extension (.cfe), Apache-2.0 (ADR-029 §7a).
+  # Тесты живут в src/ проекта; runner подключается в ИБ неявным `ensure` из cache.
+  - id: yaxunit
+    artifact: yaxunit.cfe
+    pin: "25.12"
+    source:
+      type: github-release
+      repo: bia-technologies/yaxunit
+      asset: YAxUnit-25.12.cfe
+      url: https://github.com/bia-technologies/yaxunit/releases/download/25.12/YAxUnit-25.12.cfe
+    env: ONEC_YAXUNIT_CFE
+    sha256: "805a2277c997a3c24be0b0d080696479e91e4a15ed7e27aaf3991a7346522d70"
+
   # Soft: user-owned httpd home for publish/webinst (#94).
   # Unix: tools sync собирает ASF httpd+apr+apr-util в ~/.cache/1c-dev/tools/apache/
   # (нужны gcc/make/libpcre2-dev). Fallback для разработчиков: ./scripts/fetch-apache.sh

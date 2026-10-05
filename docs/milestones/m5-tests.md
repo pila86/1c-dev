@@ -23,10 +23,10 @@ EDT ([draft-source-formats](draft-source-formats.md)) **не** блокер дл
 |------|---------|------------|
 | Поверхность для агента и CI | **Свой** MCP (`test.*` в `1c-dev mcp`) + CLI `1c-dev test` | ADR-010 thin wrapper, без `shell.exec` |
 | METR (`alkoleft/mcp-onec-test-runner`) | Только spike механики / референс; **не** product-путь | GPL; нет non-MCP CLI; пересечение tools с `build`/`check`/`runtime` |
-| Где живёт YaXUnit | В **пользовательском** 1С-проекте (test-extension), не в monorepo toolchain | |
+| Где живут тесты и runner | Тесты — в **исходниках** user project (test-extension). Runner YaXUnit `.cfe` — **soft toolchain** в user cache (`tools sync`), подключается неявным `ensure` перед `test run` | ADR-029 §7a; в `project.yaml` / `src/` не пишется |
 | Граница с M4 | Multi-source, extension scaffold, `build`+extension — **M4**; M5 = Test API + тонкий consumer-config | |
 | Манифест `tests` | Внутри `configurations[]`; список suites; у suite несколько extensions | См. эскиз ниже |
-| Build перед тестами | `test.*` **не** собирает ИБ; агент/CI: `build` → `test.*` | |
+| Build перед тестами | `test.*` **не** собирает ИБ; агент/CI: `build` → `test.*` | Узкий preflight `ensure` (YAXUNIT из cache + safe-mode) — не build; `--no-runner-ensure` |
 | Выбор ИБ | `--runtime` / MCP-аналог; default = default runtime выбранной `--config` | ADR-026 |
 | Vanessa | Контракт и место в схеме в M5; `adapters/test_vanessa` — follow-up | Should / carry-over |
 | Doctor | Soft gap: предупреждение, остальной CLI не hard-fail | |
@@ -98,7 +98,8 @@ Must: полный набор PRD. Фильтры suite / runtime — CLI/MCP ф
 
 ### 4. Doctor / DX
 
-- `doctor`: capability YaXUnit / runner — **gap**, не hard-fail всего CLI.
+- `doctor`: capability `test.yaxunit` (cache `yaxunit.cfe` + `1cv8` + `ibcmd`) — **soft gap**, не hard-fail всего CLI.
+- Runner cache + ensure: `tools sync` → `yaxunit.cfe`; `1c-dev yaxunit ensure`; implicit ensure в `test run` ([ADR-029 §7a](../adr/029-test-api.md)).
 - `AGENTS.md`: цикл `build → test.run` перед завершением задачи.
 - `ide configure`: **не** подключает METR.
 
@@ -139,6 +140,7 @@ AI читает BSL
 - [ ] Падения тестов → exit code `TEST_FAILURE` (5), ADR-003
 - [ ] MCP: `test.discover`, `test.list`, `test.run`, `test.runOne`, `test.report` без shell.exec
 - [ ] Выбор ИБ: `--runtime` (default = default runtime `--config`)
+- [ ] YaXUnit `.cfe` в user cache (`tools sync`, `ONEC_YAXUNIT_CFE`) + implicit `ensure` перед `test run` и `1c-dev yaxunit ensure` (ADR-029 §7a)
 - [ ] `doctor` сообщает о наличии/отсутствии runner capability (soft gap)
 - [ ] `AGENTS.md`: цикл `build → test.*`
 - [ ] Integration-тесты: skip без платформы / YaXUnit, с понятным сообщением
@@ -156,7 +158,7 @@ AI читает BSL
 ## Out of scope
 
 - Multi-source / extension scaffold / `build`+extension — [M4](m4-project-model.md)
-- Vendor-in / дистрибуция `mcp-yaxunit-runner.jar` в `tools sync`
+- Vendor-in / дистрибуция `mcp-yaxunit-runner.jar` (METR) в `tools sync` (YaXUnit `.cfe` из Apache-2.0 релиза — наоборот, в scope, ADR-029 §7a)
 - Замена `build` / `check` / `runtime` на METR; companion METR в default DX
 - Генерация текста тестов отдельным MCP tool
 - Auto-build / incremental build внутри `test.run`
@@ -199,4 +201,5 @@ AI читает BSL
 | [#126](https://github.com/pila86/1c-dev/issues/126) | 3 | Doctor capability YaXUnit + AGENTS: `build → test.*` | #122, #125 |
 | [#127](https://github.com/pila86/1c-dev/issues/127) | 3 | should: контракт `runner: vanessa` (без adapter) | #121 |
 | [#128](https://github.com/pila86/1c-dev/issues/128) | follow-up | `adapters/test_vanessa` (carry-over) | #127, #124 |
-| [#129](https://github.com/pila86/1c-dev/issues/129) | 3 | Acceptance: E2E `build → test.run` | #121–#126 |
+| — | 3 | Runner cache + `ensure`: toolchain `yaxunit`, `core/test/runner_ensure.py`, `1c-dev yaxunit ensure`, doctor `test.yaxunit` (ADR-029 §7a) | #122, #124 |
+| [#129](https://github.com/pila86/1c-dev/issues/129) | 3 | Acceptance: E2E `tools sync → build → test.run` (без ручного `extension add YAXUNIT`) | #121–#126 |

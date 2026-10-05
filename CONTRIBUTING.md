@@ -62,6 +62,7 @@ pwsh scripts/fetch-md-reader.ps1
 
 - xml-gen: JDK 17+, override `ONEC_XMLGEN_JAR`
 - md-reader: JDK 21+ (MDClasses 0.20.0), override `ONEC_MDREADER_JAR`
+- yaxunit (M5, ADR-029 §7a): `1c-dev tools sync` кладёт `YAxUnit-<pin>.cfe` в `tools/` (soft); override `ONEC_YAXUNIT_CFE=/path/to/YAxUnit.cfe`. В `project.yaml` не объявляется — runner подключается `1c-dev yaxunit ensure` / `test run`
 - apache (publish/webinst, #94): Unix — `./scripts/fetch-apache.sh` или `1c-dev tools sync` (gcc, make, `libpcre2-dev`); Windows — prebuilt zip из манифеста; override `ONEC_APACHE_HOME`
 
 ## Тесты

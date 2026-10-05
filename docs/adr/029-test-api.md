@@ -35,7 +35,10 @@ default multi-suite filter, семантика discover/list без native dry-r
 - MCP — thin wrapper над `core/test` (ADR-010): без `shell.exec`, без парсинга CLI stdout.
 - Vanessa: тот же контракт (`runner: vanessa` в схеме/API); `adapters/test_vanessa/` — follow-up
   ([#127](https://github.com/pila86/1c-dev/issues/127) / [#128](https://github.com/pila86/1c-dev/issues/128)).
-- YaXUnit живёт в **пользовательском** проекте (test-extension), не в monorepo toolchain.
+- **Тесты** (test-extension с BSL-кодом) живут в **исходниках пользовательского** проекта.
+  **Runner** YaXUnit (`YAxUnit-<pin>.cfe`) — **soft-компонент toolchain** в user cache
+  (`1c-dev tools sync`, ADR-013) и подключается в ИБ неявным `ensure` (§7a); в `project.yaml`
+  и в `src/` не записывается.
 - `ide configure` **не** подключает METR; JDK для runner’а не обязателен.
 
 **METR** — только spike / референс механики. Не vendor-in JAR, не companion MCP в default DX,
@@ -45,7 +48,10 @@ default multi-suite filter, семантика discover/list без native dry-r
 
 - Multi-source, extension scaffold, `build`+extension — **M4** (ADR-023 / ADR-026).
 - M5 = Test API + тонкая секция `configurations[].tests` (consumer-config).
-- `test.*` **не** собирает ИБ. Цикл агента/CI: `build` → `test.*`.
+- `test.*` **не** собирает ИБ (конфигурацию и test-extension из `project.yaml` грузит только
+  `build`). Цикл агента/CI: `build` → `test.*`.
+- Исключение — узкий idempotent preflight `ensure` runner-extension `YAXUNIT` из cache и снятие
+  safe-mode (§7a); он не заменяет `build` и отключается `--no-runner-ensure`.
 - Auto-build / incremental внутри `test.run` — out of scope.
 
 ### 3. Манифест `configurations[].tests` и schema version
@@ -57,10 +63,7 @@ configurations:
   - id: main
     # …
     extensions:
-      - id: yaxunit
-        name: YAXUNIT
-        purpose: tests
-        source: { format: xml, path: src/cfe/yaxunit }
+      # YAXUNIT здесь не указывается — runner подключается из user cache (§7a)
       - id: test_ext1
         name: Tests1
         purpose: tests
@@ -121,9 +124,10 @@ configurations:
 3. `--module` / `runOne` → `filter.modules` / `filter.tests` **вместе с** `filter.extensions`
    своего suite. При неоднозначности имён модулей между extension — требовать `--suite`.
 4. Один процесс `1cv8` на один `test.run` (suites объединяются в один `filter.extensions`).
-5. **Runner-extension:** extension с `purpose: tests`, чей `id` **не** входит ни в один
-   `tests[].extensions` (типично `name: YAXUNIT`). Должен быть загружен в ИБ через `build`;
-   в `filter.extensions` **не** попадает. Явное поле манифеста под runner — не вводится в v1.
+5. **Runner-extension `YAXUNIT`:** implicit — из user cache (§7a), в `extensions[]` манифеста
+   **не** объявляется и в `filter.extensions` **не** попадает. Если проект всё же объявил
+   `YAXUNIT` в `extensions[]` (legacy / spike), `ensure` его не перезаписывает и только
+   снимает safe-mode. Явное поле манифеста под runner — не вводится в v1.
 
 Валидация до запуска: путь `runOne` / `filter.tests` = `Module.Method[.Context]`
 (иначе hang YaXUnit — spike §4).
@@ -150,8 +154,26 @@ configurations:
   (`ibcmd extension update`, абсолютные пути) до прогона;
 - обязательный timeout; при timeout — kill **process group** (`start_new_session` / `killpg`).
 
-Подготовка ИБ (import/apply) — зона `build` (M4); отключение safe-mode — pre-flight `test.*`
-или follow-up на `build` для `purpose: tests` (реализация — issues adapter/core, не этот ADR).
+Подготовка ИБ (import/apply пользовательских конфигурации и extension) — зона `build` (M4);
+runner-extension и safe-mode — pre-flight `ensure` (§7a).
+
+### 7a. Runner-extension YAXUNIT: cache + `ensure`
+
+- **Toolchain:** soft-компонент `yaxunit` в `toolchain/manifest.yaml` (pin, sha256, GitHub release
+  `bia-technologies/yaxunit`, Apache-2.0); `1c-dev tools sync` кладёт `yaxunit-<pin>.cfe` и
+  `yaxunit.cfe` в `tools/`. Override: `ONEC_YAXUNIT_CFE`.
+- **`ensure`** (`core/test/runner_ensure.py`), вызывается перед `RunUnitTests` в `test run` /
+  `test run <name>` и явно через `1c-dev yaxunit ensure`:
+  1. нет suite с `runner: yaxunit` → no-op;
+  2. нет `.cfe` (cache / env) → `1CT110`, exit **3**, suggestion `1c-dev tools sync`;
+  3. `YAXUNIT` отсутствует в ИБ или fingerprint (sha256 `.cfe`) не совпадает с записанным в
+     `.1c-dev/test/runner-yaxunit.json` → `ibcmd config load --extension=YAXUNIT` + `apply`;
+  4. `ibcmd extension update --safe-mode=no --unsafe-action-protection=no` для `YAXUNIT` и **всех**
+     `extensions[]` выбранной configuration с `purpose: tests` (идемпотентно).
+- Результат попадает в JSON как `runnerEnsure: {status, cfePath, pin, steps[]}`.
+- `--no-runner-ensure` — прогон «ИБ уже подготовлена».
+- `ensure` не меняет `project.yaml`, не пишет в `src/` и не заменяет `build`; параллельный
+  запуск с `build` на одной file IB не поддерживается (§5).
 
 ### 8. Test Result JSON и exit codes
 
@@ -182,7 +204,8 @@ MCP: те же статусы и `diagnostics[]` в JSON; exit codes CLI на MC
 
 ### 9. Doctor / DX (контракт, не реализация здесь)
 
-- `doctor`: capability YaXUnit / test runner — **soft gap**, не hard-fail остального CLI.
+- `doctor`: capability `test.yaxunit` (`1cv8`, `ibcmd`, `yaxunit.cfe` в cache / `ONEC_YAXUNIT_CFE`) —
+  **soft gap** с подсказкой `1c-dev tools sync`, не hard-fail остального CLI.
 - `AGENTS.md`: цикл `build → test.*` перед завершением задачи (issue DX).
 - Integration-тесты: skip без платформы / YaXUnit с понятным сообщением.
 
@@ -197,17 +220,21 @@ MCP: те же статусы и `diagnostics[]` в JSON; exit codes CLI на MC
 | Discover = полный прогон | Точный список | Побочные эффекты; не list | **Отвергнуто** для v1 |
 | Пустой `filter.extensions` «как YaXUnit default» | Меньше кода | Чужие модули/тесты | **Отвергнуто** |
 | `total==0` → exit 0 | Совпадает с YaXUnit rc | Ложные green в CI | **Отвергнуто** (`CHECK_FAILURE`) |
+| YAXUNIT как обычный extension в `project.yaml` / `src/cfe/yaxunit` | Прозрачно, `build` грузит сам | ~10 МБ XML в git, ручное обновление версии | **Отвергнуто** |
+| YAXUNIT `.cfe` в cache + implicit `ensure` | Тесты в проекте, runner pinned в toolchain | Узкий preflight внутри `test.*` | **Принято** |
 
 ## Последствия
 
 - Реализация: [#121](https://github.com/pila86/1c-dev/issues/121) schema/validate `tests[]`;
   [#122](https://github.com/pila86/1c-dev/issues/122) adapter; [#123](https://github.com/pila86/1c-dev/issues/123) core;
   [#124](https://github.com/pila86/1c-dev/issues/124) CLI+exit 5; [#125](https://github.com/pila86/1c-dev/issues/125) MCP;
-  [#126](https://github.com/pila86/1c-dev/issues/126) doctor/AGENTS.
+  [#126](https://github.com/pila86/1c-dev/issues/126) doctor/AGENTS;
+  runner cache + `ensure` (§7a) — отдельная под-задача волны 3 (toolchain `yaxunit`,
+  `core/test/runner_ensure.py`, `1c-dev yaxunit ensure`, doctor `test.yaxunit`).
 - Документировать METR только как «механика spike», не product guide (Nice M5).
 - Известные gaps вне Test API (follow-up M4/M5): bug шаблона `Languages/Русский.xml.tmpl`
   (`ExtendedConfigurationObject`); нормализация id `test-ext1` → `test_ext1`; safe-mode
-  не снимается текущим `build` — см. spike §8.
+  не снимается текущим `build` — закрывается `ensure` (§7a), см. spike §8.
 
 ## Связанные решения
 

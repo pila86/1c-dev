@@ -36,10 +36,11 @@ def run_cmd(
 
 
 def pin_artifact_name(artifact: str, pin: str) -> str:
-    """Build pinned filename: xml-gen.jar + pin → xml-gen-{pin}.jar."""
-    if artifact.endswith(".jar"):
-        stem = artifact[: -len(".jar")]
-        return f"{stem}-{pin}.jar"
+    """Build pinned filename: xml-gen.jar + pin → xml-gen-{pin}.jar (same for .cfe)."""
+    for suffix in (".jar", ".cfe"):
+        if artifact.endswith(suffix):
+            stem = artifact[: -len(suffix)]
+            return f"{stem}-{pin}{suffix}"
     return f"{artifact}-{pin}"
 
 

@@ -21,6 +21,8 @@ from core.toolchain.manifest import ComponentSpec, ToolchainManifest, load_manif
 
 JarSource = Literal["env", "cache"]
 ApacheSource = Literal["env", "cache"]
+YAXUNIT_ID = "yaxunit"
+YAXUNIT_ENV = "ONEC_YAXUNIT_CFE"
 
 
 @dataclass(frozen=True)
@@ -152,6 +154,38 @@ def resolve_apache_home(
             )
 
     return ApacheResolve(found=False, home=stable)
+
+
+@dataclass(frozen=True)
+class YaxunitResolve:
+    """Resolved YAxUnit runner ``.cfe`` (ADR-029 §7a)."""
+
+    found: bool
+    path: Path | None = None
+    source: JarSource | None = None
+    pin: str = ""
+    env_name: str = YAXUNIT_ENV
+
+
+def resolve_yaxunit_cfe(
+    *,
+    env: dict[str, str] | None = None,
+    cache_env: dict[str, str] | None = None,
+    manifest: ToolchainManifest | None = None,
+) -> YaxunitResolve:
+    """Find YAxUnit.cfe: ``ONEC_YAXUNIT_CFE`` → tools/yaxunit.cfe → tools/yaxunit-<pin>.cfe."""
+    loaded = manifest if manifest is not None else load_manifest()
+    spec = loaded.get(YAXUNIT_ID)
+    if spec is None:
+        return YaxunitResolve(found=False)
+    resolved = resolve_component_jar(spec, env=env, cache_env=cache_env)
+    return YaxunitResolve(
+        found=resolved.found,
+        path=resolved.path,
+        source=resolved.source,
+        pin=spec.pin,
+        env_name=spec.env or YAXUNIT_ENV,
+    )
 
 
 def sync_suggestion() -> str:
