@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from adapters.platform import discover_environment
 from adapters.test_yaxunit import (
     CODE_ENV,
     CODE_FILTER,
@@ -274,15 +273,3 @@ def test_run_unit_tests_env_no_display(
             use_xvfb=None,
         )
     assert exc.value.code == CODE_ENV
-
-
-@pytest.mark.integration
-def test_run_unit_tests_integration_skip_without_platform() -> None:
-    """Real 1cv8 + YaXUnit IB is out of scope for #122 unit slice."""
-    env = discover_environment()
-    if not env.onecv8.found or env.onecv8.path is None:
-        pytest.skip("1cv8 не найден — integration RunUnitTests пропущен")
-    pytest.skip(
-        "YaXUnit fixture/ИБ не подключены в #122 — полный E2E в #129; "
-        f"1cv8={env.onecv8.path}"
-    )
