@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from adapters.platform_ibcmd.client import (
+    IbcmdError,
     IbcmdRunResult,
     apply_config,
     check_config,
@@ -14,6 +17,7 @@ from adapters.platform_ibcmd.client import (
     load_cf,
     parse_extension_list,
     save_cf,
+    update_extension_properties,
 )
 from adapters.platform_ibcmd.constants import IB_MARKER
 
@@ -153,6 +157,79 @@ def test_parse_extension_list_skips_headers() -> None:
     stdout = "Name Version\nCustomExt 1.0\n-----------\nTests\n"
     items = parse_extension_list(stdout)
     assert [i.name for i in items] == ["CustomExt", "Tests"]
+
+
+_BLOCK_STDOUT = """\
+name                         : "Tests1"
+version                      :
+active                       : yes
+purpose                      : add-on
+safe-mode                    : no
+security-profile-name        :
+unsafe-action-protection     : no
+used-in-distributed-infobase : no
+scope                        : infobase
+hash-sum                     : "BrSZfNWUJccusYMxwukNrq8P4WY="
+
+name                         : "YAXUNIT"
+version                      : "25.12"
+active                       : yes
+purpose                      : add-on
+safe-mode                    : yes
+unsafe-action-protection     : yes
+hash-sum                     : "LEMdJu/aMttoAQP4Act57ITwzIk="
+"""
+
+
+def test_parse_extension_list_block_format() -> None:
+    items = parse_extension_list(_BLOCK_STDOUT)
+    assert [i.name for i in items] == ["Tests1", "YAXUNIT"]
+    tests1, yax = items
+    assert tests1.prop("safe-mode") == "no"
+    assert tests1.prop("version") == ""
+    assert yax.prop("version") == "25.12"
+    assert yax.prop("safe-mode") == "yes"
+    assert yax.prop("unsafe-action-protection") == "yes"
+    assert yax.prop("hash-sum") == "LEMdJu/aMttoAQP4Act57ITwzIk="
+
+
+def test_update_extension_properties_argv(tmp_path: Path) -> None:
+    ibcmd = tmp_path / "ibcmd"
+    captured: list[list[str]] = []
+
+    def run(argv: list[str]) -> IbcmdRunResult:
+        captured.append(argv)
+        return _ok_run(argv)
+
+    update_extension_properties(
+        ibcmd,
+        db_path=tmp_path / "ib",
+        data_path=tmp_path / "data",
+        name="YAXUNIT",
+        run=run,
+    )
+    argv = captured[0]
+    assert argv[:3] == [str(ibcmd), "extension", "update"]
+    assert f"--db-path={tmp_path / 'ib'}" in argv
+    assert f"--data={tmp_path / 'data'}" in argv
+    assert "--name=YAXUNIT" in argv
+    assert "--safe-mode=no" in argv
+    assert "--unsafe-action-protection=no" in argv
+
+
+def test_update_extension_properties_failure(tmp_path: Path) -> None:
+    def run(argv: list[str]) -> IbcmdRunResult:
+        return IbcmdRunResult(returncode=1, stdout="", stderr="boom", argv=argv)
+
+    with pytest.raises(IbcmdError) as exc:
+        update_extension_properties(
+            tmp_path / "ibcmd",
+            db_path=tmp_path / "ib",
+            data_path=tmp_path / "data",
+            name="X",
+            run=run,
+        )
+    assert exc.value.step == "extension-update"
 
 
 def test_load_cf_with_ibcmd_extension_argv(tmp_path: Path) -> None:

@@ -6,15 +6,18 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
 import yaml
 
 from adapters.platform.discovery import DiscoveryResult, PlatformInfo, ToolInfo
 from adapters.platform_ibcmd.constants import IB_MARKER
 from adapters.test_yaxunit import TestCaseResult, TestRunResult, YaxunitError
+from core.diagnostics import error
 from core.exit_codes import (
     CHECK_FAILURE,
     ENV_UNAVAILABLE,
     PROJECT_ERROR,
+    RUNTIME_FAILURE,
     SUCCESS,
     TEST_FAILURE,
 )
@@ -26,14 +29,26 @@ from core.test import (
     CODE_RUNNER_UNSUPPORTED,
     CODE_SUITE_UNKNOWN,
     LAST_RESULT_REL,
+    RunnerEnsureResult,
     discover_tests,
+    ensure_runner,
     list_tests,
     report_tests,
     run_one_test,
     run_tests,
 )
+from core.test.constants import CODE_RUNNER_CFE_MISSING, CODE_RUNNER_ENSURE_FAILED
 from core.test.discover import module_has_executable_scenarios
 from tests.helpers_project import bootstrap_configuration_project
+
+
+@pytest.fixture(autouse=True)
+def _stub_runner_ensure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing tests mock only RunUnitTests; the YAXUNIT preflight has its own tests."""
+    monkeypatch.setattr(
+        "core.test.ops.ensure_yaxunit_runner",
+        lambda **_kwargs: RunnerEnsureResult(status="ok", reason="stub"),
+    )
 
 
 def _fake_discovery(*, onecv8: Path | None) -> DiscoveryResult:
@@ -497,3 +512,117 @@ def test_adapter_error_mapped(tmp_path: Path) -> None:
     )
     assert result.status == "failed"
     assert any(d.get("code") == "1CT004" for d in result.diagnostics)
+
+
+def _failing_ensure(code: str):
+    def fn(**_kwargs: Any) -> RunnerEnsureResult:
+        return RunnerEnsureResult(
+            status="failed",
+            diagnostics=[error("runner is not ready", code=code, source="test")],
+        )
+
+    return fn
+
+
+def test_run_tests_runs_runner_ensure_and_reports_it(tmp_path: Path) -> None:
+    target = _bootstrap_test_project(tmp_path)
+    _ensure_ib(target)
+    onecv8 = tmp_path / "1cv8"
+    onecv8.write_text("", encoding="utf-8")
+    seen: dict[str, Any] = {}
+
+    def ensure_fn(**kwargs: Any) -> RunnerEnsureResult:
+        seen.update(kwargs)
+        return RunnerEnsureResult(status="ok", steps=["load:YAXUNIT"], loaded=True)
+
+    result = run_tests(
+        target,
+        discover=lambda: _fake_discovery(onecv8=onecv8),
+        run_unit_tests_fn=lambda *a, **k: _ok_run_result(total=2),
+        ensure_runner_fn=ensure_fn,
+    )
+    assert result.status == "passed"
+    assert [s.id for s in seen["suites"]] == ["unit"]
+    assert seen["db_path"] == (target / ".1c-dev" / "runtime" / "main").resolve()
+    payload = result.to_payload()
+    assert payload["runnerEnsure"]["loaded"] is True
+    assert payload["runnerEnsure"]["steps"] == ["load:YAXUNIT"]
+    saved = json.loads((target / LAST_RESULT_REL).read_text(encoding="utf-8"))
+    assert saved["runnerEnsure"]["status"] == "ok"
+
+
+def test_run_tests_skip_runner_ensure(tmp_path: Path) -> None:
+    target = _bootstrap_test_project(tmp_path)
+    _ensure_ib(target)
+    onecv8 = tmp_path / "1cv8"
+    onecv8.write_text("", encoding="utf-8")
+
+    def boom(**_kwargs: Any) -> RunnerEnsureResult:
+        raise AssertionError("ensure must be skipped")
+
+    result = run_tests(
+        target,
+        discover=lambda: _fake_discovery(onecv8=onecv8),
+        run_unit_tests_fn=lambda *a, **k: _ok_run_result(total=2),
+        skip_runner_ensure=True,
+        ensure_runner_fn=boom,
+    )
+    assert result.status == "passed"
+    assert "runnerEnsure" not in result.to_payload()
+
+
+def test_run_tests_ensure_cfe_missing_exit_3_and_no_run(tmp_path: Path) -> None:
+    target = _bootstrap_test_project(tmp_path)
+    _ensure_ib(target)
+    onecv8 = tmp_path / "1cv8"
+    onecv8.write_text("", encoding="utf-8")
+
+    def must_not_run(*_a: Any, **_k: Any) -> TestRunResult:
+        raise AssertionError("RunUnitTests must not start when runner is not ready")
+
+    result = run_tests(
+        target,
+        discover=lambda: _fake_discovery(onecv8=onecv8),
+        run_unit_tests_fn=must_not_run,
+        ensure_runner_fn=_failing_ensure(CODE_RUNNER_CFE_MISSING),
+    )
+    assert result.status == "failed"
+    assert result.exit_code == ENV_UNAVAILABLE
+    assert result.to_payload()["runnerEnsure"]["status"] == "failed"
+
+
+def test_run_one_ensure_failure_exit_4(tmp_path: Path) -> None:
+    target = _bootstrap_test_project(tmp_path)
+    _ensure_ib(target)
+    onecv8 = tmp_path / "1cv8"
+    onecv8.write_text("", encoding="utf-8")
+
+    result = run_one_test(
+        "ОМ_Арифметика.Сложение",
+        target,
+        discover=lambda: _fake_discovery(onecv8=onecv8),
+        run_unit_tests_fn=lambda *a, **k: _ok_run_result(total=1),
+        ensure_runner_fn=_failing_ensure(CODE_RUNNER_ENSURE_FAILED),
+    )
+    assert result.status == "failed"
+    assert result.exit_code == RUNTIME_FAILURE
+
+
+def test_ensure_runner_command_ok_and_failure(tmp_path: Path) -> None:
+    target = _bootstrap_test_project(tmp_path)
+    _ensure_ib(target)
+    seen: dict[str, Any] = {}
+
+    def ok(**kwargs: Any) -> RunnerEnsureResult:
+        seen.update(kwargs)
+        return RunnerEnsureResult(status="ok", loaded=True, steps=["load:YAXUNIT"])
+
+    result = ensure_runner(target, ensure_runner_fn=ok)
+    assert result.status == "ok"
+    assert result.exit_code == SUCCESS
+    assert seen["suites"] is None  # explicit command is unconditional
+    assert result.to_payload()["runnerEnsure"]["steps"] == ["load:YAXUNIT"]
+
+    failed = ensure_runner(target, ensure_runner_fn=_failing_ensure(CODE_RUNNER_CFE_MISSING))
+    assert failed.status == "failed"
+    assert failed.exit_code == ENV_UNAVAILABLE

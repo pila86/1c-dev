@@ -18,10 +18,13 @@ from core.exit_codes import (
 from core.test.constants import (
     CODE_FILTER,
     CODE_IB_MISSING,
+    CODE_IBCMD_MISSING,
     CODE_NO_REPORT,
     CODE_NO_SUITES,
     CODE_ONECV8_MISSING,
     CODE_PROJECT,
+    CODE_RUNNER_CFE_MISSING,
+    CODE_RUNNER_ENSURE_FAILED,
     CODE_RUNNER_UNSUPPORTED,
     CODE_STORE,
     CODE_SUITE_UNKNOWN,
@@ -30,7 +33,9 @@ from core.test.constants import (
 # ok — discover/list/report without test-run verdict; rest — run/runOne (ADR-029).
 Status = Literal["ok", "passed", "failed", "error", "empty"]
 
-_ENV_CODES = frozenset({CODE_ONECV8_MISSING, "1CT001", "1CT007"})
+_ENV_CODES = frozenset(
+    {CODE_ONECV8_MISSING, CODE_RUNNER_CFE_MISSING, CODE_IBCMD_MISSING, "1CT001", "1CT007"}
+)
 _PROJECT_CODES = frozenset(
     {
         CODE_PROJECT,
@@ -46,7 +51,9 @@ _PROJECT_CODES = frozenset(
         "1CT008",
     }
 )
-_RUNTIME_CODES = frozenset({"1CT004", "1CT005", "1CT006", "1CT009"})
+_RUNTIME_CODES = frozenset(
+    {CODE_RUNNER_ENSURE_FAILED, "1CT004", "1CT005", "1CT006", "1CT009"}
+)
 
 
 @dataclass
@@ -76,6 +83,8 @@ class TestResult:
     # list provenance: "report" | "discover"
     source: str | None = None
     incomplete: bool = False
+    # Runner preflight (YAXUNIT from cache + safe-mode), ADR-029 §7a.
+    runner_ensure: dict[str, Any] | None = None
     # Suggested CLI exit (ADR-003 / ADR-029); MCP ignores.
     exit_code: int = PROJECT_ERROR
 
@@ -117,6 +126,8 @@ class TestResult:
             payload["source"] = self.source
         if self.incomplete:
             payload["incomplete"] = True
+        if self.runner_ensure is not None:
+            payload["runnerEnsure"] = dict(self.runner_ensure)
         payload["exitCode"] = self.exit_code
         if self.diagnostics:
             payload["diagnostics"] = list(self.diagnostics)

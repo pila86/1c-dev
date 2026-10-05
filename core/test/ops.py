@@ -46,8 +46,10 @@ from core.test.result import (
     exit_code_for_run_status,
     exit_code_from_diagnostics,
 )
+from core.test.runner_ensure import RunnerEnsureResult, ensure_yaxunit_runner
 from core.test.store import load_last_result_payload, save_last_result, work_dir
 from core.test.suites import (
+    SuiteRef,
     filter_extension_names,
     parse_suites,
     require_supported_runners,
@@ -57,6 +59,7 @@ from core.test.suites import (
 
 RunUnitTestsFn = Callable[..., TestRunResult]
 DiscoverFn = Callable[[], DiscoveryResult]
+EnsureRunnerFn = Callable[..., RunnerEnsureResult]
 
 
 def _fail(
@@ -68,6 +71,7 @@ def _fail(
     config_id: str | None = None,
     runtime_id: str | None = None,
     suite_ids: list[str] | None = None,
+    runner_ensure: dict[str, Any] | None = None,
 ) -> TestResult:
     return TestResult(
         status="failed",
@@ -78,7 +82,31 @@ def _fail(
         config_id=config_id,
         runtime_id=runtime_id,
         suite_ids=list(suite_ids or []),
+        runner_ensure=runner_ensure,
         exit_code=exit_code_from_diagnostics(diagnostics),
+    )
+
+
+def _ensure_runner_step(
+    *,
+    root: Path,
+    target: ResolvedTarget,
+    selected: list[SuiteRef] | None,
+    db_path: Path,
+    skip: bool,
+    discover: DiscoverFn | None,
+    ensure_fn: EnsureRunnerFn | None,
+) -> RunnerEnsureResult | None:
+    """Idempotent YAXUNIT preflight (ADR-029 §7a); ``None`` when skipped by the caller."""
+    if skip:
+        return None
+    ensure = ensure_fn or ensure_yaxunit_runner
+    return ensure(
+        root=root,
+        configuration=target.configuration,
+        db_path=db_path,
+        suites=selected,
+        discover=discover,
     )
 
 
@@ -215,6 +243,7 @@ def _result_from_run(
     target: ResolvedTarget,
     suite_ids: list[str],
     run: TestRunResult,
+    ensure: RunnerEnsureResult | None = None,
 ) -> TestResult:
     db_path = (
         (root / target.runtime_rel).resolve()
@@ -239,6 +268,8 @@ def _result_from_run(
         duration_sec=run.duration_sec,
         tests=_cases_to_dicts(run.tests),
         report_path=report_path,
+        runner_ensure=ensure.to_payload() if ensure is not None else None,
+        diagnostics=list(ensure.diagnostics) if ensure is not None else [],
         exit_code=exit_code_for_run_status(status, total=run.total),
     )
     save_last_result(root, result)
@@ -514,6 +545,8 @@ def run_tests(
     timeout: float = DEFAULT_TIMEOUT_SEC,
     discover: DiscoverFn | None = None,
     run_unit_tests_fn: RunUnitTestsFn | None = None,
+    skip_runner_ensure: bool = False,
+    ensure_runner_fn: EnsureRunnerFn | None = None,
 ) -> TestResult:
     """
     Run selected (or all) yaxunit suites in one ``1cv8`` process.
@@ -624,6 +657,27 @@ def run_tests(
             ],
         )
 
+    ensure = _ensure_runner_step(
+        root=root,
+        target=target,
+        selected=selected,
+        db_path=db_path,
+        skip=skip_runner_ensure,
+        discover=discover,
+        ensure_fn=ensure_runner_fn,
+    )
+    if ensure is not None and ensure.failed:
+        return _fail(
+            started=started,
+            root=root,
+            runtime_path=db_path,
+            config_id=target.config_id,
+            runtime_id=target.runtime_id,
+            suite_ids=[s.id for s in selected],
+            diagnostics=ensure.diagnostics,
+            runner_ensure=ensure.to_payload(),
+        )
+
     runner = run_unit_tests_fn or run_unit_tests
     try:
         run_result = runner(
@@ -642,6 +696,7 @@ def run_tests(
             runtime_id=target.runtime_id,
             suite_ids=[s.id for s in selected],
             diagnostics=_map_adapter_error(exc),
+            runner_ensure=ensure.to_payload() if ensure is not None else None,
         )
 
     return _result_from_run(
@@ -650,6 +705,7 @@ def run_tests(
         target=target,
         suite_ids=[s.id for s in selected],
         run=run_result,
+        ensure=ensure,
     )
 
 
@@ -663,6 +719,8 @@ def run_one_test(
     timeout: float = DEFAULT_TIMEOUT_SEC,
     discover: DiscoverFn | None = None,
     run_unit_tests_fn: RunUnitTestsFn | None = None,
+    skip_runner_ensure: bool = False,
+    ensure_runner_fn: EnsureRunnerFn | None = None,
 ) -> TestResult:
     """
     Run a single test ``Module.Method[.Context]`` via YaXUnit ``filter.tests``.
@@ -810,6 +868,27 @@ def run_one_test(
             ],
         )
 
+    ensure = _ensure_runner_step(
+        root=root,
+        target=target,
+        selected=selected,
+        db_path=db_path,
+        skip=skip_runner_ensure,
+        discover=discover,
+        ensure_fn=ensure_runner_fn,
+    )
+    if ensure is not None and ensure.failed:
+        return _fail(
+            started=started,
+            root=root,
+            runtime_path=db_path,
+            config_id=target.config_id,
+            runtime_id=target.runtime_id,
+            suite_ids=[s.id for s in selected],
+            diagnostics=ensure.diagnostics,
+            runner_ensure=ensure.to_payload(),
+        )
+
     runner = run_unit_tests_fn or run_unit_tests
     try:
         run_result = runner(
@@ -829,6 +908,7 @@ def run_one_test(
             runtime_id=target.runtime_id,
             suite_ids=[s.id for s in selected],
             diagnostics=_map_adapter_error(exc),
+            runner_ensure=ensure.to_payload() if ensure is not None else None,
         )
 
     return _result_from_run(
@@ -837,4 +917,80 @@ def run_one_test(
         target=target,
         suite_ids=[s.id for s in selected],
         run=run_result,
+        ensure=ensure,
+    )
+
+
+def ensure_runner(
+    start: Path | None = None,
+    *,
+    config_id: str | None = None,
+    runtime_id: str | None = None,
+    discover: DiscoverFn | None = None,
+    ensure_runner_fn: EnsureRunnerFn | None = None,
+) -> TestResult:
+    """
+    Explicit ``1c-dev yaxunit ensure``: load YAXUNIT from cache + safe-mode off.
+
+    Does **not** call ``build`` and does not run tests (ADR-029 §7a).
+    """
+    started = time.perf_counter()
+    start_path = (start or Path.cwd()).resolve()
+    root, _data, target, err = _load_project(
+        start_path,
+        started=started,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        require_runtime=True,
+    )
+    if err is not None:
+        return err
+
+    if target.runtime_rel is None:
+        return _fail(
+            started=started,
+            root=root,
+            config_id=target.config_id,
+            diagnostics=[
+                error(
+                    "Не удалось разрешить путь runtime",
+                    code=CODE_PROJECT,
+                    source="test",
+                )
+            ],
+        )
+    db_path = (root / target.runtime_rel).resolve()
+
+    # Explicit command is unconditional: suites only narrow down the implicit preflight.
+    ensure = _ensure_runner_step(
+        root=root,
+        target=target,
+        selected=None,
+        db_path=db_path,
+        skip=False,
+        discover=discover,
+        ensure_fn=ensure_runner_fn,
+    )
+    assert ensure is not None
+    diagnostics = list(ensure.diagnostics)
+    if ensure.failed:
+        return _fail(
+            started=started,
+            root=root,
+            runtime_path=db_path,
+            config_id=target.config_id,
+            runtime_id=target.runtime_id,
+            diagnostics=diagnostics,
+            runner_ensure=ensure.to_payload(),
+        )
+    return TestResult(
+        status="ok",
+        diagnostics=diagnostics,
+        duration=time.perf_counter() - started,
+        root=root,
+        runtime_path=db_path,
+        config_id=target.config_id,
+        runtime_id=target.runtime_id,
+        runner_ensure=ensure.to_payload(),
+        exit_code=SUCCESS,
     )

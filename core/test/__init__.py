@@ -18,12 +18,14 @@ from core.test.constants import (
 )
 from core.test.ops import (
     discover_tests,
+    ensure_runner,
     list_tests,
     report_tests,
     run_one_test,
     run_tests,
 )
 from core.test.result import TestResult, exit_code_for_run_status
+from core.test.runner_ensure import RunnerEnsureResult, ensure_yaxunit_runner
 
 __all__ = [
     "CODE_FILTER",
@@ -38,8 +40,11 @@ __all__ = [
     "LAST_RESULT_REL",
     "RUNNER_YAXUNIT",
     "TEST_DIR_NAME",
+    "RunnerEnsureResult",
     "TestResult",
     "discover_tests",
+    "ensure_runner",
+    "ensure_yaxunit_runner",
     "exit_code_for_run_status",
     "list_tests",
     "report_tests",
