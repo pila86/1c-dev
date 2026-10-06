@@ -180,6 +180,7 @@ def test_run_doctor_reports_all_toolchain_tools(
         "ONEC_MDREADER_JAR",
         "ONEC_BSLLS_JAR",
         "ONEC_DOCS_FACADE_JAR",
+        "ONEC_YAXUNIT_CFE",
     ):
         monkeypatch.delenv(key, raising=False)
     _make_install(tmp_path, "8.3.27.1549")
@@ -197,6 +198,7 @@ def test_run_doctor_reports_all_toolchain_tools(
         "md-reader",
         "bsl-language-server",
         "docs-facade",
+        "yaxunit",
     ):
         assert key in result.tools
         assert "found" in result.tools[key]
@@ -205,6 +207,7 @@ def test_run_doctor_reports_all_toolchain_tools(
     assert "1CD011" in codes  # ibsrv missing (not in _make_install default)
     assert "1CD013" in codes  # webinst missing
     assert "1CD014" in codes  # apache missing (empty cache)
+    assert "1CD015" in codes  # yaxunit.cfe missing (empty cache)
     docs_diag = next(d for d in result.diagnostics if d.get("code") == "1CD008")
     assert docs_diag["severity"] == "warning"
     ibsrv_diag = next(d for d in result.diagnostics if d.get("code") == "1CD011")
@@ -213,6 +216,63 @@ def test_run_doctor_reports_all_toolchain_tools(
     assert result.capabilities["webinst"]["available"] is False
     assert "templates" in result.capabilities
     assert result.status == "ok"  # soft gaps must not hard-fail doctor
+
+
+def test_run_doctor_yaxunit_missing_gap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_path(monkeypatch)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "empty-cache"))
+    monkeypatch.delenv("ONEC_YAXUNIT_CFE", raising=False)
+    _make_install(tmp_path, "8.3.27.1549", tools=("ibcmd", "1cv8"))
+    result = run_doctor(search_roots=[tmp_path])
+    assert result.tools["yaxunit"]["found"] is False
+    assert result.capabilities["test.yaxunit"]["available"] is False
+    assert result.capabilities["test.yaxunit"]["requires"] == ["1cv8", "ibcmd", "yaxunit"]
+    gap = next(g for g in result.gaps if g["capability"] == "test.yaxunit")
+    assert gap["missing"] == ["yaxunit"]
+    assert "tools sync" in gap["suggestion"]
+    assert "ONEC_YAXUNIT_CFE" in gap["suggestion"]
+    diag = next(d for d in result.diagnostics if d.get("code") == "1CD015")
+    assert diag["severity"] == "warning"
+    assert result.status == "ok"  # мягкий компонент
+
+
+def test_run_doctor_yaxunit_env_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_path(monkeypatch)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "empty-cache"))
+    cfe = tmp_path / "custom.cfe"
+    cfe.write_bytes(b"cfe")
+    monkeypatch.setenv("ONEC_YAXUNIT_CFE", str(cfe))
+    _make_install(tmp_path, "8.3.27.1549", tools=("ibcmd", "1cv8"))
+    result = run_doctor(search_roots=[tmp_path])
+    yaxunit = result.tools["yaxunit"]
+    assert yaxunit["found"] is True
+    assert yaxunit["source"] == "env"
+    assert yaxunit["path"] == str(cfe.resolve())
+    assert result.capabilities["test.yaxunit"]["available"] is True
+    assert not any(g["capability"] == "test.yaxunit" for g in result.gaps)
+    assert not any(d.get("code") == "1CD015" for d in result.diagnostics)
+
+
+def test_run_doctor_yaxunit_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_path(monkeypatch)
+    cache = tmp_path / "cache"
+    tools_dir = cache / "1c-dev" / "tools"
+    tools_dir.mkdir(parents=True)
+    (tools_dir / "yaxunit.cfe").write_bytes(b"cfe")
+    monkeypatch.setenv("XDG_CACHE_HOME", str(cache))
+    monkeypatch.delenv("ONEC_YAXUNIT_CFE", raising=False)
+    _make_install(tmp_path, "8.3.27.1549", tools=("ibcmd", "1cv8"))
+    result = run_doctor(search_roots=[tmp_path])
+    assert result.tools["yaxunit"]["found"] is True
+    assert result.tools["yaxunit"]["source"] == "cache"
+    assert result.tools["yaxunit"]["version"] == "25.12"
+    assert result.capabilities["test.yaxunit"]["available"] is True
 
 
 def test_discover_webinst_sibling(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

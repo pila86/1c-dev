@@ -22,8 +22,10 @@ from cli.publish import app as publish_app
 from cli.runtime import app as runtime_app
 from cli.source import app as source_app
 from cli.templates import app as templates_app
+from cli.test import app as test_app
 from cli.tools import app as tools_app
 from cli.uninstall import uninstall_command
+from cli.yaxunit import app as yaxunit_app
 from core.version import __version__
 
 app = typer.Typer(
@@ -43,6 +45,8 @@ app.add_typer(source_app, name="source")
 app.add_typer(tools_app, name="tools")
 app.add_typer(ide_app, name="ide")
 app.add_typer(docs_app, name="docs")
+app.add_typer(test_app, name="test")
+app.add_typer(yaxunit_app, name="yaxunit")
 app.command("doctor")(doctor_command)
 app.command("init")(init_command)
 app.command("build")(build_command)

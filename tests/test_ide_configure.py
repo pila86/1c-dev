@@ -98,6 +98,45 @@ def test_configure_default_all(tmp_path: Path) -> None:
     assert Path(bsl_args[1]).is_absolute()
 
 
+def test_configure_agents_includes_build_test_cycle(tmp_path: Path) -> None:
+    """AGENTS template: build → test.* before task completion (#126)."""
+    result = configure_ide(tmp_path, target="none")
+    assert result.status == "ok"
+    agents = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert "build → test.run" in agents
+    assert "test.*" in agents
+    assert "test.discover" in agents
+    assert "test.run" in agents
+    assert "test.runOne" in agents
+    assert "test.report" in agents
+    assert "1c-dev test" in agents
+
+
+def test_configure_mcp_excludes_metr(tmp_path: Path) -> None:
+    """ide configure must not wire METR / mcp-onec-test-runner (ADR-029 / #126)."""
+    result = configure_ide(tmp_path)
+    assert result.status == "ok"
+    payload = build_mcp_servers_payload(
+        jar_path=Path("/tmp/bsl-language-server.jar"),
+        java_command="java",
+    )
+    assert set(payload) == {"1c-dev", "bsl-language-server"}
+    assert "mcp-onec-test-runner" not in payload
+    payload_text = json.dumps(payload).lower()
+    assert "mcp-onec-test-runner" not in payload_text
+    assert "metr" not in payload_text
+
+    for rel in (".cursor/mcp.json", ".kilo/mcp.json"):
+        text = (tmp_path / rel).read_text(encoding="utf-8")
+        data = json.loads(text)
+        servers = data["mcpServers"]
+        assert set(servers) == {"1c-dev", "bsl-language-server"}
+        assert "mcp-onec-test-runner" not in servers
+        lowered = text.lower()
+        assert "mcp-onec-test-runner" not in lowered
+        assert "metr" not in lowered
+
+
 def test_configure_target_none(tmp_path: Path) -> None:
     result = configure_ide(tmp_path, target="none")
     assert result.status == "ok"

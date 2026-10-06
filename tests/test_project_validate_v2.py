@@ -165,3 +165,142 @@ def test_validate_manifest_schema2_conf_without_runtime() -> None:
     diags = validate_manifest(data)
     assert diags
     assert any("нет ни одного runtime" in d["message"] for d in diags)
+
+
+def _base_with_test_extensions() -> dict[str, Any]:
+    """Minimal schema-2 manifest with test-extensions (ADR-029)."""
+    return {
+        "schema": "2",
+        "project": {"name": "shop"},
+        "platform": {"version": "8.3.27"},
+        "configurations": [
+            {
+                "id": "main",
+                "type": "configuration",
+                "default": True,
+                "source": {"format": "xml", "path": "src/cf"},
+                "extensions": [
+                    {
+                        "id": "yaxunit",
+                        "name": "YAXUNIT",
+                        "purpose": "tests",
+                        "source": {"format": "xml", "path": "src/cfe/yaxunit"},
+                    },
+                    {
+                        "id": "test_ext1",
+                        "name": "Tests1",
+                        "purpose": "tests",
+                        "source": {"format": "xml", "path": "src/cfe/test_ext1"},
+                    },
+                    {
+                        "id": "custom",
+                        "name": "CustomExt",
+                        "purpose": "product",
+                        "source": {"format": "xml", "path": "src/cfe/custom"},
+                    },
+                ],
+                "tests": [
+                    {
+                        "id": "unit",
+                        "runner": "yaxunit",
+                        "extensions": ["test_ext1"],
+                    }
+                ],
+            }
+        ],
+        "runtimes": [
+            {
+                "id": "main-dev",
+                "configuration": "main",
+                "type": "file",
+                "path": ".1c-dev/runtime/main",
+                "default": True,
+            }
+        ],
+    }
+
+
+def test_validate_manifest_tests_ok() -> None:
+    assert validate_manifest(_base_with_test_extensions()) == []
+
+
+def test_validate_manifest_tests_vanessa_runner_ok() -> None:
+    data = _base_with_test_extensions()
+    data["configurations"][0]["tests"][0]["runner"] = "vanessa"
+    assert validate_manifest(data) == []
+
+
+def test_validate_manifest_tests_absent_ok() -> None:
+    """Additive schema \"2\": без configurations[].tests — валидно (M4)."""
+    data = _base_with_test_extensions()
+    del data["configurations"][0]["tests"]
+    assert validate_manifest(data) == []
+
+
+def test_validate_manifest_tests_empty_array_ok() -> None:
+    data = _base_with_test_extensions()
+    data["configurations"][0]["tests"] = []
+    assert validate_manifest(data) == []
+
+
+def _tests_missing_id(data: dict[str, Any]) -> None:
+    del data["configurations"][0]["tests"][0]["id"]
+
+
+def _tests_bad_runner(data: dict[str, Any]) -> None:
+    data["configurations"][0]["tests"][0]["runner"] = "junit"
+
+
+def _tests_empty_extensions(data: dict[str, Any]) -> None:
+    data["configurations"][0]["tests"][0]["extensions"] = []
+
+
+def _tests_duplicate_extension_refs(data: dict[str, Any]) -> None:
+    data["configurations"][0]["tests"][0]["extensions"] = [
+        "test_ext1",
+        "test_ext1",
+    ]
+
+
+def _tests_unknown_extension(data: dict[str, Any]) -> None:
+    data["configurations"][0]["tests"][0]["extensions"] = ["ghost"]
+
+
+def _tests_product_purpose(data: dict[str, Any]) -> None:
+    data["configurations"][0]["tests"][0]["extensions"] = ["custom"]
+
+
+def _tests_includes_yaxunit(data: dict[str, Any]) -> None:
+    data["configurations"][0]["tests"][0]["extensions"] = ["yaxunit"]
+
+
+def _tests_duplicate_suite_id(data: dict[str, Any]) -> None:
+    data["configurations"][0]["tests"].append(
+        {
+            "id": "unit",
+            "runner": "yaxunit",
+            "extensions": ["test_ext1"],
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    ("mutate", "needle"),
+    [
+        (_tests_missing_id, "tests"),
+        (_tests_bad_runner, "tests"),
+        (_tests_empty_extensions, "tests"),
+        (_tests_duplicate_extension_refs, "tests"),
+        (_tests_unknown_extension, "нет extension с id 'ghost'"),
+        (_tests_product_purpose, "purpose: tests"),
+        (_tests_includes_yaxunit, "не включать runner-extension"),
+        (_tests_duplicate_suite_id, "дублируется id 'unit'"),
+    ],
+)
+def test_validate_manifest_tests_invalid(mutate: Mutator, needle: str) -> None:
+    data = _base_with_test_extensions()
+    mutate(data)
+    diags = validate_manifest(data)
+    assert diags
+    assert all(d.get("code") == "1CP003" for d in diags)
+    assert any(needle in d["message"] for d in diags), diags

@@ -40,6 +40,7 @@
 | [026](026-runtimes-array.md) | Accepted | `runtimes[]`: ИБ ↔ configuration |
 | [027](027-configuration-lifecycle.md) | Accepted | Init = empty scope; `configuration.*` lifecycle |
 | [028](028-configuration-import.md) | Accepted | Product API: `configuration.import` (supersedes `project.import` name) |
+| [029](029-test-api.md) | Accepted | Test API facade + граница с METR (CLI/MCP, exit 5, YaXUnit adapter) |
 
 ## Когда писать ADR
 

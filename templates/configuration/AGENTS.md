@@ -10,7 +10,9 @@
 - Предпочитать MCP `1c-dev` и `bsl-language-server`, не shell и не Конфигуратор.
 - Greenfield: `project.init` → `configuration.add` → `project.get` → metadata.* / build.
 - `project.init` создаёт только home (пустые `configurations[]` / `runtimes[]`), не XML.
-- После правок: check → build → релевантные тесты; перед завершением — semantic diff.
+- После правок: check → build → `test.*` (цикл `build → test.run` перед завершением задачи).
+- Тесты: MCP `test.discover` / `test.list` / `test.run` / `test.runOne` / `test.report` или CLI `1c-dev test` (не сторонний MCP runner).
+- Перед завершением задачи — semantic diff.
 - Воспроизводимые runtime-сбои — debugger.
 - BSL-анализ — MCP bsl-ls: сначала `list_workspace_folders`; при отсутствии корня — `register_workspace_folder` на корень IDE (не `src/cf`).
 

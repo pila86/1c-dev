@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/pila86/1c-dev/schemas/1c.project.schema.v2.json",
   "title": "1c-dev project.yaml (schema 2)",
-  "description": "Манифест schema \"2\" для M4 (ADR-022–026). Единственный поддерживаемый формат (.1c-dev/project.yaml). Семантические инварианты runtimes/publish — в core/project/validate.py.",
+  "description": "Манифест schema \"2\" для M4–M5 (ADR-022–026, ADR-029). Единственный поддерживаемый формат (.1c-dev/project.yaml). Семантические инварианты runtimes/publish/tests — в core/project/validate.py.",
   "type": "object",
   "required": ["schema", "project", "platform", "configurations", "runtimes"],
   "additionalProperties": false,
@@ -119,6 +119,37 @@
                       "type": "string",
                       "minLength": 1
                     }
+                  }
+                }
+              }
+            }
+          },
+          "tests": {
+            "type": "array",
+            "description": "Test suites (ADR-029). Опционально; additive в schema \"2\".",
+            "items": {
+              "type": "object",
+              "required": ["id", "runner", "extensions"],
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Id suite для --suite / MCP."
+                },
+                "runner": {
+                  "type": "string",
+                  "enum": ["yaxunit", "vanessa"],
+                  "description": "Test runner. vanessa — контракт (#127); adapter — follow-up #128."
+                },
+                "extensions": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "description": "id из configurations[].extensions[] с purpose: tests (не включать runner-extension YAXUNIT).",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
                   }
                 }
               }

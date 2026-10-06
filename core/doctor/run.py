@@ -18,8 +18,10 @@ from core.doctor.result import DoctorResult
 from core.toolchain.manifest import load_manifest
 from core.toolchain.resolve import (
     JarResolve,
+    YaxunitResolve,
     resolve_apache_home,
     resolve_component_jar,
+    resolve_yaxunit_cfe,
     sync_suggestion,
 )
 
@@ -114,6 +116,13 @@ def _adapter_jar_payload(
     return _tool_payload(found, path, source=source)
 
 
+def _yaxunit_payload(resolved: YaxunitResolve) -> dict[str, Any]:
+    payload = _tool_payload(resolved.found, resolved.path, source=resolved.source)
+    if resolved.pin:
+        payload["version"] = resolved.pin
+    return payload
+
+
 def _platform_payload(discovery: DiscoveryResult) -> dict[str, Any]:
     p = discovery.platform
     return {
@@ -164,6 +173,7 @@ def run_doctor(
         else JarResolve(found=False)
     )
     apache = resolve_apache_home(env=env)
+    yaxunit = resolve_yaxunit_cfe(env=env, manifest=manifest)
 
     tools = {
         "cli": cli,
@@ -186,6 +196,7 @@ def run_doctor(
         ),
         "bsl-language-server": _jar_payload(bsl),
         "docs-facade": _jar_payload(docs),
+        "yaxunit": _yaxunit_payload(yaxunit),
     }
     tools_found = {
         "ibcmd": discovery.ibcmd.found,
@@ -199,6 +210,7 @@ def run_doctor(
         "md-reader": mdreader.found,
         "bsl-language-server": bsl.found,
         "docs-facade": docs.found,
+        "yaxunit": yaxunit.found,
         "cli": bool(cli.get("found")),
     }
     capabilities, gaps = resolve_capabilities(tools_found)
@@ -325,6 +337,16 @@ def run_doctor(
             warning(
                 "docs-facade jar не найден (нужен для docs.search/get)",
                 code="1CD008",
+                source="doctor",
+                suggestion=f"{hint} (или задайте {env_name}).",
+            )
+        )
+    if not yaxunit.found:
+        env_name = yaxunit.env_name or "ONEC_YAXUNIT_CFE"
+        diagnostics.append(
+            warning(
+                "YAxUnit.cfe не найден в user cache (нужен для test run)",
+                code="1CD015",
                 source="doctor",
                 suggestion=f"{hint} (или задайте {env_name}).",
             )

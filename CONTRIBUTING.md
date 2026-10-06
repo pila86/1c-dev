@@ -62,6 +62,7 @@ pwsh scripts/fetch-md-reader.ps1
 
 - xml-gen: JDK 17+, override `ONEC_XMLGEN_JAR`
 - md-reader: JDK 21+ (MDClasses 0.20.0), override `ONEC_MDREADER_JAR`
+- yaxunit (M5, ADR-029 §7a): `1c-dev tools sync` кладёт `YAxUnit-<pin>.cfe` в `tools/` (soft); override `ONEC_YAXUNIT_CFE=/path/to/YAxUnit.cfe`. В `project.yaml` не объявляется — runner подключается `1c-dev yaxunit ensure` / `test run`
 - apache (publish/webinst, #94): Unix — `./scripts/fetch-apache.sh` или `1c-dev tools sync` (gcc, make, `libpcre2-dev`); Windows — prebuilt zip из манифеста; override `ONEC_APACHE_HOME`
 
 ## Тесты
@@ -70,6 +71,7 @@ pwsh scripts/fetch-md-reader.ps1
 - Integration-тесты (маркер `integration`) — platform 1С / `ibcmd`, jar xml-gen / md-reader; без них — skip с явным сообщением:
 - M3-accept (#52): `poetry run pytest tests/test_m3_acceptance.py -m integration` — CF import round-trip → list/get → ide configure → docs (soft) → build/check; без platform/jars — skip.
 - M4-accept (#96): `poetry run pytest tests/test_m4_acceptance.py -m integration` — nested `.1c-dev` → ≥2 configurations + extension → build → `ide --ide-root` → doctor → soft templates / publish ibsrv / publish webinst; без `ibcmd`/xml-gen — skip всего теста; без tmplts / `ibsrv` / `wsap24.so`+Apache — soft-skip соответствующих секций.
+- M5-accept (#129): `poetry run pytest tests/test_m5_acceptance.py -m integration` — fixture `yaxunit_spike` (test-extension + `configurations[].tests`) → tools sync / наличие `yaxunit.cfe` → build → `test discover` / `list` / `run` (exit 5 на падающих) / `report` / `runOne`; runner через ensure/cache без ручного `extension add YAXUNIT`; без `ibcmd` / `1cv8` / YaXUnit.cfe — skip.
 - E-accept (трек E / #71): `poetry run pytest tests/test_e_acceptance.py -m integration` — sample CRUD по волнам E0–E8; без platform/jars — skip.
 - Publish ibsrv (#89): `poetry run pytest tests/test_publish_integration.py -m integration` — build → `publish.up` → HTTP 200 на url → down; без `ibcmd`/`ibsrv` — skip.
 - Publish webinst (#94): `poetry run pytest tests/test_publish_webinst_integration.py -m integration` — `publish.up` (backend webinst) → url → down; без `wsap24.so` / Apache home (`tools sync` / `ONEC_APACHE_HOME`) — skip. Бинарь `webinst` не обязателен (1c-dev пишет vrd/conf сам).
