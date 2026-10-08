@@ -10,7 +10,7 @@ from core.toolchain.resolve import sync_suggestion
 # Capability → required tool names (keys in tools map).
 CAPABILITY_REQUIREMENTS: dict[str, list[str]] = {
     "build": ["ibcmd"],
-    "check": ["ibcmd"],
+    "check": ["ibcmd", "1cv8"],
     "configuration.import": ["ibcmd"],
     "ibsrv": ["ibsrv"],
     "webinst": ["webinst", "apache"],
@@ -57,7 +57,8 @@ _TOOL_HINTS: dict[str, str] = {
     "xml-gen": "{suggest} (или задайте ONEC_XMLGEN_JAR).",
     "md-reader": "{suggest} (или задайте ONEC_MDREADER_JAR).",
     "1cv8": (
-        "Добавьте 1cv8 в PATH (платформа 1С; нужен для test run / YaXUnit)."
+        "Добавьте 1cv8 в PATH (платформа 1С; нужен для check /CheckModules "
+        "и test run / YaXUnit)."
     ),
     "yaxunit": "{suggest} (или задайте ONEC_YAXUNIT_CFE).",
 }
