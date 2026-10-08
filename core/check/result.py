@@ -1,4 +1,4 @@
-"""Result types for check API (ADR-009, PRD §24)."""
+"""Result types for check API (ADR-009, ADR-030, PRD §24)."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ class CheckResult:
     duration: float | None = None
     root: Path | None = None
     runtime_path: Path | None = None
+    steps: list[str] = field(default_factory=list)
 
     def to_payload(self) -> dict[str, Any]:
         payload: dict[str, Any] = {"status": self.status}
@@ -37,6 +38,8 @@ class CheckResult:
                     payload["runtimePath"] = str(self.runtime_path)
             except ValueError:
                 payload["runtimePath"] = str(self.runtime_path)
+        if self.steps:
+            payload["steps"] = list(self.steps)
         if self.diagnostics:
             payload["diagnostics"] = list(self.diagnostics)
         return payload

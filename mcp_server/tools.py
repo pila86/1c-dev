@@ -931,12 +931,19 @@ def register_tools(server: FastMCP) -> None:
     @server.tool(
         name="check",
         description=(
-            "Run platform configuration check (ibcmd config check) on an existing file IB. "
-            "Requires a prior successful build." + _NO_SHELL
+            "Run platform check on an existing file IB: ibcmd metadata check, then "
+            "Designer /CheckModules (default mode Server). Requires a prior successful "
+            "build, ibcmd, and 1cv8. Optional modes: list of CheckModules contexts "
+            "(Server, ThinClient, WebClient, …). "
+            "Do not invoke Designer/Configurator manually — use this tool."
+            + _NO_SHELL
         ),
     )
-    def check_tool(path: str | None = None) -> dict[str, Any]:
-        result = run_check(resolve_path(path))
+    def check_tool(
+        path: str | None = None,
+        modes: list[str] | None = None,
+    ) -> dict[str, Any]:
+        result = run_check(resolve_path(path), modes=modes)
         return result.to_payload()
 
     @server.tool(
