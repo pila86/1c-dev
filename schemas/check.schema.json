@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/pila86/1c-dev/schemas/check.schema.json",
   "title": "1c-dev Check Result",
-  "description": "Результат `1c-dev check` (ADR-009, PRD §24).",
+  "description": "Результат `1c-dev check` (ADR-009, ADR-030, PRD §24).",
   "type": "object",
   "required": ["status"],
   "additionalProperties": false,
@@ -21,6 +21,14 @@
     "runtimePath": {
       "type": "string",
       "description": "Путь к file IB относительно корня проекта."
+    },
+    "steps": {
+      "type": "array",
+      "description": "Выполненные шаги check (metadata, modules).",
+      "items": {
+        "type": "string",
+        "enum": ["metadata", "modules"]
+      }
     },
     "diagnostics": {
       "type": "array",
