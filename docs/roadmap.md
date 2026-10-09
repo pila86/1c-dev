@@ -9,6 +9,7 @@
 **M4: Project home, multi-config, templates, publish** закрыт: якорь `.1c-dev/`, несколько конфигураций и расширений, `runtimes[]`, tmplts, publish (ibsrv / webinst), acceptance E2E (#96).
 
 → [M6 Debug](milestones/m6-debug.md)  
+→ [GitHub milestone M6](https://github.com/pila86/1c-dev/milestone/6)  
 → [Acceptance criteria M5](milestones/m5-tests.md)  
 → [M4 project model](milestones/m4-project-model.md)  
 → [GitHub milestone M5](https://github.com/pila86/1c-dev/milestone/5)  

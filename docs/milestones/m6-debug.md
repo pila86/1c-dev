@@ -1,7 +1,7 @@
 # M6: Debug (HTTP Debug Protocol + CLI/MCP)
 
-**Статус:** Planned — документ для нарезки issues; GitHub milestone ещё не создан.  
-**ADR:** ADR-030 (создать в фазе 1). Закладка: [ADR-019](../adr/019-runtime-client-lifecycle.md) (`/Debug`, `debug.*` → M6).
+**Статус:** Planned — [GitHub milestone M6](https://github.com/pila86/1c-dev/milestone/6); issues нарезаны (#135–#144).  
+**ADR:** ADR-030 (создать в фазе 1, [#136](https://github.com/pila86/1c-dev/issues/136)). Закладка: [ADR-019](../adr/019-runtime-client-lifecycle.md) (`/Debug`, `debug.*` → M6).
 
 ## Goal
 
@@ -285,36 +285,22 @@ build (ИБ актуальна)
 - [M4](m4-project-model.md), [M5](m5-tests.md)
 - Внешние (референс): [liga-1c-command/1c-debug-mcp](https://github.com/liga-1c-command/1c-debug-mcp) (MIT, agent UX + HTTP), [akpaevj/onec-debug-adapter](https://github.com/akpaevj/onec-debug-adapter) (MIT, DAP), [yukon39/bsl-debug-server](https://github.com/yukon39/bsl-debug-server) (DAP в PRD), [yellow-hammer/mcp-1c-platform-tools](https://github.com/yellow-hammer/mcp-1c-platform-tools/) (не backend)
 
-## Issues (нарезка)
+## Issues
 
-Создать [GitHub milestone M6](https://github.com/pila86/1c-dev/milestones) и issues по таблице. Нумерация — при создании; волны = порядок.
+[GitHub milestone M6](https://github.com/pila86/1c-dev/milestone/6). Волны = порядок.
 
-| Wave | Задача | Depends on | Notes |
-|------|--------|------------|-------|
-| 0 | Spike: HTTP Debug Protocol + discovery `dbgs` (Linux/Win), fixture | M5 Done | → `docs/spikes/…-http-debug-protocol.md` |
-| 1 | ADR-030: Debug API (HTTP facade, DAP boundary, state, exit codes) | Wave 0 | |
-| 1 | Schema: optional `debug` в `1c.project.schema.v2.json` + validate | ADR-030 | Additive `"2"` |
-| 2 | `adapters/debug_http`: client, ping, events, session, XML cmd’ы | Wave 0, ADR | Unit-тесты на builders/parsers с фикстурами XML |
-| 2 | Module index: UUID ↔ module (+ extensions), cache, reload | Wave 2 client | |
-| 3 | `core/debug`: server lifecycle + attach/BP/wait/step/vars/eval | Adapter | `DebugResult`, codes `1CD…` |
-| 3 | CLI `1c-dev debug …` | core | json/text, `--config`/`--runtime` |
-| 4 | MCP `debug.*` | core | ADR-010 wrappers |
-| 4 | Doctor soft `debug.http` + AGENTS workflow | CLI/MCP | |
-| 4 | should: `ide configure` launch.json для внешнего DAP | ADR | |
-| 5 | Acceptance E2E `tests/test_m6_acceptance.py` | Waves 3–4 | skip без dbgs/GUI |
-
-### Suggested issue titles (copy-paste)
-
-1. `Spike: HTTP Debug Protocol (dbgs) + fixture`
-2. `ADR-030: Debug API (CLI/MCP over HTTP Debug Protocol)`
-3. `Schema: optional debug block in project.yaml v2`
-4. `adapters/debug_http: session, ping, breakpoints, eval`
-5. `debug: module UUID index from XML source + extensions`
-6. `core/debug + CLI 1c-dev debug`
-7. `MCP debug.* tools`
-8. `Doctor debug capability + AGENTS debug workflow`
-9. `ide configure: DAP launch.json hint (should)`
-10. `Acceptance: M6 debug E2E`
+| # | Wave | Задача | Depends on | Status |
+|---|------|--------|------------|--------|
+| [#135](https://github.com/pila86/1c-dev/issues/135) | 0 | Spike: HTTP Debug Protocol (dbgs) + fixture | M5 Done | OPEN |
+| [#136](https://github.com/pila86/1c-dev/issues/136) | 1 | ADR-030: Debug API (CLI/MCP over HTTP Debug Protocol) | #135 | OPEN |
+| [#137](https://github.com/pila86/1c-dev/issues/137) | 1 | Schema: optional `debug` в project.yaml v2 | #136 | OPEN |
+| [#138](https://github.com/pila86/1c-dev/issues/138) | 2 | `adapters/debug_http`: session, ping, breakpoints, eval | #135, #136 | OPEN |
+| [#139](https://github.com/pila86/1c-dev/issues/139) | 2 | Module UUID index from XML source + extensions | #138 | OPEN |
+| [#140](https://github.com/pila86/1c-dev/issues/140) | 3 | `core/debug` + CLI `1c-dev debug` | #137–#139 | OPEN |
+| [#141](https://github.com/pila86/1c-dev/issues/141) | 4 | MCP `debug.*` tools | #140 | OPEN |
+| [#142](https://github.com/pila86/1c-dev/issues/142) | 4 | Doctor `debug.http` + AGENTS debug workflow | #140, #141 | OPEN |
+| [#143](https://github.com/pila86/1c-dev/issues/143) | 4 | should: `ide configure` DAP launch.json hint | #136 | OPEN |
+| [#144](https://github.com/pila86/1c-dev/issues/144) | 5 | Acceptance: M6 debug E2E | #140–#142 | OPEN |
 
 ## Риски (коротко)
 
