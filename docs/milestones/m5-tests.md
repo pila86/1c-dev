@@ -163,7 +163,7 @@ AI читает BSL
 - Замена `build` / `check` / `runtime` на METR; companion METR в default DX
 - Генерация текста тестов отдельным MCP tool
 - Auto-build / incremental build внутри `test.run`
-- DAP / debug; Remote / Docker / lockfile
+- DAP / debug — [M6](m6-debug.md); Remote / Docker / lockfile
 - Собственный unit-test framework вместо YaXUnit
 - Реализация `adapters/test_vanessa` (carry-over [#128](https://github.com/pila86/1c-dev/issues/128))
 
