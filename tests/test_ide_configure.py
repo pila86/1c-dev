@@ -99,10 +99,13 @@ def test_configure_default_all(tmp_path: Path) -> None:
 
 
 def test_configure_agents_includes_build_test_cycle(tmp_path: Path) -> None:
-    """AGENTS template: build → test.* before task completion (#126)."""
+    """AGENTS template: build → check → test.* before task completion (#126)."""
     result = configure_ide(tmp_path, target="none")
     assert result.status == "ok"
     agents = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert "diagnostics → build → check → test" in agents
+    assert "build → check" in agents
+    assert "check → build" not in agents
     assert "build → test.run" in agents
     assert "test.*" in agents
     assert "test.discover" in agents

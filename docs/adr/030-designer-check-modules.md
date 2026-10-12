@@ -68,7 +68,7 @@ Doctor capability `check` требует `ibcmd` **и** `1cv8`.
 ## Последствия
 
 - CLI/MCP `check` меняет контракт: нужен `1cv8`; payload может включать `steps: ["metadata","modules"]`.
-- AGENTS / README: check = metadata + платформенный синтаксис модулей.
+- AGENTS / README: check = metadata + платформенный синтаксис модулей; цикл агента — `build → check` (check на IB после load; без auto-build).
 - Integration-тесты check требуют и ibcmd, и 1cv8.
 
 ## Связанные решения

@@ -9,10 +9,10 @@
 
 ## Порядок
 - Предпочитать MCP `1c-dev` и `bsl-language-server`, не shell и не Конфигуратор.
-- Если нужной операции нет в MCP/CLI или она не закрывает задачу — допустимо править исходники конфигурации/расширения напрямую (BSL, XML и т.п. в source.path). После этого — тот же цикл: diagnostics → check → build → test.
+- Если нужной операции нет в MCP/CLI или она не закрывает задачу — допустимо править исходники конфигурации/расширения напрямую (BSL, XML и т.п. в source.path). После этого — тот же цикл: diagnostics → build → check → test.
 - Greenfield: `project.init` → `configuration.add` → `project.get` → metadata.* / build.
 - `project.init` создаёт только home (пустые `configurations[]` / `runtimes[]`), не XML.
-- После правок: при изменениях BSL — diagnostics через MCP bsl-ls по затронутым модулям → check → build → `test.*` (цикл `build → test.run` перед завершением задачи).
+- После правок: при изменениях BSL — diagnostics через MCP bsl-ls по затронутым модулям → build → check → `test.*` (цикл `build → test.run` перед завершением задачи). `check` = metadata + `/CheckModules` по file IB **после** успешного `build` (не по сырым XML).
 - Тесты: MCP `test.discover` / `test.list` / `test.run` / `test.runOne` / `test.report` или CLI `1c-dev test` (не сторонний MCP runner).
 - Перед завершением задачи — semantic diff.
 - Воспроизводимые runtime-сбои — debugger.
