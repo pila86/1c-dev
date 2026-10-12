@@ -3,6 +3,8 @@
 **Статус:** Accepted  
 **Дата:** 2026-09-19
 
+> **Дополнено [ADR-030](030-designer-check-modules.md):** `1c-dev check` после `ibcmd config check` всегда выполняет Designer `/CheckModules` (синтаксис модулей). Критерий успеха ниже относится только к шагу metadata.
+
 ## Контекст
 
 Issue #9 и M1 требуют `1c-dev check`: платформенная проверка конфигурации на file-IB после успешного `build`, со structured diagnostics и exit code 1. Build уже загружает XML через ibcmd (ADR-008); discovery `ibcmd` есть (ADR-005). Нужен контракт check без смешивания с build и без `check.static` (BSL LS — позже).
@@ -12,7 +14,7 @@ Issue #9 и M1 требуют `1c-dev check`: платформенная про�
 ### Пакет
 
 `adapters/platform_ibcmd/` — subprocess `ibcmd infobase config check`.  
-Оркестрация — `core/check/`; CLI — `1c-dev check` (default = platform; флаг `--platform` явный).
+Оркестрация — `core/check/`; CLI — `1c-dev check` (см. ADR-030: + `/CheckModules`).
 
 ### Pipeline (M1)
 

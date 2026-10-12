@@ -8,7 +8,7 @@
 Единый Debug API в `1c-dev` (CLI + MCP): агент и CI умеют **подключиться к HTTP-серверу отладки 1С**, ставить точки, ждать остановку, читать стек/переменные, вычислять выражения и шагать — без Конфигуратора и без shell.
 
 Продукт остаётся orchestration layer: **не** свой debugger, **не** замена DAP для IDE.  
-Lifecycle остаётся прежним: `change → check → build → test → **debug**`.
+Lifecycle остаётся прежним: `change → build → check → test → **debug**`.
 
 ## Prerequisites
 

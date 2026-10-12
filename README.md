@@ -90,7 +90,7 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 | `1c-dev metadata update <QualifiedName>` | Ops над существующим объектом (те же write-типы) |
 | `1c-dev metadata delete <QualifiedName>` | Удалить объект из source + `Configuration.xml` |
 | `1c-dev build [--artifact cf] [--config] [--runtime]` | Загрузить configuration (+ nested extensions XML/`.cfe`) в file IB через `ibcmd` |
-| `1c-dev check [--platform]` | Платформенная проверка конфигурации (`ibcmd config check`) |
+| `1c-dev check [--mode Server]` | Платформенная проверка: `ibcmd config check` + Designer `/CheckModules` |
 | `1c-dev mcp` | MCP server (stdio) для AI-агентов |
 | `1c-dev ide configure [--project] [--ide-root] [--agents] [--target …]` | AGENTS.md (merge), `.gitignore`, IDE MCP + rules |
 

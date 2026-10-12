@@ -1,42 +1,52 @@
-"""Check orchestration: project + ibcmd config check (ADR-009)."""
+"""Check orchestration: ibcmd metadata + Designer /CheckModules (ADR-009 / ADR-030)."""
 
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
 from adapters.platform import DiscoveryResult, discover_environment
+from adapters.platform_1cv8 import CheckModulesError, check_modules
 from adapters.platform_ibcmd import IbcmdError, RunFn, check_config, infobase_exists
 from adapters.platform_ibcmd.constants import (
     CODE_CHECK_FAILED,
     CODE_CHECK_IB_MISSING,
     CODE_CHECK_IBCMD_MISSING,
+    CODE_CHECK_ONECV8_MISSING,
     CODE_CHECK_PROJECT,
     IBCMD_DATA_REL,
 )
 from core.check.result import CheckResult
-from core.diagnostics import error
+from core.diagnostics import Diagnostic, error
 from core.project.constants import HOME_MANIFEST_REL
 from core.project.detect import detect_manifest
 from core.project.load import load_manifest
 from core.project.paths import default_runtime_rel, scope_root_from_manifest
 
 CheckFn = Callable[..., Any]
+ModulesFn = Callable[..., Any]
+
+_OUT_LOG_REL = ".1c-dev/runtime/check-modules.out"
 
 
 def run_check(
     start: Path | None = None,
     *,
+    modes: Sequence[str] | None = None,
     run: RunFn | None = None,
     check_fn: CheckFn | None = None,
+    modules_fn: ModulesFn | None = None,
     discover: Callable[[], DiscoveryResult] | None = None,
 ) -> CheckResult:
     """
-    Run platform config check on an existing file IB via ibcmd.
+    Run platform check on an existing file IB: ibcmd metadata + /CheckModules.
 
-    run / check_fn / discover: injectable for tests.
+    Single pass without platform ``--extension`` / ``-Extension``: scope of what
+    is checked (main only vs extensions) is left to the platform.
+
+    run / check_fn / modules_fn / discover: injectable for tests.
     """
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
@@ -67,7 +77,6 @@ def run_check(
                 error(
                     "Не удалось прочитать манифест",
                     code=CODE_CHECK_PROJECT,
-                    file=str(manifest_path.name),
                     source="runtime",
                 )
             ],
@@ -99,6 +108,26 @@ def run_check(
             ],
         )
 
+    onecv8_info = discovery.onecv8
+    if not onecv8_info.found or onecv8_info.path is None:
+        return CheckResult(
+            status="failed",
+            duration=time.perf_counter() - started,
+            root=root,
+            runtime_path=db_path,
+            diagnostics=[
+                error(
+                    "1cv8 не найден",
+                    code=CODE_CHECK_ONECV8_MISSING,
+                    source="platform",
+                    suggestion=(
+                        "Установите платформу 1С и добавьте 1cv8 в PATH "
+                        "(нужен для /CheckModules)."
+                    ),
+                )
+            ],
+        )
+
     if not infobase_exists(db_path):
         return CheckResult(
             status="failed",
@@ -115,40 +144,56 @@ def run_check(
             ],
         )
 
+    diagnostics: list[Diagnostic] = []
+    steps: list[str] = []
+    modules_runner = modules_fn or check_modules
+    meta_runner = check_fn if check_fn is not None else check_config
+
     try:
-        if check_fn is not None:
-            check_fn(
-                ibcmd_info.path,
-                db_path=db_path,
-                data_path=data_path,
-                run=run,
-            )
-        else:
-            check_config(
-                ibcmd_info.path,
-                db_path=db_path,
-                data_path=data_path,
-                run=run,
-            )
+        meta_runner(
+            ibcmd_info.path,
+            db_path=db_path,
+            data_path=data_path,
+            run=run,
+        )
     except IbcmdError as exc:
-        return CheckResult(
-            status="failed",
-            duration=time.perf_counter() - started,
-            root=root,
-            runtime_path=db_path,
-            diagnostics=list(exc.diagnostics)
+        diagnostics.extend(
+            list(exc.diagnostics)
             or [
                 error(
                     exc.message,
                     code=exc.code or CODE_CHECK_FAILED,
                     source="platform",
                 )
-            ],
+            ]
         )
+    steps.append("metadata")
+
+    try:
+        modules_runner(
+            onecv8_info.path,
+            ib_path=db_path,
+            out_log=(root / _OUT_LOG_REL).resolve(),
+            modes=modes,
+        )
+    except CheckModulesError as exc:
+        diagnostics.extend(
+            list(exc.diagnostics)
+            or [
+                error(
+                    exc.message,
+                    code=exc.code or CODE_CHECK_FAILED,
+                    source="platform",
+                )
+            ]
+        )
+    steps.append("modules")
 
     return CheckResult(
-        status="ok",
+        status="ok" if not diagnostics else "failed",
         duration=time.perf_counter() - started,
         root=root,
         runtime_path=db_path,
+        steps=steps,
+        diagnostics=diagnostics,
     )
