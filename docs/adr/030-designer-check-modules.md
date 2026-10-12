@@ -1,7 +1,8 @@
 # ADR-030: Designer `/CheckModules` в `1c-dev check`
 
 **Статус:** Accepted  
-**Дата:** 2026-10-08
+**Дата:** 2026-10-08  
+**Обновлено:** 2026-10-12 — один проход без platform `-Extension`
 
 ## Контекст
 
@@ -13,12 +14,16 @@ PRD §24 разделяет `check.static` (BSL LS) и `check.platform`. Ста�
 
 ### Pipeline
 
+Один проход по default file IB проекта:
+
 ```text
-ibcmd infobase config check          # A: metadata
-1cv8 DESIGNER … /CheckModules …      # B: module syntax
+ibcmd infobase config check
+1cv8 DESIGNER … /CheckModules -Server …
 ```
 
-Оба шага обязательны. Diagnostics накапливаются (не fail-fast после A). Успех = оба шага без ошибок.
+Без platform `--extension` / `-Extension`: состав проверки (только основная конфигурация или вместе с расширениями) — ответственность платформы. `1c-dev` не итерирует `extensions[]` и не принимает CLI/MCP-фильтр по расширению.
+
+Оба шага (metadata + modules) обязательны. Diagnostics накапливаются (не fail-fast). Успех = оба шага без ошибок.
 
 ### Adapter
 
@@ -29,7 +34,7 @@ ibcmd infobase config check          # A: metadata
   /Out <log> /CheckModules -Server [-ThinClient …]
 ```
 
-Парсинг `/Out` → structured diagnostics (`object`, `module`, `line`, `column`, `source: "platform"`). Паттерн запуска/timeout — как у YaXUnit (ADR-029), без xvfb для DESIGNER batch.
+`/Out` → `.1c-dev/runtime/check-modules.out`. Парсинг → structured diagnostics (`object`, `module`, `line`, `column`, `source: "platform"`; если платформа пишет префикс имени расширения в `/Out` — `relatedObject: Extension.<name>`). Паттерн запуска/timeout — как у YaXUnit (ADR-029), без xvfb для DESIGNER batch.
 
 ### Режимы
 
@@ -47,11 +52,14 @@ Default: `-Server`. Override через CLI/MCP `--mode` (repeatable).
 
 Doctor capability `check` требует `ibcmd` **и** `1cv8`.
 
+Payload `steps`: `metadata`, `modules`.
+
 ### Граница
 
 - `/CheckConfig` — later.
 - Soft-degrade без `1cv8` — отвергнуто (агент иначе пропускает синтаксис).
-- Modes / filter в `project.yaml`, `/Extension` — later.
+- Цикл / filter по `extensions[]` через platform `-Extension` — отвергнуто (scope — платформа).
+- Проверка всех `configurations[]` — later (только default, как runtime у check).
 - `check.static` (BSL LS) — отдельный трек PRD, не часть этого ADR.
 - Auto-build перед check — по-прежнему отвергнуто (ADR-009).
 
@@ -64,14 +72,15 @@ Doctor capability `check` требует `ibcmd` **и** `1cv8`.
 | `/CheckConfig` сразу | Шире проверки | Тяжелее, шумнее; scope | Отложено |
 | Modules по флагу / soft без 1cv8 | Совместимость | Агент пропускает шаг | Отвергнуто |
 | A + `/CheckModules` (default Server) | Закрывает дыру; предсказуемо | Нужен 1cv8; lock IB | **Принято** |
+| Автоцикл / `--extension` + `-Extension` | Явный контроль nested | N× Designer; дублируем платформу | Отвергнуто |
 
 ## Последствия
 
-- CLI/MCP `check` меняет контракт: нужен `1cv8`; payload может включать `steps: ["metadata","modules"]`.
-- AGENTS / README: check = metadata + платформенный синтаксис модулей; цикл агента — `build → check` (check на IB после load; без auto-build).
+- CLI/MCP `check` меняет контракт: нужен `1cv8`; payload `steps` = `metadata` / `modules`.
+- AGENTS / README: check = один платформенный проход metadata + синтаксис модулей; цикл агента — `build → check` (без auto-build).
 - Integration-тесты check требуют и ibcmd, и 1cv8.
 
 ## Связанные решения
 
-- ADR-003, ADR-005, ADR-009 (дополняется), ADR-029
+- ADR-003, ADR-005, ADR-009 (дополняется), ADR-023, ADR-029
 - PRD §24, §35–§36, §52

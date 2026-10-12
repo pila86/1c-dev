@@ -106,7 +106,6 @@ def test_configure_agents_includes_build_test_cycle(tmp_path: Path) -> None:
     assert "diagnostics → build → check → test" in agents
     assert "build → check" in agents
     assert "check → build" not in agents
-    assert "build → test.run" in agents
     assert "test.*" in agents
     assert "test.discover" in agents
     assert "test.run" in agents

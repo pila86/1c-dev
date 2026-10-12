@@ -183,6 +183,46 @@ def test_run_check_happy_mock(tmp_path: Path) -> None:
     assert "duration" in payload
 
 
+def test_run_check_does_not_pass_extension(tmp_path: Path) -> None:
+    """Single check pass: adapters must not receive platform Extension."""
+    from core.extension import add_extension
+
+    target = tmp_path / "shop"
+    target.mkdir()
+    assert bootstrap_configuration_project(target, name="Shop").status == "ok"
+    assert add_extension(
+        target, ext_id="shop_ext", name="ShopExt", purpose="product"
+    ).status == "ok"
+    _ensure_ib(target)
+    ibcmd = tmp_path / "ibcmd"
+    ibcmd.write_text("", encoding="utf-8")
+    onecv8 = tmp_path / "1cv8"
+    onecv8.write_text("", encoding="utf-8")
+
+    meta_kwargs: list[dict[str, Any]] = []
+    module_kwargs: list[dict[str, Any]] = []
+
+    def capture_meta(*_a: Any, **kwargs: Any) -> IbcmdRunResult:
+        meta_kwargs.append(kwargs)
+        return IbcmdRunResult(returncode=0, stdout="ok", stderr="", argv=["ibcmd"])
+
+    def capture_modules(*_a: Any, **kwargs: Any) -> None:
+        module_kwargs.append(kwargs)
+
+    result = run_check(
+        target,
+        discover=lambda: _fake_discovery(ibcmd=ibcmd, onecv8=onecv8),
+        check_fn=capture_meta,
+        modules_fn=capture_modules,
+    )
+    assert result.status == "ok"
+    assert len(meta_kwargs) == 1
+    assert len(module_kwargs) == 1
+    assert "extension" not in meta_kwargs[0] or meta_kwargs[0].get("extension") is None
+    assert "extension" not in module_kwargs[0] or module_kwargs[0].get("extension") is None
+    assert result.steps == ["metadata", "modules"]
+
+
 def test_run_check_metadata_and_modules_both_fail(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
@@ -467,3 +507,4 @@ def test_integration_check_modules_catches_syntax(tmp_path: Path) -> None:
         d.get("object") == "CommonModule.BrokenServer" and d.get("line") == 2
         for d in result.diagnostics
     )
+

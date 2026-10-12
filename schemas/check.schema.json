@@ -24,10 +24,10 @@
     },
     "steps": {
       "type": "array",
-      "description": "Выполненные шаги check (metadata, modules).",
+      "description": "Выполненные шаги: metadata, modules.",
       "items": {
         "type": "string",
-        "enum": ["metadata", "modules"]
+        "minLength": 1
       }
     },
     "diagnostics": {

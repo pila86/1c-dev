@@ -53,6 +53,27 @@ def test_build_check_modules_argv(tmp_path: Path) -> None:
     assert "-ThinClient" in argv
     assert "/Out" in argv
     assert str(out.resolve()) in argv
+    assert "-Extension" not in argv
+
+
+def test_build_check_modules_argv_with_extension(tmp_path: Path) -> None:
+    onecv8 = tmp_path / "1cv8"
+    ib = tmp_path / "ib"
+    out = tmp_path / "out.log"
+    argv = build_check_modules_argv(
+        onecv8,
+        ib_path=ib,
+        out_log=out,
+        modes=["Server"],
+        extension="ShopExt",
+    )
+    check_idx = argv.index("/CheckModules")
+    assert argv[check_idx : check_idx + 4] == [
+        "/CheckModules",
+        "-Extension",
+        "ShopExt",
+        "-Server",
+    ]
 
 
 def test_parse_success_ru() -> None:
@@ -75,6 +96,20 @@ def test_parse_syntax_error() -> None:
     assert d["code"] == CODE_CHECK_FAILED
     assert d["source"] == "platform"
     assert "Ожидается выражение" in d["message"]
+    assert "relatedObject" not in d
+
+
+def test_parse_extension_prefix() -> None:
+    text = (
+        "{ShopExt ОбщийМодуль.BrokenExtServer.Модуль(2,8)}: "
+        "Ожидается выражение\n"
+    )
+    diags = parse_check_modules_out(text)
+    assert len(diags) == 1
+    d = diags[0]
+    assert d["object"] == "CommonModule.BrokenExtServer"
+    assert d["line"] == 2
+    assert d["relatedObject"] == "Extension.ShopExt"
 
 
 def test_parse_unclosed() -> None:
@@ -112,6 +147,30 @@ def test_check_modules_ok(tmp_path: Path) -> None:
         return ProcessRunResult(returncode=0, argv=argv)
 
     check_modules(onecv8, ib_path=ib, out_log=out, run=run)
+
+
+def test_check_modules_passes_extension_to_run(tmp_path: Path) -> None:
+    onecv8 = tmp_path / "1cv8"
+    onecv8.write_text("", encoding="utf-8")
+    ib = tmp_path / "ib"
+    ib.mkdir()
+    out = tmp_path / "out.log"
+    seen: list[str] = []
+
+    def run(argv: list[str], timeout: float) -> ProcessRunResult:
+        seen.extend(argv)
+        out.write_text("Синтаксических ошибок не обнаружено!\n", encoding="utf-8-sig")
+        return ProcessRunResult(returncode=0, argv=argv)
+
+    check_modules(
+        onecv8,
+        ib_path=ib,
+        out_log=out,
+        extension="ShopExt",
+        run=run,
+    )
+    assert "-Extension" in seen
+    assert "ShopExt" in seen
 
 
 def test_check_modules_failure_parses_out(tmp_path: Path) -> None:

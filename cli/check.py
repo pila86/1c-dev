@@ -87,7 +87,7 @@ def check_command(
     ),
     output: OutputOption = None,
 ) -> None:
-    """Проверить конфигурацию: ibcmd metadata check + Designer /CheckModules."""
+    """Платформенная проверка конфигурации: ibcmd + /CheckModules."""
     result = run_check(Path.cwd(), modes=mode or None)
     _emit(result.to_payload(), resolve_output(ctx, output), text_lines=_check_text(result))
     _exit_for(result)

@@ -932,8 +932,10 @@ def register_tools(server: FastMCP) -> None:
         name="check",
         description=(
             "Run platform check on an existing file IB: ibcmd metadata check, then "
-            "Designer /CheckModules (default mode Server). Requires a prior successful "
-            "build, ibcmd, and 1cv8. Optional modes: list of CheckModules contexts "
+            "Designer /CheckModules (default mode Server). Single pass without "
+            "platform -Extension; what is covered (main vs extensions) is up to "
+            "the platform. Requires a prior successful build, ibcmd, and 1cv8. "
+            "Optional modes: list of CheckModules contexts "
             "(Server, ThinClient, WebClient, …). "
             "Do not invoke Designer/Configurator manually — use this tool."
             + _NO_SHELL

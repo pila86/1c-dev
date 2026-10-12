@@ -28,7 +28,7 @@ from core.project.paths import default_runtime_rel, scope_root_from_manifest
 CheckFn = Callable[..., Any]
 ModulesFn = Callable[..., Any]
 
-_OUT_REL = ".1c-dev/runtime/check-modules.out"
+_OUT_LOG_REL = ".1c-dev/runtime/check-modules.out"
 
 
 def run_check(
@@ -42,6 +42,9 @@ def run_check(
 ) -> CheckResult:
     """
     Run platform check on an existing file IB: ibcmd metadata + /CheckModules.
+
+    Single pass without platform ``--extension`` / ``-Extension``: scope of what
+    is checked (main only vs extensions) is left to the platform.
 
     run / check_fn / modules_fn / discover: injectable for tests.
     """
@@ -83,7 +86,6 @@ def run_check(
     runtime_rel = default_runtime_rel(data)
     db_path = (root / runtime_rel).resolve()
     data_path = (root / IBCMD_DATA_REL).resolve()
-    out_log = (root / _OUT_REL).resolve()
 
     discovery = (discover or discover_environment)()
     ibcmd_info = discovery.ibcmd
@@ -144,22 +146,16 @@ def run_check(
 
     diagnostics: list[Diagnostic] = []
     steps: list[str] = []
+    modules_runner = modules_fn or check_modules
+    meta_runner = check_fn if check_fn is not None else check_config
 
     try:
-        if check_fn is not None:
-            check_fn(
-                ibcmd_info.path,
-                db_path=db_path,
-                data_path=data_path,
-                run=run,
-            )
-        else:
-            check_config(
-                ibcmd_info.path,
-                db_path=db_path,
-                data_path=data_path,
-                run=run,
-            )
+        meta_runner(
+            ibcmd_info.path,
+            db_path=db_path,
+            data_path=data_path,
+            run=run,
+        )
     except IbcmdError as exc:
         diagnostics.extend(
             list(exc.diagnostics)
@@ -173,12 +169,11 @@ def run_check(
         )
     steps.append("metadata")
 
-    modules_runner = modules_fn or check_modules
     try:
         modules_runner(
             onecv8_info.path,
             ib_path=db_path,
-            out_log=out_log,
+            out_log=(root / _OUT_LOG_REL).resolve(),
             modes=modes,
         )
     except CheckModulesError as exc:

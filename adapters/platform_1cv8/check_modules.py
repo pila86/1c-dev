@@ -20,8 +20,10 @@ DEFAULT_TIMEOUT_SEC = 600.0
 
 # {ОбщийМодуль.BrokenServer.Модуль(2,8)}: message
 # {CommonModule.BrokenServer.Module(2,8)}: message
+# {ShopExt ОбщийМодуль.BrokenExtServer.Модуль(2,8)}: message  (extension prefix)
 _OUT_LOC = re.compile(
     r"^\{"
+    r"(?:(?P<ext>[^.{}\s]+)\s+)?"
     r"(?P<type>[^.{}]+)\."
     r"(?P<name>[^.{}]+)\."
     r"(?P<module>[^.{}(]+)"
@@ -128,9 +130,18 @@ def build_check_modules_argv(
     ib_path: Path,
     out_log: Path,
     modes: Sequence[str] | None = None,
+    extension: str | None = None,
 ) -> list[str]:
-    """Build argv for ``1cv8 DESIGNER … /CheckModules -Mode…``."""
+    """
+    Build argv for ``1cv8 DESIGNER … /CheckModules [-Extension name] -Mode…``.
+
+    Extension is a ``/CheckModules`` flag (``-Extension <name>``), not a
+    top-level ``/Extension`` Designer switch (ITS / batch practice).
+    """
     mode_flags = [f"-{m}" for m in normalize_modes(modes)]
+    ext_flags: list[str] = []
+    if extension:
+        ext_flags = ["-Extension", extension]
     return [
         str(onecv8),
         "DESIGNER",
@@ -140,6 +151,7 @@ def build_check_modules_argv(
         "/Out",
         str(out_log.resolve()),
         "/CheckModules",
+        *ext_flags,
         *mode_flags,
     ]
 
@@ -219,6 +231,7 @@ def parse_check_modules_out(text: str) -> list[Diagnostic]:
         name = match.group("name")
         module_raw = match.group("module")
         message = match.group("message").strip()
+        ext_name = match.group("ext")
         # Strip trailing " (Проверка: Сервер)" noise if present — keep in message.
         ir_type = _TYPE_MAP.get(type_raw, type_raw)
         module = _MODULE_MAP.get(module_raw, module_raw)
@@ -232,6 +245,8 @@ def parse_check_modules_out(text: str) -> list[Diagnostic]:
             "column": int(match.group("column")),
             "source": "platform",
         }
+        if ext_name:
+            diag["relatedObject"] = f"Extension.{ext_name}"
         diagnostics.append(diag)
     return diagnostics
 
@@ -242,12 +257,14 @@ def check_modules(
     ib_path: Path,
     out_log: Path,
     modes: Sequence[str] | None = None,
+    extension: str | None = None,
     timeout: float = DEFAULT_TIMEOUT_SEC,
     run: RunFn | None = None,
 ) -> None:
     """
     Run Designer ``/CheckModules`` on an existing file IB.
 
+    When ``extension`` is set, passes ``-Extension <name>`` (extension modules).
     Raises ``CheckModulesError`` on timeout, non-zero exit, or parsed errors.
     """
     out_log.parent.mkdir(parents=True, exist_ok=True)
@@ -259,6 +276,7 @@ def check_modules(
         ib_path=ib_path,
         out_log=out_log,
         modes=modes,
+        extension=extension,
     )
     runner = run or default_run
     result = runner(argv, timeout)
