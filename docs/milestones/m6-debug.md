@@ -1,7 +1,7 @@
 # M6: Debug (HTTP Debug Protocol + CLI/MCP)
 
 **Статус:** Planned — [GitHub milestone M6](https://github.com/pila86/1c-dev/milestone/6); issues нарезаны (#135–#144).  
-**ADR:** ADR-030 (создать в фазе 1, [#136](https://github.com/pila86/1c-dev/issues/136)). Закладка: [ADR-019](../adr/019-runtime-client-lifecycle.md) (`/Debug`, `debug.*` → M6).
+**ADR:** ADR-031 (создать в фазе 1, [#136](https://github.com/pila86/1c-dev/issues/136); ранее в черновике ошибочно «ADR-030» — номер занят Designer `/CheckModules`). Закладка: [ADR-019](../adr/019-runtime-client-lifecycle.md) (`/Debug`, `debug.*` → M6). Spike: [135-http-debug-protocol.md](../spikes/135-http-debug-protocol.md).
 
 ## Goal
 
@@ -66,7 +66,7 @@ debug:
   # password: опционально; лучше env ONEC_DEBUG_PASSWORD, не в git
 ```
 
-Альтернатива (если ADR решит «per-runtime»): поля `debug.*` внутри `runtimes[]` — зафиксировать в ADR-030, не в двух местах сразу.
+Альтернатива (если ADR решит «per-runtime»): поля `debug.*` внутри `runtimes[]` — зафиксировать в ADR-031, не в двух местах сразу.
 
 Paths к CF/CFE **не** дублировать: брать из `configurations[].source` / `extensions[].source`.
 
@@ -88,7 +88,7 @@ Paths к CF/CFE **не** дублировать: брать из `configurations
 | Состояние | `debug status` | `debug.status` | session + targets + last stop summary |
 | Метаданные index | `debug reload-metadata` | `debug.reloadMetadata` | rebuild UUID↔module cache |
 
-Имена CLI уточнить в ADR-030 (единый стиль с `test` / `runtime`: подкоманды vs флаги).  
+Имена CLI уточнить в ADR-031 (единый стиль с `test` / `runtime`: подкоманды vs флаги).  
 PRD §28 (`debug.start` / `debug.stop`) мапится так: **start** = server ensure + attach (+ opt `runtime.start --debug`); **stop** = detach (+ opt server stop).
 
 ### Payload (эскиз)
@@ -129,11 +129,11 @@ PRD §28 (`debug.start` / `debug.stop`) мапится так: **start** = serve
 Референс (читать, не копировать в product без лицензионной чистоты MIT + attribution):  
 [1c-debug-mcp ARCHITECTURE](https://github.com/liga-1c-command/1c-debug-mcp), [onec-debug-adapter](https://github.com/akpaevj/onec-debug-adapter).
 
-### 2. ADR-030 + schema
+### 2. ADR-031 + schema
 
 - Граница: HTTP adapter vs DAP vs внешние MCP.
 - Контракт операций, state layout (`.1c-dev/…`), exit codes, манифест `debug`.
-- Решение: ping в том же процессе, что CLI/MCP tool call (как у liga) vs отдельный helper-process — зафиксировать (для stdio MCP обычно in-process + background task).
+- Решение: ping в том же процессе, что CLI/MCP tool call (как у liga) vs отдельный helper-process — зафиксировать (для stdio MCP обычно in-process + background task). Spike: in-process ~500 ms достаточен.
 
 ### 3. Adapter + module index
 
@@ -165,7 +165,7 @@ PRD §28 (`debug.start` / `debug.stop`) мапится так: **start** = serve
 | Фаза | Содержание | Результат |
 |------|------------|-----------|
 | **0. Spike** | Fixture + dbgs + ручной HTTP | Spike-док: cmd’ы, discovery, Linux/Win gaps |
-| **1. ADR + schema** | ADR-030, optional `debug` в schema v2 | Замороженный контракт |
+| **1. ADR + schema** | ADR-031, optional `debug` в schema v2 | Замороженный контракт |
 | **2. Adapter** | `adapters/debug_http` + module index | Attach/BP/wait/vars/eval на fixture |
 | **3. Core + CLI** | `core/debug` + `1c-dev debug` | CI/человек без MCP |
 | **4. MCP + DX** | `debug.*`, doctor, AGENTS, opt launch.json | Агент без shell |
@@ -192,8 +192,8 @@ build (ИБ актуальна)
 
 ### Must
 
-- [ ] Spike-док: HTTP Debug Protocol + discovery `dbgs` (Linux/Windows)
-- [ ] ADR-030 Accepted: HTTP facade, граница с DAP / внешними MCP, state, schema
+- [x] Spike-док: HTTP Debug Protocol + discovery `dbgs` (Linux live; Windows — docs/gaps) — [#135](https://github.com/pila86/1c-dev/issues/135) / [spike](../spikes/135-http-debug-protocol.md)
+- [ ] ADR-031 Accepted: HTTP facade, граница с DAP / внешними MCP, state, schema
 - [ ] Манифест: опциональный `debug` (host/port/alias/autoAttach) валидируется
 - [ ] `adapters/debug_http`: attach/detach/forceDetach, targets, breakpoints, wait, continue, stepIn/Out, pause, stack, variables, evaluate
 - [ ] Резолв `objectID` из XML source основной conf + extensions; `reloadMetadata`
@@ -232,7 +232,7 @@ build (ИБ актуальна)
 
 ## Diagnostics (эскиз кодов)
 
-Зафиксировать в ADR-030 (префикс `1CD…`):
+Зафиксировать в ADR-031 (префикс `1CD…`):
 
 | Ситуация | Code (эскиз) | Exit |
 |----------|--------------|------|
@@ -265,7 +265,7 @@ build (ИБ актуальна)
 
 ## State layout (эскиз)
 
-Под scope / runtime path (уточнить в ADR-030):
+Под scope / runtime path (уточнить в ADR-031):
 
 ```text
 .1c-dev/
@@ -291,8 +291,8 @@ build (ИБ актуальна)
 
 | # | Wave | Задача | Depends on | Status |
 |---|------|--------|------------|--------|
-| [#135](https://github.com/pila86/1c-dev/issues/135) | 0 | Spike: HTTP Debug Protocol (dbgs) + fixture | M5 Done | OPEN |
-| [#136](https://github.com/pila86/1c-dev/issues/136) | 1 | ADR-030: Debug API (CLI/MCP over HTTP Debug Protocol) | #135 | OPEN |
+| [#135](https://github.com/pila86/1c-dev/issues/135) | 0 | Spike: HTTP Debug Protocol (dbgs) + fixture | M5 Done | DONE ([spike](../spikes/135-http-debug-protocol.md)) |
+| [#136](https://github.com/pila86/1c-dev/issues/136) | 1 | ADR-031: Debug API (CLI/MCP over HTTP Debug Protocol) | #135 | OPEN |
 | [#137](https://github.com/pila86/1c-dev/issues/137) | 1 | Schema: optional `debug` в project.yaml v2 | #136 | OPEN |
 | [#138](https://github.com/pila86/1c-dev/issues/138) | 2 | `adapters/debug_http`: session, ping, breakpoints, eval | #135, #136 | OPEN |
 | [#139](https://github.com/pila86/1c-dev/issues/139) | 2 | Module UUID index from XML source + extensions | #138 | OPEN |
