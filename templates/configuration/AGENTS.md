@@ -2,12 +2,14 @@
 # Правила 1c-dev
 
 ## Запреты
+- Не читать и не править исходники инструмента `1c-dev` (репозиторий, пакет, внутренности CLI/MCP).
 - Не править generated artifacts; уважать source format проекта.
 - Не выгружать конфигурацию вручную через Конфигуратор.
 - Не выдумывать API платформы — только `docs.search` / `docs.get`.
 
 ## Порядок
 - Предпочитать MCP `1c-dev` и `bsl-language-server`, не shell и не Конфигуратор.
+- Если нужной операции нет в MCP/CLI или она не закрывает задачу — допустимо править исходники конфигурации/расширения напрямую (BSL, XML и т.п. в source.path). После этого — тот же цикл: diagnostics → check → build → test.
 - Greenfield: `project.init` → `configuration.add` → `project.get` → metadata.* / build.
 - `project.init` создаёт только home (пустые `configurations[]` / `runtimes[]`), не XML.
 - После правок: при изменениях BSL — diagnostics через MCP bsl-ls по затронутым модулям → check → build → `test.*` (цикл `build → test.run` перед завершением задачи).
