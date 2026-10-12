@@ -23,6 +23,10 @@ from tests.helpers_project import bootstrap_configuration_project
 
 runner = CliRunner()
 
+# PID выше типичного pid_max (≈4M): не должен совпасть с живым процессом на хосте.
+# Иначе CLI-тест без мока is_running падает с RUNTIME_FAILURE (1CP011).
+_FIXTURE_PID = 5_000_000
+
 
 def _seed_dirty_project(tmp_path: Path) -> Path:
     target = tmp_path / "shop"
@@ -39,7 +43,7 @@ def _seed_dirty_project(tmp_path: Path) -> Path:
     (runtime / "main" / "1Cv8.1cd").write_bytes(b"IB")
     (runtime / "ibcmd-data").mkdir(exist_ok=True)
     (runtime / "ibcmd-data" / "tmp").write_text("x", encoding="utf-8")
-    write_state(target, pid=4242, debug=False)
+    write_state(target, pid=_FIXTURE_PID, debug=False)
     return target
 
 
@@ -106,7 +110,7 @@ def test_run_clean_stops_live_client(tmp_path: Path) -> None:
     terminated: list[int] = []
 
     def fake_alive(pid: int) -> bool:
-        return pid == 4242 and 4242 not in terminated
+        return pid == _FIXTURE_PID and _FIXTURE_PID not in terminated
 
     def fake_terminate(pid: int) -> bool:
         terminated.append(pid)
@@ -119,7 +123,7 @@ def test_run_clean_stops_live_client(tmp_path: Path) -> None:
         terminate_fn=fake_terminate,
     )
     assert result.status == "ok"
-    assert terminated == [4242]
+    assert terminated == [_FIXTURE_PID]
     assert not (target / ".1c-dev" / "runtime").exists()
 
 
