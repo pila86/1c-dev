@@ -240,9 +240,9 @@ class DebugSession:
         with self._events_lock:
             self._events.append(event)
 
-    def _on_target_started(self, target_id: str) -> None:
+    def _on_target_started(self, target_id: str, *, force: bool = False) -> None:
         self._last_target_id = target_id
-        if target_id in self._attached_targets:
+        if target_id in self._attached_targets and not force:
             return
         self.client.post(
             "attachDetachDbgTargets",
@@ -254,6 +254,19 @@ class DebugSession:
         # BP must be re-sent after target attach (spike / MIT)
         if self._breakpoints:
             self._send_breakpoints()
+
+    def ensure_targets_attached(self, *, force: bool = False) -> list[DebugTarget]:
+        """Attach known targets from ``getDbgAllTargetStates``.
+
+        Short-lived CLI may miss ``targetStarted`` when the attach process exits
+        and its ping loop dies; ``wait`` / BP then never arm on the client.
+        """
+        found = self.targets()
+        for target in found:
+            tid = target.target_id
+            if tid:
+                self._on_target_started(tid, force=force)
+        return found
 
     @staticmethod
     def _extract_target_id(body: str) -> str:
@@ -394,6 +407,9 @@ class DebugSession:
         # Already stopped (event set by process_ping_body / ping loop)
         if self._last_stop is not None and self._stop_event.is_set():
             return self._last_stop
+
+        # CLI: re-attach existing targets (may have missed targetStarted)
+        self.ensure_targets_attached(force=True)
 
         self._stop_event.clear()
         self.start_ping()

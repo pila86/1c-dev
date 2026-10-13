@@ -18,6 +18,7 @@ from adapters.debug_http import (
     AttachResult,
     BreakpointSpec,
     DebugHttpError,
+    DebugSession,
     DebugTarget,
     EvalResult,
     HttpResponse,
@@ -46,7 +47,7 @@ from core.debug import (
     run_variables,
     run_wait,
 )
-from core.debug.state import write_server_state, write_session
+from core.debug.state import read_session, write_server_state, write_session
 from core.exit_codes import ENV_UNAVAILABLE, PROJECT_ERROR, RUNTIME_FAILURE, SUCCESS
 from core.runtime import run_start
 from core.runtime.state import read_meta
@@ -262,6 +263,10 @@ def test_breakpoint_set_and_wait_stack_vars_eval(tmp_path: Path) -> None:
         ),
     )
 
+    fake_targets = [
+        DebugTarget(target_id=SPIKE_TARGET, target_type="Client", state="Attached")
+    ]
+
     def factory(client: Any, **kwargs: Any) -> MagicMock:
         session = _fake_session(
             set_breakpoints_by_module=MagicMock(
@@ -276,11 +281,8 @@ def test_breakpoint_set_and_wait_stack_vars_eval(tmp_path: Path) -> None:
             variables=MagicMock(return_value=eval_result),
             evaluate=MagicMock(return_value=eval_result),
             continue_=MagicMock(return_value="ok"),
-            targets=MagicMock(
-                return_value=[
-                    DebugTarget(target_id=SPIKE_TARGET, target_type="Client", state="Attached")
-                ]
-            ),
+            targets=MagicMock(return_value=fake_targets),
+            ensure_targets_attached=MagicMock(return_value=fake_targets),
             stop_ping=MagicMock(),
             start_ping=MagicMock(),
             last_stop=stop,
@@ -484,3 +486,64 @@ def test_cli_debug_help() -> None:
     assert "attach" in result.output
     assert "server" in result.output
     assert "breakpoint" in result.output
+
+
+def test_wait_persists_last_stop_for_next_cli_process(tmp_path: Path) -> None:
+    """Short-lived CLI: wait writes lastStop; stack/continue restore from disk."""
+    target = _init_project(tmp_path)
+    write_session(
+        target, url="http://localhost:2550", alias="DefAlias", session_id="sid-persist"
+    )
+    stop = StopEvent(
+        target_id="tgt-persist",
+        frames=(
+            StackFrame(
+                object_id=SPIKE_OBJECT,
+                property_id=PROPERTY_ID_COMMON_MODULE,
+                line_no=9,
+                module_name="ManagedApplicationModule",
+            ),
+        ),
+    )
+
+    class WaitSession(DebugSession):
+        def __init__(self, client: Any, **kwargs: Any) -> None:
+            super().__init__(client, **kwargs)
+            self._attached = True
+            self._last_stop = stop
+            self._stop_event.set()
+            self._attached_targets.add("tgt-persist")
+            self._last_target_id = "tgt-persist"
+
+        def wait_for_stop(self, *, timeout: float = 30.0) -> StopEvent:
+            return stop
+
+        def start_ping(self) -> None:
+            return None
+
+        def stop_ping(self) -> None:
+            return None
+
+    waited = run_wait(target, timeout=1.0, session_factory=WaitSession)
+    assert waited.status == "ok"
+    assert waited.line_no == 9
+    disk = read_session(target) or {}
+    assert "lastStop" in disk
+    assert disk["lastStop"]["targetId"] == "tgt-persist"
+    assert disk["attachedTargets"] == ["tgt-persist"]
+
+    def _ok_transport(
+        url: str, data: bytes, headers: dict[str, str], timeout: float
+    ) -> HttpResponse:
+        return HttpResponse(status=200, body="<response><result>ok</result></response>")
+
+    # New process: default DebugSession hydrated from session.json
+    stacked = run_stack(target, transport=_ok_transport)
+    assert stacked.status == "ok"
+    assert stacked.line_no == 9
+    assert stacked.call_stack[0]["moduleName"] == "ManagedApplicationModule"
+
+    continued = run_continue(target, transport=_ok_transport)
+    assert continued.status == "ok"
+    after = read_session(target) or {}
+    assert "lastStop" not in after

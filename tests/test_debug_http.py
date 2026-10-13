@@ -240,6 +240,7 @@ def test_wait_for_stop_timeout() -> None:
             "attachDebugUI": HttpResponse(200, _load("attach_registered.xml")),
             "initSettings": HttpResponse(200, "<response/>"),
             "setAutoAttachSettings": HttpResponse(200, "<response/>"),
+            "getDbgAllTargetStates": HttpResponse(200, "<response/>"),
             "pingDebugUIParams": HttpResponse(200, ""),
             "detachDebugUI": HttpResponse(200, _load("detach_ok.xml")),
         }
@@ -250,6 +251,39 @@ def test_wait_for_stop_timeout() -> None:
     with pytest.raises(DebugHttpError) as exc:
         session.wait_for_stop(timeout=0.15)
     assert exc.value.code == CODE_WAIT_TIMEOUT
+    session.detach()
+
+
+def test_ensure_targets_attached_from_states() -> None:
+    """CLI may miss targetStarted; wait/BP sync via getDbgAllTargetStates."""
+    transport = MockTransport(
+        {
+            "attachDebugUI": HttpResponse(200, _load("attach_registered.xml")),
+            "initSettings": HttpResponse(200, "<response/>"),
+            "setAutoAttachSettings": HttpResponse(200, "<response/>"),
+            "getDbgAllTargetStates": HttpResponse(200, _load("targets.xml")),
+            "attachDetachDbgTargets": HttpResponse(200, "<response/>"),
+            "setBreakpoints": HttpResponse(200, "<response/>"),
+            "detachDebugUI": HttpResponse(200, _load("detach_ok.xml")),
+        }
+    )
+    client = DebugHttpClient("http://localhost:2550", transport=transport)
+    session = DebugSession(client, session_id="sid", ping_interval=60.0)
+    session.attach(start_ping=False)
+    session.set_breakpoints(
+        [
+            BreakpointSpec(
+                object_id=SPIKE_OBJECT_ID,
+                property_id=PROPERTY_ID_COMMON_MODULE,
+                lines=(5,),
+            )
+        ]
+    )
+    found = session.ensure_targets_attached(force=True)
+    assert found[0].target_id == SPIKE_TARGET
+    assert SPIKE_TARGET in session._attached_targets  # noqa: SLF001
+    assert any(c[0] == "attachDetachDbgTargets" for c in transport.calls)
+    assert sum(1 for c in transport.calls if c[0] == "setBreakpoints") >= 2
     session.detach()
 
 

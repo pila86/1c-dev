@@ -129,11 +129,14 @@ Project-scoped (не per-runtime) каталог debug-сервера и сес�
   debug/
     server.pid                # если dbgs стартовали мы
     server.meta.json          # host, port, notify path, startedAt (opt)
-    session.json              # url, alias, sessionId (idOfDebuggerUI), attachedAt
+    session.json              # url, alias, sessionId, attachedAt
+                              # + lastStop / attachedTargets / breakpoints / lastTargetId
+                              #   (persist между short-lived CLI-вызовами)
     modules-cache.json        # UUID ↔ module (mtime invalidate; #139)
 ```
 
-- Одна активная debug-сессия на процесс CLI/MCP.
+- Одна активная debug-сессия на процесс CLI/MCP; для CLI stop-state пишется в `session.json`,
+  иначе `stack`/`variables`/`continue` после отдельного `wait` теряют `last_stop` (`1CD006`/`1CD007`).
 - Client pid/meta остаются per-runtime (ADR-019 / ADR-026).
 - Module index — под `.1c-dev/debug/` (не рядом с `src/`), чтобы не засорять source tree.
 

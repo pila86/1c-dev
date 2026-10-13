@@ -10,9 +10,12 @@ from typing import Any
 
 from adapters.debug_http import (
     DEFAULT_WAIT_TIMEOUT_SEC,
+    BreakpointSpec,
     DebugHttpClient,
     DebugHttpError,
     DebugSession,
+    StackFrame,
+    StopEvent,
     TransportFn,
     XmlObjectIdResolver,
     reload_metadata,
@@ -39,6 +42,7 @@ from core.debug.state import (
     alive_server,
     clear_session,
     manifest_debug_settings,
+    persist_session_runtime,
     read_session,
     resolve_debugger_url,
     write_session,
@@ -287,9 +291,76 @@ def _restore_session(
         auto_attach_types=types,
     )
     session._attached = True  # noqa: SLF001 — restore across CLI processes
+    _apply_stored_runtime(session, stored)
     if start_ping:
         session.start_ping()
     return session, base.rstrip("/"), alias, None
+
+
+def _apply_stored_runtime(session: DebugSession, stored: dict[str, Any]) -> None:
+    """Hydrate stop/targets/BP from ``session.json`` (short-lived CLI)."""
+    raw_targets = stored.get("attachedTargets")
+    if isinstance(raw_targets, list):
+        session._attached_targets = {  # noqa: SLF001
+            str(t) for t in raw_targets if isinstance(t, str) and t
+        }
+    last_tid = stored.get("lastTargetId")
+    if isinstance(last_tid, str) and last_tid.strip():
+        session._last_target_id = last_tid.strip()  # noqa: SLF001
+
+    raw_bps = stored.get("breakpoints")
+    if isinstance(raw_bps, list):
+        restored: list[BreakpointSpec] = []
+        for item in raw_bps:
+            if not isinstance(item, dict):
+                continue
+            oid = str(item.get("objectId") or "")
+            pid = str(item.get("propertyId") or "")
+            lines_raw = item.get("lines") or []
+            if not oid or not pid or not isinstance(lines_raw, list):
+                continue
+            lines = tuple(int(x) for x in lines_raw if isinstance(x, int) or str(x).isdigit())
+            if not lines:
+                continue
+            restored.append(
+                BreakpointSpec(
+                    object_id=oid,
+                    property_id=pid,
+                    lines=lines,
+                    extension_name=str(item.get("extensionName") or ""),
+                )
+            )
+        session._breakpoints = restored  # noqa: SLF001
+
+    raw_stop = stored.get("lastStop")
+    if not isinstance(raw_stop, dict):
+        return
+    frames_raw = raw_stop.get("frames") or []
+    frames: list[StackFrame] = []
+    if isinstance(frames_raw, list):
+        for fr in frames_raw:
+            if not isinstance(fr, dict):
+                continue
+            frames.append(
+                StackFrame(
+                    object_id=str(fr.get("objectId") or ""),
+                    property_id=str(fr.get("propertyId") or ""),
+                    line_no=int(fr.get("lineNo") or 0),
+                    module_name=str(fr.get("moduleName") or ""),
+                )
+            )
+    target_id = str(raw_stop.get("targetId") or "")
+    if not frames and not target_id:
+        return
+    session._last_stop = StopEvent(  # noqa: SLF001
+        target_id=target_id,
+        frames=tuple(frames),
+    )
+    session._stop_event.set()  # noqa: SLF001
+    if target_id:
+        session._attached_targets.add(target_id)  # noqa: SLF001
+        if not session._last_target_id:  # noqa: SLF001
+            session._last_target_id = target_id  # noqa: SLF001
 
 
 def _frames_payload(frames: Sequence[Any]) -> list[dict[str, Any]]:
@@ -611,9 +682,10 @@ def run_targets(
         restore_err.duration = time.perf_counter() - started
         return restore_err
     try:
-        targets = session.targets()
+        targets = session.ensure_targets_attached(force=True)
     except DebugHttpError as exc:
         return _handle_adapter_error(exc, started=started, root=root, target=target)
+    persist_session_runtime(root, session, url=base, alias=alias)
     payload = [
         {
             "targetId": t.target_id,
@@ -745,12 +817,15 @@ def run_breakpoint_set(
             )
             module_name_out = module
             module_type_out = module_type
+        # Arm BP on already-running targets (CLI may have missed targetStarted)
+        session.ensure_targets_attached(force=True)
     except DebugHttpError as exc:
         # 1CD004 from missing source → project (2); otherwise runtime
         result = _handle_adapter_error(exc, started=started, root=root, target=target)
         if any(d.get("code") == CODE_MODULE_UNRESOLVED for d in result.diagnostics):
             result.exit_code = exit_code_for_result("failed", result.diagnostics)
         return result
+    persist_session_runtime(root, session, url=base, alias=alias)
     return _ok(
         started=started,
         root=root,
@@ -801,6 +876,7 @@ def run_breakpoint_clear(
         session.clear_breakpoints()
     except DebugHttpError as exc:
         return _handle_adapter_error(exc, started=started, root=root, target=target)
+    persist_session_runtime(root, session, url=base, alias=alias)
     return _ok(
         started=started,
         root=root,
@@ -851,6 +927,7 @@ def run_wait(
         session.stop_ping()
     frames = _frames_payload(stop.frames)
     leaf = stop.current_frame
+    persist_session_runtime(root, session, url=base, alias=alias)
     return _ok(
         started=started,
         root=root,
@@ -910,6 +987,14 @@ def _run_step(
             )
     except DebugHttpError as exc:
         return _handle_adapter_error(exc, started=started, root=root, target=target)
+    # Continue/step leave stopped state; persist cleared stop for next CLI process.
+    clear_stop = action in ("Continue", "StepIn", "StepOut")
+    if clear_stop:
+        session._last_stop = None  # noqa: SLF001
+        session._stop_event.clear()  # noqa: SLF001
+    persist_session_runtime(
+        root, session, url=base, alias=alias, clear_last_stop=clear_stop
+    )
     return _ok(
         started=started,
         root=root,

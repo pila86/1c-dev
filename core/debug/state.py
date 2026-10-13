@@ -127,18 +127,108 @@ def write_session(
     url: str,
     alias: str,
     session_id: str,
+    last_stop: dict[str, Any] | None = None,
+    attached_targets: list[str] | None = None,
+    breakpoints: list[dict[str, Any]] | None = None,
+    last_target_id: str | None = None,
+    clear_last_stop: bool = False,
 ) -> None:
+    """Persist debug UI session; merge runtime fields for short-lived CLI."""
     directory = state_dir(root)
     directory.mkdir(parents=True, exist_ok=True)
-    payload = {
+    existing = read_session(root) or {}
+    payload: dict[str, Any] = {
         "url": url,
         "alias": alias,
         "sessionId": session_id,
-        "attachedAt": datetime.now(UTC).isoformat(),
+        "attachedAt": existing.get("attachedAt") or datetime.now(UTC).isoformat(),
     }
+    if clear_last_stop:
+        payload.pop("lastStop", None)
+    elif last_stop is not None:
+        payload["lastStop"] = last_stop
+    elif isinstance(existing.get("lastStop"), dict):
+        payload["lastStop"] = existing["lastStop"]
+
+    if attached_targets is not None:
+        payload["attachedTargets"] = list(attached_targets)
+    elif isinstance(existing.get("attachedTargets"), list):
+        payload["attachedTargets"] = list(existing["attachedTargets"])
+
+    if breakpoints is not None:
+        payload["breakpoints"] = list(breakpoints)
+    elif isinstance(existing.get("breakpoints"), list):
+        payload["breakpoints"] = list(existing["breakpoints"])
+
+    if last_target_id is not None:
+        if last_target_id:
+            payload["lastTargetId"] = last_target_id
+    elif isinstance(existing.get("lastTargetId"), str) and existing["lastTargetId"]:
+        payload["lastTargetId"] = existing["lastTargetId"]
+
     session_path(root).write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
+    )
+
+
+def serialize_last_stop(stop: Any) -> dict[str, Any] | None:
+    """``StopEvent`` → JSON-friendly dict for ``session.json``."""
+    if stop is None:
+        return None
+    frames = []
+    for frame in getattr(stop, "frames", ()) or ():
+        frames.append(
+            {
+                "objectId": getattr(frame, "object_id", "") or "",
+                "propertyId": getattr(frame, "property_id", "") or "",
+                "lineNo": int(getattr(frame, "line_no", 0) or 0),
+                "moduleName": getattr(frame, "module_name", "") or "",
+            }
+        )
+    return {
+        "targetId": getattr(stop, "target_id", "") or "",
+        "frames": frames,
+    }
+
+
+def serialize_breakpoints(specs: Any) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for spec in specs or ():
+        out.append(
+            {
+                "objectId": getattr(spec, "object_id", "") or "",
+                "propertyId": getattr(spec, "property_id", "") or "",
+                "lines": list(getattr(spec, "lines", ()) or ()),
+                "extensionName": getattr(spec, "extension_name", "") or "",
+            }
+        )
+    return out
+
+
+def persist_session_runtime(
+    root: Path,
+    session: Any,
+    *,
+    url: str,
+    alias: str,
+    clear_last_stop: bool = False,
+) -> None:
+    """Write session.json including stop/targets/BP for the next CLI process."""
+    write_session(
+        root,
+        url=url,
+        alias=alias,
+        session_id=str(getattr(session, "session_id", "") or ""),
+        last_stop=(
+            None
+            if clear_last_stop
+            else serialize_last_stop(getattr(session, "last_stop", None))
+        ),
+        attached_targets=sorted(getattr(session, "_attached_targets", set()) or []),
+        breakpoints=serialize_breakpoints(getattr(session, "_breakpoints", [])),
+        last_target_id=str(getattr(session, "_last_target_id", "") or ""),
+        clear_last_stop=clear_last_stop,
     )
 
 
