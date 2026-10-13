@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<response xmlns="http://v8.1c.ru/8.3/debugger/debugRDBGRequestResponse">
+  <result>
+    <evalResultState>correctly</evalResultState>
+    <evalExprRes>
+      <propName></propName>
+      <typeName>Число</typeName>
+      <presentation>10</presentation>
+    </evalExprRes>
+  </result>
+</response>

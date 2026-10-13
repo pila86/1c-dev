@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<response xmlns="http://v8.1c.ru/8.3/debugger/debugRDBGRequestResponse"
+          xmlns:bd="http://v8.1c.ru/8.3/debugger/debugBaseData">
+  <result>
+    <item>
+      <id>aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee</id>
+      <targetType>Client</targetType>
+      <state>Worked</state>
+      <infoBaseAlias>DefAlias</infoBaseAlias>
+    </item>
+  </result>
+</response>
