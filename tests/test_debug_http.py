@@ -20,7 +20,10 @@ from adapters.debug_http import (
     DebugSession,
     HttpResponse,
     ModuleRef,
+    SourceRoot,
     StubObjectIdResolver,
+    XmlObjectIdResolver,
+    build_modules_index,
     xml_build,
     xml_parse,
 )
@@ -367,6 +370,32 @@ def test_stub_resolver_override_and_set_by_module() -> None:
     assert spec.object_id == SPIKE_OBJECT_ID
     assert any(SPIKE_OBJECT_ID in c[1] for c in transport.calls if c[0] == "setBreakpoints")
     session.clear_breakpoints()
+    session.detach()
+
+
+def test_xml_resolver_set_breakpoints_by_module() -> None:
+    """Интеграция session + XmlObjectIdResolver на фикстуре modules/."""
+    modules_root = FIXTURES / "modules" / "main"
+    resolver = XmlObjectIdResolver(
+        build_modules_index([SourceRoot(path=modules_root)])
+    )
+    transport = MockTransport(
+        {
+            "attachDebugUI": HttpResponse(200, _load("attach_registered.xml")),
+            "initSettings": HttpResponse(200, "<response/>"),
+            "setAutoAttachSettings": HttpResponse(200, "<response/>"),
+            "setBreakpoints": HttpResponse(200, "<response/>"),
+            "detachDebugUI": HttpResponse(200, _load("detach_ok.xml")),
+        }
+    )
+    client = DebugHttpClient("http://localhost:2550", transport=transport)
+    session = DebugSession(
+        client, session_id="sid", resolver=resolver, ping_interval=60.0
+    )
+    session.attach(start_ping=False)
+    spec = session.set_breakpoints_by_module("ОтладкаДемо", "CommonModule", [5])
+    assert spec.object_id == SPIKE_OBJECT_ID
+    assert spec.property_id == PROPERTY_ID_COMMON_MODULE
     session.detach()
 
 

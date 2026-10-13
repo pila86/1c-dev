@@ -196,7 +196,7 @@ build (ИБ актуальна)
 - [x] ADR-031 Accepted: HTTP facade, граница с DAP / внешними MCP, state, schema — [#136](https://github.com/pila86/1c-dev/issues/136) / [ADR-031](../adr/031-debug-api-http.md)
 - [x] Манифест: опциональный `debug` (host/port/alias/autoAttach) валидируется — [#137](https://github.com/pila86/1c-dev/issues/137)
 - [x] `adapters/debug_http`: attach/detach/forceDetach, targets, breakpoints, wait, continue, stepIn/Out, pause, stack, variables, evaluate — [#138](https://github.com/pila86/1c-dev/issues/138)
-- [ ] Резолв `objectID` из XML source основной conf + extensions; `reloadMetadata`
+- [x] Резолв `objectID` из XML source основной conf + extensions; `reloadMetadata` — [#139](https://github.com/pila86/1c-dev/issues/139)
 - [ ] CLI `1c-dev debug …` → structured JSON; ошибки → exit 2/3/4 по ADR-003
 - [ ] MCP `debug.*` (полный must-набор таблицы API) без shell.exec
 - [ ] Связка с `runtime.start --debug` документирована и покрыта acceptance
@@ -210,7 +210,7 @@ build (ИБ актуальна)
 - [ ] `ide configure`: launch.json под внешний DAP-adapter (путь/версия — discovery или docs)
 - [ ] `debug.stepOver` если подтверждён протоколом
 - [ ] Password через env; не писать секреты в манифест по умолчанию
-- [ ] Кэш module index с инвалидацией
+- [x] Кэш module index с инвалидацией (mtime) — [#139](https://github.com/pila86/1c-dev/issues/139)
 
 ### Nice
 
@@ -295,7 +295,7 @@ build (ИБ актуальна)
 | [#136](https://github.com/pila86/1c-dev/issues/136) | 1 | ADR-031: Debug API (CLI/MCP over HTTP Debug Protocol) | #135 | DONE ([ADR-031](../adr/031-debug-api-http.md)) |
 | [#137](https://github.com/pila86/1c-dev/issues/137) | 1 | Schema: optional `debug` в project.yaml v2 | #136 | DONE |
 | [#138](https://github.com/pila86/1c-dev/issues/138) | 2 | `adapters/debug_http`: session, ping, breakpoints, eval | #135, #136 | DONE |
-| [#139](https://github.com/pila86/1c-dev/issues/139) | 2 | Module UUID index from XML source + extensions | #138 | OPEN |
+| [#139](https://github.com/pila86/1c-dev/issues/139) | 2 | Module UUID index from XML source + extensions | #138 | DONE |
 | [#140](https://github.com/pila86/1c-dev/issues/140) | 3 | `core/debug` + CLI `1c-dev debug` | #137–#139 | OPEN |
 | [#141](https://github.com/pila86/1c-dev/issues/141) | 4 | MCP `debug.*` tools | #140 | OPEN |
 | [#142](https://github.com/pila86/1c-dev/issues/142) | 4 | Doctor `debug.http` + AGENTS debug workflow | #140, #141 | OPEN |

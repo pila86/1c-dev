@@ -23,6 +23,11 @@ DEFAULT_AUTO_ATTACH_TYPES: tuple[str, ...] = (
     "ServerEmulation",
 )
 
+# Module UUID index cache (ADR-031 / #139) under ``.1c-dev/debug/``
+DEBUG_STATE_DIR_NAME = "debug"
+MODULES_CACHE_FILENAME = "modules-cache.json"
+MODULES_CACHE_VERSION = 1
+
 # Canonical propertyID for module kinds (spike #135 / MIT ModulePropertyID)
 PROPERTY_ID_COMMON_MODULE = "d5963243-262e-4398-b4d7-fb16d06484f6"
 PROPERTY_ID_APPLICATION_MODULE = "d22e852a-cf8a-4f77-8ccb-3548e7792bea"

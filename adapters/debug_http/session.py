@@ -39,8 +39,8 @@ from core.diagnostics import error as diag_error
 class DebugSession:
     """Stateful debug UI session against one ``dbgs`` instance.
 
-    Ping loop runs in-process (~500 ms). Module UUID resolve is injected
-    (stub until #139).
+    Ping loop runs in-process (~500 ms). Inject ``XmlObjectIdResolver`` for
+    module UUID resolve from XML source (#139); default is stub (tests).
     """
 
     def __init__(
@@ -306,7 +306,7 @@ class DebugSession:
         *,
         extension_name: str | None = None,
     ) -> BreakpointSpec:
-        """Resolve module via ``ObjectIdResolver`` then set BP (needs #139 or overrides)."""
+        """Resolve module via ``ObjectIdResolver`` then set BP."""
         ref = self.resolver.resolve(
             module_name, module_type, extension_name=extension_name
         )

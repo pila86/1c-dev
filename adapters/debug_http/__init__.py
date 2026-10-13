@@ -1,6 +1,6 @@
-"""HTTP Debug Protocol adapter for ``dbgs`` (ADR-031 / #138).
+"""HTTP Debug Protocol adapter for ``dbgs`` (ADR-031 / #138–#139).
 
-XML/HTTP client, ping/events, session — без module UUID index (#139) и без core/CLI.
+XML/HTTP client, ping/events, session, module UUID index from XML source.
 """
 
 from __future__ import annotations
@@ -20,11 +20,23 @@ from adapters.debug_http.constants import (
     DEFAULT_PING_INTERVAL_SEC,
     DEFAULT_WAIT_TIMEOUT_SEC,
     MODULE_PROPERTY_IDS,
+    MODULES_CACHE_FILENAME,
     PROPERTY_ID_APPLICATION_MODULE,
     PROPERTY_ID_COMMON_MODULE,
     SOURCE_DEBUG,
 )
 from adapters.debug_http.errors import DebugHttpError
+from adapters.debug_http.index import (
+    ModuleIndexEntry,
+    ModulesIndex,
+    SourceRoot,
+    build_modules_index,
+    load_or_build_index,
+    modules_cache_path,
+    reload_metadata,
+    scan_source_root,
+    source_roots_from_configuration,
+)
 from adapters.debug_http.models import (
     AttachResult,
     BreakpointSpec,
@@ -39,6 +51,7 @@ from adapters.debug_http.models import (
 from adapters.debug_http.resolve import (
     ObjectIdResolver,
     StubObjectIdResolver,
+    XmlObjectIdResolver,
     property_id_for_module_type,
 )
 from adapters.debug_http.session import DebugSession
@@ -55,6 +68,7 @@ __all__ = [
     "DEFAULT_AUTO_ATTACH_TYPES",
     "DEFAULT_PING_INTERVAL_SEC",
     "DEFAULT_WAIT_TIMEOUT_SEC",
+    "MODULES_CACHE_FILENAME",
     "MODULE_PROPERTY_IDS",
     "PROPERTY_ID_APPLICATION_MODULE",
     "PROPERTY_ID_COMMON_MODULE",
@@ -68,14 +82,24 @@ __all__ = [
     "DebugTarget",
     "EvalResult",
     "HttpResponse",
+    "ModuleIndexEntry",
     "ModuleRef",
+    "ModulesIndex",
     "ObjectIdResolver",
+    "SourceRoot",
     "StackFrame",
     "StopEvent",
     "StubObjectIdResolver",
     "TransportFn",
     "VariableValue",
+    "XmlObjectIdResolver",
+    "build_modules_index",
+    "load_or_build_index",
+    "modules_cache_path",
     "property_id_for_module_type",
+    "reload_metadata",
+    "scan_source_root",
+    "source_roots_from_configuration",
     "xml_build",
     "xml_parse",
 ]
