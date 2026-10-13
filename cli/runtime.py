@@ -143,6 +143,8 @@ def _client_text(result: RuntimeResult) -> list[str]:
     if result.client is not None:
         lines.append(f"client: {result.client}")
     lines.append(f"debug: {str(result.debug_enabled).lower()}")
+    if result.debugger_url:
+        lines.append(f"debuggerUrl: {result.debugger_url}")
     if result.runtime_path is not None and result.root is not None:
         try:
             rel = result.runtime_path.relative_to(result.root).as_posix()
@@ -186,7 +188,15 @@ def runtime_start(
     debug: bool = typer.Option(
         False,
         "--debug",
-        help="Запустить клиент с /Debug (задел под DAP / M6).",
+        help=(
+            "Запустить с HTTP /Debug -http -attach + DebuggerURL "
+            "(из --debugger-url / debug.server / manifest debug.port)."
+        ),
+    ),
+    debugger_url: str | None = typer.Option(
+        None,
+        "--debugger-url",
+        help="Явный DebuggerURL (http://host:port); приоритет над state/manifest.",
     ),
     config: ConfigOption = None,
     runtime: RuntimeOption = None,
@@ -201,6 +211,7 @@ def runtime_start(
         Path.cwd(),
         client=client_norm,
         debug=debug,
+        debugger_url=debugger_url,
         config_id=config,
         runtime_id=runtime,
     )

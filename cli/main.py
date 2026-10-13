@@ -9,6 +9,7 @@ import typer
 from cli.build import build_command
 from cli.check import check_command
 from cli.configuration import app as configuration_app
+from cli.debug import app as debug_app
 from cli.docs import app as docs_app
 from cli.doctor import doctor_command
 from cli.extension import app as extension_app
@@ -37,6 +38,7 @@ app = typer.Typer(
 app.add_typer(project_app, name="project")
 app.add_typer(metadata_app, name="metadata")
 app.add_typer(runtime_app, name="runtime")
+app.add_typer(debug_app, name="debug")
 app.add_typer(publish_app, name="publish")
 app.add_typer(configuration_app, name="configuration")
 app.add_typer(extension_app, name="extension")

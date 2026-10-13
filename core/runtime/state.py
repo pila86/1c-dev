@@ -1,4 +1,4 @@
-"""Persist detached client pid + meta under .runtime/ (ADR-019)."""
+"""Persist detached client pid + meta under .runtime/ (ADR-019 / ADR-031)."""
 
 from __future__ import annotations
 
@@ -56,10 +56,14 @@ def read_meta(root: Path) -> dict[str, Any]:
     debug_raw = data.get("debug")
     debug: dict[str, Any] = debug_raw if isinstance(debug_raw, dict) else {}
     enabled = bool(debug.get("enabled", False))
+    out_debug: dict[str, Any] = {"enabled": enabled}
+    debugger_url = debug.get("debuggerUrl")
+    if isinstance(debugger_url, str) and debugger_url.strip():
+        out_debug["debuggerUrl"] = debugger_url.strip()
     return {
         "mode": str(mode),
         "client": str(client),
-        "debug": {"enabled": enabled},
+        "debug": out_debug,
     }
 
 
@@ -70,12 +74,16 @@ def write_state(
     debug: bool,
     mode: str = MODE_ENTERPRISE,
     client: str = CLIENT_THICK,
+    debugger_url: str | None = None,
 ) -> None:
     pid_file = pid_path(root)
     meta_file = meta_path(root)
     pid_file.parent.mkdir(parents=True, exist_ok=True)
     pid_file.write_text(f"{pid}\n", encoding="utf-8")
-    meta = {"mode": mode, "client": client, "debug": {"enabled": debug}}
+    debug_meta: dict[str, Any] = {"enabled": debug}
+    if debugger_url:
+        debug_meta["debuggerUrl"] = debugger_url
+    meta = {"mode": mode, "client": client, "debug": debug_meta}
     meta_file.write_text(
         json.dumps(meta, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",

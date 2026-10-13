@@ -66,6 +66,23 @@ def test_build_enterprise_argv_with_debug(tmp_path: Path) -> None:
     assert argv[2].startswith("/F")
     assert Path(argv[2][2:]) == ib.resolve()
     assert "/Debug" in argv
+    assert "-http" not in argv
+
+
+def test_build_enterprise_argv_with_debugger_url(tmp_path: Path) -> None:
+    onecv8 = tmp_path / "1cv8"
+    ib = tmp_path / "ib"
+    ib.mkdir()
+    argv = build_enterprise_argv(
+        onecv8,
+        ib_path=ib,
+        debug=True,
+        debugger_url="http://localhost:2550",
+    )
+    assert "/Debug" in argv
+    assert "-http" in argv
+    assert "-attach" in argv
+    assert '/DebuggerURL"http://localhost:2550"' in argv
 
 
 def test_run_start_no_project(tmp_path: Path) -> None:

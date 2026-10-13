@@ -25,12 +25,16 @@ class RuntimeResult:
     mode: str | None = None
     client: str | None = None
     debug_enabled: bool = False
+    debugger_url: str | None = None
 
     def to_payload(self) -> dict[str, Any]:
+        debug: dict[str, Any] = {"enabled": self.debug_enabled}
+        if self.debugger_url:
+            debug["debuggerUrl"] = self.debugger_url
         payload: dict[str, Any] = {
             "status": self.status,
             "running": self.running,
-            "debug": {"enabled": self.debug_enabled},
+            "debug": debug,
         }
         if self.duration is not None:
             payload["duration"] = round(self.duration, 3)

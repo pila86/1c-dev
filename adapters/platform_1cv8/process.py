@@ -90,15 +90,31 @@ def build_enterprise_argv(
     *,
     ib_path: Path,
     debug: bool = False,
+    debugger_url: str | None = None,
 ) -> list[str]:
-    """Build argv for thick client ENTERPRISE against a file IB."""
+    """Build argv for thick client ENTERPRISE against a file IB.
+
+    With ``debug`` + ``debugger_url``: HTTP attach
+    (``/Debug -http -attach /DebuggerURL"…"``, ADR-031 / spike #135).
+    With ``debug`` alone: plain ``/Debug`` (insufficient for HTTP ``dbgs``).
+    """
     argv = [
         str(onecv8),
         "ENTERPRISE",
         f"/F{ib_path.resolve()}",
     ]
     if debug:
-        argv.append("/Debug")
+        if debugger_url:
+            argv.extend(
+                [
+                    "/Debug",
+                    "-http",
+                    "-attach",
+                    f'/DebuggerURL"{debugger_url}"',
+                ]
+            )
+        else:
+            argv.append("/Debug")
     return argv
 
 

@@ -6,7 +6,7 @@ import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from adapters.platform import DiscoveryResult, discover_environment
 from adapters.platform_1cv8 import (
@@ -40,6 +40,25 @@ from core.runtime.result import RuntimeResult
 from core.runtime.state import clear_state, read_meta, read_pid, write_state
 
 ClientKind = Literal["thick", "thin"]
+
+
+def _debugger_url_from_meta(meta: dict[str, Any]) -> str | None:
+    debug_raw = meta.get("debug")
+    if not isinstance(debug_raw, dict):
+        return None
+    url = debug_raw.get("debuggerUrl")
+    return url.strip() if isinstance(url, str) and url.strip() else None
+
+
+def _resolve_debugger_url_for_start(
+    root: Path,
+    data: dict[str, Any],
+    *,
+    explicit: str | None,
+) -> str | None:
+    from core.debug.state import resolve_debugger_url
+
+    return resolve_debugger_url(root, data, explicit=explicit)
 
 
 def _gui_suggestion() -> str:
@@ -139,8 +158,8 @@ def _alive_snapshot(
     root: Path,
     *,
     is_alive: IsRunningFn,
-) -> tuple[bool, int | None, str, str, bool]:
-    """Return (running, pid, mode, client, debug_enabled); clear stale state."""
+) -> tuple[bool, int | None, str, str, bool, str | None]:
+    """Return (running, pid, mode, client, debug_enabled, debugger_url); clear stale."""
     pid = read_pid(root)
     meta = read_meta(root)
     mode = str(meta.get("mode") or MODE_ENTERPRISE)
@@ -149,12 +168,13 @@ def _alive_snapshot(
     debug_enabled = bool(
         debug_raw.get("enabled") if isinstance(debug_raw, dict) else False
     )
+    debugger_url = _debugger_url_from_meta(meta)
     if pid is None:
-        return False, None, mode, client, debug_enabled
+        return False, None, mode, client, debug_enabled, debugger_url
     if is_alive(pid):
-        return True, pid, mode, client, debug_enabled
+        return True, pid, mode, client, debug_enabled, debugger_url
     clear_state(root)
-    return False, None, MODE_ENTERPRISE, CLIENT_THICK, False
+    return False, None, MODE_ENTERPRISE, CLIENT_THICK, False, None
 
 
 def run_status(
@@ -178,7 +198,9 @@ def run_status(
     if err is not None:
         return err
 
-    running, pid, mode, client, debug_enabled = _alive_snapshot(root, is_alive=alive)
+    running, pid, mode, client, debug_enabled, debugger_url = _alive_snapshot(
+        root, is_alive=alive
+    )
     return RuntimeResult(
         status="ok",
         duration=time.perf_counter() - started,
@@ -189,6 +211,7 @@ def run_status(
         mode=mode if running else None,
         client=client if running else None,
         debug_enabled=debug_enabled if running else False,
+        debugger_url=debugger_url if running else None,
     )
 
 
@@ -214,7 +237,9 @@ def run_stop(
     if err is not None:
         return err
 
-    running, pid, mode, client, debug_enabled = _alive_snapshot(root, is_alive=alive)
+    running, pid, mode, client, debug_enabled, debugger_url = _alive_snapshot(
+        root, is_alive=alive
+    )
     if not running or pid is None:
         clear_state(root)
         return RuntimeResult(
@@ -242,6 +267,7 @@ def run_stop(
             mode=mode,
             client=client,
             debug_enabled=debug_enabled,
+            debugger_url=debugger_url,
             diagnostics=[
                 error(
                     f"Не удалось остановить процесс клиента 1С (pid={pid})",
@@ -269,6 +295,7 @@ def run_start(
     *,
     client: str = CLIENT_THICK,
     debug: bool = False,
+    debugger_url: str | None = None,
     config_id: str | None = None,
     runtime_id: str | None = None,
     discover: Callable[[], DiscoveryResult] | None = None,
@@ -276,7 +303,11 @@ def run_start(
     is_alive: IsRunningFn | None = None,
     settle_seconds: float = 0.3,
 ) -> RuntimeResult:
-    """Detach-start ENTERPRISE client (thick or thin) against the project file IB."""
+    """Detach-start ENTERPRISE client (thick or thin) against the project file IB.
+
+    With ``debug=True``, prefers HTTP attach argv when DebuggerURL is known
+    (explicit / live ``debug.server`` / manifest ``debug.host``+``port``, ADR-031).
+    """
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
     alive = is_alive or is_running
@@ -291,7 +322,21 @@ def run_start(
     if err is not None:
         return err
 
-    running, pid, mode, running_client, debug_enabled = _alive_snapshot(
+    # Manifest needed for DebuggerURL resolution when debug=True
+    manifest_path = detect_manifest(start_path)
+    manifest_data: dict[str, Any] = {}
+    if manifest_path is not None:
+        loaded, _ = load_manifest(manifest_path)
+        if isinstance(loaded, dict):
+            manifest_data = loaded
+
+    resolved_url = (
+        _resolve_debugger_url_for_start(root, manifest_data, explicit=debugger_url)
+        if debug
+        else None
+    )
+
+    running, pid, mode, running_client, debug_enabled, running_url = _alive_snapshot(
         root, is_alive=alive
     )
     if running and pid is not None:
@@ -306,6 +351,7 @@ def run_start(
                 mode=mode,
                 client=running_client,
                 debug_enabled=debug_enabled,
+                debugger_url=running_url,
             )
         return RuntimeResult(
             status="failed",
@@ -317,6 +363,7 @@ def run_start(
             mode=mode,
             client=running_client,
             debug_enabled=debug_enabled,
+            debugger_url=running_url,
             diagnostics=[
                 error(
                     (
@@ -385,6 +432,7 @@ def run_start(
             tool.path,
             ib_path=db_path,
             debug=debug,
+            debugger_url=resolved_url,
             spawn=spawn,
             settle_seconds=settle_seconds,
             is_alive=alive,
@@ -428,6 +476,7 @@ def run_start(
         debug=debug,
         mode=MODE_ENTERPRISE,
         client=client_kind,
+        debugger_url=resolved_url if debug else None,
     )
     return RuntimeResult(
         status="ok",
@@ -439,4 +488,5 @@ def run_start(
         mode=MODE_ENTERPRISE,
         client=client_kind,
         debug_enabled=debug,
+        debugger_url=resolved_url if debug else None,
     )

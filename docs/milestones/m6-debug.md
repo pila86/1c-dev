@@ -1,6 +1,6 @@
 # M6: Debug (HTTP Debug Protocol + CLI/MCP)
 
-**Статус:** Planned — [GitHub milestone M6](https://github.com/pila86/1c-dev/milestone/6); issues нарезаны (#135–#144).  
+**Статус:** In progress — [GitHub milestone M6](https://github.com/pila86/1c-dev/milestone/6); waves 0–3 DONE (#135–#140); MCP/DX/acceptance OPEN (#141–#144).  
 **ADR:** [ADR-031](../adr/031-debug-api-http.md) (Accepted, [#136](https://github.com/pila86/1c-dev/issues/136); ранее в черновике ошибочно «ADR-030» — номер занят Designer `/CheckModules`). Закладка: [ADR-019](../adr/019-runtime-client-lifecycle.md) (`/Debug`, `debug.*` → M6). Spike: [135-http-debug-protocol.md](../spikes/135-http-debug-protocol.md).
 
 ## Goal
@@ -197,7 +197,7 @@ build (ИБ актуальна)
 - [x] Манифест: опциональный `debug` (host/port/alias/autoAttach) валидируется — [#137](https://github.com/pila86/1c-dev/issues/137)
 - [x] `adapters/debug_http`: attach/detach/forceDetach, targets, breakpoints, wait, continue, stepIn/Out, pause, stack, variables, evaluate — [#138](https://github.com/pila86/1c-dev/issues/138)
 - [x] Резолв `objectID` из XML source основной conf + extensions; `reloadMetadata` — [#139](https://github.com/pila86/1c-dev/issues/139)
-- [ ] CLI `1c-dev debug …` → structured JSON; ошибки → exit 2/3/4 по ADR-003
+- [x] CLI `1c-dev debug …` → structured JSON; ошибки → exit 2/3/4 по ADR-003 — [#140](https://github.com/pila86/1c-dev/issues/140)
 - [ ] MCP `debug.*` (полный must-набор таблицы API) без shell.exec
 - [ ] Связка с `runtime.start --debug` документирована и покрыта acceptance
 - [x] `force_detach` / recovery при `ibInDebug` или мёртвом ping — поведение зафиксировано в ADR-031
@@ -296,7 +296,7 @@ build (ИБ актуальна)
 | [#137](https://github.com/pila86/1c-dev/issues/137) | 1 | Schema: optional `debug` в project.yaml v2 | #136 | DONE |
 | [#138](https://github.com/pila86/1c-dev/issues/138) | 2 | `adapters/debug_http`: session, ping, breakpoints, eval | #135, #136 | DONE |
 | [#139](https://github.com/pila86/1c-dev/issues/139) | 2 | Module UUID index from XML source + extensions | #138 | DONE |
-| [#140](https://github.com/pila86/1c-dev/issues/140) | 3 | `core/debug` + CLI `1c-dev debug` | #137–#139 | OPEN |
+| [#140](https://github.com/pila86/1c-dev/issues/140) | 3 | `core/debug` + CLI `1c-dev debug` | #137–#139 | DONE |
 | [#141](https://github.com/pila86/1c-dev/issues/141) | 4 | MCP `debug.*` tools | #140 | OPEN |
 | [#142](https://github.com/pila86/1c-dev/issues/142) | 4 | Doctor `debug.http` + AGENTS debug workflow | #140, #141 | OPEN |
 | [#143](https://github.com/pila86/1c-dev/issues/143) | 4 | should: `ide configure` DAP launch.json hint | #136 | OPEN |
