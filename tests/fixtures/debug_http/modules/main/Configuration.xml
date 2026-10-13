@@ -6,6 +6,7 @@
 		</Properties>
 		<ChildObjects>
 			<CommonModule>ОтладкаДемо</CommonModule>
+			<Catalog>Товары</Catalog>
 		</ChildObjects>
 	</Configuration>
 </MetaDataObject>

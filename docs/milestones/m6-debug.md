@@ -1,6 +1,6 @@
 # M6: Debug (HTTP Debug Protocol + CLI/MCP)
 
-**Статус:** In progress — [GitHub milestone M6](https://github.com/pila86/1c-dev/milestone/6); waves 0–3 DONE (#135–#140); MCP/DX/acceptance OPEN (#141–#144).  
+**Статус:** In progress — [GitHub milestone M6](https://github.com/pila86/1c-dev/milestone/6); waves 0–3 DONE (#135–#140); #145 `--file` DONE; MCP/DX/acceptance OPEN (#141–#144).  
 **ADR:** [ADR-031](../adr/031-debug-api-http.md) (Accepted, [#136](https://github.com/pila86/1c-dev/issues/136); ранее в черновике ошибочно «ADR-030» — номер занят Designer `/CheckModules`). Закладка: [ADR-019](../adr/019-runtime-client-lifecycle.md) (`/Debug`, `debug.*` → M6). Spike: [135-http-debug-protocol.md](../spikes/135-http-debug-protocol.md).
 
 ## Goal
@@ -81,7 +81,7 @@ Paths к CF/CFE **не** дублировать: брать из `configurations
 | Поднять/проверить dbgs | `debug server start\|stop\|status` | `debug.server.start` / `.stop` / `.status` | `core.debug.server_*` |
 | Сессия | `debug attach` / `detach` / `force-detach` | `debug.attach` / `debug.detach` / `debug.forceDetach` | session |
 | Цели | `debug targets` | `debug.targets` | list targets + metadata ready |
-| Breakpoints | `debug breakpoint set\|clear` | `debug.breakpoint` / `debug.clearBreakpoints` | set by moduleName[+extension] / clear |
+| Breakpoints | `debug breakpoint set\|clear` | `debug.breakpoint` / `debug.clearBreakpoints` | set by moduleName / `--file` path / clear |
 | Ожидание | `debug wait [--timeout]` | `debug.wait` | wait_for_stop |
 | Управление | `debug continue\|step-in\|step-out\|pause` | `debug.continue` / `debug.stepIn` / `debug.stepOut` / `debug.pause` | step actions |
 | Инспекция | `debug stack` / `variables` / `eval <expr>` | `debug.stack` / `debug.variables` / `debug.evaluate` | from last stop / targetId |
@@ -198,6 +198,7 @@ build (ИБ актуальна)
 - [x] `adapters/debug_http`: attach/detach/forceDetach, targets, breakpoints, wait, continue, stepIn/Out, pause, stack, variables, evaluate — [#138](https://github.com/pila86/1c-dev/issues/138)
 - [x] Резолв `objectID` из XML source основной conf + extensions; `reloadMetadata` — [#139](https://github.com/pila86/1c-dev/issues/139)
 - [x] CLI `1c-dev debug …` → structured JSON; ошибки → exit 2/3/4 по ADR-003 — [#140](https://github.com/pila86/1c-dev/issues/140)
+- [x] BP по пути `.bsl` (`--file`) + ObjectModule/ManagerModule propertyID — [#145](https://github.com/pila86/1c-dev/issues/145)
 - [ ] MCP `debug.*` (полный must-набор таблицы API) без shell.exec
 - [ ] Связка с `runtime.start --debug` документирована и покрыта acceptance
 - [x] `force_detach` / recovery при `ibInDebug` или мёртвом ping — поведение зафиксировано в ADR-031
@@ -211,6 +212,7 @@ build (ИБ актуальна)
 - [ ] `debug.stepOver` если подтверждён протоколом
 - [ ] Password через env; не писать секреты в манифест по умолчанию
 - [x] Кэш module index с инвалидацией (mtime) — [#139](https://github.com/pila86/1c-dev/issues/139)
+- [x] `breakpoint set --file` / `--object-id`+`--property-id` (escape) — [#145](https://github.com/pila86/1c-dev/issues/145)
 
 ### Nice
 
@@ -253,6 +255,8 @@ build (ИБ актуальна)
 1c-dev runtime start --debug --output json
 1c-dev debug attach --output json
 1c-dev debug breakpoint set --module ОбщегоНазначения --type CommonModule --lines 42 --output json
+# или по пути к .bsl (ObjectModule / ПриЗаписи справочника):
+1c-dev debug breakpoint set --file Catalogs/Товары/Ext/ObjectModule.bsl --lines 4 --output json
 # выполнить действие в клиенте, попадающее на строку
 1c-dev debug wait --timeout 60000 --output json
 1c-dev debug variables --output json
@@ -297,6 +301,7 @@ build (ИБ актуальна)
 | [#138](https://github.com/pila86/1c-dev/issues/138) | 2 | `adapters/debug_http`: session, ping, breakpoints, eval | #135, #136 | DONE |
 | [#139](https://github.com/pila86/1c-dev/issues/139) | 2 | Module UUID index from XML source + extensions | #138 | DONE |
 | [#140](https://github.com/pila86/1c-dev/issues/140) | 3 | `core/debug` + CLI `1c-dev debug` | #137–#139 | DONE |
+| [#145](https://github.com/pila86/1c-dev/issues/145) | 2.5 | `breakpoint set --file` (ObjectModule / path → objectID) | #138–#140 | DONE |
 | [#141](https://github.com/pila86/1c-dev/issues/141) | 4 | MCP `debug.*` tools | #140 | OPEN |
 | [#142](https://github.com/pila86/1c-dev/issues/142) | 4 | Doctor `debug.http` + AGENTS debug workflow | #140, #141 | OPEN |
 | [#143](https://github.com/pila86/1c-dev/issues/143) | 4 | should: `ide configure` DAP launch.json hint | #136 | OPEN |

@@ -642,15 +642,19 @@ def run_targets(
 def run_breakpoint_set(
     start: Path | None = None,
     *,
-    module: str,
+    module: str | None = None,
     module_type: str = "CommonModule",
     lines: Sequence[int],
     extension: str | None = None,
+    file: str | Path | None = None,
+    object_id: str | None = None,
+    property_id: str | None = None,
     config_id: str | None = None,
     runtime_id: str | None = None,
     transport: TransportFn | None = None,
     session_factory: SessionFactory | None = None,
 ) -> DebugResult:
+    """Set breakpoints by ``--module``, ``--file``, or explicit object/property ids (#145)."""
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
     root, data, target, err = _load_project(
@@ -673,6 +677,33 @@ def run_breakpoint_set(
                 )
             ],
         )
+
+    has_module = bool(module and str(module).strip())
+    has_file = file is not None and str(file).strip() != ""
+    has_ids = bool(
+        object_id and str(object_id).strip() and property_id and str(property_id).strip()
+    )
+    modes = sum(1 for flag in (has_module, has_file, has_ids) if flag)
+    if modes != 1:
+        return _fail(
+            started=started,
+            root=root,
+            config_id=target.config_id,
+            runtime_id=target.runtime_id,
+            diagnostics=[
+                error(
+                    "укажите ровно один способ: --module, --file "
+                    "или пару --object-id/--property-id",
+                    code=CODE_PROJECT,
+                    source=SOURCE_DEBUG,
+                    suggestion=(
+                        "1c-dev debug breakpoint set --file Catalogs/X/Ext/ObjectModule.bsl "
+                        "--lines 5"
+                    ),
+                )
+            ],
+        )
+
     session, base, alias, restore_err = _restore_session(
         root, data, target, transport=transport, session_factory=session_factory
     )
@@ -680,12 +711,40 @@ def run_breakpoint_set(
         restore_err.duration = time.perf_counter() - started
         return restore_err
     try:
-        spec = session.set_breakpoints_by_module(
-            module,
-            module_type,
-            lines,
-            extension_name=extension,
-        )
+        if has_file:
+            assert file is not None
+            resolve_file = getattr(session.resolver, "resolve_from_file", None)
+            if resolve_file is None:
+                raise DebugHttpError(
+                    "resolver не поддерживает resolve_from_file",
+                    code=CODE_MODULE_UNRESOLVED,
+                )
+            ref = resolve_file(file, extension_name=extension)
+            spec = session.set_breakpoints_by_ids(
+                ref.object_id,
+                ref.property_id,
+                lines,
+                extension_name=ref.extension_name or extension,
+            )
+            module_name_out = ref.module_name or str(file)
+            module_type_out = ref.module_type or ""
+        elif has_ids:
+            assert object_id is not None and property_id is not None
+            spec = session.set_breakpoints_by_ids(
+                object_id, property_id, lines, extension_name=extension
+            )
+            module_name_out = ""
+            module_type_out = ""
+        else:
+            assert module is not None
+            spec = session.set_breakpoints_by_module(
+                module,
+                module_type,
+                lines,
+                extension_name=extension,
+            )
+            module_name_out = module
+            module_type_out = module_type
     except DebugHttpError as exc:
         # 1CD004 from missing source → project (2); otherwise runtime
         result = _handle_adapter_error(exc, started=started, root=root, target=target)
@@ -701,15 +760,16 @@ def run_breakpoint_set(
         alias=alias,
         session_id=session.session_id,
         attached=True,
-        module_name=module,
+        module_name=module_name_out or None,
         breakpoints=[
             {
                 "objectId": spec.object_id,
                 "propertyId": spec.property_id,
                 "lines": list(spec.lines),
                 "extensionName": spec.extension_name,
-                "moduleName": module,
-                "moduleType": module_type,
+                "moduleName": module_name_out,
+                "moduleType": module_type_out,
+                "file": str(file) if has_file else None,
             }
         ],
     )

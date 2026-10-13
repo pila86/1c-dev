@@ -125,10 +125,14 @@ Fixture: busy-wait ~10 с в `ПриНачалеРаботыСистемы`, �
 
 | Модуль | propertyID |
 |--------|------------|
-| CommonModule | `d5963243-262e-4398-b4d7-fb16d06484f6` |
-| ApplicationModule | `d22e852a-cf8a-4f77-8ccb-3548e7792bea` |
+| CommonModule (SimpleModule) | `d5963243-262e-4398-b4d7-fb16d06484f6` |
+| ApplicationModule (Managed) | `d22e852a-cf8a-4f77-8ccb-3548e7792bea` |
+| ObjectModule | `a637f77f-3840-441d-a1c3-699c8c5cb7e0` |
+| ManagerModule | `d1b64a2c-8078-4982-8190-8f81aefda192` |
+| FormModule | `32e087ab-1491-49b6-aba7-43571b41ac2b` |
+| RecordSetModule | `9f36fd70-4bf4-47f6-b235-935f73aab43f` |
 
-Источник: MIT 1c-debug-mcp `ModulePropertyID`; ApplicationModule подтверждён stop-event’ом.
+Источник: go1cover `metaDataObjects.go` / MIT ModulePropertyID; Common+Application подтверждены spike stop-event’ом; ObjectModule+ — [#145](https://github.com/pila86/1c-dev/issues/145).
 
 ## 6. Breakpoints / eval (fixture)
 

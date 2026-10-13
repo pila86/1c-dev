@@ -11,13 +11,17 @@ from adapters.debug_http import (
     CODE_MODULE_UNRESOLVED,
     PROPERTY_ID_APPLICATION_MODULE,
     PROPERTY_ID_COMMON_MODULE,
+    PROPERTY_ID_MANAGER_MODULE,
+    PROPERTY_ID_OBJECT_MODULE,
     DebugHttpError,
     SourceRoot,
     StubObjectIdResolver,
     XmlObjectIdResolver,
     build_modules_index,
+    classify_bsl_relative,
     load_or_build_index,
     modules_cache_path,
+    normalize_bsl_source_rel,
     reload_metadata,
     scan_source_root,
     source_roots_from_configuration,
@@ -31,6 +35,7 @@ SPIKE_OBJECT_ID = "b7e2c4a1-8f3d-4a6e-9c1b-2d5e8f0a3b6c"
 SPIKE_CONFIG_ID = "d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f80"
 EXT_DEMO_ID = "11111111-2222-3333-4444-555555555555"
 EXT_ONLY_ID = "66666666-7777-8888-9999-aaaaaaaaaaaa"
+CATALOG_OBJECT_ID = "c0ffeeee-0001-4000-8000-000000000001"
 
 
 def _roots() -> list[SourceRoot]:
@@ -152,6 +157,95 @@ def test_stub_still_raises() -> None:
     with pytest.raises(DebugHttpError) as exc:
         StubObjectIdResolver().resolve("X", "CommonModule")
     assert exc.value.code == CODE_MODULE_UNRESOLVED
+
+
+def test_scan_catalog_object_and_manager_module() -> None:
+    entries = scan_source_root(MAIN)
+    by_type = {(e.module_type, e.module_name): e for e in entries}
+    obj = by_type[("ObjectModule", "Товары")]
+    assert obj.object_id == CATALOG_OBJECT_ID
+    assert obj.property_id == PROPERTY_ID_OBJECT_MODULE
+    assert obj.source_file.replace("\\", "/") == "Catalogs/Товары/Ext/ObjectModule.bsl"
+    mgr = by_type[("ManagerModule", "Товары")]
+    assert mgr.object_id == CATALOG_OBJECT_ID
+    assert mgr.property_id == PROPERTY_ID_MANAGER_MODULE
+
+
+def test_resolve_object_module_by_name_and_file() -> None:
+    resolver = XmlObjectIdResolver(build_modules_index(_roots()))
+
+    by_name = resolver.resolve("Товары", "ObjectModule")
+    assert by_name.object_id == CATALOG_OBJECT_ID
+    assert by_name.property_id == PROPERTY_ID_OBJECT_MODULE
+
+    by_file = resolver.resolve_from_file("Catalogs/Товары/Ext/ObjectModule.bsl")
+    assert by_file.object_id == CATALOG_OBJECT_ID
+    assert by_file.property_id == PROPERTY_ID_OBJECT_MODULE
+    assert by_file.module_type == "ObjectModule"
+
+    abs_path = MAIN / "Catalogs" / "Товары" / "Ext" / "ObjectModule.bsl"
+    by_abs = resolver.resolve_from_file(abs_path)
+    assert by_abs.object_id == CATALOG_OBJECT_ID
+
+    app = resolver.resolve_from_file("Ext/ManagedApplicationModule.bsl")
+    assert app.object_id == SPIKE_CONFIG_ID
+    assert app.property_id == PROPERTY_ID_APPLICATION_MODULE
+
+
+def test_classify_bsl_relative_object_module() -> None:
+    classified = classify_bsl_relative(Path("Catalogs/Товары/Ext/ObjectModule.bsl"))
+    assert classified == ("ObjectModule", "Catalogs/Товары.xml")
+    prefixed = classify_bsl_relative(
+        Path("src/main/Catalogs/Товары/Ext/ObjectModule.bsl")
+    )
+    assert prefixed == ("ObjectModule", "Catalogs/Товары.xml")
+    assert (
+        normalize_bsl_source_rel("src/main/CommonModules/ОтладкаДемо/Ext/Module.bsl")
+        == "CommonModules/ОтладкаДемо/Ext/Module.bsl"
+    )
+
+
+def test_resolve_common_module_file_project_and_source_relative(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Spike-style paths: cwd ``src/main/…`` and source-relative ``CommonModules/…``."""
+    proj = tmp_path / "proj"
+    src = proj / "src" / "main"
+    common_xml = MAIN / "CommonModules" / "ОтладкаДемо.xml"
+    common_bsl = MAIN / "CommonModules" / "ОтладкаДемо" / "Ext" / "Module.bsl"
+    dest_xml = src / "CommonModules" / "ОтладкаДемо.xml"
+    dest_bsl = src / "CommonModules" / "ОтладкаДемо" / "Ext" / "Module.bsl"
+    dest_bsl.parent.mkdir(parents=True)
+    dest_xml.write_text(common_xml.read_text(encoding="utf-8"), encoding="utf-8")
+    dest_bsl.write_text(common_bsl.read_text(encoding="utf-8"), encoding="utf-8")
+    (src / "Configuration.xml").write_text(
+        MAIN.joinpath("Configuration.xml").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (src / "Ext").mkdir(parents=True, exist_ok=True)
+    (src / "Ext" / "ManagedApplicationModule.bsl").write_text(
+        "// stub\n", encoding="utf-8"
+    )
+
+    monkeypatch.chdir(proj)
+    resolver = XmlObjectIdResolver.from_roots(
+        proj, [SourceRoot(path=src, extension_name="")]
+    )
+
+    by_source = resolver.resolve_from_file(
+        "CommonModules/ОтладкаДемо/Ext/Module.bsl"
+    )
+    assert by_source.object_id == SPIKE_OBJECT_ID
+    assert by_source.property_id == PROPERTY_ID_COMMON_MODULE
+    assert by_source.module_type == "CommonModule"
+
+    by_project = resolver.resolve_from_file(
+        "src/main/CommonModules/ОтладкаДемо/Ext/Module.bsl"
+    )
+    assert by_project.object_id == SPIKE_OBJECT_ID
+    assert by_project.property_id == PROPERTY_ID_COMMON_MODULE
+
+
 
 
 def test_resolver_from_roots_writes_cache(tmp_path: Path) -> None:

@@ -277,11 +277,33 @@ def targets_cmd(
 @breakpoint_app.command("set")
 def breakpoint_set_cmd(
     ctx: typer.Context,
-    module: str = typer.Option(..., "--module", help="Имя модуля (например ОбщегоНазначения)."),
+    module: str | None = typer.Option(
+        None,
+        "--module",
+        help="Имя модуля (например ОбщегоНазначения). Взаимоисключающе с --file.",
+    ),
     module_type: str = typer.Option(
         "CommonModule",
         "--type",
-        help="Тип модуля: CommonModule, ManagedApplicationModule, …",
+        help="Тип модуля: CommonModule, ObjectModule, ManagedApplicationModule, …",
+    ),
+    file: Path | None = typer.Option(
+        None,
+        "--file",
+        help=(
+            "Путь к .bsl (например Catalogs/X/Ext/ObjectModule.bsl). "
+            "Взаимоисключающе с --module."
+        ),
+    ),
+    object_id: str | None = typer.Option(
+        None,
+        "--object-id",
+        help="Явный objectID (escape; вместе с --property-id).",
+    ),
+    property_id: str | None = typer.Option(
+        None,
+        "--property-id",
+        help="Явный propertyID (escape; вместе с --object-id).",
     ),
     lines: str = typer.Option(
         ...,
@@ -297,7 +319,7 @@ def breakpoint_set_cmd(
     runtime: RuntimeOption = None,
     output: OutputOption = None,
 ) -> None:
-    """Поставить точки останова по moduleName[+extension]."""
+    """Поставить точки останова: --module | --file | --object-id/--property-id."""
     parsed: list[int] = []
     for part in lines.split(","):
         part = part.strip()
@@ -311,6 +333,9 @@ def breakpoint_set_cmd(
             module_type=module_type,
             lines=parsed,
             extension=extension,
+            file=file,
+            object_id=object_id,
+            property_id=property_id,
             config_id=config,
             runtime_id=runtime,
         ),

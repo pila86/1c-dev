@@ -28,14 +28,23 @@ DEBUG_STATE_DIR_NAME = "debug"
 MODULES_CACHE_FILENAME = "modules-cache.json"
 MODULES_CACHE_VERSION = 1
 
-# Canonical propertyID for module kinds (spike #135 / MIT ModulePropertyID)
+# Canonical propertyID for module kinds (spike #135 / go1cover ModulePropertyID;
+# CommonModule=SimpleModule, ApplicationModule=ManagedApplicationModule).
 PROPERTY_ID_COMMON_MODULE = "d5963243-262e-4398-b4d7-fb16d06484f6"
 PROPERTY_ID_APPLICATION_MODULE = "d22e852a-cf8a-4f77-8ccb-3548e7792bea"
+PROPERTY_ID_OBJECT_MODULE = "a637f77f-3840-441d-a1c3-699c8c5cb7e0"
+PROPERTY_ID_MANAGER_MODULE = "d1b64a2c-8078-4982-8190-8f81aefda192"
+PROPERTY_ID_FORM_MODULE = "32e087ab-1491-49b6-aba7-43571b41ac2b"
+PROPERTY_ID_RECORD_SET_MODULE = "9f36fd70-4bf4-47f6-b235-935f73aab43f"
 
 MODULE_PROPERTY_IDS: dict[str, str] = {
     "CommonModule": PROPERTY_ID_COMMON_MODULE,
     "ManagedApplicationModule": PROPERTY_ID_APPLICATION_MODULE,
     "ApplicationModule": PROPERTY_ID_APPLICATION_MODULE,
+    "ObjectModule": PROPERTY_ID_OBJECT_MODULE,
+    "ManagerModule": PROPERTY_ID_MANAGER_MODULE,
+    "FormModule": PROPERTY_ID_FORM_MODULE,
+    "RecordSetModule": PROPERTY_ID_RECORD_SET_MODULE,
 }
 
 # Diagnostics (ADR-031) — source="debug" for product; adapter raises with these codes

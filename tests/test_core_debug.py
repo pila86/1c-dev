@@ -299,6 +299,17 @@ def test_breakpoint_set_and_wait_stack_vars_eval(tmp_path: Path) -> None:
     assert bp.status == "ok"
     assert bp.breakpoints[0]["lines"] == [42]
 
+    # --file and --module are mutually exclusive
+    both = run_breakpoint_set(
+        target,
+        module="ОтладкаДемо",
+        file="Catalogs/Товары/Ext/ObjectModule.bsl",
+        lines=[4],
+        session_factory=factory,
+    )
+    assert both.status == "failed"
+    assert both.exit_code == 2
+
     waited = run_wait(target, timeout=1.0, session_factory=factory)
     assert waited.status == "ok"
     assert waited.line_no == 42

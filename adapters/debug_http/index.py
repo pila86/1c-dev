@@ -1,6 +1,7 @@
-"""Module UUID index from XML source (+ extensions) with disk cache (#139).
+"""Module UUID index from XML source (+ extensions) with disk cache (#139/#145).
 
-Scans Designer XML dumps: ``CommonModules/*.xml`` and ``Ext/*ApplicationModule.bsl``.
+Scans Designer XML dumps: ``CommonModules/*.xml``, ``Ext/*ApplicationModule.bsl``,
+and object modules (``Catalogs|Documents|…/Name/Ext/ObjectModule.bsl`` etc.).
 Cache: ``.1c-dev/debug/modules-cache.json`` (mtime fingerprint invalidate).
 """
 
@@ -22,7 +23,42 @@ from adapters.debug_http.constants import (
     PROPERTY_ID_APPLICATION_MODULE,
     PROPERTY_ID_COMMON_MODULE,
 )
+from core.metadata.types import TYPE_DIRS
 from core.project.constants import HOME_DIR_NAME
+
+# Folders that own ObjectModule / ManagerModule / RecordSetModule under Ext/
+_OBJECT_MODULE_FOLDERS: frozenset[str] = frozenset(
+    {
+        "Catalogs",
+        "Documents",
+        "ExchangePlans",
+        "ChartsOfAccounts",
+        "ChartsOfCharacteristicTypes",
+        "ChartsOfCalculationTypes",
+        "BusinessProcesses",
+        "Tasks",
+        "Reports",
+        "DataProcessors",
+    }
+)
+_RECORD_SET_FOLDERS: frozenset[str] = frozenset(
+    {
+        "InformationRegisters",
+        "AccumulationRegisters",
+        "AccountingRegisters",
+        "CalculationRegisters",
+    }
+)
+_OWNED_MODULE_FILES: dict[str, str] = {
+    "ObjectModule.bsl": "ObjectModule",
+    "ManagerModule.bsl": "ManagerModule",
+    "RecordSetModule.bsl": "RecordSetModule",
+}
+_APP_MODULE_FILES: dict[str, str] = {
+    "ManagedApplicationModule.bsl": "ManagedApplicationModule",
+    "OrdinaryApplicationModule.bsl": "ApplicationModule",
+    "ApplicationModule.bsl": "ApplicationModule",
+}
 
 
 @dataclass(frozen=True)
@@ -88,6 +124,27 @@ class ModulesIndex:
             out.append(entry)
         return out
 
+    def find_by_source_file(
+        self,
+        source_file: str,
+        *,
+        extension_name: str | None = None,
+        any_extension: bool = False,
+    ) -> list[ModuleIndexEntry]:
+        """Match by relative ``sourceFile`` (posix, case-sensitive)."""
+        want = source_file.replace("\\", "/")
+        want_ext = extension_name or ""
+        out: list[ModuleIndexEntry] = []
+        for entry in self.modules:
+            if any_extension:
+                if not entry.extension_name:
+                    continue
+            elif entry.extension_name != want_ext:
+                continue
+            if entry.source_file.replace("\\", "/") == want:
+                out.append(entry)
+        return out
+
 
 def modules_cache_path(scope_root: Path) -> Path:
     """``<scope>/.1c-dev/debug/modules-cache.json``."""
@@ -137,12 +194,13 @@ def source_roots_from_configuration(
 
 
 def scan_source_root(root: Path, *, extension_name: str = "") -> list[ModuleIndexEntry]:
-    """Scan one XML source tree for CommonModule / ApplicationModule entries."""
+    """Scan one XML source tree for Common / Application / object modules."""
     if not root.is_dir():
         return []
     entries: list[ModuleIndexEntry] = []
     entries.extend(_scan_common_modules(root, extension_name=extension_name))
     entries.extend(_scan_application_modules(root, extension_name=extension_name))
+    entries.extend(_scan_owned_modules(root, extension_name=extension_name))
     return entries
 
 
@@ -305,9 +363,19 @@ def _root_fingerprint(root: Path) -> float:
     if common.is_dir():
         for p in common.glob("*.xml"):
             candidates.append(p.stat().st_mtime)
+        for p in common.glob("*/Ext/*.bsl"):
+            candidates.append(p.stat().st_mtime)
     ext = root / "Ext"
     if ext.is_dir():
         for p in ext.glob("*.bsl"):
+            candidates.append(p.stat().st_mtime)
+    for folder in _OBJECT_MODULE_FOLDERS | _RECORD_SET_FOLDERS:
+        base = root / folder
+        if not base.is_dir():
+            continue
+        for p in base.glob("*.xml"):
+            candidates.append(p.stat().st_mtime)
+        for p in base.glob("*/Ext/*.bsl"):
             candidates.append(p.stat().st_mtime)
     return max(candidates) if candidates else 0.0
 
@@ -354,14 +422,21 @@ def _scan_common_modules(
     property_id = MODULE_PROPERTY_IDS.get("CommonModule", PROPERTY_ID_COMMON_MODULE)
     out: list[ModuleIndexEntry] = []
     for xml_path in sorted(common.glob("*.xml")):
-        parsed = _parse_common_module_xml(xml_path)
+        parsed = _parse_md_object_xml(xml_path, "CommonModule")
         if parsed is None:
             continue
         name, object_id = parsed
-        try:
-            rel = str(xml_path.relative_to(root))
-        except ValueError:
-            rel = str(xml_path)
+        bsl = common / name / "Ext" / "Module.bsl"
+        if bsl.is_file():
+            try:
+                rel = str(bsl.relative_to(root)).replace("\\", "/")
+            except ValueError:
+                rel = str(bsl)
+        else:
+            try:
+                rel = str(xml_path.relative_to(root)).replace("\\", "/")
+            except ValueError:
+                rel = str(xml_path)
         out.append(
             ModuleIndexEntry(
                 module_name=name,
@@ -375,7 +450,115 @@ def _scan_common_modules(
     return out
 
 
-def _parse_common_module_xml(xml_path: Path) -> tuple[str, str] | None:
+def _scan_owned_modules(
+    root: Path, *, extension_name: str
+) -> list[ModuleIndexEntry]:
+    """Index ObjectModule / ManagerModule / RecordSetModule under type folders."""
+    out: list[ModuleIndexEntry] = []
+    folders = _OBJECT_MODULE_FOLDERS | _RECORD_SET_FOLDERS
+    for folder_name in sorted(folders):
+        base = root / folder_name
+        if not base.is_dir():
+            continue
+        for xml_path in sorted(base.glob("*.xml")):
+            md_tag = _md_tag_for_folder(folder_name)
+            parsed = _parse_md_object_xml(xml_path, md_tag) if md_tag else None
+            if parsed is None:
+                # Fallback: any top-level child with uuid
+                parsed = _parse_any_md_object_xml(xml_path)
+            if parsed is None:
+                continue
+            name, object_id = parsed
+            obj_dir = base / name
+            ext_dir = obj_dir / "Ext"
+            if not ext_dir.is_dir():
+                continue
+            for bsl_name, module_type in _OWNED_MODULE_FILES.items():
+                if module_type == "ObjectModule" and folder_name in _RECORD_SET_FOLDERS:
+                    continue
+                if module_type == "RecordSetModule" and folder_name not in _RECORD_SET_FOLDERS:
+                    # Still allow if file exists (rare)
+                    pass
+                bsl = ext_dir / bsl_name
+                if not bsl.is_file():
+                    continue
+                property_id = MODULE_PROPERTY_IDS.get(module_type, "")
+                if not property_id:
+                    continue
+                try:
+                    rel = str(bsl.relative_to(root)).replace("\\", "/")
+                except ValueError:
+                    rel = str(bsl)
+                out.append(
+                    ModuleIndexEntry(
+                        module_name=name,
+                        module_type=module_type,
+                        object_id=object_id,
+                        property_id=property_id,
+                        extension_name=extension_name,
+                        source_file=rel,
+                    )
+                )
+            # Forms: Catalogs/X/Forms/Y/Ext/Form/Module.bsl
+            forms_dir = obj_dir / "Forms"
+            if forms_dir.is_dir():
+                out.extend(
+                    _scan_form_modules(
+                        root,
+                        forms_dir,
+                        parent_name=name,
+                        extension_name=extension_name,
+                    )
+                )
+    return out
+
+
+def _scan_form_modules(
+    root: Path,
+    forms_dir: Path,
+    *,
+    parent_name: str,
+    extension_name: str,
+) -> list[ModuleIndexEntry]:
+    property_id = MODULE_PROPERTY_IDS.get("FormModule", "")
+    if not property_id:
+        return []
+    out: list[ModuleIndexEntry] = []
+    for form_xml in sorted(forms_dir.glob("*.xml")):
+        parsed = _parse_md_object_xml(form_xml, "Form") or _parse_any_md_object_xml(
+            form_xml
+        )
+        if parsed is None:
+            continue
+        form_name, form_uuid = parsed
+        bsl = forms_dir / form_name / "Ext" / "Form" / "Module.bsl"
+        if not bsl.is_file():
+            continue
+        try:
+            rel = str(bsl.relative_to(root)).replace("\\", "/")
+        except ValueError:
+            rel = str(bsl)
+        out.append(
+            ModuleIndexEntry(
+                module_name=f"{parent_name}.{form_name}",
+                module_type="FormModule",
+                object_id=form_uuid,
+                property_id=property_id,
+                extension_name=extension_name,
+                source_file=rel,
+            )
+        )
+    return out
+
+
+def _md_tag_for_folder(folder_name: str) -> str | None:
+    for type_name, dirname in TYPE_DIRS.items():
+        if dirname == folder_name:
+            return type_name
+    return None
+
+
+def _parse_md_object_xml(xml_path: Path, tag_name: str) -> tuple[str, str] | None:
     try:
         tree = ET.parse(xml_path)
     except (OSError, ET.ParseError):
@@ -383,7 +566,7 @@ def _parse_common_module_xml(xml_path: Path) -> tuple[str, str] | None:
     root = tree.getroot()
     module_el = None
     for child in root:
-        if _local(child.tag) == "CommonModule":
+        if _local(child.tag) == tag_name:
             module_el = child
             break
     if module_el is None:
@@ -396,6 +579,25 @@ def _parse_common_module_xml(xml_path: Path) -> tuple[str, str] | None:
     if not name:
         name = xml_path.stem
     return name, object_id
+
+
+def _parse_any_md_object_xml(xml_path: Path) -> tuple[str, str] | None:
+    """Parse first MetaDataObject child that has a uuid attribute."""
+    try:
+        tree = ET.parse(xml_path)
+    except (OSError, ET.ParseError):
+        return None
+    root = tree.getroot()
+    for child in root:
+        object_id = (child.get("uuid") or "").strip()
+        if not object_id:
+            continue
+        props = _find_child(child, "Properties")
+        name = _text(_find_child(props, "Name") if props is not None else None)
+        if not name:
+            name = xml_path.stem
+        return name, object_id
+    return None
 
 
 def _scan_application_modules(
@@ -427,7 +629,7 @@ def _scan_application_modules(
         # Prefer configuration Name; resolve() also accepts type-name aliases
         name = cfg_name or module_type
         try:
-            rel = str(bsl.relative_to(root))
+            rel = str(bsl.relative_to(root)).replace("\\", "/")
         except ValueError:
             rel = str(bsl)
         out.append(
@@ -441,6 +643,106 @@ def _scan_application_modules(
             )
         )
     return out
+
+
+def parse_metadata_object_uuid(
+    xml_path: Path, *, tag_hint: str | None = None
+) -> tuple[str, str] | None:
+    """Return ``(name, uuid)`` from a Designer metadata XML file."""
+    if tag_hint:
+        parsed = _parse_md_object_xml(xml_path, tag_hint)
+        if parsed is not None:
+            return parsed
+    if xml_path.name == "Configuration.xml":
+        return _parse_md_object_xml(xml_path, "Configuration")
+    folder = xml_path.parent.name
+    md_tag = _md_tag_for_folder(folder)
+    if md_tag:
+        parsed = _parse_md_object_xml(xml_path, md_tag)
+        if parsed is not None:
+            return parsed
+    if xml_path.parent.name == "Forms" or folder == "Forms":
+        parsed = _parse_md_object_xml(xml_path, "Form")
+        if parsed is not None:
+            return parsed
+    return _parse_any_md_object_xml(xml_path)
+
+
+def normalize_bsl_source_rel(rel: Path | str) -> str | None:
+    """Strip leading dirs until path looks like Designer dump-relative ``.bsl``.
+
+    Accepts both ``CommonModules/X/Ext/Module.bsl`` and
+    ``src/main/CommonModules/X/Ext/Module.bsl``.
+    """
+    parts = Path(str(rel).replace("\\", "/")).parts
+    if not parts:
+        return None
+    markers = (
+        "CommonModules",
+        "Catalogs",
+        "Documents",
+        "ExchangePlans",
+        "ChartsOfAccounts",
+        "ChartsOfCharacteristicTypes",
+        "ChartsOfCalculationTypes",
+        "BusinessProcesses",
+        "Tasks",
+        "Reports",
+        "DataProcessors",
+        "InformationRegisters",
+        "AccumulationRegisters",
+        "AccountingRegisters",
+        "CalculationRegisters",
+    )
+    for i, part in enumerate(parts):
+        if part in markers or (part == "Ext" and i + 1 < len(parts)):
+            return "/".join(parts[i:])
+    return "/".join(parts) if parts[-1].endswith(".bsl") else None
+
+
+def classify_bsl_relative(rel: Path) -> tuple[str, str] | None:
+    """Map relative ``.bsl`` path → ``(module_type, object_xml_rel)`` or None.
+
+    Leading project prefixes (``src/main/…``) are stripped via
+    ``normalize_bsl_source_rel``.
+    """
+    normalized = normalize_bsl_source_rel(rel)
+    if not normalized:
+        return None
+    parts = Path(normalized).parts
+    if not parts:
+        return None
+    name = parts[-1]
+    # Ext/ManagedApplicationModule.bsl (config root)
+    if len(parts) == 2 and parts[0] == "Ext" and name in _APP_MODULE_FILES:
+        return _APP_MODULE_FILES[name], "Configuration.xml"
+    # TypeDir/Name/Ext/ObjectModule.bsl (optional deeper Forms handled below)
+    if name in _OWNED_MODULE_FILES and len(parts) >= 4 and parts[-2] == "Ext":
+        type_dir, obj_name = parts[-4], parts[-3]
+        return _OWNED_MODULE_FILES[name], f"{type_dir}/{obj_name}.xml"
+    if (
+        name == "Module.bsl"
+        and len(parts) >= 4
+        and parts[-2] == "Ext"
+        and "CommonModules" in parts
+    ):
+        idx = parts.index("CommonModules")
+        if idx + 1 < len(parts):
+            return "CommonModule", f"CommonModules/{parts[idx + 1]}.xml"
+    # …/Forms/FormName/Ext/Form/Module.bsl
+    if (
+        name == "Module.bsl"
+        and len(parts) >= 5
+        and parts[-2] == "Form"
+        and parts[-3] == "Ext"
+        and "Forms" in parts
+    ):
+        forms_idx = parts.index("Forms")
+        if forms_idx + 1 < len(parts):
+            form_name = parts[forms_idx + 1]
+            prefix = "/".join(parts[: forms_idx + 1])
+            return "FormModule", f"{prefix}/{form_name}.xml"
+    return None
 
 
 def _parse_configuration_identity(cfg_path: Path) -> tuple[str, str] | None:

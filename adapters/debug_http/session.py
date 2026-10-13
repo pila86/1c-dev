@@ -7,10 +7,12 @@ import time
 import uuid
 from collections import deque
 from collections.abc import Sequence
+from pathlib import Path
 
 from adapters.debug_http import xml_build, xml_parse
 from adapters.debug_http.client import DebugHttpClient
 from adapters.debug_http.constants import (
+    CODE_MODULE_UNRESOLVED,
     CODE_NO_SESSION,
     CODE_NO_TARGETS,
     CODE_NOT_STOPPED,
@@ -29,6 +31,7 @@ from adapters.debug_http.models import (
     DebugEvent,
     DebugTarget,
     EvalResult,
+    ModuleRef,
     StackFrame,
     StopEvent,
 )
@@ -310,13 +313,61 @@ class DebugSession:
         ref = self.resolver.resolve(
             module_name, module_type, extension_name=extension_name
         )
+        return self._apply_resolved_breakpoint(ref, lines, extension_name=extension_name)
+
+    def set_breakpoints_by_file(
+        self,
+        bsl_path: str | Path,
+        lines: Sequence[int],
+        *,
+        extension_name: str | None = None,
+    ) -> BreakpointSpec:
+        """Resolve ``.bsl`` path → objectID/propertyID then set BP (#145)."""
+        resolve_file = getattr(self.resolver, "resolve_from_file", None)
+        if resolve_file is None:
+            raise DebugHttpError(
+                "resolver не поддерживает resolve_from_file",
+                code=CODE_MODULE_UNRESOLVED,
+                diagnostics=[
+                    diag_error(
+                        "нужен XmlObjectIdResolver для --file",
+                        code=CODE_MODULE_UNRESOLVED,
+                        source=SOURCE_DEBUG,
+                    )
+                ],
+            )
+        ref = resolve_file(bsl_path, extension_name=extension_name)
+        return self._apply_resolved_breakpoint(ref, lines, extension_name=extension_name)
+
+    def set_breakpoints_by_ids(
+        self,
+        object_id: str,
+        property_id: str,
+        lines: Sequence[int],
+        *,
+        extension_name: str | None = None,
+    ) -> BreakpointSpec:
+        """Set BP with explicit objectID/propertyID (escape hatch #145)."""
+        from adapters.debug_http.resolve import resolve_explicit_ids
+
+        ref = resolve_explicit_ids(
+            object_id, property_id, extension_name=extension_name or ""
+        )
+        return self._apply_resolved_breakpoint(ref, lines, extension_name=extension_name)
+
+    def _apply_resolved_breakpoint(
+        self,
+        ref: ModuleRef,
+        lines: Sequence[int],
+        *,
+        extension_name: str | None = None,
+    ) -> BreakpointSpec:
         spec = BreakpointSpec(
             object_id=ref.object_id,
             property_id=ref.property_id,
             lines=tuple(lines),
             extension_name=ref.extension_name or (extension_name or ""),
         )
-        # merge with existing for other modules
         remaining = [
             b
             for b in self._breakpoints

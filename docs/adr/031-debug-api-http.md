@@ -89,7 +89,7 @@ Bump major schema **не** нужен (только optional). Валидаци�
 | dbgs lifecycle | `debug server start\|stop\|status` | `debug.server.start` / `.stop` / `.status` | `server_*` |
 | Сессия | `debug attach` / `detach` / `force-detach` | `debug.attach` / `debug.detach` / `debug.forceDetach` | session |
 | Цели | `debug targets` | `debug.targets` | list + metadata ready |
-| Breakpoints | `debug breakpoint set\|clear` | `debug.breakpoint` / `debug.clearBreakpoints` | moduleName[+extension] |
+| Breakpoints | `debug breakpoint set\|clear` | `debug.breakpoint` / `debug.clearBreakpoints` | moduleName / `--file` / ids |
 | Ожидание | `debug wait [--timeout]` | `debug.wait` | wait_for_stop |
 | Управление | `debug continue` / `step-in` / `step-out` / `pause` | `debug.continue` / `debug.stepIn` / `debug.stepOut` / `debug.pause` | step |
 | Инспекция | `debug stack` / `variables` / `eval <expr>` | `debug.stack` / `debug.variables` / `debug.evaluate` | last stop / targetId |
@@ -201,6 +201,9 @@ MCP: те же `diagnostics[]` в JSON; exit codes CLI на MCP не маппя�
   event queue, session. Attribution MIT 1c-debug-mcp при reuse идей; **своя** реализация.
 - Resolve: `moduleName` + `moduleType` + optional `extensionName` → `objectID` (+ `propertyID`).
   Для расширений `extensionName` обязателен при неоднозначности.
+- Также (#145): путь к `.bsl` (`Catalogs/X/Ext/ObjectModule.bsl` → uuid из `Catalogs/X.xml` +
+  `propertyID` по виду модуля) и escape `--object-id`/`--property-id`. CLI: `--file` и
+  `--module` взаимоисключающие. Index расширен ObjectModule/ManagerModule/FormModule/RecordSetModule.
 - BP только на **исполняемых** строках; голый комментарий не ловит (spike).
 - Стек: текущий кадр = **последний** (leaf) в `callStackFormed`.
 - Eval на 8.3.25: результат **синхронно** в теле POST (не ждать `exprEvaluated` в ping).
@@ -227,6 +230,7 @@ MCP: те же `diagnostics[]` в JSON; exit codes CLI на MCP не маппя�
 - Реализация по волнам M6: [#137](https://github.com/pila86/1c-dev/issues/137) schema;
   [#138](https://github.com/pila86/1c-dev/issues/138) adapter; [#139](https://github.com/pila86/1c-dev/issues/139)
   module index; [#140](https://github.com/pila86/1c-dev/issues/140) core+CLI;
+  [#145](https://github.com/pila86/1c-dev/issues/145) `--file` / ObjectModule (wave 2.5);
   [#141](https://github.com/pila86/1c-dev/issues/141) MCP; [#142](https://github.com/pila86/1c-dev/issues/142)
   doctor/AGENTS; [#143](https://github.com/pila86/1c-dev/issues/143) launch.json (should);
   [#144](https://github.com/pila86/1c-dev/issues/144) acceptance.
