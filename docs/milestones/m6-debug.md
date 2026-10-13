@@ -194,7 +194,7 @@ build (ИБ актуальна)
 
 - [x] Spike-док: HTTP Debug Protocol + discovery `dbgs` (Linux live; Windows — docs/gaps) — [#135](https://github.com/pila86/1c-dev/issues/135) / [spike](../spikes/135-http-debug-protocol.md)
 - [x] ADR-031 Accepted: HTTP facade, граница с DAP / внешними MCP, state, schema — [#136](https://github.com/pila86/1c-dev/issues/136) / [ADR-031](../adr/031-debug-api-http.md)
-- [ ] Манифест: опциональный `debug` (host/port/alias/autoAttach) валидируется
+- [x] Манифест: опциональный `debug` (host/port/alias/autoAttach) валидируется — [#137](https://github.com/pila86/1c-dev/issues/137)
 - [ ] `adapters/debug_http`: attach/detach/forceDetach, targets, breakpoints, wait, continue, stepIn/Out, pause, stack, variables, evaluate
 - [ ] Резолв `objectID` из XML source основной conf + extensions; `reloadMetadata`
 - [ ] CLI `1c-dev debug …` → structured JSON; ошибки → exit 2/3/4 по ADR-003
@@ -293,7 +293,7 @@ build (ИБ актуальна)
 |---|------|--------|------------|--------|
 | [#135](https://github.com/pila86/1c-dev/issues/135) | 0 | Spike: HTTP Debug Protocol (dbgs) + fixture | M5 Done | DONE ([spike](../spikes/135-http-debug-protocol.md)) |
 | [#136](https://github.com/pila86/1c-dev/issues/136) | 1 | ADR-031: Debug API (CLI/MCP over HTTP Debug Protocol) | #135 | DONE ([ADR-031](../adr/031-debug-api-http.md)) |
-| [#137](https://github.com/pila86/1c-dev/issues/137) | 1 | Schema: optional `debug` в project.yaml v2 | #136 | OPEN |
+| [#137](https://github.com/pila86/1c-dev/issues/137) | 1 | Schema: optional `debug` в project.yaml v2 | #136 | DONE |
 | [#138](https://github.com/pila86/1c-dev/issues/138) | 2 | `adapters/debug_http`: session, ping, breakpoints, eval | #135, #136 | OPEN |
 | [#139](https://github.com/pila86/1c-dev/issues/139) | 2 | Module UUID index from XML source + extensions | #138 | OPEN |
 | [#140](https://github.com/pila86/1c-dev/issues/140) | 3 | `core/debug` + CLI `1c-dev debug` | #137–#139 | OPEN |
