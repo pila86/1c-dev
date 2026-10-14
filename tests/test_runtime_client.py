@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -440,3 +441,23 @@ def test_clear_state(tmp_path: Path) -> None:
     assert (tmp_path / CLIENT_META_REL).is_file()
     clear_state(tmp_path)
     assert not (tmp_path / CLIENT_PID_REL).exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="zombie только на POSIX")
+def test_is_running_false_for_unreaped_zombie_child() -> None:
+    """Завершившийся, но не прибранный потомок не считается живым (runtime stop из MCP/pytest)."""
+    import subprocess
+    import time
+
+    from adapters.platform_1cv8 import is_running, terminate
+
+    proc = subprocess.Popen([sys.executable, "-c", "pass"])
+    deadline = time.monotonic() + 5
+    # Ждём выхода без poll()/wait(): процесс остаётся zombie.
+    while time.monotonic() < deadline and Path(f"/proc/{proc.pid}/stat").exists():
+        stat = Path(f"/proc/{proc.pid}/stat").read_text(encoding="utf-8")
+        if stat.rsplit(")", 1)[-1].split()[0] == "Z":
+            break
+        time.sleep(0.05)
+    assert is_running(proc.pid) is False
+    assert terminate(proc.pid) is True
