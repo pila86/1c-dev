@@ -21,6 +21,9 @@ from core.debug import (
     run_evaluate,
     run_force_detach,
     run_pause,
+    run_ping_start,
+    run_ping_status,
+    run_ping_stop,
     run_reload_metadata,
     run_server_start,
     run_server_status,
@@ -29,6 +32,7 @@ from core.debug import (
     run_status,
     run_step_in,
     run_step_out,
+    run_step_over,
     run_targets,
     run_variables,
     run_wait,
@@ -36,7 +40,11 @@ from core.debug import (
 
 app = typer.Typer(
     name="debug",
-    help="Debug API: HTTP dbgs (attach / BP / wait / stack / eval).",
+    help=(
+        "Debug API: HTTP dbgs. Сценарий: runtime start --debug --bp … → "
+        "debug wait → variables/eval → continue → runtime stop. "
+        "step-in/over/out и pause — экспериментальные (могут не работать)."
+    ),
     add_completion=False,
     no_args_is_help=True,
 )
@@ -56,6 +64,14 @@ breakpoint_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(breakpoint_app, name="breakpoint")
+
+ping_app = typer.Typer(
+    name="ping",
+    help="Ping-демон (единственный читатель pingDebugUIParams; диагностика).",
+    add_completion=False,
+    no_args_is_help=True,
+)
+app.add_typer(ping_app, name="ping")
 
 
 def _emit(payload: dict[str, Any], output: OutputFormat, *, text_lines: list[str]) -> None:
@@ -112,6 +128,8 @@ def _result_text(result: DebugResult) -> list[str]:
         lines.append(f"line: {result.line_no}")
     if result.expression:
         lines.append(f"expression: {result.expression}")
+    if result.result is not None:
+        lines.append(f"result: {result.result}")
     if result.eval_state is not None:
         lines.append(f"evalState: {result.eval_state}")
     if result.modules_count is not None:
@@ -120,6 +138,10 @@ def _result_text(result: DebugResult) -> list[str]:
         lines.append(f"clientDebug: {str(result.client_debug_enabled).lower()}")
     if result.debugger_url:
         lines.append(f"debuggerUrl: {result.debugger_url}")
+    if result.ping_running is not None:
+        lines.append(f"pingRunning: {str(result.ping_running).lower()}")
+    if result.ping_pid is not None:
+        lines.append(f"pingPid: {result.ping_pid}")
     if result.targets:
         lines.append(f"targets: {len(result.targets)}")
         for t in result.targets[:20]:
@@ -130,13 +152,17 @@ def _result_text(result: DebugResult) -> list[str]:
         lines.append(f"callStack: {len(result.call_stack)}")
         for frame in result.call_stack[:20]:
             name = frame.get("moduleName") or frame.get("objectId", "")
-            lines.append(f"  - {name}:{frame.get('lineNo', '')}")
+            mtype = frame.get("moduleType") or ""
+            suffix = f" [{mtype}]" if mtype else ""
+            lines.append(f"  - {name}:{frame.get('lineNo', '')}{suffix}")
     if result.variables:
         lines.append(f"variables: {len(result.variables)}")
         for var in result.variables[:20]:
-            lines.append(
-                f"  - {var.get('name', '')}={var.get('presentation') or var.get('value', '')}"
-            )
+            shown = var.get("presentation") or var.get("value", "")
+            typ = var.get("type") or ""
+            type_s = f" ({typ})" if typ else ""
+            name = var.get("name") or "<result>"
+            lines.append(f"  - {name}={shown}{type_s}")
     if result.breakpoints:
         lines.append(f"breakpoints: {len(result.breakpoints)}")
         for bp in result.breakpoints:
@@ -367,13 +393,28 @@ def wait_cmd(
         "--timeout",
         help="Таймаут ожидания остановки (секунды, default 30).",
     ),
+    fresh: bool = typer.Option(
+        False,
+        "--fresh",
+        help="Сбросить записанную остановку и ждать следующую.",
+    ),
     config: ConfigOption = None,
     runtime: RuntimeOption = None,
     output: OutputOption = None,
 ) -> None:
-    """Ждать callStackFormed (stop)."""
+    """Ждать остановку на breakpoint.
+
+    По состоянию: если остановка уже записана — вернёт её сразу. Если клиент 1С
+    завершился без остановки — быстро упадёт с 1CD016.
+    """
     finish(
-        run_wait(Path.cwd(), timeout=timeout, config_id=config, runtime_id=runtime),
+        run_wait(
+            Path.cwd(),
+            timeout=timeout,
+            fresh=fresh,
+            config_id=config,
+            runtime_id=runtime,
+        ),
         ctx,
         output,
     )
@@ -383,14 +424,29 @@ def wait_cmd(
 def continue_cmd(
     ctx: typer.Context,
     target_id: str | None = typer.Option(None, "--target", help="targetId (default: last)."),
+    timeout: float = typer.Option(
+        DEFAULT_WAIT_TIMEOUT_SEC,
+        "--timeout",
+        help="Таймаут ожидания следующей остановки (секунды, default 30).",
+    ),
+    no_wait: bool = typer.Option(
+        False,
+        "--no-wait",
+        help="Только отправить Continue, не ждать callStackFormed.",
+    ),
     config: ConfigOption = None,
     runtime: RuntimeOption = None,
     output: OutputOption = None,
 ) -> None:
-    """Continue (step Continue)."""
+    """Continue — снять остановку; по умолчанию ждёт следующую (--no-wait для финала)."""
     finish(
         run_continue(
-            Path.cwd(), target_id=target_id, config_id=config, runtime_id=runtime
+            Path.cwd(),
+            target_id=target_id,
+            wait=not no_wait,
+            timeout=timeout,
+            config_id=config,
+            runtime_id=runtime,
         ),
         ctx,
         output,
@@ -401,14 +457,62 @@ def continue_cmd(
 def step_in_cmd(
     ctx: typer.Context,
     target_id: str | None = typer.Option(None, "--target", help="targetId (default: last)."),
+    timeout: float = typer.Option(
+        DEFAULT_WAIT_TIMEOUT_SEC,
+        "--timeout",
+        help="Таймаут ожидания следующей остановки (секунды, default 30).",
+    ),
+    no_wait: bool = typer.Option(
+        False,
+        "--no-wait",
+        help="Только отправить StepIn, не ждать callStackFormed.",
+    ),
     config: ConfigOption = None,
     runtime: RuntimeOption = None,
     output: OutputOption = None,
 ) -> None:
-    """StepIn."""
+    """[EXPERIMENTAL / НЕ РАБОТАЕТ] StepIn — известный сбой 1CD005."""
     finish(
         run_step_in(
-            Path.cwd(), target_id=target_id, config_id=config, runtime_id=runtime
+            Path.cwd(),
+            target_id=target_id,
+            wait=not no_wait,
+            timeout=timeout,
+            config_id=config,
+            runtime_id=runtime,
+        ),
+        ctx,
+        output,
+    )
+
+
+@app.command("step-over")
+def step_over_cmd(
+    ctx: typer.Context,
+    target_id: str | None = typer.Option(None, "--target", help="targetId (default: last)."),
+    timeout: float = typer.Option(
+        DEFAULT_WAIT_TIMEOUT_SEC,
+        "--timeout",
+        help="Таймаут ожидания следующей остановки (секунды, default 30).",
+    ),
+    no_wait: bool = typer.Option(
+        False,
+        "--no-wait",
+        help="Только отправить Step (step over), не ждать callStackFormed.",
+    ),
+    config: ConfigOption = None,
+    runtime: RuntimeOption = None,
+    output: OutputOption = None,
+) -> None:
+    """[EXPERIMENTAL / НЕ РАБОТАЕТ] Step over — может завершаться 1CD005."""
+    finish(
+        run_step_over(
+            Path.cwd(),
+            target_id=target_id,
+            wait=not no_wait,
+            timeout=timeout,
+            config_id=config,
+            runtime_id=runtime,
         ),
         ctx,
         output,
@@ -419,14 +523,29 @@ def step_in_cmd(
 def step_out_cmd(
     ctx: typer.Context,
     target_id: str | None = typer.Option(None, "--target", help="targetId (default: last)."),
+    timeout: float = typer.Option(
+        DEFAULT_WAIT_TIMEOUT_SEC,
+        "--timeout",
+        help="Таймаут ожидания следующей остановки (секунды, default 30).",
+    ),
+    no_wait: bool = typer.Option(
+        False,
+        "--no-wait",
+        help="Только отправить StepOut, не ждать callStackFormed.",
+    ),
     config: ConfigOption = None,
     runtime: RuntimeOption = None,
     output: OutputOption = None,
 ) -> None:
-    """StepOut."""
+    """[EXPERIMENTAL / НЕ РАБОТАЕТ] StepOut — может завершаться 1CD005."""
     finish(
         run_step_out(
-            Path.cwd(), target_id=target_id, config_id=config, runtime_id=runtime
+            Path.cwd(),
+            target_id=target_id,
+            wait=not no_wait,
+            timeout=timeout,
+            config_id=config,
+            runtime_id=runtime,
         ),
         ctx,
         output,
@@ -436,13 +555,29 @@ def step_out_cmd(
 @app.command("pause")
 def pause_cmd(
     ctx: typer.Context,
+    timeout: float = typer.Option(
+        DEFAULT_WAIT_TIMEOUT_SEC,
+        "--timeout",
+        help="Таймаут ожидания остановки (секунды, default 30).",
+    ),
+    no_wait: bool = typer.Option(
+        False,
+        "--no-wait",
+        help="Только включить breakOnNextLine, не ждать stop.",
+    ),
     config: ConfigOption = None,
     runtime: RuntimeOption = None,
     output: OutputOption = None,
 ) -> None:
-    """Pause (breakOnNextLine) — без module BP."""
+    """[EXPERIMENTAL / НЕ РАБОТАЕТ] Pause (breakOnNextLine)."""
     finish(
-        run_pause(Path.cwd(), config_id=config, runtime_id=runtime),
+        run_pause(
+            Path.cwd(),
+            wait=not no_wait,
+            timeout=timeout,
+            config_id=config,
+            runtime_id=runtime,
+        ),
         ctx,
         output,
     )
@@ -532,6 +667,51 @@ def reload_metadata_cmd(
     """Пересобрать UUID↔module cache из XML source."""
     finish(
         run_reload_metadata(Path.cwd(), config_id=config, runtime_id=runtime),
+        ctx,
+        output,
+    )
+
+
+@ping_app.command("start")
+def ping_start_cmd(
+    ctx: typer.Context,
+    config: ConfigOption = None,
+    runtime: RuntimeOption = None,
+    output: OutputOption = None,
+) -> None:
+    """Запустить background ping (держит stopped target между командами)."""
+    finish(
+        run_ping_start(Path.cwd(), config_id=config, runtime_id=runtime),
+        ctx,
+        output,
+    )
+
+
+@ping_app.command("stop")
+def ping_stop_cmd(
+    ctx: typer.Context,
+    config: ConfigOption = None,
+    runtime: RuntimeOption = None,
+    output: OutputOption = None,
+) -> None:
+    """Остановить background ping."""
+    finish(
+        run_ping_stop(Path.cwd(), config_id=config, runtime_id=runtime),
+        ctx,
+        output,
+    )
+
+
+@ping_app.command("status")
+def ping_status_cmd(
+    ctx: typer.Context,
+    config: ConfigOption = None,
+    runtime: RuntimeOption = None,
+    output: OutputOption = None,
+) -> None:
+    """Статус background ping."""
+    finish(
+        run_ping_status(Path.cwd(), config_id=config, runtime_id=runtime),
         ctx,
         output,
     )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from core.debug.constants import (
+    CODE_CLIENT_EXITED,
     CODE_DBGS_MISSING,
     CODE_DBGS_UNREACHABLE,
     CODE_MODULE_UNRESOLVED,
@@ -15,6 +16,12 @@ from core.debug.constants import (
     SOURCE_DEBUG,
 )
 from core.debug.ops import (
+    BreakpointCliSpec,
+    await_debug_targets_armed,
+    ensure_debug_for_runtime,
+    has_debug_state,
+    parse_breakpoint_specs,
+    prepare_debug_for_spawn,
     run_attach,
     run_breakpoint_clear,
     run_breakpoint_set,
@@ -23,6 +30,9 @@ from core.debug.ops import (
     run_evaluate,
     run_force_detach,
     run_pause,
+    run_ping_start,
+    run_ping_status,
+    run_ping_stop,
     run_reload_metadata,
     run_server_start,
     run_server_status,
@@ -31,14 +41,18 @@ from core.debug.ops import (
     run_status,
     run_step_in,
     run_step_out,
+    run_step_over,
     run_targets,
     run_variables,
     run_wait,
+    sync_debug_targets_after_runtime,
+    teardown_debug,
 )
 from core.debug.result import DebugResult, exit_code_for_result, exit_code_from_diagnostics
 from core.debug.state import resolve_debugger_url
 
 __all__ = [
+    "CODE_CLIENT_EXITED",
     "CODE_DBGS_MISSING",
     "CODE_DBGS_UNREACHABLE",
     "CODE_MODULE_UNRESOLVED",
@@ -49,9 +63,16 @@ __all__ = [
     "CODE_WAIT_TIMEOUT",
     "DEFAULT_WAIT_TIMEOUT_SEC",
     "SOURCE_DEBUG",
+    "BreakpointCliSpec",
     "DebugResult",
+    "await_debug_targets_armed",
+    "ensure_debug_for_runtime",
+    "has_debug_state",
+    "prepare_debug_for_spawn",
+    "teardown_debug",
     "exit_code_for_result",
     "exit_code_from_diagnostics",
+    "parse_breakpoint_specs",
     "resolve_debugger_url",
     "run_attach",
     "run_breakpoint_clear",
@@ -61,6 +82,9 @@ __all__ = [
     "run_evaluate",
     "run_force_detach",
     "run_pause",
+    "run_ping_start",
+    "run_ping_status",
+    "run_ping_stop",
     "run_reload_metadata",
     "run_server_start",
     "run_server_status",
@@ -68,8 +92,10 @@ __all__ = [
     "run_stack",
     "run_status",
     "run_step_in",
+    "run_step_over",
     "run_step_out",
     "run_targets",
     "run_variables",
     "run_wait",
+    "sync_debug_targets_after_runtime",
 ]

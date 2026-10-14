@@ -13,6 +13,14 @@ NS_XSI = "http://www.w3.org/2001/XMLSchema-instance"
 DEFAULT_ALIAS = "DefAlias"
 DEFAULT_HOST = "localhost"
 DEFAULT_PING_INTERVAL_SEC = 0.5
+# Fast ping while arming BP around client spawn (DAP uses ~25ms).
+ARM_PING_INTERVAL_SEC = 0.025
+# ``pingDebugUIParams`` is a server-side long-poll: idle ping answers 204 after ~5 s.
+# Client timeout must exceed that, otherwise events are lost (spike #135 §5a).
+PING_LONG_POLL_SEC = 5.0
+PING_HTTP_TIMEOUT_SEC = 12.0
+# eval result delivered via ping instead of the POST body: how long to wait for it
+EVAL_ASYNC_WAIT_SEC = 8.0
 DEFAULT_HTTP_TIMEOUT_SEC = 30.0
 DEFAULT_WAIT_TIMEOUT_SEC = 30.0
 DEFAULT_ATTACH_RETRIES = 5
@@ -55,5 +63,6 @@ CODE_MODULE_UNRESOLVED = "1CD004"
 CODE_WAIT_TIMEOUT = "1CD005"
 CODE_NOT_STOPPED = "1CD006"
 CODE_NO_TARGETS = "1CD007"
+CODE_CLIENT_EXITED = "1CD016"
 
 SOURCE_DEBUG = "debug"

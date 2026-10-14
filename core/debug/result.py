@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from core.debug.constants import (
+    CODE_CLIENT_EXITED,
     CODE_DBGS_MISSING,
     CODE_DBGS_UNREACHABLE,
     CODE_MODULE_UNRESOLVED,
@@ -30,6 +31,7 @@ _RUNTIME_CODES = frozenset(
         CODE_WAIT_TIMEOUT,
         CODE_NOT_STOPPED,
         CODE_NO_TARGETS,
+        CODE_CLIENT_EXITED,
     }
 )
 
@@ -63,11 +65,15 @@ class DebugResult:
     variables: list[dict[str, Any]] = field(default_factory=list)
     eval_state: str | None = None
     expression: str | None = None
+    result: str | None = None  # evalExpr presentation (decoded)
     breakpoints: list[dict[str, Any]] = field(default_factory=list)
     # meta / client hint
     modules_count: int | None = None
     client_debug_enabled: bool | None = None
     debugger_url: str | None = None
+    # background ping keepalive (CLI between commands)
+    ping_pid: int | None = None
+    ping_running: bool | None = None
     # Suggested CLI exit (ADR-003 / ADR-031); MCP ignores.
     exit_code: int = PROJECT_ERROR
 
@@ -113,6 +119,8 @@ class DebugResult:
             payload["evalState"] = self.eval_state
         if self.expression is not None:
             payload["expression"] = self.expression
+        if self.result is not None:
+            payload["result"] = self.result
         if self.breakpoints:
             payload["breakpoints"] = list(self.breakpoints)
         if self.modules_count is not None:
@@ -121,6 +129,10 @@ class DebugResult:
             payload["clientDebugEnabled"] = self.client_debug_enabled
         if self.debugger_url is not None:
             payload["debuggerUrl"] = self.debugger_url
+        if self.ping_pid is not None:
+            payload["pingPid"] = self.ping_pid
+        if self.ping_running is not None:
+            payload["pingRunning"] = self.ping_running
         payload["exitCode"] = self.exit_code
         if self.diagnostics:
             payload["diagnostics"] = list(self.diagnostics)

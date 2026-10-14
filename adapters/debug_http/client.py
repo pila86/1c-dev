@@ -45,6 +45,12 @@ def default_transport(
         data_body = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
         return HttpResponse(status=int(exc.code), body=data_body)
     except URLError as exc:
+        if isinstance(exc.reason, TimeoutError):
+            raise DebugHttpError(
+                "таймаут HTTP-запроса к dbgs",
+                code=CODE_DBGS_UNREACHABLE,
+                timeout=True,
+            ) from exc
         raise DebugHttpError(
             f"dbgs не отвечает: {exc.reason}",
             code=CODE_DBGS_UNREACHABLE,
@@ -61,6 +67,7 @@ def default_transport(
         raise DebugHttpError(
             "таймаут HTTP-запроса к dbgs",
             code=CODE_DBGS_UNREACHABLE,
+            timeout=True,
         ) from exc
 
 
@@ -78,7 +85,14 @@ class DebugHttpClient:
         self.timeout = timeout
         self._transport = transport or default_transport
 
-    def post(self, cmd: str, body: str = "", *, dbgui: str | None = None) -> HttpResponse:
+    def post(
+        self,
+        cmd: str,
+        body: str = "",
+        *,
+        dbgui: str | None = None,
+        timeout: float | None = None,
+    ) -> HttpResponse:
         """POST a debug command; ``pingDebugUIParams`` uses empty body + ``dbgui``."""
         query = f"cmd={cmd}"
         if dbgui:
@@ -90,7 +104,9 @@ class DebugHttpClient:
             "User-Agent": "1CV8",
         }
         data = body.encode("utf-8") if body else b""
-        return self._transport(url, data, headers, self.timeout)
+        return self._transport(
+            url, data, headers, self.timeout if timeout is None else timeout
+        )
 
     def test(self) -> HttpResponse:
         """POST ``/e1crdbg/rdbgTest?cmd=test`` (liveness)."""

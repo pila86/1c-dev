@@ -26,11 +26,29 @@ class RuntimeResult:
     client: str | None = None
     debug_enabled: bool = False
     debugger_url: str | None = None
+    breakpoints: list[dict[str, Any]] = field(default_factory=list)
+    session_id: str | None = None
+    target_id: str | None = None
+    line_no: int | None = None
+    call_stack: list[dict[str, Any]] = field(default_factory=list)
+    targets_armed: bool = False
 
     def to_payload(self) -> dict[str, Any]:
         debug: dict[str, Any] = {"enabled": self.debug_enabled}
         if self.debugger_url:
             debug["debuggerUrl"] = self.debugger_url
+        if self.session_id:
+            debug["sessionId"] = self.session_id
+        if self.breakpoints:
+            debug["breakpoints"] = list(self.breakpoints)
+        if self.targets_armed:
+            debug["targetsArmed"] = True
+        if self.target_id:
+            debug["targetId"] = self.target_id
+        if self.line_no is not None:
+            debug["lineNo"] = self.line_no
+        if self.call_stack:
+            debug["callStack"] = list(self.call_stack)
         payload: dict[str, Any] = {
             "status": self.status,
             "running": self.running,

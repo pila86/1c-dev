@@ -120,6 +120,26 @@ def test_parse_eval_fixtures() -> None:
     expr = xml_parse.parse_eval_result(_load("eval_expr.xml"))
     assert expr.state == "correctly"
     assert any(v.type_name == "Число" for v in expr.variables)
+    assert expr.variables[0].presentation == "10"
+
+
+def test_extract_http_exception_descr() -> None:
+    body = (
+        '<?xml version="1.0"?><exception reason="400">'
+        "<descr>Выполнение вычислений возможно только в остановленном "
+        "предмете отладки</descr></exception>"
+    )
+    assert "остановленном" in xml_parse.extract_http_exception_descr(body)
+
+
+def test_decode_presentation_base64_nbsp() -> None:
+    # platform often sends presentation as base64 UTF-8 with NBSP thousands
+    raw = "NjPCoDkyN8KgNTA3wqAwNTLCoDU5Nw=="
+    assert xml_parse.decode_presentation(raw) == "63 927 507 052 597"
+    assert xml_parse.decode_presentation("NDI=") == "42"
+    assert xml_parse.decode_presentation("ODQ=") == "84"
+    assert xml_parse.decode_presentation("42") == "42"
+    assert xml_parse.decode_presentation("Неопределено") == "Неопределено"
 
 
 def test_parse_targets() -> None:
@@ -287,6 +307,31 @@ def test_ensure_targets_attached_from_states() -> None:
     session.detach()
 
 
+def test_variables_http_400_not_stopped_raises() -> None:
+    body = (
+        '<?xml version="1.0"?><exception reason="400">'
+        "<descr>Выполнение вычислений возможно только в остановленном "
+        "предмете отладки</descr></exception>"
+    )
+    transport = MockTransport(
+        {
+            "attachDebugUI": HttpResponse(200, _load("attach_registered.xml")),
+            "initSettings": HttpResponse(200, "<response/>"),
+            "setAutoAttachSettings": HttpResponse(200, "<response/>"),
+            "evalLocalVariables": HttpResponse(400, body),
+            "detachDebugUI": HttpResponse(200, _load("detach_ok.xml")),
+        }
+    )
+    client = DebugHttpClient("http://localhost:2550", transport=transport)
+    session = DebugSession(client, session_id="sid", ping_interval=60.0)
+    session.attach(start_ping=False)
+    session.process_ping_body(_load("ping_call_stack.xml"))
+    with pytest.raises(DebugHttpError) as exc_info:
+        session.variables()
+    assert exc_info.value.code == CODE_NOT_STOPPED
+    session.detach()
+
+
 def test_variables_and_evaluate() -> None:
     transport = MockTransport(
         {
@@ -331,9 +376,14 @@ def test_step_in_out_pause() -> None:
     session.attach(start_ping=False)
     session.process_ping_body(_load("ping_call_stack.xml"))
     session.step_in()
+    session.step_over()
     session.step_out()
     session.pause()
     session.unpause()
+    step_bodies = [c[1] for c in transport.calls if c[0] == "step"]
+    assert any("StepIn" in b for b in step_bodies)
+    assert any("<action>Step</action>" in b for b in step_bodies)
+    assert any("StepOut" in b for b in step_bodies)
     init_bodies = [c[1] for c in transport.calls if c[0] == "initSettings"]
     assert any("true" in b for b in init_bodies)
     assert any("false" in b for b in init_bodies)

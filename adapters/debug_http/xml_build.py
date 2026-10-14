@@ -113,7 +113,7 @@ def build_set_breakpoints(
 
 
 def build_step(alias: str, dbg_id: str, target_id: str, action: str) -> str:
-    """Build ``step`` (Continue / StepIn / StepOut)."""
+    """Build ``step`` (Continue / Step / StepIn / StepOut)."""
     return (
         f'{XML_HDR}<request xmlns="{NS_RDBG}" xmlns:bd="{NS_BD}" xmlns:xsi="{NS_XSI}">'
         f"<infoBaseAlias>{esc(alias)}</infoBaseAlias>"

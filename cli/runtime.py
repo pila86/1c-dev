@@ -11,6 +11,18 @@ import typer
 from adapters.platform_ibcmd.constants import CODE_IBCMD_FAILED
 from cli.options import ConfigOption, RuntimeOption
 from cli.output import OutputFormat, OutputOption, resolve_output
+from core.debug.constants import (
+    CODE_DBGS_MISSING,
+    CODE_DBGS_UNREACHABLE,
+    CODE_MODULE_UNRESOLVED,
+    CODE_NO_SESSION,
+    CODE_NO_TARGETS,
+    CODE_WAIT_TIMEOUT,
+)
+from core.debug.constants import (
+    CODE_PROJECT as CODE_DEBUG_PROJECT,
+)
+from core.debug.result import exit_code_from_diagnostics
 from core.exit_codes import (
     BUILD_FAILURE,
     ENV_UNAVAILABLE,
@@ -78,6 +90,16 @@ def _exit_for_client(result: RuntimeResult) -> None:
     if result.status == "ok":
         raise typer.Exit(code=SUCCESS)
     codes = {d.get("code") for d in result.diagnostics}
+    if codes & {
+        CODE_DBGS_MISSING,
+        CODE_DBGS_UNREACHABLE,
+        CODE_MODULE_UNRESOLVED,
+        CODE_NO_SESSION,
+        CODE_NO_TARGETS,
+        CODE_WAIT_TIMEOUT,
+        CODE_DEBUG_PROJECT,
+    }:
+        raise typer.Exit(code=exit_code_from_diagnostics(result.diagnostics))
     if codes & {CODE_ONECV8_MISSING, CODE_ONECV8C_MISSING}:
         raise typer.Exit(code=ENV_UNAVAILABLE)
     if codes & {
@@ -145,6 +167,19 @@ def _client_text(result: RuntimeResult) -> list[str]:
     lines.append(f"debug: {str(result.debug_enabled).lower()}")
     if result.debugger_url:
         lines.append(f"debuggerUrl: {result.debugger_url}")
+    if result.session_id:
+        lines.append(f"sessionId: {result.session_id}")
+    if result.breakpoints:
+        lines.append(f"breakpoints: {len(result.breakpoints)}")
+        for bp in result.breakpoints:
+            loc = bp.get("file") or bp.get("moduleName") or bp.get("objectId") or ""
+            lines.append(f"  - {loc} lines={bp.get('lines', [])}")
+    if result.targets_armed:
+        lines.append("targetsArmed: true")
+    if result.line_no is not None:
+        lines.append(f"lineNo: {result.line_no}")
+    if result.target_id:
+        lines.append(f"targetId: {result.target_id}")
     if result.runtime_path is not None and result.root is not None:
         try:
             rel = result.runtime_path.relative_to(result.root).as_posix()
@@ -198,6 +233,15 @@ def runtime_start(
         "--debugger-url",
         help="Явный DebuggerURL (http://host:port); приоритет над state/manifest.",
     ),
+    bp: list[str] = typer.Option(
+        [],
+        "--bp",
+        help=(
+            "Точка останова path/to.bsl:line[,line…] (требует --debug). "
+            "ensure dbgs → attach → BP → spawn → arm targets. Повторяемый. "
+            "Остановку ждите отдельно: debug wait."
+        ),
+    ),
     config: ConfigOption = None,
     runtime: RuntimeOption = None,
     output: OutputOption = None,
@@ -207,11 +251,14 @@ def runtime_start(
     if client_norm not in {"thick", "thin"}:
         typer.echo("error: --client должен быть thick или thin", err=True)
         raise typer.Exit(code=PROJECT_ERROR)
+    if debug and bp:
+        typer.echo("debug: dbgs → attach → BP → client → arm targets…", err=True)
     result = run_start(
         Path.cwd(),
         client=client_norm,
         debug=debug,
         debugger_url=debugger_url,
+        breakpoints=bp,
         config_id=config,
         runtime_id=runtime,
     )
@@ -226,7 +273,11 @@ def runtime_stop(
     runtime: RuntimeOption = None,
     output: OutputOption = None,
 ) -> None:
-    """Остановить ранее запущенный клиент 1С."""
+    """Остановить клиент 1С и всё, что связано с отладкой.
+
+    Клиент → ping-демон → debug-сессия → dbgs (только если его запустили мы).
+    Идемпотентно; безопасно вызывать после любой отладки.
+    """
     result = run_stop(Path.cwd(), config_id=config, runtime_id=runtime)
     _emit(result.to_payload(), resolve_output(ctx, output), text_lines=_client_text(result))
     _exit_for_client(result)

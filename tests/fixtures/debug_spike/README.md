@@ -8,10 +8,12 @@
 | Модуль | `CommonModule.ОтладкаДемо` |
 | objectID | `b7e2c4a1-8f3d-4a6e-9c1b-2d5e8f0a3b6c` |
 | propertyID (тело CommonModule) | `d5963243-262e-4398-b4d7-fb16d06484f6` |
-| Строка BP | **5** (`Значение = 42; // BP-LINE`) — на **исполняемой** строке |
+| Строка BP CommonModule | **8** (`Проверка = Сообщение; // BP-LINE`) — после всех присвоений |
 | ApplicationModule objectID | `d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f80` (Configuration uuid) |
 | ApplicationModule propertyID | `d22e852a-cf8a-4f77-8ccb-3548e7792bea` |
-| Триггер | `ПриНачалеРаботыСистемы` → busy-wait ~10с → `ОтладкаДемо.ВыполнитьДемо()` |
+| Триггер | `ВыполнитьДемо` → `ЗавершитьРаботуСистемы(Ложь)` |
+| BP ApplicationModule | строка **4** (`ОтладкаДемо.ВыполнитьДемо…`) — `ИмяСценария` уже задан |
+| Linux / IDE | толстый клиент на **том же DISPLAY**, что IDE: на BP может «заморозить» весь GUI — смотри milestone / запускай CLI во внешнем терминале |
 | Alias file IB | `DefAlias` |
 
 ```bash

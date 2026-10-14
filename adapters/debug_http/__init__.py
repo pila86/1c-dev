@@ -8,6 +8,8 @@ from __future__ import annotations
 from adapters.debug_http import xml_build, xml_parse
 from adapters.debug_http.client import DebugHttpClient, HttpResponse, TransportFn
 from adapters.debug_http.constants import (
+    ARM_PING_INTERVAL_SEC,
+    CODE_CLIENT_EXITED,
     CODE_DBGS_MISSING,
     CODE_DBGS_UNREACHABLE,
     CODE_MODULE_UNRESOLVED,
@@ -21,6 +23,7 @@ from adapters.debug_http.constants import (
     DEFAULT_WAIT_TIMEOUT_SEC,
     MODULE_PROPERTY_IDS,
     MODULES_CACHE_FILENAME,
+    PING_HTTP_TIMEOUT_SEC,
     PROPERTY_ID_APPLICATION_MODULE,
     PROPERTY_ID_COMMON_MODULE,
     PROPERTY_ID_FORM_MODULE,
@@ -65,6 +68,8 @@ from adapters.debug_http.resolve import (
 from adapters.debug_http.session import DebugSession
 
 __all__ = [
+    "CODE_CLIENT_EXITED",
+    "PING_HTTP_TIMEOUT_SEC",
     "CODE_DBGS_MISSING",
     "CODE_DBGS_UNREACHABLE",
     "CODE_MODULE_UNRESOLVED",
@@ -72,6 +77,7 @@ __all__ = [
     "CODE_NO_TARGETS",
     "CODE_NOT_STOPPED",
     "CODE_WAIT_TIMEOUT",
+    "ARM_PING_INTERVAL_SEC",
     "DEFAULT_ALIAS",
     "DEFAULT_AUTO_ATTACH_TYPES",
     "DEFAULT_PING_INTERVAL_SEC",

@@ -6,11 +6,11 @@ import threading
 import time
 import uuid
 from collections import deque
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from adapters.debug_http import xml_build, xml_parse
-from adapters.debug_http.client import DebugHttpClient
+from adapters.debug_http.client import DebugHttpClient, HttpResponse
 from adapters.debug_http.constants import (
     CODE_MODULE_UNRESOLVED,
     CODE_NO_SESSION,
@@ -22,6 +22,8 @@ from adapters.debug_http.constants import (
     DEFAULT_AUTO_ATTACH_TYPES,
     DEFAULT_PING_INTERVAL_SEC,
     DEFAULT_WAIT_TIMEOUT_SEC,
+    EVAL_ASYNC_WAIT_SEC,
+    PING_HTTP_TIMEOUT_SEC,
     SOURCE_DEBUG,
 )
 from adapters.debug_http.errors import DebugHttpError
@@ -70,6 +72,10 @@ class DebugSession:
         self._attached_targets: set[str] = set()
         self._last_stop: StopEvent | None = None
         self._last_target_id: str = ""
+
+        #: ``(result_id, timeout) -> body`` for results delivered via ping
+        #: (``exprEvaluated``) instead of the POST body; set by the CLI layer.
+        self.eval_result_reader: Callable[[str, float], str | None] | None = None
 
         self._events: deque[DebugEvent] = deque()
         self._events_lock = threading.Lock()
@@ -182,11 +188,15 @@ class DebugSession:
         self._ping_thread.start()
 
     def stop_ping(self) -> None:
-        """Stop ping loop and join the thread."""
+        """Stop ping loop and join the thread.
+
+        Keep join short: ping may be blocked in HTTP; daemon thread will exit
+        on process end. Long join made every ``attach``/``wait`` feel hung (~2s).
+        """
         self._ping_stop.set()
         thread = self._ping_thread
         if thread is not None and thread.is_alive():
-            thread.join(timeout=2.0)
+            thread.join(timeout=0.2)
         self._ping_thread = None
 
     def drain_events(self) -> list[DebugEvent]:
@@ -217,23 +227,62 @@ class DebugSession:
                     target_id=ev.target_id or self._last_target_id,
                 )
                 if stop is not None:
+                    stop = StopEvent(
+                        target_id=stop.target_id,
+                        frames=self._enrich_frames(stop.frames),
+                        raw_xml=stop.raw_xml,
+                    )
                     self._last_stop = stop
                     if stop.target_id:
                         self._last_target_id = stop.target_id
                     self._stop_event.set()
         return events
 
+    def _enrich_frames(
+        self, frames: tuple[StackFrame, ...] | list[StackFrame]
+    ) -> tuple[StackFrame, ...]:
+        """Fill ``moduleName``/``moduleType`` from XML index (reverse objectID lookup)."""
+        index = getattr(self.resolver, "index", None)
+        find_by_ids = getattr(index, "find_by_ids", None) if index is not None else None
+        if find_by_ids is None:
+            return tuple(frames)
+        enriched: list[StackFrame] = []
+        for frame in frames:
+            if frame.module_name and frame.module_type:
+                enriched.append(frame)
+                continue
+            hits = find_by_ids(frame.object_id, frame.property_id)
+            if not hits and frame.object_id:
+                hits = find_by_ids(frame.object_id, None)
+            hit = hits[0] if hits else None
+            enriched.append(
+                StackFrame(
+                    object_id=frame.object_id,
+                    property_id=frame.property_id,
+                    line_no=frame.line_no,
+                    module_name=frame.module_name or (hit.module_name if hit else ""),
+                    module_type=frame.module_type or (hit.module_type if hit else ""),
+                )
+            )
+        return tuple(enriched)
+
     def _ping_loop(self) -> None:
         while not self._ping_stop.is_set():
             try:
+                # ping is a ~5 s server long-poll: timeout must exceed it, else
+                # events are consumed server-side and lost (spike #135 §5a).
                 resp = self.client.post(
                     "pingDebugUIParams",
                     "",
                     dbgui=self.session_id,
+                    timeout=PING_HTTP_TIMEOUT_SEC,
                 )
                 self.process_ping_body(resp.body, status=resp.status)
             except DebugHttpError as exc:
-                self._enqueue(DebugEvent(type="pingError", payload={"message": exc.message}))
+                if not exc.timeout:
+                    self._enqueue(
+                        DebugEvent(type="pingError", payload={"message": exc.message})
+                    )
             self._ping_stop.wait(self.ping_interval)
 
     def _enqueue(self, event: DebugEvent) -> None:
@@ -404,12 +453,20 @@ class DebugSession:
     def wait_for_stop(self, *, timeout: float = DEFAULT_WAIT_TIMEOUT_SEC) -> StopEvent:
         """Wait until ``callStackFormed`` (via ping loop) or timeout → ``1CD005``."""
         self.require_attached()
-        # Already stopped (event set by process_ping_body / ping loop)
+        # Already stopped (event set by process_ping_body / ping loop / disk hydrate)
         if self._last_stop is not None and self._stop_event.is_set():
+            frames = self._enrich_frames(self._last_stop.frames)
+            if frames != self._last_stop.frames:
+                self._last_stop = StopEvent(
+                    target_id=self._last_stop.target_id,
+                    frames=frames,
+                    raw_xml=self._last_stop.raw_xml,
+                )
             return self._last_stop
 
-        # CLI: re-attach existing targets (may have missed targetStarted)
-        self.ensure_targets_attached(force=True)
+        # Attach targets we have not seen yet (may have missed targetStarted).
+        # Never force: re-attach of a stopped target breaks stepping (spike #135).
+        self.ensure_targets_attached(force=False)
 
         self._stop_event.clear()
         self.start_ping()
@@ -437,6 +494,10 @@ class DebugSession:
 
     def step_in(self, target_id: str | None = None) -> str:
         return self._step("StepIn", target_id)
+
+    def step_over(self, target_id: str | None = None) -> str:
+        """Step over call (platform action ``Step`` — DAP next / EDT step over)."""
+        return self._step("Step", target_id)
 
     def step_out(self, target_id: str | None = None) -> str:
         return self._step("StepOut", target_id)
@@ -503,7 +564,14 @@ class DebugSession:
                 f"last stop target={self._last_stop.target_id}, запрошен {target_id}",
                 code=CODE_NOT_STOPPED,
             )
-        return list(self._last_stop.frames)
+        frames = self._enrich_frames(self._last_stop.frames)
+        if frames != self._last_stop.frames:
+            self._last_stop = StopEvent(
+                target_id=self._last_stop.target_id,
+                frames=frames,
+                raw_xml=self._last_stop.raw_xml,
+            )
+        return list(frames)
 
     def variables(self, target_id: str | None = None) -> EvalResult:
         """``evalLocalVariables`` (sync result in POST body on 8.3.25)."""
@@ -514,7 +582,8 @@ class DebugSession:
             "evalLocalVariables",
             xml_build.build_eval_locals(self.alias, self.session_id, tid, result_id),
         )
-        return xml_parse.parse_eval_result(resp.body)
+        self._raise_if_eval_http_error(resp, cmd="evalLocalVariables")
+        return self._eval_result(resp.body, result_id)
 
     def evaluate(self, expression: str, target_id: str | None = None) -> EvalResult:
         """``evalExpr`` (sync result in POST body on 8.3.25)."""
@@ -527,7 +596,57 @@ class DebugSession:
                 self.alias, self.session_id, tid, expression, result_id
             ),
         )
-        return xml_parse.parse_eval_result(resp.body)
+        self._raise_if_eval_http_error(resp, cmd="evalExpr")
+        return self._eval_result(resp.body, result_id)
+
+    def _eval_result(self, body: str, result_id: str) -> EvalResult:
+        """Parse the POST body; if dbgs answered empty, take the ping-delivered one.
+
+        dbgs routes the result to the pending ``pingDebugUIParams`` instead of the
+        POST body when a ping long-poll is parked — which is always the case with
+        the single-reader daemon.
+        """
+        parsed = xml_parse.parse_eval_result(body)
+        if parsed.state or parsed.variables or self.eval_result_reader is None:
+            return parsed
+        late = self.eval_result_reader(result_id, EVAL_ASYNC_WAIT_SEC)
+        return xml_parse.parse_eval_result(late) if late else parsed
+
+    def _raise_if_eval_http_error(self, resp: HttpResponse, *, cmd: str) -> None:
+        """HTTP 400 from dbgs must not look like «пустой список переменных»."""
+        if resp.status < 400:
+            return
+        descr = xml_parse.extract_http_exception_descr(resp.body) or resp.body[:240]
+        low = descr.lower()
+        if "остановлен" in low or "stopped" in low:
+            code = CODE_NOT_STOPPED
+            suggestion = (
+                "клиент не на точке останова (успели continue / промах BP / "
+                "протухший lastStop) — runtime start --debug --bp … → debug wait"
+            )
+        elif "не зарегистрир" in low or "not registered" in low:
+            code = CODE_NO_SESSION
+            suggestion = "1c-dev debug attach (сессия UI на dbgs потеряна)"
+        else:
+            code = CODE_NOT_STOPPED
+            suggestion = f"проверьте debug status / wait; ответ dbgs HTTP {resp.status}"
+        raise DebugHttpError(
+            f"{cmd} HTTP {resp.status}: {descr}",
+            code=code,
+            diagnostics=[
+                diag_error(
+                    f"{cmd}: {descr}",
+                    code=code,
+                    source=SOURCE_DEBUG,
+                    suggestion=suggestion,
+                )
+            ],
+        )
+
+    def clear_cached_stop(self) -> None:
+        """Drop in-memory last stop (for fresh ``wait`` after new client spawn)."""
+        self._last_stop = None
+        self._stop_event.clear()
 
     def _require_stopped_target(self) -> str:
         if self._last_stop is None:

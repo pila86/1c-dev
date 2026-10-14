@@ -145,6 +145,25 @@ class ModulesIndex:
                 out.append(entry)
         return out
 
+    def find_by_ids(
+        self,
+        object_id: str,
+        property_id: str | None = None,
+    ) -> list[ModuleIndexEntry]:
+        """Reverse lookup for stack frames (objectID → module name)."""
+        oid = (object_id or "").strip().lower()
+        if not oid:
+            return []
+        pid = (property_id or "").strip().lower()
+        out: list[ModuleIndexEntry] = []
+        for entry in self.modules:
+            if entry.object_id.strip().lower() != oid:
+                continue
+            if pid and entry.property_id.strip().lower() != pid:
+                continue
+            out.append(entry)
+        return out
+
 
 def modules_cache_path(scope_root: Path) -> Path:
     """``<scope>/.1c-dev/debug/modules-cache.json``."""

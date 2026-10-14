@@ -46,6 +46,7 @@ class StackFrame:
     property_id: str
     line_no: int
     module_name: str = ""
+    module_type: str = ""
 
 
 @dataclass(frozen=True)

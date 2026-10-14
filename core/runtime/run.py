@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, Literal
 
@@ -23,7 +23,7 @@ from adapters.platform_1cv8.constants import (
     MODE_ENTERPRISE,
 )
 from adapters.platform_ibcmd import infobase_exists
-from core.diagnostics import error
+from core.diagnostics import Diagnostic, error, warning
 from core.project.constants import HOME_MANIFEST_REL
 from core.project.detect import detect_manifest
 from core.project.load import load_manifest
@@ -215,6 +215,52 @@ def run_status(
     )
 
 
+def _teardown_debug_state(
+    start_path: Path,
+    root: Path,
+    *,
+    config_id: str | None,
+    runtime_id: str | None,
+    is_alive: IsRunningFn | None,
+    terminate_fn: TerminateFn | None,
+) -> list[Diagnostic]:
+    """Stop ping daemon, debug session and our own dbgs; failures are warnings."""
+    from core.debug.ops import has_debug_state, teardown_debug
+
+    if not has_debug_state(root):
+        return []
+    try:
+        result = teardown_debug(
+            start_path,
+            config_id=config_id,
+            runtime_id=runtime_id,
+            is_alive=is_alive,
+            terminate_fn=terminate_fn,
+        )
+    except Exception as exc:  # noqa: BLE001 — runtime stop must still succeed
+        return [
+            warning(
+                f"не удалось полностью остановить debug: {exc}",
+                code=CODE_CLIENT_FAILED,
+                source="runtime",
+            )
+        ]
+    diags: list[Diagnostic] = []
+    for diag in result.diagnostics:
+        if diag.get("severity") == "error":
+            diags.append(
+                warning(
+                    str(diag.get("message", "")),
+                    code=diag.get("code"),
+                    source="runtime",
+                    suggestion=diag.get("suggestion"),
+                )
+            )
+        else:
+            diags.append(diag)
+    return diags
+
+
 def run_stop(
     start: Path | None = None,
     *,
@@ -223,7 +269,11 @@ def run_stop(
     is_alive: IsRunningFn | None = None,
     terminate_fn: TerminateFn | None = None,
 ) -> RuntimeResult:
-    """Stop the detached ENTERPRISE client if running."""
+    """Stop the client and everything debug-related.
+
+    Order: client → ping daemon → debug UI session (detach) → ``dbgs`` (only when
+    we started it) → ``.1c-dev/debug`` state. Idempotent.
+    """
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
     alive = is_alive or is_running
@@ -242,6 +292,14 @@ def run_stop(
     )
     if not running or pid is None:
         clear_state(root)
+        teardown_diags = _teardown_debug_state(
+            start_path,
+            root,
+            config_id=config_id,
+            runtime_id=runtime_id,
+            is_alive=is_alive,
+            terminate_fn=terminate_fn,
+        )
         return RuntimeResult(
             status="ok",
             duration=time.perf_counter() - started,
@@ -252,6 +310,7 @@ def run_stop(
             mode=None,
             client=None,
             debug_enabled=False,
+            diagnostics=teardown_diags,
         )
 
     ok = stop_client(pid, terminate_fn=terminate_fn)
@@ -277,6 +336,14 @@ def run_stop(
             ],
         )
 
+    teardown_diags = _teardown_debug_state(
+        start_path,
+        root,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        is_alive=is_alive,
+        terminate_fn=terminate_fn,
+    )
     return RuntimeResult(
         status="ok",
         duration=time.perf_counter() - started,
@@ -287,6 +354,7 @@ def run_stop(
         mode=None,
         client=None,
         debug_enabled=False,
+        diagnostics=teardown_diags,
     )
 
 
@@ -296,6 +364,8 @@ def run_start(
     client: str = CLIENT_THICK,
     debug: bool = False,
     debugger_url: str | None = None,
+    breakpoints: Sequence[str] | None = None,
+    targets_timeout: float = 15.0,
     config_id: str | None = None,
     runtime_id: str | None = None,
     discover: Callable[[], DiscoveryResult] | None = None,
@@ -307,11 +377,17 @@ def run_start(
 
     With ``debug=True``, prefers HTTP attach argv when DebuggerURL is known
     (explicit / live ``debug.server`` / manifest ``debug.host``+``port``, ADR-031).
+
+    With ``breakpoints`` (``--bp file:line``), ensures dbgs + attach + BP *before*
+    spawning the client, then polls ``session.json`` until the ping daemon has
+    attached a debug target (or timeout). It never waits for a stop — use
+    ``debug wait`` for that.
     """
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
     alive = is_alive or is_running
     client_kind = _normalize_client(client)
+    bp_raw = [str(x).strip() for x in (breakpoints or []) if str(x).strip()]
 
     root, db_path, err = _resolve_project(
         start_path,
@@ -322,6 +398,24 @@ def run_start(
     if err is not None:
         return err
 
+    if bp_raw and not debug:
+        return RuntimeResult(
+            status="failed",
+            duration=time.perf_counter() - started,
+            root=root,
+            runtime_path=db_path,
+            diagnostics=[
+                error(
+                    "--bp требует --debug",
+                    code=CODE_PROJECT,
+                    source="runtime",
+                    suggestion=(
+                        "1c-dev runtime start --debug "
+                        "--bp src/main/Ext/ManagedApplicationModule.bsl:4"
+                    ),
+                )
+            ],
+        )
     # Manifest needed for DebuggerURL resolution when debug=True
     manifest_path = detect_manifest(start_path)
     manifest_data: dict[str, Any] = {}
@@ -330,11 +424,42 @@ def run_start(
         if isinstance(loaded, dict):
             manifest_data = loaded
 
+    debug_bps: list[dict[str, Any]] = []
+    debug_session_id: str | None = None
+    extra_diags: list[Diagnostic] = []
     resolved_url = (
         _resolve_debugger_url_for_start(root, manifest_data, explicit=debugger_url)
         if debug
         else None
     )
+
+    if debug and bp_raw:
+        from core.debug.ops import ensure_debug_for_runtime
+
+        boot = ensure_debug_for_runtime(
+            start_path,
+            breakpoints=bp_raw,
+            debugger_url=debugger_url,
+            config_id=config_id,
+            runtime_id=runtime_id,
+            discover=discover,
+            is_alive=alive,
+        )
+        if boot.status != "ok":
+            return RuntimeResult(
+                status="failed",
+                duration=time.perf_counter() - started,
+                root=root,
+                runtime_path=db_path,
+                debug_enabled=True,
+                debugger_url=boot.debugger_url or boot.url or resolved_url,
+                breakpoints=list(boot.breakpoints),
+                session_id=boot.session_id,
+                diagnostics=list(boot.diagnostics),
+            )
+        resolved_url = boot.debugger_url or boot.url or resolved_url
+        debug_bps = list(boot.breakpoints)
+        debug_session_id = boot.session_id
 
     running, pid, mode, running_client, debug_enabled, running_url = _alive_snapshot(
         root, is_alive=alive
@@ -427,6 +552,30 @@ def run_start(
             ],
         )
 
+    # Reset stale stop/targets and make sure the daemon runs *before* spawn:
+    # the daemon is the only ping reader, so no event of the new client is lost.
+    if debug and bp_raw:
+        from core.debug.ops import prepare_debug_for_spawn
+
+        prepared = prepare_debug_for_spawn(
+            start_path,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        if prepared.status != "ok":
+            return RuntimeResult(
+                status="failed",
+                duration=time.perf_counter() - started,
+                root=root,
+                runtime_path=db_path,
+                debug_enabled=True,
+                debugger_url=resolved_url,
+                breakpoints=debug_bps,
+                session_id=debug_session_id or prepared.session_id,
+                diagnostics=list(prepared.diagnostics),
+            )
+        extra_diags.extend(prepared.diagnostics)
+
     try:
         new_pid, _argv = start_enterprise_client(
             tool.path,
@@ -478,6 +627,47 @@ def run_start(
         client=client_kind,
         debugger_url=resolved_url if debug else None,
     )
+
+    targets_armed = False
+    if debug and bp_raw:
+        from core.debug.ops import await_debug_targets_armed
+
+        armed = await_debug_targets_armed(
+            start_path,
+            timeout=targets_timeout,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        if armed.status != "ok":
+            return RuntimeResult(
+                status="failed",
+                duration=time.perf_counter() - started,
+                root=root,
+                runtime_path=db_path,
+                running=True,
+                pid=new_pid,
+                mode=MODE_ENTERPRISE,
+                client=client_kind,
+                debug_enabled=True,
+                debugger_url=resolved_url,
+                breakpoints=debug_bps,
+                session_id=debug_session_id or armed.session_id,
+                diagnostics=list(armed.diagnostics),
+            )
+        targets_armed = bool(armed.targets)
+        if not targets_armed:
+            extra_diags.append(
+                warning(
+                    f"debug target не появился за {targets_timeout:g}s — BP могут не сработать",
+                    code=CODE_CLIENT_FAILED,
+                    source="runtime",
+                    suggestion=(
+                        "проверьте GUI/DISPLAY и 1c-dev debug targets; "
+                        "затем debug wait"
+                    ),
+                )
+            )
+
     return RuntimeResult(
         status="ok",
         duration=time.perf_counter() - started,
@@ -489,4 +679,8 @@ def run_start(
         client=client_kind,
         debug_enabled=debug,
         debugger_url=resolved_url if debug else None,
+        breakpoints=debug_bps,
+        session_id=debug_session_id,
+        targets_armed=targets_armed,
+        diagnostics=list(extra_diags),
     )
