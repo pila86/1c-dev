@@ -6,20 +6,28 @@ Fixture ``debug_spike``: ``ПриНачалеРаботыСистемы`` (кл�
 
 Сценарий: runtime start --debug --bp … → wait → variables/eval → continue → … → runtime stop.
 Без ``ibcmd`` / ``1cv8`` / ``dbgs`` / DISPLAY — skip.
+
+Расширение ``DebugExt`` (``src/cfe/debug_ext``): перехватчик ``&После`` в адоптированном
+``ОтладкаДемо`` (клиент) и собственный серверный модуль ``Расш_ОтладкаСервер``;
+второй тест проходит сценарий целиком через CLI (``typer.testing.CliRunner``).
 """
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import socket
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
+from typer.testing import CliRunner
 
 from adapters.platform import discover_environment
 from adapters.platform_ibcmd.constants import IB_MARKER
+from cli.main import app
 from core.build import run_build
 from core.debug import (
     DebugResult,
@@ -37,6 +45,11 @@ APP_BP = "src/main/Ext/ManagedApplicationModule.bsl:4"
 MANAGER_BP = "src/main/Catalogs/Товары/Ext/ManagerModule.bsl:3"
 OBJECT_BP = "src/main/Catalogs/Товары/Ext/ObjectModule.bsl:4"
 SERVER_BP = "src/main/CommonModules/ОтладкаСервер/Ext/Module.bsl:10"
+EXT_CLIENT_BP = "src/cfe/debug_ext/CommonModules/ОтладкаДемо/Ext/Module.bsl:5"
+EXT_SERVER_BP = "src/cfe/debug_ext/CommonModules/Расш_ОтладкаСервер/Ext/Module.bsl:7"
+EXTENSION = "DebugExt"
+
+runner = CliRunner()
 
 
 def _free_port() -> int:
@@ -57,8 +70,7 @@ def _leaf(result: DebugResult) -> dict[str, object]:
     return result.call_stack[-1]
 
 
-@pytest.mark.integration
-def test_m6_acceptance_client_and_server_modules(tmp_path: Path) -> None:
+def _require_platform() -> None:
     discovery = discover_environment()
     if not discovery.ibcmd.found:
         pytest.skip("ibcmd не найден — M6 acceptance пропущен")
@@ -69,6 +81,10 @@ def test_m6_acceptance_client_and_server_modules(tmp_path: Path) -> None:
     if sys.platform != "win32" and not os.environ.get("DISPLAY"):
         pytest.skip("нет DISPLAY для толстого клиента — M6 acceptance пропущен")
 
+
+def _prepare_project(tmp_path: Path) -> Path:
+    """Копия фикстуры + ``debug.port`` в манифесте + build (конфигурация и расширение)."""
+    _require_platform()
     project = tmp_path / "debug_spike"
     shutil.copytree(
         FIXTURE, project, ignore=shutil.ignore_patterns("__pycache__", "run_http_debug.py")
@@ -86,6 +102,35 @@ def test_m6_acceptance_client_and_server_modules(tmp_path: Path) -> None:
     build = run_build(project)
     assert build.status == "ok", build.to_payload()
     assert (project / ".1c-dev" / "runtime" / "main" / IB_MARKER).is_file()
+    return project
+
+
+def _cli(*args: str, expect_ok: bool = True) -> dict[str, Any]:
+    """Вызов ``1c-dev … --output json`` из cwd проекта; JSON из stdout."""
+    result = runner.invoke(app, [*args, "--output", "json"])
+    payload = json.loads(result.stdout)
+    if expect_ok:
+        assert result.exit_code == 0, (args, result.exit_code, payload)
+        assert payload.get("status") == "ok", (args, payload)
+    return payload  # type: ignore[no-any-return]
+
+
+def _cli_variables(payload: dict[str, Any]) -> dict[str, str]:
+    return {
+        str(v.get("name")): str(v.get("presentation") or v.get("value") or "")
+        for v in payload.get("variables", [])
+    }
+
+
+def _cli_leaf(payload: dict[str, Any]) -> dict[str, Any]:
+    stack = payload.get("callStack") or []
+    assert stack, payload
+    return stack[-1]  # type: ignore[no-any-return]
+
+
+@pytest.mark.integration
+def test_m6_acceptance_client_and_server_modules(tmp_path: Path) -> None:
+    project = _prepare_project(tmp_path)
 
     debug_dir = project / ".1c-dev" / "debug"
     try:
@@ -148,6 +193,63 @@ def test_m6_acceptance_client_and_server_modules(tmp_path: Path) -> None:
     finally:
         stopped = run_stop(project)
         assert stopped.status == "ok", stopped.to_payload()
+
+    assert not (debug_dir / "session.json").exists()
+    assert not (debug_dir / "ping.pid").exists()
+    assert not (debug_dir / "server.pid").exists()
+
+
+@pytest.mark.integration
+def test_m6_acceptance_extension_cli(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Точки останова в расширении через CLI: runtime start --bp → wait → continue → stop."""
+    project = _prepare_project(tmp_path)
+    monkeypatch.chdir(project)
+    debug_dir = project / ".1c-dev" / "debug"
+    try:
+        started = _cli(
+            "runtime", "start", "--debug", "--bp", EXT_CLIENT_BP, "--bp", EXT_SERVER_BP
+        )
+        debug = started["debug"]
+        assert debug["targetsArmed"], started
+        # Оба BP — в расширении (не в одноимённом модуле основной конфигурации).
+        assert {bp["extensionName"] for bp in debug["breakpoints"]} == {EXTENSION}
+        assert {bp["moduleName"] for bp in debug["breakpoints"]} == {
+            "ОтладкаДемо",
+            "Расш_ОтладкаСервер",
+        }
+
+        # 1. адоптированный клиентский модуль: перехватчик &После("ВыполнитьДемо")
+        waited = _cli("debug", "wait", "--timeout", "60")
+        assert (waited["moduleName"], waited["lineNo"]) == ("ОтладкаДемо", 5)
+        leaf = _cli_leaf(waited)
+        assert leaf["extensionName"] == EXTENSION
+        assert waited["callStack"][0]["moduleName"] == "DebugSpike"
+        assert "extensionName" not in waited["callStack"][0]
+        variables = _cli_variables(_cli("debug", "variables"))
+        assert "DebugSpike" in variables["ИмяСценария"]
+        assert variables["РасширениеСценарий"] == '"DebugSpike+ext"'
+
+        # 2. собственный серверный модуль расширения (ServerCall)
+        server = _cli("debug", "continue", "--timeout", "60")
+        assert (server["moduleName"], server["lineNo"]) == ("Расш_ОтладкаСервер", 7)
+        assert _cli_leaf(server)["extensionName"] == EXTENSION
+        server_vars = _cli_variables(_cli("debug", "variables"))
+        assert server_vars["РасширениеЗначение"] == "7"
+        assert server_vars["РасширениеРезультат"] == "42"
+        evaluated = _cli("debug", "eval", "РасширениеРезультат * 2")
+        assert evaluated["result"] == "84"
+        # клиентский кадр расширения остаётся в стеке серверного вызова
+        names = [f["moduleName"] for f in server["callStack"]]
+        assert names == ["DebugSpike", "ОтладкаДемо", "Расш_ОтладкаСервер"]
+
+        # финал: программа выполнена, клиент завершился
+        done = _cli("debug", "continue", "--timeout", "60")
+        assert not done.get("callStack")
+    finally:
+        stopped = _cli("runtime", "stop", expect_ok=False)
+        assert stopped["status"] == "ok", stopped
 
     assert not (debug_dir / "session.json").exists()
     assert not (debug_dir / "ping.pid").exists()

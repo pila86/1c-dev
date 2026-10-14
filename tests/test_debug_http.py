@@ -85,6 +85,24 @@ def test_build_attach_and_breakpoints_xml() -> None:
     assert PROPERTY_ID_COMMON_MODULE in bp_xml
     assert "<line>5</line>" in bp_xml
     assert "bpWorkspace" in bp_xml
+    assert ">ConfigModule</" in bp_xml
+
+
+def test_build_set_breakpoints_extension_module_type() -> None:
+    """Модуль расширения: type=ExtensionModule (live 8.3.25), основной — ConfigModule."""
+    ext_bp = BreakpointSpec(
+        object_id=SPIKE_OBJECT_ID,
+        property_id=PROPERTY_ID_COMMON_MODULE,
+        lines=(5,),
+        extension_name="DebugExt",
+    )
+    main_bp = BreakpointSpec(
+        object_id=SPIKE_OBJECT_ID, property_id=PROPERTY_ID_COMMON_MODULE, lines=(5,)
+    )
+    xml = xml_build.build_set_breakpoints(DEFAULT_ALIAS, "sid-1", [ext_bp, main_bp])
+    assert xml.count(">ExtensionModule</") == 1
+    assert xml.count(">ConfigModule</") == 1
+    assert ">DebugExt</" in xml
 
 
 def test_esc_xml_special() -> None:
@@ -541,3 +559,50 @@ def test_debug_spike_fixture_resolves_client_and_server_modules(tmp_path: Path) 
         refs["src/main/CommonModules/ОтладкаДемо/Ext/Module.bsl"].object_id
         != refs["src/main/CommonModules/ОтладкаСервер/Ext/Module.bsl"].object_id
     )
+
+
+def test_debug_spike_fixture_resolves_extension_modules(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Расширение DebugExt: путь src/cfe/… резолвится в расширение, а не в модуль main."""
+    import shutil
+
+    from adapters.debug_http import XmlObjectIdResolver
+
+    project = tmp_path / "spike"
+    shutil.copytree(
+        Path(__file__).resolve().parent / "fixtures" / "debug_spike",
+        project,
+        ignore=shutil.ignore_patterns("__pycache__", "run_http_debug.py"),
+    )
+    configuration = {
+        "id": "main",
+        "source": {"format": "xml", "path": "src/main"},
+        "extensions": [
+            {
+                "id": "debug_ext",
+                "name": "DebugExt",
+                "source": {"format": "xml", "path": "src/cfe/debug_ext"},
+            }
+        ],
+    }
+    resolver = XmlObjectIdResolver.from_configuration(project, configuration)
+    monkeypatch.chdir(project)
+
+    main = resolver.resolve_from_file("src/main/CommonModules/ОтладкаДемо/Ext/Module.bsl")
+    assert main.extension_name == ""
+    assert main.object_id == "b7e2c4a1-8f3d-4a6e-9c1b-2d5e8f0a3b6c"
+
+    # Тот же относительный layout, что и в main, но корень — расширение.
+    adopted_rel = "src/cfe/debug_ext/CommonModules/ОтладкаДемо/Ext/Module.bsl"
+    for path in (adopted_rel, project / adopted_rel):
+        adopted = resolver.resolve_from_file(path)
+        assert adopted.extension_name == "DebugExt", path
+        assert adopted.module_name == "ОтладкаДемо"
+        assert adopted.object_id != main.object_id
+
+    own = resolver.resolve_from_file(
+        "src/cfe/debug_ext/CommonModules/Расш_ОтладкаСервер/Ext/Module.bsl"
+    )
+    assert (own.extension_name, own.module_name) == ("DebugExt", "Расш_ОтладкаСервер")
+    assert own.module_type == "CommonModule"

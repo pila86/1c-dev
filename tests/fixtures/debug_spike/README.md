@@ -28,9 +28,34 @@
 | Справочник `Товары`, модуль объекта | `src/main/Catalogs/Товары/Ext/ObjectModule.bsl` | **4** | `ПередЗаписью`, реквизиты объекта |
 | `CommonModule.ОтладкаСервер` (Server, ServerCall) | `src/main/CommonModules/ОтладкаСервер/Ext/Module.bsl` | **10** | серверный общий модуль, `СерверныйРезультат` = 21/42 |
 
-Автотест: `tests/test_m6_acceptance.py` (маркер `integration`; нужны платформа 1С, `dbgs`, `DISPLAY`) —
+Автотест (основная конфигурация, клиент + сервер): `tests/test_m6_acceptance.py` (маркер `integration`; нужны платформа 1С, `dbgs`, `DISPLAY`) —
 `runtime start --debug` с 4 BP → `debug wait` → переменные/`eval` → `step-over` → `continue` ×3 → `runtime stop`
 (проверяет, что `session.json`, `ping.pid`, `server.pid` удалены).
+
+## Расширение `DebugExt` (M6, `src/cfe/debug_ext`)
+
+`configurations[main].extensions[debug_ext]` (name `DebugExt`, prefix `Расш_`); `build` грузит его
+в ту же файловую ИБ (`import:DebugExt`, `apply:DebugExt`).
+
+| Модуль | Файл | BP | Что проверяем |
+|--------|------|----|---------------|
+| `CommonModule.ОтладкаДемо` (адоптированный, клиент) | `src/cfe/debug_ext/CommonModules/ОтладкаДемо/Ext/Module.bsl` | **5** | перехватчик `&После("ВыполнитьДемо")`, `РасширениеСценарий` |
+| `CommonModule.Расш_ОтладкаСервер` (Server, ServerCall) | `src/cfe/debug_ext/CommonModules/Расш_ОтладкаСервер/Ext/Module.bsl` | **7** | серверный модуль расширения, `РасширениеРезультат` = 42 |
+
+Порядок остановок при `--bp` на оба модуля: ManagedApplicationModule → `ОтладкаДемо` (ext) →
+`Расш_ОтладкаСервер` (ext). Адоптированный модуль имеет **свой** uuid (`ExtendedConfigurationObject`
+указывает на основной `b7e2c4a1-…`); BP ставится по uuid расширения с типом `ExtensionModule`.
+
+```bash
+1c-dev runtime start --debug \
+  --bp src/cfe/debug_ext/CommonModules/ОтладкаДемо/Ext/Module.bsl:5 \
+  --bp src/cfe/debug_ext/CommonModules/Расш_ОтладкаСервер/Ext/Module.bsl:7
+1c-dev debug wait && 1c-dev debug variables && 1c-dev debug continue
+1c-dev runtime stop
+```
+
+Автотест расширения: `test_m6_acceptance_extension_cli` (весь сценарий через `CliRunner`,
+`runtime start --bp` → `debug wait`/`variables`/`eval`/`continue` → `runtime stop`).
 
 Для ручного `runtime start --debug` в `project.yaml` нужен `debug.port`.
 

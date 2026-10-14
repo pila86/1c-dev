@@ -11,6 +11,13 @@ configurations:
     format: xml
     path: src/main
   default: true
+  extensions:
+  - id: debug_ext
+    name: DebugExt
+    purpose: product
+    source:
+      format: xml
+      path: src/cfe/debug_ext
 runtimes:
 - id: main
   configuration: main
