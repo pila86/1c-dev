@@ -242,6 +242,8 @@
 		<ChildObjects>
 			<Language>Русский</Language>
 			<CommonModule>ОтладкаДемо</CommonModule>
+			<CommonModule>ОтладкаСервер</CommonModule>
+			<Catalog>Товары</Catalog>
 		</ChildObjects>
 	</Configuration>
 </MetaDataObject>

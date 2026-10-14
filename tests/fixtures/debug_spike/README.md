@@ -16,6 +16,24 @@
 | Linux / IDE | толстый клиент на **том же DISPLAY**, что IDE: на BP может «заморозить» весь GUI — смотри milestone / запускай CLI во внешнем терминале |
 | Alias file IB | `DefAlias` |
 
+## Серверные модули (M6, #140)
+
+Кроме клиентского `ManagedApplicationModule` и `ОтладкаДемо`, в фикстуре есть серверный код
+(файловая ИБ + толстый клиент: клиент и сервер — одна цель отладки, в стеке видны оба слоя).
+
+| Модуль | Файл | BP | Что проверяем |
+|--------|------|----|---------------|
+| ManagedApplicationModule (клиент) | `src/main/Ext/ManagedApplicationModule.bsl` | **4** | старт, переменные, `step-over` на строку 5 |
+| Справочник `Товары`, модуль менеджера | `src/main/Catalogs/Товары/Ext/ManagerModule.bsl` | **3** | серверный модуль менеджера |
+| Справочник `Товары`, модуль объекта | `src/main/Catalogs/Товары/Ext/ObjectModule.bsl` | **4** | `ПередЗаписью`, реквизиты объекта |
+| `CommonModule.ОтладкаСервер` (Server, ServerCall) | `src/main/CommonModules/ОтладкаСервер/Ext/Module.bsl` | **10** | серверный общий модуль, `СерверныйРезультат` = 21/42 |
+
+Автотест: `tests/test_m6_acceptance.py` (маркер `integration`; нужны платформа 1С, `dbgs`, `DISPLAY`) —
+`runtime start --debug` с 4 BP → `debug wait` → переменные/`eval` → `step-over` → `continue` ×3 → `runtime stop`
+(проверяет, что `session.json`, `ping.pid`, `server.pid` удалены).
+
+Для ручного `runtime start --debug` в `project.yaml` нужен `debug.port`.
+
 ```bash
 cp -r tests/fixtures/debug_spike /tmp/debug-spike && cd /tmp/debug-spike
 1c-dev build
