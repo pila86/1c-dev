@@ -499,3 +499,45 @@ def test_targets_list() -> None:
     targets = session.targets()
     assert targets[0].target_id == SPIKE_TARGET
     session.detach()
+
+
+def test_debug_spike_fixture_resolves_client_and_server_modules(tmp_path: Path) -> None:
+    """Фикстура debug_spike: клиентские и серверные модули резолвятся в objectID/propertyID."""
+    import shutil
+
+    from adapters.debug_http import XmlObjectIdResolver
+    from adapters.debug_http.resolve import property_id_for_module_type
+
+    project = tmp_path / "spike"
+    shutil.copytree(
+        Path(__file__).resolve().parent / "fixtures" / "debug_spike",
+        project,
+        ignore=shutil.ignore_patterns("__pycache__", "run_http_debug.py"),
+    )
+    resolver = XmlObjectIdResolver.from_configuration(
+        project, {"id": "main", "source": {"format": "xml", "path": "src/main"}}
+    )
+    expected = {
+        "src/main/Ext/ManagedApplicationModule.bsl": ("DebugSpike", "ManagedApplicationModule"),
+        "src/main/CommonModules/ОтладкаДемо/Ext/Module.bsl": ("ОтладкаДемо", "CommonModule"),
+        "src/main/CommonModules/ОтладкаСервер/Ext/Module.bsl": ("ОтладкаСервер", "CommonModule"),
+        "src/main/Catalogs/Товары/Ext/ObjectModule.bsl": ("Товары", "ObjectModule"),
+        "src/main/Catalogs/Товары/Ext/ManagerModule.bsl": ("Товары", "ManagerModule"),
+    }
+    refs = {}
+    for rel, (name, mtype) in expected.items():
+        ref = resolver.resolve_from_file(rel)
+        assert (ref.module_name, ref.module_type) == (name, mtype), rel
+        assert ref.object_id
+        assert ref.property_id == property_id_for_module_type(mtype), rel
+        refs[rel] = ref
+    # Один объект справочника — разные propertyID у модулей объекта и менеджера.
+    obj = refs["src/main/Catalogs/Товары/Ext/ObjectModule.bsl"]
+    mgr = refs["src/main/Catalogs/Товары/Ext/ManagerModule.bsl"]
+    assert obj.object_id == mgr.object_id
+    assert obj.property_id != mgr.property_id
+    # Серверный и клиентский общие модули — разные объекты.
+    assert (
+        refs["src/main/CommonModules/ОтладкаДемо/Ext/Module.bsl"].object_id
+        != refs["src/main/CommonModules/ОтладкаСервер/Ext/Module.bsl"].object_id
+    )
