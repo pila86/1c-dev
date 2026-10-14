@@ -243,6 +243,14 @@ MCP: те же `diagnostics[]` в JSON; exit codes CLI на MCP не маппя�
   event queue, session. Attribution MIT 1c-debug-mcp при reuse идей; **своя** реализация.
 - Resolve: `moduleName` + `moduleType` + optional `extensionName` → `objectID` (+ `propertyID`).
   Для расширений `extensionName` обязателен при неоднозначности.
+- Модули расширений (live 8.3.25, фикстура `debug_spike`/`DebugExt`): в `setBreakpoints`
+  `moduleBPInfo/id/type` = **`ExtensionModule`** (не `ConfigModule`) + `extensionName` +
+  `objectID` собственного/адоптированного объекта расширения (uuid из XML расширения, не
+  `ExtendedConfigurationObject`). С `ConfigModule` и любым `extensionName` точка молча
+  не срабатывает. Кадры стека расширения приходят без имени расширения — `extensionName`
+  добавляется обратным поиском по индексу (`stack[].extensionName`).
+  Путь `src/cfe/<ext>/…/Module.bsl` резолвится в корень расширения, даже если такой же
+  относительный путь есть в основной конфигурации.
 - Также (#145): путь к `.bsl` (`Catalogs/X/Ext/ObjectModule.bsl` → uuid из `Catalogs/X.xml` +
   `propertyID` по виду модуля) и escape `--object-id`/`--property-id`. CLI: `--file` и
   `--module` взаимоисключающие. Index расширен ObjectModule/ManagerModule/FormModule/RecordSetModule.

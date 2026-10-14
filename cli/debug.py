@@ -153,7 +153,9 @@ def _result_text(result: DebugResult) -> list[str]:
         for frame in result.call_stack[:20]:
             name = frame.get("moduleName") or frame.get("objectId", "")
             mtype = frame.get("moduleType") or ""
-            suffix = f" [{mtype}]" if mtype else ""
+            ext = frame.get("extensionName") or ""
+            parts = [p for p in (mtype, f"ext={ext}" if ext else "") if p]
+            suffix = f" [{', '.join(parts)}]" if parts else ""
             lines.append(f"  - {name}:{frame.get('lineNo', '')}{suffix}")
     if result.variables:
         lines.append(f"variables: {len(result.variables)}")

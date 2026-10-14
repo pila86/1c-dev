@@ -83,8 +83,10 @@ def _module_bp_xml(spec: BreakpointSpec) -> str:
         for ln in spec.lines
     )
     ext = esc(spec.extension_name)
+    # live-проверка 8.3.25: модуль расширения получает точку только с type=ExtensionModule
+    module_type = "ExtensionModule" if spec.extension_name else "ConfigModule"
     module_id = (
-        f'<type xmlns="{NS_BD}">ConfigModule</type>'
+        f'<type xmlns="{NS_BD}">{module_type}</type>'
         f'<URL xmlns="{NS_BD}"></URL>'
         f'<extensionName xmlns="{NS_BD}">{ext}</extensionName>'
         f'<objectID xmlns="{NS_BD}">{esc(spec.object_id)}</objectID>'

@@ -319,6 +319,7 @@ def serialize_last_stop(stop: Any) -> dict[str, Any] | None:
                 "lineNo": int(getattr(frame, "line_no", 0) or 0),
                 "moduleName": getattr(frame, "module_name", "") or "",
                 "moduleType": getattr(frame, "module_type", "") or "",
+                "extensionName": getattr(frame, "extension_name", "") or "",
             }
         )
     return {

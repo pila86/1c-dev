@@ -338,6 +338,7 @@ def _apply_stored_runtime(session: DebugSession, stored: dict[str, Any]) -> None
                     line_no=int(fr.get("lineNo") or 0),
                     module_name=str(fr.get("moduleName") or ""),
                     module_type=str(fr.get("moduleType") or ""),
+                    extension_name=str(fr.get("extensionName") or ""),
                 )
             )
     target_id = str(raw_stop.get("targetId") or "")
@@ -367,6 +368,9 @@ def _frames_payload(frames: Sequence[Any]) -> list[dict[str, Any]]:
         module_type = getattr(frame, "module_type", "") or ""
         if module_type:
             item["moduleType"] = module_type
+        extension_name = getattr(frame, "extension_name", "") or ""
+        if extension_name:
+            item["extensionName"] = extension_name
         out.append(item)
     return out
 

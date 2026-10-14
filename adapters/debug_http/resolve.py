@@ -276,8 +276,12 @@ class XmlObjectIdResolver:
             cwd_file = (Path.cwd() / path).resolve()
             if cwd_file.is_file():
                 _add_abs_file(cwd_file)
+            # path starts with the tail of an indexed root (``src/cfe/ext/...``): that root only
+            anchored = [] if candidates else self._anchored_candidates(raw, roots_meta)
+            for rel, root_ext in anchored:
+                _add_rel(rel, root_ext)
             # under each indexed source root
-            for meta in roots_meta:
+            for meta in () if (candidates or anchored) else roots_meta:
                 if not isinstance(meta, dict):
                     continue
                 root_s = str(meta.get("path") or "")
@@ -297,7 +301,9 @@ class XmlObjectIdResolver:
                         _add_abs_file(candidate)
                     _add_rel(suffix, root_ext)
             # plain source-relative string (even if file not checked yet)
-            if ext:
+            if candidates:
+                pass
+            elif ext:
                 _add_rel(raw, ext)
             else:
                 _add_rel(raw, "")
@@ -394,6 +400,41 @@ class XmlObjectIdResolver:
             module_type=hit.module_type,
             extension_name=hit.extension_name,
         )
+
+    @staticmethod
+    def _anchored_candidates(
+        raw: str, roots_meta: Sequence[Any]
+    ) -> list[tuple[str, str]]:
+        """Roots whose trailing path components prefix ``raw`` (longest match wins).
+
+        ``src/cfe/ext/CommonModules/X/Ext/Module.bsl`` is anchored to the extension
+        root ``…/src/cfe/ext`` even though the same relative layout exists in ``src/main``.
+        """
+        parts = Path(raw).parts
+        best = 0
+        found: list[tuple[str, str]] = []
+        for meta in roots_meta:
+            if not isinstance(meta, dict):
+                continue
+            root_s = str(meta.get("path") or "")
+            if not root_s:
+                continue
+            root_parts = Path(root_s).parts
+            limit = min(len(parts) - 1, len(root_parts))
+            for n in range(limit, 0, -1):
+                if tuple(parts[:n]) != tuple(root_parts[-n:]):
+                    continue
+                if n < best:
+                    break
+                rel = "/".join(parts[n:])
+                if not (Path(root_s) / rel).is_file():
+                    continue
+                if n > best:
+                    best = n
+                    found = []
+                found.append((rel, str(meta.get("extensionName") or "")))
+                break
+        return found
 
     def _resolve_path_via_layout(
         self,

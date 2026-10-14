@@ -47,6 +47,7 @@ class StackFrame:
     line_no: int
     module_name: str = ""
     module_type: str = ""
+    extension_name: str = ""  # пусто — основная конфигурация
 
 
 @dataclass(frozen=True)

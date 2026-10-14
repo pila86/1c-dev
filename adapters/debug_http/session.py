@@ -248,7 +248,7 @@ class DebugSession:
             return tuple(frames)
         enriched: list[StackFrame] = []
         for frame in frames:
-            if frame.module_name and frame.module_type:
+            if frame.module_name and frame.module_type and frame.extension_name:
                 enriched.append(frame)
                 continue
             hits = find_by_ids(frame.object_id, frame.property_id)
@@ -262,6 +262,8 @@ class DebugSession:
                     line_no=frame.line_no,
                     module_name=frame.module_name or (hit.module_name if hit else ""),
                     module_type=frame.module_type or (hit.module_type if hit else ""),
+                    extension_name=frame.extension_name
+                    or (hit.extension_name if hit else ""),
                 )
             )
         return tuple(enriched)
