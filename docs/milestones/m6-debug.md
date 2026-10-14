@@ -82,8 +82,8 @@ Paths к CF/CFE **не** дублировать: брать из `configurations
 | Сессия | `debug attach` / `detach` / `force-detach` | `debug.attach` / `debug.detach` / `debug.forceDetach` | session |
 | Цели | `debug targets` | `debug.targets` | list targets + metadata ready |
 | Breakpoints | `debug breakpoint set\|clear` | `debug.breakpoint` / `debug.clearBreakpoints` | set by moduleName / `--file` path / clear |
-| Ожидание | `debug wait [--timeout]` | `debug.wait` | wait_for_stop |
-| Управление | `debug continue\|step-in\|step-out\|pause` | `debug.continue` / `debug.stepIn` / `debug.stepOut` / `debug.pause` | step actions |
+| Ожидание | `debug wait [--timeout] [--fresh]` | `debug.wait` | по состоянию: мгновенно, если stop уже записан; `1CD016` при выходе клиента |
+| Управление | `debug continue\|step-over\|step-out\|pause` | `debug.continue` / `debug.stepOver` / `debug.stepOut` / `debug.pause` | `continue` — поддерживается; **step-in/over/out, pause — experimental** |
 | Инспекция | `debug stack` / `variables` / `eval <expr>` | `debug.stack` / `debug.variables` / `debug.evaluate` | from last stop / targetId |
 | Состояние | `debug status` | `debug.status` | session + targets + last stop summary |
 | Метаданные index | `debug reload-metadata` | `debug.reloadMetadata` | rebuild UUID↔module cache |
@@ -111,7 +111,7 @@ PRD §28 (`debug.start` / `debug.stop`) мапится так: **start** = serve
 
 ### Should (не блокеры acceptance)
 
-- `debug.stepOver` (если протокол/адаптер стабильно даёт StepOver)
+- `debug.stepIn` стабильный (сейчас known broken → `1CD005` в common module; prefer `step-over`)
 - `ide configure`: фрагмент launch.json для onec-debug-adapter / bsl-debug-server
 - `raw_request` (отладка протокола)
 - Doctor capability `debug.http` (dbgs найден, port слушает) — soft gap
@@ -209,7 +209,8 @@ build (ИБ актуальна)
 ### Should
 
 - [ ] `ide configure`: launch.json под внешний DAP-adapter (путь/версия — discovery или docs)
-- [ ] `debug.stepOver` если подтверждён протоколом
+- [x] `debug.stepOver` (CLI `step-over`, platform `Step`) — [#140](https://github.com/pila86/1c-dev/issues/140)
+- [ ] `debug.stepIn` / `stepOver` / `stepOut` / `pause` стабильны (сейчас experimental; ping-контракт исправлен, live acceptance не пройден)
 - [ ] Password через env; не писать секреты в манифест по умолчанию
 - [x] Кэш module index с инвалидацией (mtime) — [#139](https://github.com/pila86/1c-dev/issues/139)
 - [x] `breakpoint set --file` / `--object-id`+`--property-id` (escape) — [#145](https://github.com/pila86/1c-dev/issues/145)
@@ -243,6 +244,7 @@ build (ИБ актуальна)
 | Нет активной сессии | `1CD003` | 4 |
 | Модуль / objectID не резолвится | `1CD004` | 2 или 4 |
 | Timeout wait | `1CD005` | 4 |
+| Клиент завершился без остановки | `1CD016` | 4 |
 | Target не в stopped | `1CD006` | 4 |
 | Клиент без `/Debug` / нет targets | `1CD007` | 4 |
 | Project / manifest | reuse `1CR002` / project codes | 2 |
@@ -250,20 +252,25 @@ build (ИБ актуальна)
 ## Manual verification
 
 ```bash
-# проект с XML source + file IB после build
-1c-dev debug server start --output json
-1c-dev runtime start --debug --output json
-1c-dev debug attach --output json
-1c-dev debug breakpoint set --module ОбщегоНазначения --type CommonModule --lines 42 --output json
-# или по пути к .bsl (ObjectModule / ПриЗаписи справочника):
-1c-dev debug breakpoint set --file Catalogs/Товары/Ext/ObjectModule.bsl --lines 4 --output json
-# выполнить действие в клиенте, попадающее на строку
-1c-dev debug wait --timeout 60000 --output json
+# Сценарий: runtime start с breakpoints → смотрим переменные → continue → stop.
+# Лучше во *внешнем* терминале (не integrated): толстый 1cv8 на том же DISPLAY
+# что IDE на BP может подвиснуть весь GUI до continue / выхода клиента.
+1c-dev runtime start --debug \
+  --bp src/main/Ext/ManagedApplicationModule.bsl:4 \
+  --bp 'src/main/CommonModules/ОтладкаДемо/Ext/Module.bsl:8' \
+  --output json                      # не ждёт остановку: dbgs → attach → BP → spawn → arm
+1c-dev debug wait --timeout 30 --output json      # сразу вернётся, если уже стоим на BP
+1c-dev debug stack --output json
 1c-dev debug variables --output json
-1c-dev debug eval 'Строка(ТекущаяДата())' --output json
-1c-dev debug continue --output json
-1c-dev debug detach --output json
-1c-dev debug server stop --output json
+1c-dev debug eval 'Строка(ИмяСценария)' --output json
+1c-dev debug continue --output json               # ждёт следующий BP
+1c-dev debug variables --output json
+1c-dev debug continue --no-wait --output json     # последний continue
+1c-dev runtime stop --output json                 # клиент + демон + detach + наш dbgs
+
+# пошаговый вариант (без --bp):
+# 1c-dev debug server start → attach → breakpoint set --file … → runtime start --debug → wait …
+# step-in/over/out, pause — experimental (могут не работать).
 # MCP: тот же сценарий через debug.*
 ```
 

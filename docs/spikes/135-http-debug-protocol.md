@@ -119,7 +119,33 @@ Namespaces (MIT-референс [1c-debug-mcp](https://github.com/liga-1c-comma
 6. `callStackFormed` → stop. В стеке несколько кадров; **текущий** = последний `objectID`/`lineNo`.
 7. Eval / step / `detachDebugUI`.
 
-Fixture: busy-wait ~10 с в `ПриНачалеРаботыСистемы`, чтобы успеть attach+BP до вызова модуля.
+Fixture: без busy-wait в `ПриНачалеРаботыСистемы` — BP до spawn + poll targets
+(`runtime start --debug --bp`). ApplicationModule BP: строка вызова `ВыполнитьДемо`.
+
+### 5a. `pingDebugUIParams` — long-poll (замер, рефакторинг M6)
+
+Сырой замер на 8.3.25.1560, один читатель ping, клиент остановлен на BP:
+
+| Ситуация | Результат |
+|----------|-----------|
+| Ping без событий | HTTP **204**, пустое тело, ответ приходит через **≈5.0 s** (сервер держит запрос) |
+| `step` (`Step` / `StepIn`) | HTTP 200, в теле `<state>Worked</state>`; следом ping отдаёт событие (смена state), через ≈1 s второй ping — `callStackFormed` |
+| Ping с client timeout 2 s | Запрос обрывается клиентом **до** ответа сервера |
+
+Вывод: события в ping отдаются **один раз** и привязаны к конкретному запросу. Ping с
+client timeout короче серверного long-poll (5 s) — это (а) постоянные «таймауты» на
+простое и (б) **потеря событий**: сервер уже снял событие из очереди и отдал его в
+закрытое соединение. Прежний `ping_worker` / in-process ping использовали timeout 2 s и
+считали такие таймауты ошибками (после 20 подряд воркер завершался), параллельно с
+`HotDebugArm` читал ping второй читатель.
+
+Контракт нового механизма:
+
+- ping-запрос с timeout **≥ 10 s** (> 5 s long-poll); таймаут не считается ошибкой;
+- единственный читатель ping — фоновый демон (`core.debug.ping_worker`);
+- attach target (`attachDetachDbgTargets` + `setBreakpoints`) делает демон один раз на
+  target; повторный attach **остановленного** target ломает step (проверено на StepIn);
+- CLI-команды ping не вызывают, а читают `lastStop` / `attachedTargets` из `session.json`.
 
 ### propertyID (канон типов модулей)
 

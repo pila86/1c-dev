@@ -90,8 +90,8 @@ Bump major schema **не** нужен (только optional). Валидаци�
 | Сессия | `debug attach` / `detach` / `force-detach` | `debug.attach` / `debug.detach` / `debug.forceDetach` | session |
 | Цели | `debug targets` | `debug.targets` | list + metadata ready |
 | Breakpoints | `debug breakpoint set\|clear` | `debug.breakpoint` / `debug.clearBreakpoints` | moduleName / `--file` / ids |
-| Ожидание | `debug wait [--timeout]` | `debug.wait` | wait_for_stop |
-| Управление | `debug continue` / `step-in` / `step-out` / `pause` | `debug.continue` / `debug.stepIn` / `debug.stepOut` / `debug.pause` | step |
+| Ожидание | `debug wait [--timeout] [--fresh]` | `debug.wait` | wait_for_stop |
+| Управление | `debug continue` / `step-over` / `step-out` / `pause` (+ `step-in` ⚠) | `debug.continue` / `debug.stepOver` / `debug.stepOut` / `debug.pause` | step + wait next stop (CLI `--no-wait` opt-out); over = platform `Step`; **`step-in` — known broken** |
 | Инспекция | `debug stack` / `variables` / `eval <expr>` | `debug.stack` / `debug.variables` / `debug.evaluate` | last stop / targetId |
 | Состояние | `debug status` | `debug.status` | session + targets + last stop |
 | Index | `debug reload-metadata` | `debug.reloadMetadata` | rebuild UUID↔module cache |
@@ -112,7 +112,7 @@ Silent auto-`runtime.start` внутри каждого `debug.*` — **запр
 - Payload: structured JSON (`status`, `diagnostics[]`, `duration`, поля результата).
 - Timeout wait без stop → `status: failed` + `1CD005`.
 
-**Should (не blockers acceptance):** `debug.stepOver`; `raw_request` (opt-in, default off в MCP
+**Should (не blockers acceptance):** `raw_request` (opt-in, default off в MCP
 descriptions); `ide configure` → launch.json; doctor soft `debug.http`; password via env.
 
 **Не must:** EPF breakpoints (ограничение протокола 1С) — документировать `pause` + step.
@@ -140,12 +140,38 @@ Project-scoped (не per-runtime) каталог debug-сервера и сес�
 - Client pid/meta остаются per-runtime (ADR-019 / ADR-026).
 - Module index — под `.1c-dev/debug/` (не рядом с `src/`), чтобы не засорять source tree.
 
-### 5. Ping: in-process
+### 5. Ping: единственный читатель — демон
 
-Ping loop (`pingDebugUIParams`, ~**500 ms**) — **в том же процессе**, что CLI/MCP tool call
-(background task / thread), как у liga 1c-debug-mcp.
+`pingDebugUIParams` — серверный **long-poll (~5 с)**; событие отдаётся **один раз** на
+запрос (замеры: spike #135 §5a). Отсюда контракт (рефакторинг M6):
 
-Отдельный helper-process для ping — **отвергнут** (лишний lifecycle; stdio MCP держит процесс).
+1. **Один читатель ping.** Клиентский timeout ping **> 5 с** (`PING_HTTP_TIMEOUT_SEC` = 12 с);
+   таймаут запроса — не ошибка. Два читателя / короткий timeout / пауза между
+   запросами теряют `targetStarted` / `callStackFormed`.
+2. **Читатель — демон** (`python -m core.debug.ping_worker`, `.1c-dev/debug/ping.pid`).
+   Он же единственный владелец attach: `attachDetachDbgTargets` один раз на target +
+   `setBreakpoints` из `session.json`; новые targets ловит по `targetStarted` и
+   периодическим `getDbgAllTargetStates`. **Force re-attach запрещён** (ломает
+   stopped target).
+3. **CLI/MCP-команды не пингуют** — читают `session.json` (запись под `flock`,
+   атомарная замена). Демон пишет `lastStop`, `attachedTargets`, `lastTargetId`.
+4. **Один способ остановить всё:** `runtime stop` → клиент → демон → `detachDebugUI`
+   → `dbgs` (только если запустили мы, есть `server.pid`) → `.1c-dev/debug`.
+   Идемпотентно; ошибки teardown — warning.
+
+Демон автозапускается с `attach` / `runtime start --debug --bp`; вручную:
+`1c-dev debug ping start|stop|status`.
+
+**`debug wait` — по состоянию:** если `lastStop` уже записан — возвращает сразу;
+`--fresh` сбрасывает его. Если клиент (pid из `runtime start`) завершился без
+остановки — быстрый отказ `1CD016`. Иначе поллинг диска до `--timeout` (`1CD005`).
+`continue` по умолчанию ждёт следующую остановку; если клиент завершился (программа
+отработала) — результат `ok` с warning `1CD016`.
+
+**Experimental:** `step-in` / `step-over` / `step-out` / `pause` помечены
+`[EXPERIMENTAL / НЕ РАБОТАЕТ]` в help, результат содержит warning. Причина сбоев
+(короткий ping timeout и несколько читателей) устранена, но acceptance шагов не
+пройден — статус снимается только отдельным live-прогоном. Auto-arm callee BP удалён.
 
 ### 6. Связь с `runtime.start --debug`
 
@@ -162,6 +188,18 @@ Spike: argv только `/Debug` **недостаточен** для HTTP `dbgs
 | Явный CLI/MCP override | 1 |
 | Живой `debug.server` (state / status) | 2 |
 | Манифест `debug.host` + `debug.port` | 3 |
+
+**Упрощённый UX:** `runtime start --debug --bp path/to.bsl:line[,line…]` (повторяемый):
+
+```text
+ensure dbgs → attach (демон) → setBreakpoints
+  → сброс stale lastStop/targets → spawn 1cv8 --debug
+  → poll session.json: демон прикрепил target (+ BP) → вернуть управление
+```
+
+`runtime start` **не ждёт остановку** (флаги `--wait` / `--wait-timeout` удалены):
+дальше `debug wait` → `debug variables|eval` → `debug continue` → `runtime stop`.
+`--bp` без `--debug` — ошибка проекта.
 
 `debug.attach` ожидает живой `dbgs` и клиент, зарегистрированный на нём. Meta
 `debug.enabled` дополняется фактом HTTP-attach (например `debuggerUrl` в `client.meta.json`).
@@ -191,6 +229,7 @@ Discovery `dbgs`: sibling рядом с `1cv8`/`ibcmd` (паттерн ADR-005);
 | Timeout `wait` | `1CD005` | `RUNTIME_FAILURE` (4) |
 | Target не в stopped | `1CD006` | `RUNTIME_FAILURE` (4) |
 | Клиент без HTTP `/Debug` / нет targets | `1CD007` | `RUNTIME_FAILURE` (4) |
+| Клиент завершился без остановки (`wait`) | `1CD016` | `RUNTIME_FAILURE` (4) |
 | Project / manifest | reuse `1CR002` / project codes | `PROJECT_ERROR` (2) |
 
 Сессия и окружение отладки → **4**; нет бинаря `dbgs` → **3**; ошибки проекта/манифеста → **2**.
@@ -209,7 +248,7 @@ MCP: те же `diagnostics[]` в JSON; exit codes CLI на MCP не маппя�
   `--module` взаимоисключающие. Index расширен ObjectModule/ManagerModule/FormModule/RecordSetModule.
 - BP только на **исполняемых** строках; голый комментарий не ловит (spike).
 - Стек: текущий кадр = **последний** (leaf) в `callStackFormed`.
-- Eval на 8.3.25: результат **синхронно** в теле POST (не ждать `exprEvaluated` в ping).
+- Eval на 8.3.25: результат либо в теле POST (~0.1 с), либо — если на `dbgs` припаркован ping-long-poll (всегда при демоне) — приходит событием `exprEvaluated` в ping (~5 с). Демон сохраняет такое тело в `.1c-dev/debug/eval/<expressionResultID>.xml`, `eval`/`variables` при пустом теле POST ждут этот файл (`EVAL_ASYNC_WAIT_SEC`).
 
 ## Альтернативы
 
