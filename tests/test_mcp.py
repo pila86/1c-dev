@@ -12,6 +12,7 @@ from adapters.source.xmlgen import EditOp
 from cli.main import app
 from core.build import BuildResult
 from core.check import CheckResult
+from core.debug import DEFAULT_WAIT_TIMEOUT_SEC, DebugResult
 from core.metadata import MetadataResult
 from core.metadata.types import WRITE_OBJECT_TYPES_HELP, WRITE_OBJECT_TYPES_SORTED
 from core.project import ProjectResult
@@ -60,7 +61,29 @@ EXPECTED_TOOLS = {
     "test.run",
     "test.runOne",
     "test.report",
+    "debug.server.start",
+    "debug.server.stop",
+    "debug.server.status",
+    "debug.attach",
+    "debug.detach",
+    "debug.forceDetach",
+    "debug.targets",
+    "debug.breakpoint",
+    "debug.clearBreakpoints",
+    "debug.wait",
+    "debug.continue",
+    "debug.stepIn",
+    "debug.stepOver",
+    "debug.stepOut",
+    "debug.pause",
+    "debug.stack",
+    "debug.variables",
+    "debug.evaluate",
+    "debug.status",
+    "debug.reloadMetadata",
 }
+
+EXPECTED_DEBUG_TOOLS = {name for name in EXPECTED_TOOLS if name.startswith("debug.")}
 
 
 def _call(name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -94,6 +117,19 @@ def test_registered_tools() -> None:
     for tool in tools:
         desc = tool.description or ""
         assert "Do not use shell" in desc or "shell" in desc.lower()
+
+
+def test_debug_tools_descriptions() -> None:
+    """#141: debug.* forbid shell and warn about stateful session."""
+    server = create_server()
+    tools = {t.name: t for t in asyncio.run(server.list_tools())}
+    assert EXPECTED_DEBUG_TOOLS <= set(tools)
+    assert len(EXPECTED_DEBUG_TOOLS) == 20
+    for name in EXPECTED_DEBUG_TOOLS:
+        desc = tools[name].description or ""
+        assert "Do not use shell" in desc
+        assert "stateful" in desc.lower() or "session.json" in desc
+        assert "forceDetach" in desc or "forceDetach" in name
 
 
 def test_metadata_write_tools_surface_all_types() -> None:
@@ -721,6 +757,123 @@ def test_test_api_mocked(tmp_path: Path, monkeypatch: Any) -> None:
     assert report_payload["status"] == "passed"
     assert report_payload["source"] == "report"
     assert report_payload["reportPath"] == ".1c-dev/test/junit.xml"
+
+
+def test_debug_api_mocked(tmp_path: Path, monkeypatch: Any) -> None:
+    """#141: debug.* thin wrappers forward args to core.debug."""
+    target = tmp_path / "shop"
+    target.mkdir()
+
+    def fake_attach(
+        start: Path | None = None,
+        *,
+        url: str | None = None,
+        password: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+        **kwargs: Any,
+    ) -> DebugResult:
+        assert start == target.resolve()
+        assert url == "http://127.0.0.1:1550"
+        assert password == "secret"
+        assert config_id == "main"
+        assert runtime_id == "dev"
+        return DebugResult(
+            status="ok",
+            root=start,
+            config_id=config_id,
+            runtime_id=runtime_id,
+            url=url,
+            session_id="sess-1",
+            attached=True,
+            exit_code=0,
+        )
+
+    def fake_wait(
+        start: Path | None = None,
+        *,
+        timeout: float = DEFAULT_WAIT_TIMEOUT_SEC,
+        fresh: bool = False,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+        **kwargs: Any,
+    ) -> DebugResult:
+        assert start == target.resolve()
+        assert timeout == 12.5
+        assert fresh is True
+        assert config_id == "main"
+        return DebugResult(
+            status="ok",
+            root=start,
+            config_id=config_id,
+            target_id="t1",
+            module_name="CommonModule.X",
+            line_no=10,
+            exit_code=0,
+        )
+
+    def fake_breakpoint_set(
+        start: Path | None = None,
+        *,
+        module: str | None = None,
+        module_type: str = "CommonModule",
+        lines: Any = (),
+        file: str | Path | None = None,
+        **kwargs: Any,
+    ) -> DebugResult:
+        assert start == target.resolve()
+        assert module == "ОбщегоНазначения"
+        assert module_type == "CommonModule"
+        assert list(lines) == [10, 20]
+        assert file is None
+        return DebugResult(
+            status="ok",
+            root=start,
+            breakpoints=[{"module": module, "lines": list(lines)}],
+            exit_code=0,
+        )
+
+    monkeypatch.setattr("mcp_server.tools.run_attach", fake_attach)
+    monkeypatch.setattr("mcp_server.tools.run_wait", fake_wait)
+    monkeypatch.setattr("mcp_server.tools.run_breakpoint_set", fake_breakpoint_set)
+
+    attach_payload = _call(
+        "debug.attach",
+        {
+            "path": str(target),
+            "url": "http://127.0.0.1:1550",
+            "password": "secret",
+            "config_id": "main",
+            "runtime_id": "dev",
+        },
+    )
+    assert attach_payload["status"] == "ok"
+    assert attach_payload["sessionId"] == "sess-1"
+    assert attach_payload["attached"] is True
+
+    wait_payload = _call(
+        "debug.wait",
+        {
+            "path": str(target),
+            "timeout": 12.5,
+            "fresh": True,
+            "config_id": "main",
+        },
+    )
+    assert wait_payload["status"] == "ok"
+    assert wait_payload["targetId"] == "t1"
+    assert wait_payload["lineNo"] == 10
+
+    bp_payload = _call(
+        "debug.breakpoint",
+        {
+            "path": str(target),
+            "module": "ОбщегоНазначения",
+            "lines": "10,20",
+        },
+    )
+    assert bp_payload["status"] == "ok"
+    assert bp_payload["breakpoints"][0]["lines"] == [10, 20]
 
 
 def test_project_init_mocked(tmp_path: Path, monkeypatch: Any) -> None:
