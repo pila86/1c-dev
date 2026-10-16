@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from adapters.debug_http import (
     TransportFn,
 )
 from adapters.platform_1cv8 import IsRunningFn, TerminateFn
+from core.debug.common import resolve_debug_password
 from core.debug.context import DebugContext
 from core.debug.ping import (
     stop_background_ping,
@@ -43,7 +43,7 @@ def run_server_start(
     )
     if isinstance(ctx, DebugResult):
         return ctx
-    pwd = password if password is not None else os.environ.get("ONEC_DEBUG_PASSWORD")
+    pwd = resolve_debug_password(password)
     return server_start(
         ctx.root,
         ctx.data,

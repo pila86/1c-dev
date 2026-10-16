@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -43,6 +44,25 @@ from core.project.resolve import ResolvedTarget, resolve_config_runtime
 from core.runtime.state import read_meta
 
 SessionFactory = Callable[..., DebugSession]
+
+#: Password for ``dbgs`` / ``attachDebugUI`` lives only in the environment (ADR-031):
+#: the manifest schema rejects ``debug.password`` so it can never reach git.
+PASSWORD_ENV = "ONEC_DEBUG_PASSWORD"
+MASK = "***"
+
+
+def resolve_debug_password(explicit: str | None = None) -> str:
+    """Explicit value (even empty) wins; otherwise ``ONEC_DEBUG_PASSWORD``; else ``""``."""
+    if explicit is not None:
+        return explicit
+    return os.environ.get(PASSWORD_ENV, "")
+
+
+def mask_secret(text: str, secret: str | None) -> str:
+    """Replace every occurrence of ``secret`` in ``text`` with ``***``."""
+    if not secret:
+        return text
+    return text.replace(secret, MASK)
 
 
 def fail_result(

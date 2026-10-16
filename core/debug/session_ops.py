@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import time
 from pathlib import Path
 from typing import Any
@@ -20,6 +19,7 @@ from core.debug.common import (
     SessionFactory,
     client_debug_hint,
     make_resolver,
+    resolve_debug_password,
     restore_session,
     session_url,
 )
@@ -101,10 +101,10 @@ def run_attach(
         resolver=make_resolver(root, ctx.target),
         auto_attach_types=types,
     )
-    pwd = password if password is not None else os.environ.get("ONEC_DEBUG_PASSWORD", "")
+    pwd = resolve_debug_password(password)
     try:
         # CLI process exits immediately — do not start ping only to join(2s) on stop.
-        attach = session.attach(password=pwd or "", start_ping=False)
+        attach = session.attach(password=pwd, start_ping=False)
     except DebugHttpError as exc:
         return ctx.adapter_error(exc)
 

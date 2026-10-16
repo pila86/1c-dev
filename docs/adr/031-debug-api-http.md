@@ -68,7 +68,7 @@ debug:
   port: 2550               # обязателен при старте dbgs нами; default 1550 НЕ задаём
   infobaseAlias: DefAlias  # file IB: DefAlias (неизменяемый)
   autoAttachTypes: [Client, ManagedClient, Server, ServerEmulation]
-  # password: не в git; env ONEC_DEBUG_PASSWORD (should)
+  # password в манифесте запрещён (schema); только env ONEC_DEBUG_PASSWORD — см. §2a
 ```
 
 | Поле | Обязательно | Смысл |
@@ -79,6 +79,19 @@ debug:
 | `autoAttachTypes` | нет | Типы auto-attach (канон платформы / onec-debug-adapter) |
 
 Bump major schema **не** нужен (только optional). Валидация полей — [#137](https://github.com/pila86/1c-dev/issues/137).
+
+### 2a. Пароль dbgs
+
+- Пароль задаётся **только** через env `ONEC_DEBUG_PASSWORD`; `debug.password` в манифесте
+  schema отвергает (секрет не попадает в git). Явный аргумент функции `password=...`
+  (в т.ч. пустая строка) важнее env.
+- Единая точка чтения — `core.debug.common.resolve_debug_password`; используется в
+  `debug server start` (`dbgs --password=…`) и `debug attach` (`<credentials>` в `attachDebugUI`).
+- Пароль **не** пишется в `session.json`, `server.meta.json`, payload результата и логи;
+  в сообщениях ошибок запуска `dbgs` маскируется (`mask_secret` → `***`).
+- Известное ограничение платформы: `dbgs` принимает пароль только аргументом
+  `--password=…`, поэтому он виден в `ps` локальным пользователям той же машины.
+  Для локальной отладки file IB пароль обычно не нужен.
 
 ### 3. Операции API (must)
 
@@ -113,7 +126,7 @@ Silent auto-`runtime.start` внутри каждого `debug.*` — **запр
 - Timeout wait без stop → `status: failed` + `1CD005`.
 
 **Should (не blockers acceptance):** `raw_request` (opt-in, default off в MCP
-descriptions); `ide configure` → launch.json; doctor soft `debug.http`; password via env.
+descriptions); `ide configure` → launch.json; doctor soft `debug.http`.
 
 **Не must:** EPF breakpoints (ограничение протокола 1С) — документировать `pause` + step.
 

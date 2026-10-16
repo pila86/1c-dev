@@ -211,7 +211,7 @@ build (ИБ актуальна)
 - [x] `debug.stepOver` (CLI `step-over`, platform `Step`) — [#140](https://github.com/pila86/1c-dev/issues/140)
 - [x] `debug.stepIn` / `stepOver` / `stepOut` стабильны (CLI; live acceptance `test_m6_acceptance_steps_cli`: 3 прогона подряд + расширение)
 - [ ] `debug.pause` стабилен (сейчас experimental, live acceptance не пройден)
-- [ ] Password через env; не писать секреты в манифест по умолчанию
+- [x] Password через env `ONEC_DEBUG_PASSWORD`; в манифест не пишется (schema отвергает), маскируется в ошибках — [ADR-031 §2a](../adr/031-debug-api-http.md)
 - [x] Кэш module index с инвалидацией (mtime) — [#139](https://github.com/pila86/1c-dev/issues/139)
 - [x] `breakpoint set --file` / `--object-id`+`--property-id` (escape) — [#145](https://github.com/pila86/1c-dev/issues/145)
 

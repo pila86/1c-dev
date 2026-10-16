@@ -12,6 +12,7 @@ from adapters.debug_http.client import DebugHttpClient, TransportFn
 from adapters.debug_http.errors import DebugHttpError
 from adapters.platform import DiscoveryResult, discover_environment
 from adapters.platform_1cv8 import IsRunningFn, TerminateFn, is_running, terminate
+from core.debug.common import mask_secret
 from core.debug.constants import (
     CODE_DBGS_MISSING,
     CODE_DBGS_UNREACHABLE,
@@ -249,7 +250,7 @@ def server_start(
     except OSError as exc:
         diags = [
             error(
-                f"не удалось запустить dbgs: {exc}",
+                f"не удалось запустить dbgs: {mask_secret(str(exc), password)}",
                 code=CODE_DBGS_UNREACHABLE,
                 source=SOURCE_DEBUG,
             )
