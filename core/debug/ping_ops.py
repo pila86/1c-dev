@@ -6,9 +6,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from core.debug.common import (
-    load_project,
-)
+from core.debug.context import DebugContext
 from core.debug.ping import (
     ensure_background_ping,
     ping_status,
@@ -25,19 +23,10 @@ def run_ping_start(
     **kwargs: Any,
 ) -> DebugResult:
     """Start background ``pingDebugUIParams`` keepalive (CLI between commands)."""
-    started = time.perf_counter()
-    start_path = (start or Path.cwd()).resolve()
-    root, _data, target, err = load_project(
-        start_path, started=started, config_id=config_id, runtime_id=runtime_id
-    )
-    if err is not None:
-        return err
-    assert target is not None
-    result = ensure_background_ping(root, **kwargs)
-    result.duration = time.perf_counter() - started
-    result.config_id = target.config_id
-    result.runtime_id = target.runtime_id
-    return result
+    ctx = DebugContext.open(start, config_id=config_id, runtime_id=runtime_id)
+    if isinstance(ctx, DebugResult):
+        return ctx
+    return _with_identity(ctx, ensure_background_ping(ctx.root, **kwargs))
 
 
 def run_ping_stop(
@@ -47,19 +36,10 @@ def run_ping_stop(
     runtime_id: str | None = None,
     **kwargs: Any,
 ) -> DebugResult:
-    started = time.perf_counter()
-    start_path = (start or Path.cwd()).resolve()
-    root, _data, target, err = load_project(
-        start_path, started=started, config_id=config_id, runtime_id=runtime_id
-    )
-    if err is not None:
-        return err
-    assert target is not None
-    result = stop_background_ping(root, **kwargs)
-    result.duration = time.perf_counter() - started
-    result.config_id = target.config_id
-    result.runtime_id = target.runtime_id
-    return result
+    ctx = DebugContext.open(start, config_id=config_id, runtime_id=runtime_id)
+    if isinstance(ctx, DebugResult):
+        return ctx
+    return _with_identity(ctx, stop_background_ping(ctx.root, **kwargs))
 
 
 def run_ping_status(
@@ -69,16 +49,14 @@ def run_ping_status(
     runtime_id: str | None = None,
     **kwargs: Any,
 ) -> DebugResult:
-    started = time.perf_counter()
-    start_path = (start or Path.cwd()).resolve()
-    root, _data, target, err = load_project(
-        start_path, started=started, config_id=config_id, runtime_id=runtime_id
-    )
-    if err is not None:
-        return err
-    assert target is not None
-    result = ping_status(root, **kwargs)
-    result.duration = time.perf_counter() - started
-    result.config_id = target.config_id
-    result.runtime_id = target.runtime_id
+    ctx = DebugContext.open(start, config_id=config_id, runtime_id=runtime_id)
+    if isinstance(ctx, DebugResult):
+        return ctx
+    return _with_identity(ctx, ping_status(ctx.root, **kwargs))
+
+
+def _with_identity(ctx: DebugContext, result: DebugResult) -> DebugResult:
+    result.duration = time.perf_counter() - ctx.started
+    result.config_id = ctx.config_id
+    result.runtime_id = ctx.runtime_id
     return result

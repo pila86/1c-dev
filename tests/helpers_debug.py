@@ -51,6 +51,9 @@ def fake_session(**methods: Any) -> MagicMock:
     session.session_id = "sid-test"
     session.attached = True
     session.last_stop = None
+    session.last_target_id = ""
+    session.attached_targets = frozenset()
+    session.breakpoints = ()
     for name, value in methods.items():
         setattr(session, name, value)
     return session

@@ -19,11 +19,7 @@ from adapters.platform_1cv8 import IsRunningFn
 from core.debug.common import (
     SessionFactory,
     client_debug_hint,
-    fail_result,
-    handle_adapter_error,
-    load_project,
     make_resolver,
-    ok_result,
     restore_session,
     session_url,
 )
@@ -32,6 +28,7 @@ from core.debug.constants import (
     CODE_PROJECT,
     SOURCE_DEBUG,
 )
+from core.debug.context import DebugContext
 from core.debug.ping import (
     soft_ensure_background_ping,
     stop_background_ping,
@@ -45,7 +42,6 @@ from core.debug.state import (
     alive_server,
     clear_session,
     manifest_debug_settings,
-    persist_session_runtime,
     read_session,
     resolve_debugger_url,
     write_session,
@@ -63,27 +59,25 @@ def run_attach(
     transport: TransportFn | None = None,
     session_factory: SessionFactory | None = None,
 ) -> DebugResult:
-    started = time.perf_counter()
-    start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = load_project(
-        start_path, started=started, config_id=config_id, runtime_id=runtime_id
+    ctx = DebugContext.open(
+        start,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        transport=transport,
+        session_factory=session_factory,
     )
-    if err is not None:
-        return err
-    assert target is not None
-    settings = manifest_debug_settings(data)
-    base = session_url(root, data, url=url)
+    if isinstance(ctx, DebugResult):
+        return ctx
+    root = ctx.root
+    settings = manifest_debug_settings(ctx.data)
+    base = session_url(root, ctx.data, url=url)
     if not base:
         running, _pid, meta = alive_server(root)
         hint = ""
         if running and meta.get("url"):
             hint = str(meta["url"])
-        return fail_result(
-            started=started,
-            root=root,
-            config_id=target.config_id,
-            runtime_id=target.runtime_id,
-            diagnostics=[
+        return ctx.fail(
+            [
                 error(
                     "нет URL dbgs (server не запущен и нет debug.port)",
                     code=CODE_DBGS_UNREACHABLE,
@@ -91,20 +85,20 @@ def run_attach(
                     suggestion=hint
                     or "1c-dev debug server start --port … или debug.port в манифесте",
                 )
-            ],
+            ]
         )
     client = DebugHttpClient(base, transport=transport)
     try:
         client.test()
     except DebugHttpError as exc:
-        return handle_adapter_error(exc, started=started, root=root, target=target)
+        return ctx.adapter_error(exc)
 
     factory = session_factory or DebugSession
     types = settings["autoAttachTypes"]
     session = factory(
         client,
         alias=settings["alias"],
-        resolver=make_resolver(root, target),
+        resolver=make_resolver(root, ctx.target),
         auto_attach_types=types,
     )
     pwd = password if password is not None else os.environ.get("ONEC_DEBUG_PASSWORD", "")
@@ -112,7 +106,7 @@ def run_attach(
         # CLI process exits immediately — do not start ping only to join(2s) on stop.
         attach = session.attach(password=pwd or "", start_ping=False)
     except DebugHttpError as exc:
-        return handle_adapter_error(exc, started=started, root=root, target=target)
+        return ctx.adapter_error(exc)
 
     write_session(
         root,
@@ -125,11 +119,7 @@ def run_attach(
     ping_diags = soft_ensure_background_ping(root)
     ping_running, ping_pid, _ping_meta = alive_ping(root)
     client_enabled, client_url = client_debug_hint(root)
-    return ok_result(
-        started=started,
-        root=root,
-        config_id=target.config_id,
-        runtime_id=target.runtime_id,
+    return ctx.ok(
         url=base,
         alias=settings["alias"],
         session_id=attach.session_id,
@@ -151,24 +141,26 @@ def run_detach(
     transport: TransportFn | None = None,
     session_factory: SessionFactory | None = None,
 ) -> DebugResult:
-    started = time.perf_counter()
-    start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = load_project(
-        start_path, started=started, config_id=config_id, runtime_id=runtime_id
+    ctx = DebugContext.open(
+        start,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        transport=transport,
+        session_factory=session_factory,
     )
-    if err is not None:
-        return err
-    assert target is not None
+    if isinstance(ctx, DebugResult):
+        return ctx
+    root = ctx.root
     stop_background_ping(root)
     session, base, alias, restore_err = restore_session(
         root,
-        data,
-        target,
+        ctx.data,
+        ctx.target,
         transport=transport,
         session_factory=session_factory,
     )
     if restore_err is not None and not force:
-        restore_err.duration = time.perf_counter() - started
+        restore_err.duration = time.perf_counter() - ctx.started
         return restore_err
     try:
         if force:
@@ -178,27 +170,10 @@ def run_detach(
     except DebugHttpError as exc:
         if force:
             clear_session(root)
-            return ok_result(
-                started=started,
-                root=root,
-                config_id=target.config_id,
-                runtime_id=target.runtime_id,
-                attached=False,
-                ping_running=False,
-                diagnostics=list(exc.diagnostics),
-            )
-        return handle_adapter_error(exc, started=started, root=root, target=target)
+            return ctx.ok(attached=False, ping_running=False, diagnostics=list(exc.diagnostics))
+        return ctx.adapter_error(exc)
     clear_session(root)
-    return ok_result(
-        started=started,
-        root=root,
-        config_id=target.config_id,
-        runtime_id=target.runtime_id,
-        url=base or None,
-        alias=alias or None,
-        attached=False,
-        ping_running=False,
-    )
+    return ctx.ok(url=base or None, alias=alias or None, attached=False, ping_running=False)
 
 
 def run_force_detach(
@@ -216,25 +191,24 @@ def run_targets(
     transport: TransportFn | None = None,
     session_factory: SessionFactory | None = None,
 ) -> DebugResult:
-    started = time.perf_counter()
-    start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = load_project(
-        start_path, started=started, config_id=config_id, runtime_id=runtime_id
+    ctx = DebugContext.open(
+        start,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        transport=transport,
+        session_factory=session_factory,
     )
-    if err is not None:
-        return err
-    assert target is not None
-    session, base, alias, restore_err = restore_session(
-        root, data, target, transport=transport, session_factory=session_factory
-    )
-    if restore_err is not None:
-        restore_err.duration = time.perf_counter() - started
-        return restore_err
+    if isinstance(ctx, DebugResult):
+        return ctx
+    restored = ctx.restore()
+    if isinstance(restored, DebugResult):
+        return restored
+    session = restored.session
     try:
         targets = session.ensure_targets_attached(force=False)
     except DebugHttpError as exc:
-        return handle_adapter_error(exc, started=started, root=root, target=target)
-    persist_session_runtime(root, session, url=base, alias=alias)
+        return ctx.adapter_error(exc)
+    ctx.persist(restored)
     payload = [
         {
             "targetId": t.target_id,
@@ -245,19 +219,8 @@ def run_targets(
         }
         for t in targets
     ]
-    client_enabled, _ = client_debug_hint(root)
-    return ok_result(
-        started=started,
-        root=root,
-        config_id=target.config_id,
-        runtime_id=target.runtime_id,
-        url=base,
-        alias=alias,
-        session_id=session.session_id,
-        attached=True,
-        targets=payload,
-        client_debug_enabled=client_enabled,
-    )
+    client_enabled, _ = client_debug_hint(ctx.root)
+    return ctx.ok_attached(restored, targets=payload, client_debug_enabled=client_enabled)
 
 
 def run_status(
@@ -268,30 +231,24 @@ def run_status(
     is_alive: IsRunningFn | None = None,
     transport: TransportFn | None = None,
 ) -> DebugResult:
-    started = time.perf_counter()
-    start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = load_project(
-        start_path, started=started, config_id=config_id, runtime_id=runtime_id
+    ctx = DebugContext.open(
+        start, config_id=config_id, runtime_id=runtime_id, transport=transport
     )
-    if err is not None:
-        return err
-    assert target is not None
+    if isinstance(ctx, DebugResult):
+        return ctx
+    root = ctx.root
     srv = server_status(
         root,
-        started=started,
-        config_id=target.config_id,
-        runtime_id=target.runtime_id,
+        started=ctx.started,
+        config_id=ctx.config_id,
+        runtime_id=ctx.runtime_id,
         is_alive=is_alive,
         transport=transport,
     )
     stored = read_session(root)
     client_enabled, client_url = client_debug_hint(root)
     ping_running, ping_pid, _ping_meta = alive_ping(root, is_alive=is_alive)
-    return ok_result(
-        started=started,
-        root=root,
-        config_id=target.config_id,
-        runtime_id=target.runtime_id,
+    return ctx.ok(
         host=srv.host,
         port=srv.port,
         url=srv.url,
@@ -301,7 +258,7 @@ def run_status(
         session_id=str(stored["sessionId"]) if stored and stored.get("sessionId") else None,
         alias=str(stored["alias"]) if stored and stored.get("alias") else None,
         client_debug_enabled=client_enabled,
-        debugger_url=client_url or resolve_debugger_url(root, data),
+        debugger_url=client_url or resolve_debugger_url(root, ctx.data),
         ping_pid=ping_pid,
         ping_running=ping_running,
         diagnostics=list(srv.diagnostics),
@@ -314,34 +271,19 @@ def run_reload_metadata(
     config_id: str | None = None,
     runtime_id: str | None = None,
 ) -> DebugResult:
-    started = time.perf_counter()
-    start_path = (start or Path.cwd()).resolve()
-    root, _data, target, err = load_project(
-        start_path, started=started, config_id=config_id, runtime_id=runtime_id
-    )
-    if err is not None:
-        return err
-    assert target is not None
-    roots = source_roots_from_configuration(root, target.configuration)
+    ctx = DebugContext.open(start, config_id=config_id, runtime_id=runtime_id)
+    if isinstance(ctx, DebugResult):
+        return ctx
+    roots = source_roots_from_configuration(ctx.root, ctx.target.configuration)
     if not roots:
-        return fail_result(
-            started=started,
-            root=root,
-            config_id=target.config_id,
-            runtime_id=target.runtime_id,
-            diagnostics=[
+        return ctx.fail(
+            [
                 error(
                     "нет source.path у configuration / extensions",
                     code=CODE_PROJECT,
                     source=SOURCE_DEBUG,
                 )
-            ],
+            ]
         )
-    index = reload_metadata(root, roots)
-    return ok_result(
-        started=started,
-        root=root,
-        config_id=target.config_id,
-        runtime_id=target.runtime_id,
-        modules_count=len(index.modules),
-    )
+    index = reload_metadata(ctx.root, roots)
+    return ctx.ok(modules_count=len(index.modules))

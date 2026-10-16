@@ -27,11 +27,7 @@ from core.debug.common import (
     apply_stored_runtime,
     fail_result,
     frames_payload,
-    handle_adapter_error,
-    load_project,
-    ok_result,
     parse_stored_runtime,
-    restore_session,
 )
 from core.debug.constants import (
     CODE_CLIENT_EXITED,
@@ -39,11 +35,11 @@ from core.debug.constants import (
     CODE_WAIT_TIMEOUT,
     SOURCE_DEBUG,
 )
+from core.debug.context import DebugContext
 from core.debug.ping import soft_ensure_background_ping
 from core.debug.result import DebugResult
 from core.debug.state import (
     alive_ping,
-    persist_session_runtime,
     read_session,
 )
 from core.diagnostics import error, warning
@@ -166,51 +162,37 @@ def run_wait(
     ``fresh=True`` drops it first (use after resuming/restarting the client to
     wait for the *next* stop). Fails fast with ``1CD016`` when the client exited.
     """
-    started = time.perf_counter()
-    start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = load_project(
-        start_path, started=started, config_id=config_id, runtime_id=runtime_id
-    )
-    if err is not None:
-        return err
-    assert target is not None
-    session, base, alias, restore_err = restore_session(
-        root,
-        data,
-        target,
+    ctx = DebugContext.open(
+        start,
+        config_id=config_id,
+        runtime_id=runtime_id,
         transport=transport,
         session_factory=session_factory,
-        start_ping=False,
     )
-    if restore_err is not None:
-        restore_err.duration = time.perf_counter() - started
-        return restore_err
+    if isinstance(ctx, DebugResult):
+        return ctx
+    restored = ctx.restore(start_ping=False)
+    if isinstance(restored, DebugResult):
+        return restored
+    session = restored.session
     if fresh:
         session.clear_cached_stop()
-        persist_session_runtime(root, session, url=base, alias=alias, clear_last_stop=True)
-    ping_diags = soft_ensure_background_ping(root)
-    probe = client_alive if client_alive is not None else _client_alive_probe(root)
+        ctx.persist(restored, clear_last_stop=True)
+    ping_diags = soft_ensure_background_ping(ctx.root)
+    probe = client_alive if client_alive is not None else _client_alive_probe(ctx.root)
     try:
-        stop = _await_persisted_stop(root, session, timeout=timeout, client_alive=probe)
+        stop = _await_persisted_stop(ctx.root, session, timeout=timeout, client_alive=probe)
     except DebugHttpError as exc:
-        return handle_adapter_error(exc, started=started, root=root, target=target)
-    frames = frames_payload(stop.frames)
+        return ctx.adapter_error(exc)
     leaf = stop.current_frame
-    persist_session_runtime(root, session, url=base, alias=alias)
-    ping_running, ping_pid, _ping_meta = alive_ping(root)
-    return ok_result(
-        started=started,
-        root=root,
-        config_id=target.config_id,
-        runtime_id=target.runtime_id,
-        url=base,
-        alias=alias,
-        session_id=session.session_id,
-        attached=True,
+    ctx.persist(restored)
+    ping_running, ping_pid, _ping_meta = alive_ping(ctx.root)
+    return ctx.ok_attached(
+        restored,
         target_id=stop.target_id,
         module_name=leaf.module_name if leaf else None,
         line_no=leaf.line_no if leaf else None,
-        call_stack=frames,
+        call_stack=frames_payload(stop.frames),
         ping_pid=ping_pid,
         ping_running=ping_running,
         diagnostics=ping_diags,
@@ -238,23 +220,22 @@ def _run_step(
     from the outermost frame) the result is ``ok`` with a ``1CD016`` warning.
     ``wait=False`` is fire-and-forget (``--no-wait``).
     """
-    started = time.perf_counter()
-    start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = load_project(
-        start_path, started=started, config_id=config_id, runtime_id=runtime_id
+    ctx = DebugContext.open(
+        start,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        transport=transport,
+        session_factory=session_factory,
     )
-    if err is not None:
-        return err
-    assert target is not None
-    session, base, alias, restore_err = restore_session(
-        root, data, target, transport=transport, session_factory=session_factory
-    )
-    if restore_err is not None:
-        restore_err.duration = time.perf_counter() - started
-        return restore_err
+    if isinstance(ctx, DebugResult):
+        return ctx
+    restored = ctx.restore()
+    if isinstance(restored, DebugResult):
+        return restored
+    session = restored.session
 
     leaves_stopped = action in ("Continue", "Step", "StepIn", "StepOut")
-    extra_diags: list[Any] = soft_ensure_background_ping(root)
+    extra_diags: list[Any] = soft_ensure_background_ping(ctx.root)
     if action == "Pause":
         extra_diags.append(
             warning(
@@ -270,7 +251,7 @@ def _run_step(
         step_tid = cached_stop.target_id
     if wait:
         session.clear_cached_stop()
-        persist_session_runtime(root, session, url=base, alias=alias, clear_last_stop=True)
+        ctx.persist(restored, clear_last_stop=True)
 
     try:
         if action == "Continue":
@@ -285,53 +266,31 @@ def _run_step(
             session.pause()
         else:
             return fail_result(
-                started=started,
-                root=root,
+                started=ctx.started,
+                root=ctx.root,
                 diagnostics=[
                     error(f"неизвестное действие {action}", code=CODE_PROJECT, source=SOURCE_DEBUG)
                 ],
             )
     except DebugHttpError as exc:
-        return handle_adapter_error(exc, started=started, root=root, target=target)
+        return ctx.adapter_error(exc)
 
     if not wait:
         if leaves_stopped:
             session.clear_cached_stop()
-        persist_session_runtime(
-            root, session, url=base, alias=alias, clear_last_stop=leaves_stopped
-        )
-        return ok_result(
-            started=started,
-            root=root,
-            config_id=target.config_id,
-            runtime_id=target.runtime_id,
-            url=base,
-            alias=alias,
-            session_id=session.session_id,
-            attached=True,
-            target_id=target_id,
-            diagnostics=extra_diags,
-        )
+        ctx.persist(restored, clear_last_stop=leaves_stopped)
+        return ctx.ok_attached(restored, target_id=target_id, diagnostics=extra_diags)
 
-    probe = client_alive if client_alive is not None else _client_alive_probe(root)
+    probe = client_alive if client_alive is not None else _client_alive_probe(ctx.root)
     try:
-        stop = _await_persisted_stop(root, session, timeout=timeout, client_alive=probe)
+        stop = _await_persisted_stop(ctx.root, session, timeout=timeout, client_alive=probe)
     except DebugHttpError as exc:
         if leaves_stopped and exc.code == CODE_CLIENT_EXITED:
             # Program ran to the end after continue/step — normal completion.
             session.clear_cached_stop()
-            persist_session_runtime(
-                root, session, url=base, alias=alias, clear_last_stop=True
-            )
-            return ok_result(
-                started=started,
-                root=root,
-                config_id=target.config_id,
-                runtime_id=target.runtime_id,
-                url=base,
-                alias=alias,
-                session_id=session.session_id,
-                attached=True,
+            ctx.persist(restored, clear_last_stop=True)
+            return ctx.ok_attached(
+                restored,
                 diagnostics=list(extra_diags)
                 + [
                     warning(
@@ -345,28 +304,20 @@ def _run_step(
                     )
                 ],
             )
-        err_result = handle_adapter_error(exc, started=started, root=root, target=target)
+        err_result = ctx.adapter_error(exc)
         if extra_diags:
             err_result.diagnostics = list(err_result.diagnostics) + list(extra_diags)
         return err_result
 
-    frames = frames_payload(stop.frames)
     leaf = stop.current_frame
-    persist_session_runtime(root, session, url=base, alias=alias)
-    ping_running, ping_pid, _ping_meta = alive_ping(root)
-    return ok_result(
-        started=started,
-        root=root,
-        config_id=target.config_id,
-        runtime_id=target.runtime_id,
-        url=base,
-        alias=alias,
-        session_id=session.session_id,
-        attached=True,
+    ctx.persist(restored)
+    ping_running, ping_pid, _ping_meta = alive_ping(ctx.root)
+    return ctx.ok_attached(
+        restored,
         target_id=stop.target_id,
         module_name=leaf.module_name if leaf else None,
         line_no=leaf.line_no if leaf else None,
-        call_stack=frames,
+        call_stack=frames_payload(stop.frames),
         ping_pid=ping_pid,
         ping_running=ping_running,
         diagnostics=extra_diags,

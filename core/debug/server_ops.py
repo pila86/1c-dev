@@ -3,16 +3,13 @@
 from __future__ import annotations
 
 import os
-import time
 from pathlib import Path
 
 from adapters.debug_http import (
     TransportFn,
 )
 from adapters.platform_1cv8 import IsRunningFn, TerminateFn
-from core.debug.common import (
-    load_project,
-)
+from core.debug.context import DebugContext
 from core.debug.ping import (
     stop_background_ping,
 )
@@ -41,24 +38,21 @@ def run_server_start(
     settle_seconds: float = 0.1,
     notify_timeout: float = 5.0,
 ) -> DebugResult:
-    started = time.perf_counter()
-    start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = load_project(
-        start_path, started=started, config_id=config_id, runtime_id=runtime_id
+    ctx = DebugContext.open(
+        start, config_id=config_id, runtime_id=runtime_id, transport=transport
     )
-    if err is not None:
-        return err
-    assert target is not None
+    if isinstance(ctx, DebugResult):
+        return ctx
     pwd = password if password is not None else os.environ.get("ONEC_DEBUG_PASSWORD")
     return server_start(
-        root,
-        data,
-        started=started,
+        ctx.root,
+        ctx.data,
+        started=ctx.started,
         host=host,
         port=port,
         password=pwd or None,
-        config_id=target.config_id,
-        runtime_id=target.runtime_id,
+        config_id=ctx.config_id,
+        runtime_id=ctx.runtime_id,
         discover=discover,
         spawn=spawn,
         is_alive=is_alive,
@@ -76,20 +70,15 @@ def run_server_stop(
     is_alive: IsRunningFn | None = None,
     terminate_fn: TerminateFn | None = None,
 ) -> DebugResult:
-    started = time.perf_counter()
-    start_path = (start or Path.cwd()).resolve()
-    root, _data, target, err = load_project(
-        start_path, started=started, config_id=config_id, runtime_id=runtime_id
-    )
-    if err is not None:
-        return err
-    assert target is not None
-    stop_background_ping(root, is_alive=is_alive, terminate_fn=terminate_fn)
+    ctx = DebugContext.open(start, config_id=config_id, runtime_id=runtime_id)
+    if isinstance(ctx, DebugResult):
+        return ctx
+    stop_background_ping(ctx.root, is_alive=is_alive, terminate_fn=terminate_fn)
     return server_stop(
-        root,
-        started=started,
-        config_id=target.config_id,
-        runtime_id=target.runtime_id,
+        ctx.root,
+        started=ctx.started,
+        config_id=ctx.config_id,
+        runtime_id=ctx.runtime_id,
         is_alive=is_alive,
         terminate_fn=terminate_fn,
     )
@@ -103,19 +92,16 @@ def run_server_status(
     is_alive: IsRunningFn | None = None,
     transport: TransportFn | None = None,
 ) -> DebugResult:
-    started = time.perf_counter()
-    start_path = (start or Path.cwd()).resolve()
-    root, _data, target, err = load_project(
-        start_path, started=started, config_id=config_id, runtime_id=runtime_id
+    ctx = DebugContext.open(
+        start, config_id=config_id, runtime_id=runtime_id, transport=transport
     )
-    if err is not None:
-        return err
-    assert target is not None
+    if isinstance(ctx, DebugResult):
+        return ctx
     return server_status(
-        root,
-        started=started,
-        config_id=target.config_id,
-        runtime_id=target.runtime_id,
+        ctx.root,
+        started=ctx.started,
+        config_id=ctx.config_id,
+        runtime_id=ctx.runtime_id,
         is_alive=is_alive,
         transport=transport,
     )

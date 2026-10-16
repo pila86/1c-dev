@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,20 +13,13 @@ from adapters.debug_http import (
 from adapters.debug_http.constants import CODE_MODULE_UNRESOLVED
 from core.debug.common import (
     SessionFactory,
-    fail_result,
-    handle_adapter_error,
-    load_project,
-    ok_result,
-    restore_session,
 )
 from core.debug.constants import (
     CODE_PROJECT,
     SOURCE_DEBUG,
 )
+from core.debug.context import DebugContext
 from core.debug.result import DebugResult, exit_code_for_result
-from core.debug.state import (
-    persist_session_runtime,
-)
 from core.diagnostics import Diagnostic, error
 
 
@@ -120,27 +112,24 @@ def run_breakpoint_set(
     session_factory: SessionFactory | None = None,
 ) -> DebugResult:
     """Set breakpoints by ``--module``, ``--file``, or explicit object/property ids (#145)."""
-    started = time.perf_counter()
-    start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = load_project(
-        start_path, started=started, config_id=config_id, runtime_id=runtime_id
+    ctx = DebugContext.open(
+        start,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        transport=transport,
+        session_factory=session_factory,
     )
-    if err is not None:
-        return err
-    assert target is not None
+    if isinstance(ctx, DebugResult):
+        return ctx
     if not lines:
-        return fail_result(
-            started=started,
-            root=root,
-            config_id=target.config_id,
-            runtime_id=target.runtime_id,
-            diagnostics=[
+        return ctx.fail(
+            [
                 error(
                     "нужна хотя бы одна строка breakpoint",
                     code=CODE_PROJECT,
                     source=SOURCE_DEBUG,
                 )
-            ],
+            ]
         )
 
     has_module = bool(module and str(module).strip())
@@ -150,12 +139,8 @@ def run_breakpoint_set(
     )
     modes = sum(1 for flag in (has_module, has_file, has_ids) if flag)
     if modes != 1:
-        return fail_result(
-            started=started,
-            root=root,
-            config_id=target.config_id,
-            runtime_id=target.runtime_id,
-            diagnostics=[
+        return ctx.fail(
+            [
                 error(
                     "укажите ровно один способ: --module, --file "
                     "или пару --object-id/--property-id",
@@ -166,15 +151,13 @@ def run_breakpoint_set(
                         "--lines 5"
                     ),
                 )
-            ],
+            ]
         )
 
-    session, base, alias, restore_err = restore_session(
-        root, data, target, transport=transport, session_factory=session_factory
-    )
-    if restore_err is not None:
-        restore_err.duration = time.perf_counter() - started
-        return restore_err
+    restored = ctx.restore()
+    if isinstance(restored, DebugResult):
+        return restored
+    session = restored.session
     try:
         if has_file:
             assert file is not None
@@ -215,20 +198,13 @@ def run_breakpoint_set(
         session.ensure_targets_attached(force=False)
     except DebugHttpError as exc:
         # 1CD004 from missing source → project (2); otherwise runtime
-        result = handle_adapter_error(exc, started=started, root=root, target=target)
+        result = ctx.adapter_error(exc)
         if any(d.get("code") == CODE_MODULE_UNRESOLVED for d in result.diagnostics):
             result.exit_code = exit_code_for_result("failed", result.diagnostics)
         return result
-    persist_session_runtime(root, session, url=base, alias=alias)
-    return ok_result(
-        started=started,
-        root=root,
-        config_id=target.config_id,
-        runtime_id=target.runtime_id,
-        url=base,
-        alias=alias,
-        session_id=session.session_id,
-        attached=True,
+    ctx.persist(restored)
+    return ctx.ok_attached(
+        restored,
         module_name=module_name_out or None,
         breakpoints=[
             {
@@ -252,33 +228,21 @@ def run_breakpoint_clear(
     transport: TransportFn | None = None,
     session_factory: SessionFactory | None = None,
 ) -> DebugResult:
-    started = time.perf_counter()
-    start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = load_project(
-        start_path, started=started, config_id=config_id, runtime_id=runtime_id
+    ctx = DebugContext.open(
+        start,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        transport=transport,
+        session_factory=session_factory,
     )
-    if err is not None:
-        return err
-    assert target is not None
-    session, base, alias, restore_err = restore_session(
-        root, data, target, transport=transport, session_factory=session_factory
-    )
-    if restore_err is not None:
-        restore_err.duration = time.perf_counter() - started
-        return restore_err
+    if isinstance(ctx, DebugResult):
+        return ctx
+    restored = ctx.restore()
+    if isinstance(restored, DebugResult):
+        return restored
     try:
-        session.clear_breakpoints()
+        restored.session.clear_breakpoints()
     except DebugHttpError as exc:
-        return handle_adapter_error(exc, started=started, root=root, target=target)
-    persist_session_runtime(root, session, url=base, alias=alias)
-    return ok_result(
-        started=started,
-        root=root,
-        config_id=target.config_id,
-        runtime_id=target.runtime_id,
-        url=base,
-        alias=alias,
-        session_id=session.session_id,
-        attached=True,
-        breakpoints=[],
-    )
+        return ctx.adapter_error(exc)
+    ctx.persist(restored)
+    return ctx.ok_attached(restored, breakpoints=[])

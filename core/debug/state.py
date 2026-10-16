@@ -361,9 +361,9 @@ def persist_session_runtime(
             if clear_last_stop
             else serialize_last_stop(getattr(session, "last_stop", None))
         ),
-        attached_targets=sorted(getattr(session, "_attached_targets", set()) or []),
-        breakpoints=serialize_breakpoints(getattr(session, "_breakpoints", [])),
-        last_target_id=str(getattr(session, "_last_target_id", "") or ""),
+        attached_targets=sorted(getattr(session, "attached_targets", ()) or ()),
+        breakpoints=serialize_breakpoints(getattr(session, "breakpoints", ())),
+        last_target_id=str(getattr(session, "last_target_id", "") or ""),
         clear_last_stop=clear_last_stop,
         keep_existing_stop=True,
     )

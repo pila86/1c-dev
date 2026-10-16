@@ -16,16 +16,13 @@ from adapters.platform_1cv8 import IsRunningFn, TerminateFn
 from core.debug.breakpoints import parse_breakpoint_specs, run_breakpoint_set
 from core.debug.common import (
     SessionFactory,
-    fail_result,
-    load_project,
-    ok_result,
-    restore_session,
 )
 from core.debug.constants import (
     CODE_DBGS_UNREACHABLE,
     CODE_NO_SESSION,
     SOURCE_DEBUG,
 )
+from core.debug.context import DebugContext
 from core.debug.ping import (
     soft_ensure_background_ping,
     stop_background_ping,
@@ -71,27 +68,21 @@ def ensure_debug_for_runtime(
     Idempotent server start; attach if no session; set breakpoints by ``--file``.
     Does not start the 1C client — caller runs ``runtime.start`` then sync targets.
     """
-    started = time.perf_counter()
-    start_path = (start or Path.cwd()).resolve()
-    raw_bps = list(breakpoints or [])
-    specs, parse_diags = parse_breakpoint_specs(raw_bps)
+    ctx = DebugContext.open(
+        start,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        transport=transport,
+        session_factory=session_factory,
+    )
+    if isinstance(ctx, DebugResult):
+        return ctx
+    specs, parse_diags = parse_breakpoint_specs(list(breakpoints or []))
     if parse_diags:
-        root, _data, target, err = load_project(
-            start_path, started=started, config_id=config_id, runtime_id=runtime_id
-        )
-        if err is not None:
-            return err
-        assert target is not None
-        return fail_result(
-            started=started,
-            root=root,
-            config_id=target.config_id,
-            runtime_id=target.runtime_id,
-            diagnostics=parse_diags,
-        )
+        return ctx.fail(parse_diags)
 
     server = run_server_start(
-        start_path,
+        ctx.start,
         config_id=config_id,
         runtime_id=runtime_id,
         discover=discover,
@@ -100,29 +91,20 @@ def ensure_debug_for_runtime(
         transport=transport,
     )
     if server.status != "ok":
-        server.duration = time.perf_counter() - started
+        server.duration = time.perf_counter() - ctx.started
         return server
 
-    root, data, target, err = load_project(
-        start_path, started=started, config_id=config_id, runtime_id=runtime_id
-    )
-    if err is not None:
-        return err
-    assert target is not None
-
-    need_attach = read_session(root) is None
+    need_attach = read_session(ctx.root) is None
     if not need_attach:
         # Session already on disk — validate that it can be restored for BP set.
-        _session, _base, _alias, restore_err = restore_session(
-            root, data, target, transport=transport, session_factory=session_factory
-        )
-        if restore_err is None:
-            soft_ensure_background_ping(root)
-        else:
+        restored = ctx.restore()
+        if isinstance(restored, DebugResult):
             need_attach = True
+        else:
+            soft_ensure_background_ping(ctx.root)
     if need_attach:
         attached = run_attach(
-            start_path,
+            ctx.start,
             url=debugger_url or server.url,
             config_id=config_id,
             runtime_id=runtime_id,
@@ -130,13 +112,13 @@ def ensure_debug_for_runtime(
             session_factory=session_factory,
         )
         if attached.status != "ok":
-            attached.duration = time.perf_counter() - started
+            attached.duration = time.perf_counter() - ctx.started
             return attached
 
     bp_out: list[dict[str, Any]] = []
     for spec in specs:
         set_result = run_breakpoint_set(
-            start_path,
+            ctx.start,
             file=spec.file,
             lines=spec.lines,
             config_id=config_id,
@@ -145,21 +127,17 @@ def ensure_debug_for_runtime(
             session_factory=session_factory,
         )
         if set_result.status != "ok":
-            set_result.duration = time.perf_counter() - started
+            set_result.duration = time.perf_counter() - ctx.started
             return set_result
         bp_out.extend(set_result.breakpoints)
 
     base = (
         debugger_url
         or server.url
-        or resolve_debugger_url(root, data, explicit=debugger_url)
+        or resolve_debugger_url(ctx.root, ctx.data, explicit=debugger_url)
     )
-    session_meta = read_session(root) or {}
-    return ok_result(
-        started=started,
-        root=root,
-        config_id=target.config_id,
-        runtime_id=target.runtime_id,
+    session_meta = read_session(ctx.root) or {}
+    return ctx.ok(
         url=base,
         alias=str(session_meta.get("alias") or "") or None,
         session_id=str(session_meta.get("sessionId") or "") or None,
@@ -184,40 +162,23 @@ def prepare_debug_for_spawn(
 
     Without the reset ``debug wait`` would return the stop of the previous client.
     """
-    started = time.perf_counter()
-    start_path = (start or Path.cwd()).resolve()
-    root, _data, target, err = load_project(
-        start_path, started=started, config_id=config_id, runtime_id=runtime_id
-    )
-    if err is not None:
-        return err
-    assert target is not None
-    if read_session(root) is None:
-        return fail_result(
-            started=started,
-            root=root,
-            config_id=target.config_id,
-            runtime_id=target.runtime_id,
-            diagnostics=[
+    ctx = DebugContext.open(start, config_id=config_id, runtime_id=runtime_id)
+    if isinstance(ctx, DebugResult):
+        return ctx
+    if read_session(ctx.root) is None:
+        return ctx.fail(
+            [
                 error(
                     "нет активной debug-сессии",
                     code=CODE_NO_SESSION,
                     source=SOURCE_DEBUG,
                     suggestion="выполните 1c-dev debug attach",
                 )
-            ],
+            ]
         )
-    reset_session_runtime(root)
-    diags = soft_ensure_background_ping(root, **ping_kwargs)
-    return ok_result(
-        started=started,
-        root=root,
-        config_id=target.config_id,
-        runtime_id=target.runtime_id,
-        attached=True,
-        diagnostics=diags,
-    )
-
+    reset_session_runtime(ctx.root)
+    diags = soft_ensure_background_ping(ctx.root, **ping_kwargs)
+    return ctx.ok(attached=True, diagnostics=diags)
 
 def await_debug_targets_armed(
     start: Path | None = None,
@@ -235,45 +196,32 @@ def await_debug_targets_armed(
     to dbgs, so it cannot steal ping events.
     """
     del transport, session_factory  # kept for API compatibility
-    started = time.perf_counter()
-    start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = load_project(
-        start_path, started=started, config_id=config_id, runtime_id=runtime_id
-    )
-    if err is not None:
-        return err
-    assert target is not None
-    ping_diags = soft_ensure_background_ping(root)
-    deadline = started + max(0.0, timeout)
+    ctx = DebugContext.open(start, config_id=config_id, runtime_id=runtime_id)
+    if isinstance(ctx, DebugResult):
+        return ctx
+    ping_diags = soft_ensure_background_ping(ctx.root)
+    deadline = ctx.started + max(0.0, timeout)
     targets: list[str] = []
     while True:
-        stored = read_session(root)
+        stored = read_session(ctx.root)
         if stored is None:
-            return fail_result(
-                started=started,
-                root=root,
-                config_id=target.config_id,
-                runtime_id=target.runtime_id,
-                diagnostics=[
+            return ctx.fail(
+                [
                     error(
                         "нет активной debug-сессии",
                         code=CODE_NO_SESSION,
                         source=SOURCE_DEBUG,
                         suggestion="выполните 1c-dev debug attach",
                     )
-                ],
+                ]
             )
         raw = stored.get("attachedTargets")
         targets = [str(t) for t in raw if isinstance(t, str) and t] if isinstance(raw, list) else []
         if targets or time.perf_counter() >= deadline:
             break
         time.sleep(max(0.02, poll_interval))
-    base = str(stored.get("url") or "") or resolve_debugger_url(root, data)
-    return ok_result(
-        started=started,
-        root=root,
-        config_id=target.config_id,
-        runtime_id=target.runtime_id,
+    base = str(stored.get("url") or "") or resolve_debugger_url(ctx.root, ctx.data)
+    return ctx.ok(
         url=base or None,
         alias=str(stored.get("alias") or "") or None,
         session_id=str(stored.get("sessionId") or "") or None,
@@ -281,7 +229,6 @@ def await_debug_targets_armed(
         targets=[{"targetId": t} for t in targets],
         diagnostics=ping_diags,
     )
-
 
 def sync_debug_targets_after_runtime(
     start: Path | None = None,
@@ -330,33 +277,27 @@ def teardown_debug(
     still reports the client state. ``dbgs`` is stopped only when we started it
     (``server.pid`` exists); an externally managed dbgs is left alone.
     """
-    started = time.perf_counter()
-    start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = load_project(
-        start_path, started=started, config_id=config_id, runtime_id=runtime_id
+    ctx = DebugContext.open(
+        start,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        transport=transport,
+        session_factory=session_factory,
     )
-    if err is not None:
-        return err
-    assert target is not None
+    if isinstance(ctx, DebugResult):
+        return ctx
+    root = ctx.root
     diags: list[Diagnostic] = []
 
-    ping = stop_background_ping(
-        root, is_alive=is_alive, terminate_fn=terminate_fn
-    )
+    ping = stop_background_ping(root, is_alive=is_alive, terminate_fn=terminate_fn)
     if ping.status != "ok":
         diags.extend(_as_warnings(ping.diagnostics))
 
     if read_session(root) is not None:
-        session, _base, _alias, restore_err = restore_session(
-            root,
-            data,
-            target,
-            transport=transport,
-            session_factory=session_factory,
-        )
-        if restore_err is None:
+        restored = ctx.restore()
+        if not isinstance(restored, DebugResult):
             try:
-                session.force_detach()
+                restored.session.force_detach()
             except DebugHttpError as exc:
                 diags.extend(_as_warnings(exc.diagnostics))
             except Exception as exc:  # noqa: BLE001 — teardown must not raise
@@ -378,9 +319,9 @@ def teardown_debug(
     if read_server_pid(root) is not None:
         stopped = server_stop(
             root,
-            started=started,
-            config_id=target.config_id,
-            runtime_id=target.runtime_id,
+            started=ctx.started,
+            config_id=ctx.config_id,
+            runtime_id=ctx.runtime_id,
             is_alive=is_alive,
             terminate_fn=terminate_fn,
         )
@@ -388,17 +329,12 @@ def teardown_debug(
         if stopped.status != "ok":
             diags.extend(_as_warnings(stopped.diagnostics))
 
-    return ok_result(
-        started=started,
-        root=root,
-        config_id=target.config_id,
-        runtime_id=target.runtime_id,
+    return ctx.ok(
         attached=False,
         ping_running=False,
         running=server_running,
         diagnostics=diags,
     )
-
 
 def _as_warnings(diagnostics: Sequence[Any]) -> list[Diagnostic]:
     out: list[Diagnostic] = []
