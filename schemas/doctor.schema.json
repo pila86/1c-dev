@@ -37,6 +37,7 @@
         "webinst",
         "apache",
         "1cv8",
+        "dbgs",
         "templates",
         "java",
         "xml-gen",
@@ -53,6 +54,7 @@
         "webinst": { "$ref": "#/$defs/tool" },
         "apache": { "$ref": "#/$defs/tool" },
         "1cv8": { "$ref": "#/$defs/tool" },
+        "dbgs": { "$ref": "#/$defs/tool" },
         "templates": { "$ref": "#/$defs/tool" },
         "java": { "$ref": "#/$defs/tool" },
         "xml-gen": { "$ref": "#/$defs/tool" },
@@ -76,7 +78,8 @@
         "metadata.update": { "$ref": "#/$defs/capability" },
         "metadata.delete": { "$ref": "#/$defs/capability" },
         "metadata.read": { "$ref": "#/$defs/capability" },
-        "test.yaxunit": { "$ref": "#/$defs/capability" }
+        "test.yaxunit": { "$ref": "#/$defs/capability" },
+        "debug.http": { "$ref": "#/$defs/capability" }
       }
     },
     "gaps": {

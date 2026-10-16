@@ -192,6 +192,7 @@ def test_run_doctor_reports_all_toolchain_tools(
         "webinst",
         "apache",
         "1cv8",
+        "dbgs",
         "templates",
         "java",
         "xml-gen",
@@ -208,14 +209,100 @@ def test_run_doctor_reports_all_toolchain_tools(
     assert "1CD013" in codes  # webinst missing
     assert "1CD014" in codes  # apache missing (empty cache)
     assert "1CD015" in codes  # yaxunit.cfe missing (empty cache)
+    assert "1CD017" in codes  # dbgs missing (not in _make_install default)
     docs_diag = next(d for d in result.diagnostics if d.get("code") == "1CD008")
     assert docs_diag["severity"] == "warning"
     ibsrv_diag = next(d for d in result.diagnostics if d.get("code") == "1CD011")
     assert ibsrv_diag["severity"] == "warning"
     assert result.capabilities["ibsrv"]["available"] is False
     assert result.capabilities["webinst"]["available"] is False
+    assert result.capabilities["debug.http"]["available"] is False
     assert "templates" in result.capabilities
     assert result.status == "ok"  # soft gaps must not hard-fail doctor
+
+
+def test_run_doctor_dbgs_missing_gap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_path(monkeypatch)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "empty-cache"))
+    _make_install(tmp_path, "8.3.27.1549", tools=("ibcmd", "1cv8"))
+    result = run_doctor(search_roots=[tmp_path])
+    assert result.tools["dbgs"]["found"] is False
+    assert result.capabilities["debug.http"]["available"] is False
+    assert result.capabilities["debug.http"]["requires"] == ["dbgs", "dbgs-listening"]
+    gap = next(g for g in result.gaps if g["capability"] == "debug.http")
+    assert "dbgs" in gap["missing"]
+    assert "dbgs" in gap["suggestion"].lower() or "PATH" in gap["suggestion"]
+    diag = next(d for d in result.diagnostics if d.get("code") == "1CD017")
+    assert diag["severity"] == "warning"
+    assert result.status == "ok"  # мягкий компонент
+
+
+def test_run_doctor_dbgs_found(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_path(monkeypatch)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "empty-cache"))
+    _make_install(tmp_path, "8.3.27.1549", tools=("ibcmd", "1cv8", "dbgs"))
+    result = run_doctor(search_roots=[tmp_path])
+    assert result.tools["dbgs"]["found"] is True
+    assert result.tools["dbgs"]["path"] is not None
+    assert result.capabilities["debug.http"]["available"] is True
+    assert not any(g["capability"] == "debug.http" for g in result.gaps)
+    assert not any(d.get("code") == "1CD017" for d in result.diagnostics)
+    assert result.status == "ok"
+
+
+def test_run_doctor_dbgs_listening_gap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Project with debug.port but unreachable dbgs → soft gap 1CD018."""
+    _clear_path(monkeypatch)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "empty-cache"))
+    _make_install(tmp_path, "8.3.27.1549", tools=("ibcmd", "1cv8", "dbgs"))
+    project = tmp_path / "proj"
+    home = project / ".1c-dev"
+    home.mkdir(parents=True)
+    (home / "project.yaml").write_text(
+        "schema: \"2\"\n"
+        "configurations: [{id: main, source: {path: src, format: xml}}]\n"
+        "runtimes: [{id: local, type: file, path: .1c-dev/runtime/local}]\n"
+        "debug:\n"
+        "  host: 127.0.0.1\n"
+        "  port: 15999\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(project)
+    monkeypatch.setattr(
+        "core.doctor.run._probe_dbgs_listening",
+        lambda **_kwargs: (False, "http://127.0.0.1:15999"),
+    )
+    result = run_doctor(search_roots=[tmp_path])
+    assert result.tools["dbgs"]["found"] is True
+    assert result.capabilities["debug.http"]["available"] is False
+    gap = next(g for g in result.gaps if g["capability"] == "debug.http")
+    assert gap["missing"] == ["dbgs-listening"]
+    diag = next(d for d in result.diagnostics if d.get("code") == "1CD018")
+    assert diag["severity"] == "warning"
+    assert "15999" in (diag.get("message") or "")
+    assert result.status == "ok"
+
+
+def test_run_doctor_dbgs_listening_ok(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_path(monkeypatch)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "empty-cache"))
+    _make_install(tmp_path, "8.3.27.1549", tools=("ibcmd", "1cv8", "dbgs"))
+    monkeypatch.setattr(
+        "core.doctor.run._probe_dbgs_listening",
+        lambda **_kwargs: (True, "http://127.0.0.1:2550"),
+    )
+    result = run_doctor(search_roots=[tmp_path])
+    assert result.capabilities["debug.http"]["available"] is True
+    assert not any(g["capability"] == "debug.http" for g in result.gaps)
+    assert not any(d.get("code") == "1CD018" for d in result.diagnostics)
 
 
 def test_run_doctor_yaxunit_missing_gap(

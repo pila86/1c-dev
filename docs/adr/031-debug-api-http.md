@@ -126,7 +126,13 @@ Silent auto-`runtime.start` внутри каждого `debug.*` — **запр
 - Timeout wait без stop → `status: failed` + `1CD005`.
 
 **Should (не blockers acceptance):** `raw_request` (opt-in, default off в MCP
-descriptions); `ide configure` → launch.json; doctor soft `debug.http`.
+descriptions); `ide configure` → launch.json.
+
+**Doctor soft `debug.http` (#142):** capability требует `dbgs` (бинарь) + `dbgs-listening`
+(короткий HTTP probe `rdbgTest`, если из CWD резолвится URL через live server.meta /
+`debug.port`; без проекта/порта — vacuous ok). Soft gap / warning, не hard-fail doctor.
+Коды doctor (`source=doctor`, не путать с API ниже): **`1CD017`** — нет `dbgs`;
+**`1CD018`** — URL известен, но dbgs не отвечает.
 
 **Не must:** EPF breakpoints (ограничение протокола 1С) — документировать `pause` + step.
 
@@ -253,7 +259,8 @@ Discovery `dbgs`: sibling рядом с `1cv8`/`ibcmd` (паттерн ADR-005);
 Сессия и окружение отладки → **4**; нет бинаря `dbgs` → **3**; ошибки проекта/манифеста → **2**.
 MCP: те же `diagnostics[]` в JSON; exit codes CLI на MCP не маппятся (ADR-010).
 
-`source` в diagnostics: `"debug"` для product; `"platform"` для discovery `dbgs`.
+`source` в diagnostics: `"debug"` для product API; `"doctor"` для soft gap `debug.http`
+(`1CD017`/`1CD018`); `"platform"` для discovery `dbgs` вне doctor.
 
 ### 9. Adapter / module resolve (контракт, не реализация)
 

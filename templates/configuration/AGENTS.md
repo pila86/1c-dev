@@ -15,7 +15,8 @@
 - После правок BSL: diagnostics (bsl-ls) → build → check → `test.*`. `check` — по file IB после `build`.
 - Тесты: MCP `test.discover` / `test.list` / `test.run` / `test.runOne` / `test.report` или CLI `1c-dev test` (не сторонний MCP runner).
 - Перед завершением задачи — semantic diff.
-- Воспроизводимые runtime-сбои — debugger.
+- Воспроизводимые **runtime**-сбои (не вместо `test.*`): MCP `debug.*` / CLI `1c-dev debug` (не shell, не Конфигуратор, не сторонний debug MCP). Doctor soft gap `debug.http` (dbgs + порт).
+- Debug-цикл: `debug.server.start` (если нужно) → `runtime.start` с `--debug` (или `--bp`) → `debug.attach` → breakpoint → действие → `debug.wait` → `debug.variables` / `debug.evaluate` → fix → `debug.continue` / `detach`. Коротко: «сломалось на строке N → vars → fix».
 - BSL-анализ — MCP bsl-ls: сначала `list_workspace_folders`; при отсутствии корня — `register_workspace_folder` на корень IDE (не `src/cf`).
 
 ## Публикация

@@ -1,4 +1,4 @@
-"""Capability matrix for doctor (ADR-005/007/012/018/024/028, #25, #49, #60, #91)."""
+"""Capability matrix for doctor (ADR-005/007/012/018/024/028/031, #25, #49, #60, #91, #142)."""
 
 from __future__ import annotations
 
@@ -21,6 +21,8 @@ CAPABILITY_REQUIREMENTS: dict[str, list[str]] = {
     "metadata.read": ["java", "md-reader"],
     # ADR-029 §7a: runner YaXUnit — .cfe из user cache (tools sync).
     "test.yaxunit": ["1cv8", "ibcmd", "yaxunit"],
+    # ADR-031 / #142: HTTP Debug Protocol — dbgs + listening probe (soft).
+    "debug.http": ["dbgs", "dbgs-listening"],
 }
 
 # Write capabilities → ADR-018 coverage catalog (23 Meta DSL + Subsystem).
@@ -61,6 +63,14 @@ _TOOL_HINTS: dict[str, str] = {
         "и test run / YaXUnit)."
     ),
     "yaxunit": "{suggest} (или задайте ONEC_YAXUNIT_CFE).",
+    "dbgs": (
+        "Установите платформу 1С с HTTP Debug Server и добавьте dbgs в PATH "
+        "(рядом с ibcmd / 1cv8)."
+    ),
+    "dbgs-listening": (
+        "Запустите debug-сервер: 1c-dev debug server start "
+        "(или укажите debug.host/port в .1c-dev/project.yaml)."
+    ),
 }
 
 

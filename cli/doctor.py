@@ -17,6 +17,7 @@ _TOOL_ORDER = (
     "cli",
     "ibcmd",
     "1cv8",
+    "dbgs",
     "java",
     "xml-gen",
     "md-reader",

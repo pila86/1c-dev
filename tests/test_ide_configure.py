@@ -114,6 +114,21 @@ def test_configure_agents_includes_build_test_cycle(tmp_path: Path) -> None:
     assert "1c-dev test" in agents
 
 
+def test_configure_agents_includes_debug_workflow(tmp_path: Path) -> None:
+    """AGENTS template: debug.* for runtime failures, not instead of test (#142)."""
+    result = configure_ide(tmp_path, target="none")
+    assert result.status == "ok"
+    agents = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert "debug.*" in agents
+    assert "debug.attach" in agents
+    assert "debug.wait" in agents
+    assert "debug.variables" in agents or "debug.evaluate" in agents
+    assert "runtime.start" in agents
+    assert "--debug" in agents
+    assert "debug.http" in agents
+    assert "не вместо" in agents or "не заменять" in agents or "не вместо `test" in agents
+
+
 def test_configure_mcp_excludes_metr(tmp_path: Path) -> None:
     """ide configure must not wire METR / mcp-onec-test-runner (ADR-029 / #126)."""
     result = configure_ide(tmp_path)

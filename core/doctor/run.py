@@ -1,4 +1,4 @@
-"""Run environment doctor (ADR-005, ADR-007, ADR-012, ADR-013 / #49)."""
+"""Run environment doctor (ADR-005, ADR-007, ADR-012, ADR-013 / #49; debug.http — #142)."""
 
 from __future__ import annotations
 
@@ -7,14 +7,19 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from adapters.debug_http import DebugHttpClient, DebugHttpError
 from adapters.platform.discovery import DiscoveryResult, discover_environment
 from adapters.platform.templates import discover_template_roots
 from adapters.source.mdclasses.resolve import resolve_jar as resolve_mdreader_jar
 from adapters.source.xmlgen.resolve import resolve_jar as resolve_xmlgen_jar
 from adapters.source.xmlgen.resolve import resolve_java
+from core.debug.state import resolve_debugger_url
 from core.diagnostics import Diagnostic, error, warning
 from core.doctor.capabilities import resolve_capabilities
 from core.doctor.result import DoctorResult
+from core.project.detect import detect_manifest
+from core.project.load import load_manifest as load_project_manifest
+from core.project.paths import scope_root_from_manifest
 from core.toolchain.manifest import load_manifest
 from core.toolchain.resolve import (
     JarResolve,
@@ -65,8 +70,17 @@ _CLI_HINT = (
     "Установите CLI: uv tool install git+https://github.com/pila86/1c-dev "
     "(или poetry install для разработки)."
 )
+_DBGS_HINT = (
+    "Установите платформу 1С с HTTP Debug Server и добавьте dbgs в PATH "
+    "(рядом с ibcmd / 1cv8)."
+)
+_DBGS_LISTENING_HINT = (
+    "Запустите debug-сервер: 1c-dev debug server start "
+    "(или укажите debug.host/port в .1c-dev/project.yaml)."
+)
 _XMLGEN_ENV = "ONEC_XMLGEN_JAR"
 _MDREADER_ENV = "ONEC_MDREADER_JAR"
+_DBGS_PROBE_TIMEOUT_SEC = 1.0
 
 
 def _tool_payload(
@@ -139,6 +153,36 @@ def _resolve_cli() -> dict[str, Any]:
     return _tool_payload(False, None)
 
 
+def _probe_dbgs_listening(
+    *,
+    start: Path | None = None,
+    timeout: float = _DBGS_PROBE_TIMEOUT_SEC,
+) -> tuple[bool, str | None]:
+    """Check whether a resolvable dbgs URL answers HTTP test.
+
+    Returns ``(listening_ok, url_or_none)``. When no project/URL is known,
+    listening is treated as vacuous ok (``True``, ``None``) so capability
+    depends only on the ``dbgs`` binary outside a project context.
+    """
+    manifest_path = detect_manifest(start)
+    if manifest_path is None:
+        return True, None
+    data, diags = load_project_manifest(manifest_path)
+    if data is None or diags:
+        return True, None
+    root = scope_root_from_manifest(manifest_path)
+    url = resolve_debugger_url(root, data)
+    if not url:
+        return True, None
+    try:
+        DebugHttpClient(url, timeout=timeout).test()
+    except DebugHttpError:
+        return False, url
+    except OSError:
+        return False, url
+    return True, url
+
+
 def run_doctor(
     *,
     search_roots: list[Path] | None = None,
@@ -174,6 +218,7 @@ def run_doctor(
     )
     apache = resolve_apache_home(env=env)
     yaxunit = resolve_yaxunit_cfe(env=env, manifest=manifest)
+    dbgs_listening, dbgs_url = _probe_dbgs_listening()
 
     tools = {
         "cli": cli,
@@ -186,6 +231,7 @@ def run_doctor(
             source=apache.source,
         ),
         "1cv8": _tool_payload(discovery.onecv8.found, discovery.onecv8.path),
+        "dbgs": _tool_payload(discovery.dbgs.found, discovery.dbgs.path),
         "templates": _tool_payload(templates_found, templates_path),
         "java": _tool_payload(java.found, java.path, version=java.version),
         "xml-gen": _adapter_jar_payload(
@@ -204,6 +250,8 @@ def run_doctor(
         "webinst": discovery.webinst.found,
         "apache": apache.found,
         "1cv8": discovery.onecv8.found,
+        "dbgs": discovery.dbgs.found,
+        "dbgs-listening": dbgs_listening,
         "templates": templates_found,
         "java": java.found,
         "xml-gen": xmlgen.found,
@@ -349,6 +397,24 @@ def run_doctor(
                 code="1CD015",
                 source="doctor",
                 suggestion=f"{hint} (или задайте {env_name}).",
+            )
+        )
+    if not discovery.dbgs.found:
+        diagnostics.append(
+            warning(
+                "dbgs не найден (нужен для debug.http / HTTP Debug Protocol)",
+                code="1CD017",
+                source="doctor",
+                suggestion=_DBGS_HINT,
+            )
+        )
+    if not dbgs_listening and dbgs_url is not None:
+        diagnostics.append(
+            warning(
+                f"dbgs не отвечает на {dbgs_url} (нужен для debug.http)",
+                code="1CD018",
+                source="doctor",
+                suggestion=_DBGS_LISTENING_HINT,
             )
         )
     if not cli.get("found"):

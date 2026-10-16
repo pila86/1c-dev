@@ -1,6 +1,6 @@
 # M6: Debug (HTTP Debug Protocol + CLI/MCP)
 
-**Статус:** In progress — [GitHub milestone M6](https://github.com/pila86/1c-dev/milestone/6); waves 0–3 DONE (#135–#140); #145 `--file` DONE; #141 MCP `debug.*` DONE; DX/acceptance OPEN (#142–#144).  
+**Статус:** In progress — [GitHub milestone M6](https://github.com/pila86/1c-dev/milestone/6); waves 0–3 DONE (#135–#140); #145 `--file` DONE; #141 MCP `debug.*` DONE; #142 doctor/AGENTS DONE; acceptance OPEN (#143–#144).  
 **ADR:** [ADR-031](../adr/031-debug-api-http.md) (Accepted, [#136](https://github.com/pila86/1c-dev/issues/136); ранее в черновике ошибочно «ADR-030» — номер занят Designer `/CheckModules`). Закладка: [ADR-019](../adr/019-runtime-client-lifecycle.md) (`/Debug`, `debug.*` → M6). Spike: [135-http-debug-protocol.md](../spikes/135-http-debug-protocol.md).
 
 ## Goal
@@ -113,7 +113,7 @@ PRD §28 (`debug.start` / `debug.stop`) мапится так: **start** = serve
 
 - `ide configure`: фрагмент launch.json для onec-debug-adapter / bsl-debug-server
 - `raw_request` (отладка протокола)
-- Doctor capability `debug.http` (dbgs найден, port слушает) — soft gap
+- Doctor capability `debug.http` (dbgs найден, port слушает) — soft gap — DONE (#142)
 - Password / TLS — по необходимости spike
 
 ## Scope
@@ -199,10 +199,10 @@ build (ИБ актуальна)
 - [x] CLI `1c-dev debug …` → structured JSON; ошибки → exit 2/3/4 по ADR-003 — [#140](https://github.com/pila86/1c-dev/issues/140)
 - [x] BP по пути `.bsl` (`--file`) + ObjectModule/ManagerModule propertyID — [#145](https://github.com/pila86/1c-dev/issues/145)
 - [x] MCP `debug.*` (полный must-набор таблицы API) без shell.exec (#141)
-- [ ] Связка с `runtime.start --debug` документирована и покрыта acceptance
+- [x] Связка с `runtime.start --debug` документирована (AGENTS / #142); acceptance E2E — [#144](https://github.com/pila86/1c-dev/issues/144)
 - [x] `force_detach` / recovery при `ibInDebug` или мёртвом ping — поведение зафиксировано в ADR-031
-- [ ] Doctor: soft gap `debug.http` (или эквивалент)
-- [ ] `AGENTS.md`: цикл с debug для runtime failures
+- [x] Doctor: soft gap `debug.http` (dbgs + listening probe) — [#142](https://github.com/pila86/1c-dev/issues/142)
+- [x] `AGENTS.md`: цикл с debug для runtime failures — [#142](https://github.com/pila86/1c-dev/issues/142)
 - [ ] Integration: `tests/test_m6_acceptance.py`; skip без dbgs/платформы/GUI
 
 ### Should
@@ -310,7 +310,7 @@ build (ИБ актуальна)
 | [#140](https://github.com/pila86/1c-dev/issues/140) | 3 | `core/debug` + CLI `1c-dev debug` | #137–#139 | DONE |
 | [#145](https://github.com/pila86/1c-dev/issues/145) | 2.5 | `breakpoint set --file` (ObjectModule / path → objectID) | #138–#140 | DONE |
 | [#141](https://github.com/pila86/1c-dev/issues/141) | 4 | MCP `debug.*` tools | #140 | DONE |
-| [#142](https://github.com/pila86/1c-dev/issues/142) | 4 | Doctor `debug.http` + AGENTS debug workflow | #140, #141 | OPEN |
+| [#142](https://github.com/pila86/1c-dev/issues/142) | 4 | Doctor `debug.http` + AGENTS debug workflow | #140, #141 | DONE |
 | [#143](https://github.com/pila86/1c-dev/issues/143) | 4 | should: `ide configure` DAP launch.json hint | #136 | OPEN |
 | [#144](https://github.com/pila86/1c-dev/issues/144) | 5 | Acceptance: M6 debug E2E | #140–#142 | OPEN |
 
