@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -422,136 +423,74 @@ def wait_cmd(
     )
 
 
-@app.command("continue")
-def continue_cmd(
-    ctx: typer.Context,
-    target_id: str | None = typer.Option(None, "--target", help="targetId (default: last)."),
-    timeout: float = typer.Option(
-        DEFAULT_WAIT_TIMEOUT_SEC,
-        "--timeout",
-        help="Таймаут ожидания следующей остановки (секунды, default 30).",
-    ),
-    no_wait: bool = typer.Option(
-        False,
-        "--no-wait",
-        help="Только отправить Continue, не ждать callStackFormed.",
-    ),
-    config: ConfigOption = None,
-    runtime: RuntimeOption = None,
-    output: OutputOption = None,
+def _register_resume_command(
+    name: str,
+    run: Callable[..., DebugResult],
+    *,
+    doc: str,
+    sent_action: str,
 ) -> None:
-    """Continue — снять остановку; по умолчанию ждёт следующую (--no-wait для финала)."""
-    finish(
-        run_continue(
-            Path.cwd(),
-            target_id=target_id,
-            wait=not no_wait,
-            timeout=timeout,
-            config_id=config,
-            runtime_id=runtime,
+    """Register ``continue`` / ``step-*`` — same options, different core operation."""
+
+    def command(
+        ctx: typer.Context,
+        target_id: str | None = typer.Option(None, "--target", help="targetId (default: last)."),
+        timeout: float = typer.Option(
+            DEFAULT_WAIT_TIMEOUT_SEC,
+            "--timeout",
+            help="Таймаут ожидания следующей остановки (секунды, default 30).",
         ),
-        ctx,
-        output,
-    )
-
-
-@app.command("step-in")
-def step_in_cmd(
-    ctx: typer.Context,
-    target_id: str | None = typer.Option(None, "--target", help="targetId (default: last)."),
-    timeout: float = typer.Option(
-        DEFAULT_WAIT_TIMEOUT_SEC,
-        "--timeout",
-        help="Таймаут ожидания следующей остановки (секунды, default 30).",
-    ),
-    no_wait: bool = typer.Option(
-        False,
-        "--no-wait",
-        help="Только отправить StepIn, не ждать callStackFormed.",
-    ),
-    config: ConfigOption = None,
-    runtime: RuntimeOption = None,
-    output: OutputOption = None,
-) -> None:
-    """StepIn — зайти в вызываемый метод; ждёт следующую остановку."""
-    finish(
-        run_step_in(
-            Path.cwd(),
-            target_id=target_id,
-            wait=not no_wait,
-            timeout=timeout,
-            config_id=config,
-            runtime_id=runtime,
+        no_wait: bool = typer.Option(
+            False,
+            "--no-wait",
+            help=f"Только отправить {sent_action}, не ждать callStackFormed.",
         ),
-        ctx,
-        output,
-    )
+        config: ConfigOption = None,
+        runtime: RuntimeOption = None,
+        output: OutputOption = None,
+    ) -> None:
+        finish(
+            run(
+                Path.cwd(),
+                target_id=target_id,
+                wait=not no_wait,
+                timeout=timeout,
+                config_id=config,
+                runtime_id=runtime,
+            ),
+            ctx,
+            output,
+        )
+
+    command.__doc__ = doc
+    command.__name__ = f"{name.replace('-', '_')}_cmd"
+    app.command(name)(command)
 
 
-@app.command("step-over")
-def step_over_cmd(
-    ctx: typer.Context,
-    target_id: str | None = typer.Option(None, "--target", help="targetId (default: last)."),
-    timeout: float = typer.Option(
-        DEFAULT_WAIT_TIMEOUT_SEC,
-        "--timeout",
-        help="Таймаут ожидания следующей остановки (секунды, default 30).",
-    ),
-    no_wait: bool = typer.Option(
-        False,
-        "--no-wait",
-        help="Только отправить Step (step over), не ждать callStackFormed.",
-    ),
-    config: ConfigOption = None,
-    runtime: RuntimeOption = None,
-    output: OutputOption = None,
-) -> None:
-    """Step over — следующая строка текущего кадра; ждёт остановку."""
-    finish(
-        run_step_over(
-            Path.cwd(),
-            target_id=target_id,
-            wait=not no_wait,
-            timeout=timeout,
-            config_id=config,
-            runtime_id=runtime,
-        ),
-        ctx,
-        output,
-    )
-
-
-@app.command("step-out")
-def step_out_cmd(
-    ctx: typer.Context,
-    target_id: str | None = typer.Option(None, "--target", help="targetId (default: last)."),
-    timeout: float = typer.Option(
-        DEFAULT_WAIT_TIMEOUT_SEC,
-        "--timeout",
-        help="Таймаут ожидания следующей остановки (секунды, default 30).",
-    ),
-    no_wait: bool = typer.Option(
-        False,
-        "--no-wait",
-        help="Только отправить StepOut, не ждать callStackFormed.",
-    ),
-    config: ConfigOption = None,
-    runtime: RuntimeOption = None,
-    output: OutputOption = None,
-) -> None:
-    """StepOut — выйти из текущего кадра (из верхнего — программа выполнится до конца)."""
-    finish(
-        run_step_out(
-            Path.cwd(),
-            target_id=target_id,
-            wait=not no_wait,
-            timeout=timeout,
-            config_id=config,
-            runtime_id=runtime,
-        ),
-        ctx,
-        output,
-    )
+_register_resume_command(
+    "continue",
+    run_continue,
+    doc="Continue — снять остановку; по умолчанию ждёт следующую (--no-wait для финала).",
+    sent_action="Continue",
+)
+_register_resume_command(
+    "step-in",
+    run_step_in,
+    doc="StepIn — зайти в вызываемый метод; ждёт следующую остановку.",
+    sent_action="StepIn",
+)
+_register_resume_command(
+    "step-over",
+    run_step_over,
+    doc="Step over — следующая строка текущего кадра; ждёт остановку.",
+    sent_action="Step (step over)",
+)
+_register_resume_command(
+    "step-out",
+    run_step_out,
+    doc="StepOut — выйти из текущего кадра (из верхнего — программа выполнится до конца).",
+    sent_action="StepOut",
+)
 
 
 @app.command("pause")
