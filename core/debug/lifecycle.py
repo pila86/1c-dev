@@ -21,14 +21,14 @@ from adapters.platform_1cv8 import IsRunningFn, TerminateFn
 from core.debug.breakpoints import parse_breakpoint_specs, run_breakpoint_set
 from core.debug.common import (
     SessionFactory,
-    _client_debug_hint,
-    _fail,
-    _handle_adapter_error,
-    _load_project,
-    _make_resolver,
-    _ok,
-    _restore_session,
-    _session_url,
+    client_debug_hint,
+    fail_result,
+    handle_adapter_error,
+    load_project,
+    make_resolver,
+    ok_result,
+    restore_session,
+    session_url,
 )
 from core.debug.constants import (
     CODE_DBGS_UNREACHABLE,
@@ -93,13 +93,13 @@ def ensure_debug_for_runtime(
     raw_bps = list(breakpoints or [])
     specs, parse_diags = parse_breakpoint_specs(raw_bps)
     if parse_diags:
-        root, _data, target, err = _load_project(
+        root, _data, target, err = load_project(
             start_path, started=started, config_id=config_id, runtime_id=runtime_id
         )
         if err is not None:
             return err
         assert target is not None
-        return _fail(
+        return fail_result(
             started=started,
             root=root,
             config_id=target.config_id,
@@ -120,7 +120,7 @@ def ensure_debug_for_runtime(
         server.duration = time.perf_counter() - started
         return server
 
-    root, data, target, err = _load_project(
+    root, data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
@@ -142,7 +142,7 @@ def ensure_debug_for_runtime(
             return attached
     else:
         # Session already on disk — validate restore path exists for BP set.
-        _session, _base, _alias, restore_err = _restore_session(
+        _session, _base, _alias, restore_err = restore_session(
             root, data, target, transport=transport, session_factory=session_factory
         )
         if restore_err is not None:
@@ -182,7 +182,7 @@ def ensure_debug_for_runtime(
         or resolve_debugger_url(root, data, explicit=debugger_url)
     )
     session_meta = read_session(root) or {}
-    return _ok(
+    return ok_result(
         started=started,
         root=root,
         config_id=target.config_id,
@@ -213,14 +213,14 @@ def prepare_debug_for_spawn(
     """
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
-    root, _data, target, err = _load_project(
+    root, _data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
         return err
     assert target is not None
     if read_session(root) is None:
-        return _fail(
+        return fail_result(
             started=started,
             root=root,
             config_id=target.config_id,
@@ -236,7 +236,7 @@ def prepare_debug_for_spawn(
         )
     reset_session_runtime(root)
     diags = soft_ensure_background_ping(root, **ping_kwargs)
-    return _ok(
+    return ok_result(
         started=started,
         root=root,
         config_id=target.config_id,
@@ -264,7 +264,7 @@ def await_debug_targets_armed(
     del transport, session_factory  # kept for API compatibility
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = _load_project(
+    root, data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
@@ -276,7 +276,7 @@ def await_debug_targets_armed(
     while True:
         stored = read_session(root)
         if stored is None:
-            return _fail(
+            return fail_result(
                 started=started,
                 root=root,
                 config_id=target.config_id,
@@ -296,7 +296,7 @@ def await_debug_targets_armed(
             break
         time.sleep(max(0.02, poll_interval))
     base = str(stored.get("url") or "") or resolve_debugger_url(root, data)
-    return _ok(
+    return ok_result(
         started=started,
         root=root,
         config_id=target.config_id,
@@ -359,7 +359,7 @@ def teardown_debug(
     """
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = _load_project(
+    root, data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
@@ -374,7 +374,7 @@ def teardown_debug(
         diags.extend(_as_warnings(ping.diagnostics))
 
     if read_session(root) is not None:
-        session, _base, _alias, restore_err = _restore_session(
+        session, _base, _alias, restore_err = restore_session(
             root,
             data,
             target,
@@ -415,7 +415,7 @@ def teardown_debug(
         if stopped.status != "ok":
             diags.extend(_as_warnings(stopped.diagnostics))
 
-    return _ok(
+    return ok_result(
         started=started,
         root=root,
         config_id=target.config_id,
@@ -458,7 +458,7 @@ def run_server_start(
 ) -> DebugResult:
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = _load_project(
+    root, data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
@@ -493,7 +493,7 @@ def run_server_stop(
 ) -> DebugResult:
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
-    root, _data, target, err = _load_project(
+    root, _data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
@@ -520,7 +520,7 @@ def run_server_status(
 ) -> DebugResult:
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
-    root, _data, target, err = _load_project(
+    root, _data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
@@ -548,20 +548,20 @@ def run_attach(
 ) -> DebugResult:
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = _load_project(
+    root, data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
         return err
     assert target is not None
     settings = manifest_debug_settings(data)
-    base = _session_url(root, data, url=url)
+    base = session_url(root, data, url=url)
     if not base:
         running, _pid, meta = alive_server(root)
         hint = ""
         if running and meta.get("url"):
             hint = str(meta["url"])
-        return _fail(
+        return fail_result(
             started=started,
             root=root,
             config_id=target.config_id,
@@ -580,14 +580,14 @@ def run_attach(
     try:
         client.test()
     except DebugHttpError as exc:
-        return _handle_adapter_error(exc, started=started, root=root, target=target)
+        return handle_adapter_error(exc, started=started, root=root, target=target)
 
     factory = session_factory or DebugSession
     types = settings["autoAttachTypes"]
     session = factory(
         client,
         alias=settings["alias"],
-        resolver=_make_resolver(root, target),
+        resolver=make_resolver(root, target),
         auto_attach_types=types,
     )
     pwd = password if password is not None else os.environ.get("ONEC_DEBUG_PASSWORD", "")
@@ -595,7 +595,7 @@ def run_attach(
         # CLI process exits immediately — do not start ping only to join(2s) on stop.
         attach = session.attach(password=pwd or "", start_ping=False)
     except DebugHttpError as exc:
-        return _handle_adapter_error(exc, started=started, root=root, target=target)
+        return handle_adapter_error(exc, started=started, root=root, target=target)
 
     write_session(
         root,
@@ -607,8 +607,8 @@ def run_attach(
     # Do not kill the worker for in-process wait — that gap releases the stopped target.
     ping_diags = soft_ensure_background_ping(root)
     ping_running, ping_pid, _ping_meta = alive_ping(root)
-    client_enabled, client_url = _client_debug_hint(root)
-    return _ok(
+    client_enabled, client_url = client_debug_hint(root)
+    return ok_result(
         started=started,
         root=root,
         config_id=target.config_id,
@@ -636,14 +636,14 @@ def run_detach(
 ) -> DebugResult:
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = _load_project(
+    root, data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
         return err
     assert target is not None
     stop_background_ping(root)
-    session, base, alias, restore_err = _restore_session(
+    session, base, alias, restore_err = restore_session(
         root,
         data,
         target,
@@ -654,7 +654,7 @@ def run_detach(
         # force-detach still clears local state
         if force:
             clear_session(root)
-            return _ok(
+            return ok_result(
                 started=started,
                 root=root,
                 config_id=target.config_id,
@@ -672,7 +672,7 @@ def run_detach(
     except DebugHttpError as exc:
         if force:
             clear_session(root)
-            return _ok(
+            return ok_result(
                 started=started,
                 root=root,
                 config_id=target.config_id,
@@ -681,9 +681,9 @@ def run_detach(
                 ping_running=False,
                 diagnostics=list(exc.diagnostics),
             )
-        return _handle_adapter_error(exc, started=started, root=root, target=target)
+        return handle_adapter_error(exc, started=started, root=root, target=target)
     clear_session(root)
-    return _ok(
+    return ok_result(
         started=started,
         root=root,
         config_id=target.config_id,
@@ -712,13 +712,13 @@ def run_targets(
 ) -> DebugResult:
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = _load_project(
+    root, data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
         return err
     assert target is not None
-    session, base, alias, restore_err = _restore_session(
+    session, base, alias, restore_err = restore_session(
         root, data, target, transport=transport, session_factory=session_factory
     )
     if restore_err is not None:
@@ -727,7 +727,7 @@ def run_targets(
     try:
         targets = session.ensure_targets_attached(force=False)
     except DebugHttpError as exc:
-        return _handle_adapter_error(exc, started=started, root=root, target=target)
+        return handle_adapter_error(exc, started=started, root=root, target=target)
     persist_session_runtime(root, session, url=base, alias=alias)
     payload = [
         {
@@ -739,8 +739,8 @@ def run_targets(
         }
         for t in targets
     ]
-    client_enabled, _ = _client_debug_hint(root)
-    return _ok(
+    client_enabled, _ = client_debug_hint(root)
+    return ok_result(
         started=started,
         root=root,
         config_id=target.config_id,
@@ -764,7 +764,7 @@ def run_status(
 ) -> DebugResult:
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = _load_project(
+    root, data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
@@ -779,9 +779,9 @@ def run_status(
         transport=transport,
     )
     stored = read_session(root)
-    client_enabled, client_url = _client_debug_hint(root)
+    client_enabled, client_url = client_debug_hint(root)
     ping_running, ping_pid, _ping_meta = alive_ping(root, is_alive=is_alive)
-    return _ok(
+    return ok_result(
         started=started,
         root=root,
         config_id=target.config_id,
@@ -812,7 +812,7 @@ def run_ping_start(
     """Start background ``pingDebugUIParams`` keepalive (CLI between commands)."""
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
-    root, _data, target, err = _load_project(
+    root, _data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
@@ -834,7 +834,7 @@ def run_ping_stop(
 ) -> DebugResult:
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
-    root, _data, target, err = _load_project(
+    root, _data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
@@ -856,7 +856,7 @@ def run_ping_status(
 ) -> DebugResult:
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
-    root, _data, target, err = _load_project(
+    root, _data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
@@ -877,7 +877,7 @@ def run_reload_metadata(
 ) -> DebugResult:
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
-    root, _data, target, err = _load_project(
+    root, _data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
@@ -885,7 +885,7 @@ def run_reload_metadata(
     assert target is not None
     roots = source_roots_from_configuration(root, target.configuration)
     if not roots:
-        return _fail(
+        return fail_result(
             started=started,
             root=root,
             config_id=target.config_id,
@@ -899,7 +899,7 @@ def run_reload_metadata(
             ],
         )
     index = reload_metadata(root, roots)
-    return _ok(
+    return ok_result(
         started=started,
         root=root,
         config_id=target.config_id,

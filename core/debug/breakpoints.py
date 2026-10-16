@@ -14,11 +14,11 @@ from adapters.debug_http import (
 from adapters.debug_http.constants import CODE_MODULE_UNRESOLVED
 from core.debug.common import (
     SessionFactory,
-    _fail,
-    _handle_adapter_error,
-    _load_project,
-    _ok,
-    _restore_session,
+    fail_result,
+    handle_adapter_error,
+    load_project,
+    ok_result,
+    restore_session,
 )
 from core.debug.constants import (
     CODE_PROJECT,
@@ -122,14 +122,14 @@ def run_breakpoint_set(
     """Set breakpoints by ``--module``, ``--file``, or explicit object/property ids (#145)."""
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = _load_project(
+    root, data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
         return err
     assert target is not None
     if not lines:
-        return _fail(
+        return fail_result(
             started=started,
             root=root,
             config_id=target.config_id,
@@ -150,7 +150,7 @@ def run_breakpoint_set(
     )
     modes = sum(1 for flag in (has_module, has_file, has_ids) if flag)
     if modes != 1:
-        return _fail(
+        return fail_result(
             started=started,
             root=root,
             config_id=target.config_id,
@@ -169,7 +169,7 @@ def run_breakpoint_set(
             ],
         )
 
-    session, base, alias, restore_err = _restore_session(
+    session, base, alias, restore_err = restore_session(
         root, data, target, transport=transport, session_factory=session_factory
     )
     if restore_err is not None:
@@ -215,12 +215,12 @@ def run_breakpoint_set(
         session.ensure_targets_attached(force=False)
     except DebugHttpError as exc:
         # 1CD004 from missing source → project (2); otherwise runtime
-        result = _handle_adapter_error(exc, started=started, root=root, target=target)
+        result = handle_adapter_error(exc, started=started, root=root, target=target)
         if any(d.get("code") == CODE_MODULE_UNRESOLVED for d in result.diagnostics):
             result.exit_code = exit_code_for_result("failed", result.diagnostics)
         return result
     persist_session_runtime(root, session, url=base, alias=alias)
-    return _ok(
+    return ok_result(
         started=started,
         root=root,
         config_id=target.config_id,
@@ -254,13 +254,13 @@ def run_breakpoint_clear(
 ) -> DebugResult:
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = _load_project(
+    root, data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
         return err
     assert target is not None
-    session, base, alias, restore_err = _restore_session(
+    session, base, alias, restore_err = restore_session(
         root, data, target, transport=transport, session_factory=session_factory
     )
     if restore_err is not None:
@@ -269,9 +269,9 @@ def run_breakpoint_clear(
     try:
         session.clear_breakpoints()
     except DebugHttpError as exc:
-        return _handle_adapter_error(exc, started=started, root=root, target=target)
+        return handle_adapter_error(exc, started=started, root=root, target=target)
     persist_session_runtime(root, session, url=base, alias=alias)
-    return _ok(
+    return ok_result(
         started=started,
         root=root,
         config_id=target.config_id,

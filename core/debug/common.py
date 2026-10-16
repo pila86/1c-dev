@@ -43,7 +43,7 @@ from core.runtime.state import read_meta
 SessionFactory = Callable[..., DebugSession]
 
 
-def _fail(
+def fail_result(
     *,
     started: float,
     diagnostics: list[Diagnostic],
@@ -64,7 +64,7 @@ def _fail(
     )
 
 
-def _ok(
+def ok_result(
     *,
     started: float,
     root: Path | None = None,
@@ -86,7 +86,7 @@ def _ok(
     )
 
 
-def _load_project(
+def load_project(
     start: Path,
     *,
     started: float,
@@ -100,7 +100,7 @@ def _load_project(
             start,
             {},
             None,
-            _fail(
+            fail_result(
                 started=started,
                 diagnostics=[
                     error(
@@ -119,7 +119,7 @@ def _load_project(
             root,
             {},
             None,
-            _fail(
+            fail_result(
                 started=started,
                 root=root,
                 diagnostics=list(load_diags)
@@ -143,7 +143,7 @@ def _load_project(
             root,
             data,
             None,
-            _fail(
+            fail_result(
                 started=started,
                 root=root,
                 diagnostics=list(resolve_diags)
@@ -159,7 +159,7 @@ def _load_project(
     return root, data, target, None
 
 
-def _client_debug_hint(root: Path) -> tuple[bool | None, str | None]:
+def client_debug_hint(root: Path) -> tuple[bool | None, str | None]:
     meta = read_meta(root)
     debug = meta.get("debug")
     if not isinstance(debug, dict):
@@ -170,7 +170,7 @@ def _client_debug_hint(root: Path) -> tuple[bool | None, str | None]:
     return enabled, url_s
 
 
-def _session_url(
+def session_url(
     root: Path,
     data: dict[str, Any],
     *,
@@ -184,14 +184,14 @@ def _session_url(
     return resolve_debugger_url(root, data)
 
 
-def _make_resolver(
+def make_resolver(
     root: Path,
     target: ResolvedTarget,
 ) -> XmlObjectIdResolver:
     return XmlObjectIdResolver.from_configuration(root, target.configuration)
 
 
-def _restore_session(
+def restore_session(
     root: Path,
     data: dict[str, Any],
     target: ResolvedTarget,
@@ -209,7 +209,7 @@ def _restore_session(
             DebugSession(DebugHttpClient("http://localhost:0", transport=transport)),
             "",
             "",
-            _fail(
+            fail_result(
                 started=time.perf_counter(),
                 root=root,
                 config_id=target.config_id,
@@ -233,7 +233,7 @@ def _restore_session(
             DebugSession(DebugHttpClient("http://localhost:0", transport=transport)),
             "",
             "",
-            _fail(
+            fail_result(
                 started=time.perf_counter(),
                 root=root,
                 diagnostics=[
@@ -253,7 +253,7 @@ def _restore_session(
             DebugSession(DebugHttpClient(base, transport=transport)),
             base,
             alias,
-            _fail(
+            fail_result(
                 started=time.perf_counter(),
                 root=root,
                 diagnostics=[
@@ -271,7 +271,7 @@ def _restore_session(
     session_kwargs: dict[str, Any] = {
         "alias": alias,
         "session_id": session_id,
-        "resolver": _make_resolver(root, target),
+        "resolver": make_resolver(root, target),
         "auto_attach_types": types,
     }
     if ping_interval is not None:
@@ -281,13 +281,13 @@ def _restore_session(
     session._attached = True  # noqa: SLF001 — restore across CLI processes
     if ping_interval is not None:
         session.ping_interval = ping_interval
-    _apply_stored_runtime(session, stored)
+    apply_stored_runtime(session, stored)
     if start_ping:
         session.start_ping()
     return session, base.rstrip("/"), alias, None
 
 
-def _apply_stored_runtime(session: DebugSession, stored: dict[str, Any]) -> None:
+def apply_stored_runtime(session: DebugSession, stored: dict[str, Any]) -> None:
     """Hydrate stop/targets/BP from ``session.json`` (short-lived CLI)."""
     raw_targets = stored.get("attachedTargets")
     if isinstance(raw_targets, list):
@@ -356,7 +356,7 @@ def _apply_stored_runtime(session: DebugSession, stored: dict[str, Any]) -> None
         session._last_target_id = target_id  # noqa: SLF001
 
 
-def _frames_payload(frames: Sequence[Any]) -> list[dict[str, Any]]:
+def frames_payload(frames: Sequence[Any]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for frame in frames:
         item: dict[str, Any] = {
@@ -375,7 +375,7 @@ def _frames_payload(frames: Sequence[Any]) -> list[dict[str, Any]]:
     return out
 
 
-def _vars_payload(eval_result: Any) -> list[dict[str, Any]]:
+def vars_payload(eval_result: Any) -> list[dict[str, Any]]:
     return [
         {
             "name": v.name,
@@ -387,7 +387,7 @@ def _vars_payload(eval_result: Any) -> list[dict[str, Any]]:
     ]
 
 
-def _eval_result_text(eval_result: Any) -> str | None:
+def eval_result_text(eval_result: Any) -> str | None:
     """Single presentation for evalExpr (first unnamed or first variable)."""
     vars_ = list(getattr(eval_result, "variables", ()) or ())
     if not vars_:
@@ -398,14 +398,14 @@ def _eval_result_text(eval_result: Any) -> str | None:
     return vars_[0].presentation or vars_[0].value_raw or None
 
 
-def _handle_adapter_error(
+def handle_adapter_error(
     exc: DebugHttpError,
     *,
     started: float,
     root: Path,
     target: ResolvedTarget | None,
 ) -> DebugResult:
-    return _fail(
+    return fail_result(
         started=started,
         root=root,
         config_id=target.config_id if target else None,

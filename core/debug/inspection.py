@@ -11,13 +11,13 @@ from adapters.debug_http import (
 )
 from core.debug.common import (
     SessionFactory,
-    _eval_result_text,
-    _frames_payload,
-    _handle_adapter_error,
-    _load_project,
-    _ok,
-    _restore_session,
-    _vars_payload,
+    eval_result_text,
+    frames_payload,
+    handle_adapter_error,
+    load_project,
+    ok_result,
+    restore_session,
+    vars_payload,
 )
 from core.debug.result import DebugResult
 
@@ -33,13 +33,13 @@ def run_stack(
 ) -> DebugResult:
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = _load_project(
+    root, data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
         return err
     assert target is not None
-    session, base, alias, restore_err = _restore_session(
+    session, base, alias, restore_err = restore_session(
         root, data, target, transport=transport, session_factory=session_factory
     )
     if restore_err is not None:
@@ -48,10 +48,10 @@ def run_stack(
     try:
         frames = session.stack(target_id)
     except DebugHttpError as exc:
-        return _handle_adapter_error(exc, started=started, root=root, target=target)
-    payload = _frames_payload(frames)
+        return handle_adapter_error(exc, started=started, root=root, target=target)
+    payload = frames_payload(frames)
     leaf = frames[-1] if frames else None
-    return _ok(
+    return ok_result(
         started=started,
         root=root,
         config_id=target.config_id,
@@ -78,13 +78,13 @@ def run_variables(
 ) -> DebugResult:
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = _load_project(
+    root, data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
         return err
     assert target is not None
-    session, base, alias, restore_err = _restore_session(
+    session, base, alias, restore_err = restore_session(
         root, data, target, transport=transport, session_factory=session_factory
     )
     if restore_err is not None:
@@ -93,8 +93,8 @@ def run_variables(
     try:
         result = session.variables(target_id)
     except DebugHttpError as exc:
-        return _handle_adapter_error(exc, started=started, root=root, target=target)
-    return _ok(
+        return handle_adapter_error(exc, started=started, root=root, target=target)
+    return ok_result(
         started=started,
         root=root,
         config_id=target.config_id,
@@ -105,7 +105,7 @@ def run_variables(
         attached=True,
         target_id=target_id or (session.last_stop.target_id if session.last_stop else None),
         eval_state=result.state,
-        variables=_vars_payload(result),
+        variables=vars_payload(result),
     )
 
 
@@ -121,13 +121,13 @@ def run_evaluate(
 ) -> DebugResult:
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = _load_project(
+    root, data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
         return err
     assert target is not None
-    session, base, alias, restore_err = _restore_session(
+    session, base, alias, restore_err = restore_session(
         root, data, target, transport=transport, session_factory=session_factory
     )
     if restore_err is not None:
@@ -136,8 +136,8 @@ def run_evaluate(
     try:
         result = session.evaluate(expression, target_id)
     except DebugHttpError as exc:
-        return _handle_adapter_error(exc, started=started, root=root, target=target)
-    return _ok(
+        return handle_adapter_error(exc, started=started, root=root, target=target)
+    return ok_result(
         started=started,
         root=root,
         config_id=target.config_id,
@@ -149,6 +149,6 @@ def run_evaluate(
         target_id=target_id or (session.last_stop.target_id if session.last_stop else None),
         expression=expression,
         eval_state=result.state,
-        result=_eval_result_text(result),
-        variables=_vars_payload(result),
+        result=eval_result_text(result),
+        variables=vars_payload(result),
     )

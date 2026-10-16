@@ -24,13 +24,13 @@ from adapters.debug_http import (
 from adapters.platform_1cv8 import is_running
 from core.debug.common import (
     SessionFactory,
-    _apply_stored_runtime,
-    _fail,
-    _frames_payload,
-    _handle_adapter_error,
-    _load_project,
-    _ok,
-    _restore_session,
+    apply_stored_runtime,
+    fail_result,
+    frames_payload,
+    handle_adapter_error,
+    load_project,
+    ok_result,
+    restore_session,
 )
 from core.debug.constants import (
     CODE_CLIENT_EXITED,
@@ -80,7 +80,7 @@ def _stored_stop(root: Path, session: DebugSession) -> StopEvent | None:
     stored = read_session(root)
     if stored is None or not isinstance(stored.get("lastStop"), dict):
         return None
-    _apply_stored_runtime(session, stored)
+    apply_stored_runtime(session, stored)
     # Prefer _last_stop (set by hydrate); MagicMock may shadow .last_stop.
     stop = getattr(session, "_last_stop", None) or getattr(session, "last_stop", None)
     if not isinstance(stop, StopEvent):
@@ -169,13 +169,13 @@ def run_wait(
     """
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = _load_project(
+    root, data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
         return err
     assert target is not None
-    session, base, alias, restore_err = _restore_session(
+    session, base, alias, restore_err = restore_session(
         root,
         data,
         target,
@@ -194,12 +194,12 @@ def run_wait(
     try:
         stop = _await_persisted_stop(root, session, timeout=timeout, client_alive=probe)
     except DebugHttpError as exc:
-        return _handle_adapter_error(exc, started=started, root=root, target=target)
-    frames = _frames_payload(stop.frames)
+        return handle_adapter_error(exc, started=started, root=root, target=target)
+    frames = frames_payload(stop.frames)
     leaf = stop.current_frame
     persist_session_runtime(root, session, url=base, alias=alias)
     ping_running, ping_pid, _ping_meta = alive_ping(root)
-    return _ok(
+    return ok_result(
         started=started,
         root=root,
         config_id=target.config_id,
@@ -241,13 +241,13 @@ def _run_step(
     """
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
-    root, data, target, err = _load_project(
+    root, data, target, err = load_project(
         start_path, started=started, config_id=config_id, runtime_id=runtime_id
     )
     if err is not None:
         return err
     assert target is not None
-    session, base, alias, restore_err = _restore_session(
+    session, base, alias, restore_err = restore_session(
         root, data, target, transport=transport, session_factory=session_factory
     )
     if restore_err is not None:
@@ -285,7 +285,7 @@ def _run_step(
         elif action == "Pause":
             session.pause()
         else:
-            return _fail(
+            return fail_result(
                 started=started,
                 root=root,
                 diagnostics=[
@@ -293,7 +293,7 @@ def _run_step(
                 ],
             )
     except DebugHttpError as exc:
-        return _handle_adapter_error(exc, started=started, root=root, target=target)
+        return handle_adapter_error(exc, started=started, root=root, target=target)
 
     if not wait:
         if leaves_stopped:
@@ -301,7 +301,7 @@ def _run_step(
         persist_session_runtime(
             root, session, url=base, alias=alias, clear_last_stop=leaves_stopped
         )
-        return _ok(
+        return ok_result(
             started=started,
             root=root,
             config_id=target.config_id,
@@ -324,7 +324,7 @@ def _run_step(
             persist_session_runtime(
                 root, session, url=base, alias=alias, clear_last_stop=True
             )
-            return _ok(
+            return ok_result(
                 started=started,
                 root=root,
                 config_id=target.config_id,
@@ -346,16 +346,16 @@ def _run_step(
                     )
                 ],
             )
-        err_result = _handle_adapter_error(exc, started=started, root=root, target=target)
+        err_result = handle_adapter_error(exc, started=started, root=root, target=target)
         if extra_diags:
             err_result.diagnostics = list(err_result.diagnostics) + list(extra_diags)
         return err_result
 
-    frames = _frames_payload(stop.frames)
+    frames = frames_payload(stop.frames)
     leaf = stop.current_frame
     persist_session_runtime(root, session, url=base, alias=alias)
     ping_running, ping_pid, _ping_meta = alive_ping(root)
-    return _ok(
+    return ok_result(
         started=started,
         root=root,
         config_id=target.config_id,
