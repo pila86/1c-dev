@@ -38,6 +38,7 @@ from core.debug import (
     run_detach,
     run_evaluate,
     run_force_detach,
+    run_pause,
     run_reload_metadata,
     run_server_start,
     run_server_status,
@@ -45,6 +46,7 @@ from core.debug import (
     run_stack,
     run_status,
     run_step_in,
+    run_step_out,
     run_step_over,
     run_targets,
     run_variables,
@@ -726,15 +728,68 @@ def test_wait_fresh_drops_recorded_stop(tmp_path: Path) -> None:
     assert "lastStop" not in (read_session(target) or {})
 
 
-def test_steps_carry_experimental_warning(tmp_path: Path) -> None:
+def test_only_pause_carries_experimental_warning(tmp_path: Path) -> None:
     target = _init_project(tmp_path)
     write_session(target, url="http://localhost:2550", alias="DefAlias", session_id="sid-e")
-    result = run_step_over(target, wait=False, session_factory=lambda c, **k: _fake_session())
-    assert result.status == "ok"
-    warns = [d for d in result.diagnostics if d.get("severity") == "warning"]
-    assert any("экспериментал" in str(d.get("message")) for d in warns)
-    cont = run_continue(target, wait=False, session_factory=lambda c, **k: _fake_session())
-    assert not any("экспериментал" in str(d.get("message")) for d in cont.diagnostics)
+
+    def experimental(result: Any) -> bool:
+        return any(
+            "экспериментал" in str(d.get("message"))
+            for d in result.diagnostics
+            if d.get("severity") == "warning"
+        )
+
+    for run in (run_step_in, run_step_over, run_step_out, run_continue):
+        result = run(target, wait=False, session_factory=lambda c, **k: _fake_session())
+        assert result.status == "ok", run.__name__
+        assert not experimental(result), run.__name__
+    paused = run_pause(target, wait=False, session_factory=lambda c, **k: _fake_session())
+    assert paused.status == "ok"
+    assert experimental(paused)
+
+
+@pytest.mark.parametrize(
+    ("run", "label"),
+    [
+        (run_continue, "continue"),
+        (run_step_over, "step-over"),
+        (run_step_in, "step-in"),
+        (run_step_out, "step-out"),
+    ],
+)
+def test_step_ok_with_warning_when_program_finishes(tmp_path: Path, run: Any, label: str) -> None:
+    """Клиент завершился во время шага (например, step-out из верхнего кадра) — не ошибка."""
+    from core.debug.constants import CODE_CLIENT_EXITED
+
+    target = _init_project(tmp_path)
+    write_session(target, url="http://localhost:2550", alias="DefAlias", session_id="sid-fin")
+    result = run(
+        target,
+        timeout=5.0,
+        client_alive=lambda: False,
+        session_factory=lambda c, **k: _fake_session(),
+    )
+    assert result.status == "ok", result.to_payload()
+    assert not result.call_stack
+    exited = [d for d in result.diagnostics if d.get("code") == CODE_CLIENT_EXITED]
+    assert exited
+    assert label in str(exited[0].get("message"))
+    assert "lastStop" not in (read_session(target) or {})
+
+
+def test_pause_fails_when_client_exited(tmp_path: Path) -> None:
+    from core.debug.constants import CODE_CLIENT_EXITED
+
+    target = _init_project(tmp_path)
+    write_session(target, url="http://localhost:2550", alias="DefAlias", session_id="sid-p")
+    result = run_pause(
+        target,
+        timeout=5.0,
+        client_alive=lambda: False,
+        session_factory=lambda c, **k: _fake_session(),
+    )
+    assert result.status == "failed"
+    assert any(d.get("code") == CODE_CLIENT_EXITED for d in result.diagnostics)
 
 
 def test_teardown_debug_clears_ping_session_and_own_server(tmp_path: Path) -> None:

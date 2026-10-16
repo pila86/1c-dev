@@ -29,7 +29,8 @@
 | `CommonModule.ОтладкаСервер` (Server, ServerCall) | `src/main/CommonModules/ОтладкаСервер/Ext/Module.bsl` | **10** | серверный общий модуль, `СерверныйРезультат` = 21/42 |
 
 Автотест (основная конфигурация, клиент + сервер): `tests/test_m6_acceptance.py` (маркер `integration`; нужны платформа 1С, `dbgs`, `DISPLAY`) —
-`runtime start --debug` с 4 BP → `debug wait` → переменные/`eval` → `step-over` → `continue` ×3 → `runtime stop`
+`runtime start --debug` с 4 BP → `debug wait` → переменные/`eval` → `step-over` → `continue` ×3 → `runtime stop`;
+шаги через CLI — `test_m6_acceptance_steps_cli` (`step-over` / `step-in` / `step-out` от BP `ManagedApplicationModule:4`)
 (проверяет, что `session.json`, `ping.pid`, `server.pid` удалены).
 
 ## Расширение `DebugExt` (M6, `src/cfe/debug_ext`)

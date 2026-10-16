@@ -43,7 +43,7 @@ app = typer.Typer(
     help=(
         "Debug API: HTTP dbgs. Сценарий: runtime start --debug --bp … → "
         "debug wait → variables/eval → continue → runtime stop. "
-        "step-in/over/out и pause — экспериментальные (могут не работать)."
+        "step-in/over/out — пошаговое выполнение; pause — экспериментальный."
     ),
     add_completion=False,
     no_args_is_help=True,
@@ -473,7 +473,7 @@ def step_in_cmd(
     runtime: RuntimeOption = None,
     output: OutputOption = None,
 ) -> None:
-    """[EXPERIMENTAL / НЕ РАБОТАЕТ] StepIn — известный сбой 1CD005."""
+    """StepIn — зайти в вызываемый метод; ждёт следующую остановку."""
     finish(
         run_step_in(
             Path.cwd(),
@@ -506,7 +506,7 @@ def step_over_cmd(
     runtime: RuntimeOption = None,
     output: OutputOption = None,
 ) -> None:
-    """[EXPERIMENTAL / НЕ РАБОТАЕТ] Step over — может завершаться 1CD005."""
+    """Step over — следующая строка текущего кадра; ждёт остановку."""
     finish(
         run_step_over(
             Path.cwd(),
@@ -539,7 +539,7 @@ def step_out_cmd(
     runtime: RuntimeOption = None,
     output: OutputOption = None,
 ) -> None:
-    """[EXPERIMENTAL / НЕ РАБОТАЕТ] StepOut — может завершаться 1CD005."""
+    """StepOut — выйти из текущего кадра (из верхнего — программа выполнится до конца)."""
     finish(
         run_step_out(
             Path.cwd(),
@@ -571,7 +571,7 @@ def pause_cmd(
     runtime: RuntimeOption = None,
     output: OutputOption = None,
 ) -> None:
-    """[EXPERIMENTAL / НЕ РАБОТАЕТ] Pause (breakOnNextLine)."""
+    """[EXPERIMENTAL] Pause (breakOnNextLine) — не проходил live acceptance."""
     finish(
         run_pause(
             Path.cwd(),

@@ -1,4 +1,4 @@
-"""Execution control: wait, continue, experimental step/pause.
+"""Execution control: wait, continue, step-in/over/out, experimental pause.
 
 Contract (ADR-031 / spike #135 §5a): the ping daemon is the only reader of
 ``pingDebugUIParams``. These functions never ping — they send a command and
@@ -50,11 +50,18 @@ from core.runtime.state import read_pid
 
 ClientAliveFn = Callable[[], bool | None]
 
-STEP_EXPERIMENTAL_MESSAGE = (
-    "step-in/over/out и pause — экспериментальные и могут не работать "
-    "(ADR-031: известный сбой шагов 1CD005); надёжный сценарий — "
-    "breakpoint → debug wait → variables/eval → debug continue"
+PAUSE_EXPERIMENTAL_MESSAGE = (
+    "pause — экспериментальный и может не работать (ADR-031: не проходил live acceptance); "
+    "надёжный сценарий — breakpoint → debug wait → variables/eval → step/continue"
 )
+
+
+_ACTION_LABEL = {
+    "Continue": "continue",
+    "Step": "step-over",
+    "StepIn": "step-in",
+    "StepOut": "step-out",
+}
 
 
 def _client_alive_probe(root: Path) -> ClientAliveFn:
@@ -226,8 +233,10 @@ def _run_step(
 ) -> DebugResult:
     """Send continue/step/pause; by default wait for the next stop.
 
-    ``Continue`` is the supported action. ``Step``/``StepIn``/``StepOut``/``Pause``
-    are experimental: a warning diagnostic is attached to every result.
+    ``Continue``/``Step``/``StepIn``/``StepOut`` are supported (live acceptance
+    passed). ``Pause`` is experimental: a warning diagnostic is attached.
+    If the program runs to the end while waiting (client exits, e.g. ``StepOut``
+    from the outermost frame) the result is ``ok`` with a ``1CD016`` warning.
     ``wait=False`` is fire-and-forget (``--no-wait``).
     """
     started = time.perf_counter()
@@ -247,10 +256,10 @@ def _run_step(
 
     leaves_stopped = action in ("Continue", "Step", "StepIn", "StepOut")
     extra_diags: list[Any] = soft_ensure_background_ping(root)
-    if action != "Continue":
+    if action == "Pause":
         extra_diags.append(
             warning(
-                STEP_EXPERIMENTAL_MESSAGE,
+                PAUSE_EXPERIMENTAL_MESSAGE,
                 code=CODE_WAIT_TIMEOUT,
                 source=SOURCE_DEBUG,
             )
@@ -309,8 +318,8 @@ def _run_step(
     try:
         stop = _await_persisted_stop(root, session, timeout=timeout, client_alive=probe)
     except DebugHttpError as exc:
-        if action == "Continue" and exc.code == CODE_CLIENT_EXITED:
-            # Program ran to the end after continue — normal completion.
+        if leaves_stopped and exc.code == CODE_CLIENT_EXITED:
+            # Program ran to the end after continue/step — normal completion.
             session.clear_cached_stop()
             persist_session_runtime(
                 root, session, url=base, alias=alias, clear_last_stop=True
@@ -327,7 +336,10 @@ def _run_step(
                 diagnostics=list(extra_diags)
                 + [
                     warning(
-                        "после continue клиент 1С завершился (программа выполнена)",
+                        (
+                            f"после {_ACTION_LABEL.get(action, action)} клиент 1С "
+                            "завершился (программа выполнена)"
+                        ),
                         code=CODE_CLIENT_EXITED,
                         source=SOURCE_DEBUG,
                         suggestion="runtime stop — очистить debug-состояние",
@@ -372,17 +384,17 @@ def run_continue(start: Path | None = None, **kwargs: Any) -> DebugResult:
 
 
 def run_step_in(start: Path | None = None, **kwargs: Any) -> DebugResult:
-    """EXPERIMENTAL. StepIn — known broken for CLI common-module entry."""
+    """StepIn — заход в вызываемый метод."""
     return _run_step("StepIn", start, **kwargs)
 
 
 def run_step_over(start: Path | None = None, **kwargs: Any) -> DebugResult:
-    """EXPERIMENTAL. Step over (platform ``Step``)."""
+    """Step over (platform ``Step``)."""
     return _run_step("Step", start, **kwargs)
 
 
 def run_step_out(start: Path | None = None, **kwargs: Any) -> DebugResult:
-    """EXPERIMENTAL. StepOut."""
+    """StepOut — выход из текущего кадра."""
     return _run_step("StepOut", start, **kwargs)
 
 

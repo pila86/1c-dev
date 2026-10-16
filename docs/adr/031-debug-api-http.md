@@ -168,10 +168,15 @@ Project-scoped (не per-runtime) каталог debug-сервера и сес�
 `continue` по умолчанию ждёт следующую остановку; если клиент завершился (программа
 отработала) — результат `ok` с warning `1CD016`.
 
-**Experimental:** `step-in` / `step-over` / `step-out` / `pause` помечены
-`[EXPERIMENTAL / НЕ РАБОТАЕТ]` в help, результат содержит warning. Причина сбоев
-(короткий ping timeout и несколько читателей) устранена, но acceptance шагов не
-пройден — статус снимается только отдельным live-прогоном. Auto-arm callee BP удалён.
+**Шаги:** `step-in` / `step-over` / `step-out` поддерживаются (live acceptance пройден:
+`test_m6_acceptance_steps_cli`, основная конфигурация и расширение). Прежний сбой `1CD005`
+был вызван коротким ping timeout и несколькими читателями `pingDebugUIParams`; после
+перехода на единственного читателя (демон) он не воспроизводится. Если программа
+завершается во время шага (например, `step-out` из верхнего кадра), результат — `ok`
+с warning `1CD016` (как у `continue`). `step-out` возвращает на **строку вызова** в
+вызывающем кадре; следующий `step-over` переходит к следующей строке.
+**Experimental остаётся только `pause`** (`breakOnNextLine`): live acceptance не пройден,
+результат содержит warning. Auto-arm callee BP удалён.
 
 ### 6. Связь с `runtime.start --debug`
 

@@ -9,7 +9,8 @@ Fixture ``debug_spike``: ``ПриНачалеРаботыСистемы`` (кл�
 
 Расширение ``DebugExt`` (``src/cfe/debug_ext``): перехватчик ``&После`` в адоптированном
 ``ОтладкаДемо`` (клиент) и собственный серверный модуль ``Расш_ОтладкаСервер``;
-второй тест проходит сценарий целиком через CLI (``typer.testing.CliRunner``).
+второй тест проходит сценарий целиком через CLI (``typer.testing.CliRunner``);
+третий — пошаговое выполнение (step-over / step-in / step-out) через CLI.
 """
 
 from __future__ import annotations
@@ -245,6 +246,65 @@ def test_m6_acceptance_extension_cli(
         assert names == ["DebugSpike", "ОтладкаДемо", "Расш_ОтладкаСервер"]
 
         # финал: программа выполнена, клиент завершился
+        done = _cli("debug", "continue", "--timeout", "60")
+        assert not done.get("callStack")
+    finally:
+        stopped = _cli("runtime", "stop", expect_ok=False)
+        assert stopped["status"] == "ok", stopped
+
+    assert not (debug_dir / "session.json").exists()
+    assert not (debug_dir / "ping.pid").exists()
+    assert not (debug_dir / "server.pid").exists()
+
+
+def _assert_at(payload: dict[str, Any], module: str, line: int, depth: int) -> None:
+    leaf = _cli_leaf(payload)
+    assert (payload["moduleName"], payload["lineNo"]) == (module, line), payload
+    assert leaf["moduleName"] == module, payload
+    assert len(payload["callStack"]) == depth, payload
+
+
+@pytest.mark.integration
+def test_m6_acceptance_steps_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """step-over / step-in / step-out через CLI от BP в ManagedApplicationModule."""
+    project = _prepare_project(tmp_path)
+    monkeypatch.chdir(project)
+    debug_dir = project / ".1c-dev" / "debug"
+    try:
+        _cli("runtime", "start", "--debug", "--bp", APP_BP)
+        waited = _cli("debug", "wait", "--timeout", "60")
+        _assert_at(waited, "DebugSpike", 4, 1)
+
+        # step-over: следующая строка клиентского модуля
+        over = _cli("debug", "step-over", "--timeout", "30")
+        _assert_at(over, "DebugSpike", 5, 1)
+        # шаги не помечены как экспериментальные
+        assert not [d for d in over.get("diagnostics", []) if d.get("severity") == "warning"]
+
+        # step-in: заход в серверный общий модуль, клиентский кадр остаётся в стеке
+        into = _cli("debug", "step-in", "--timeout", "30")
+        _assert_at(into, "ОтладкаСервер", 5, 2)
+        assert [f["moduleName"] for f in into["callStack"]] == ["DebugSpike", "ОтладкаСервер"]
+
+        # step-over внутри сервера, по строкам
+        _assert_at(_cli("debug", "step-over", "--timeout", "30"), "ОтладкаСервер", 6, 2)
+        seven = _cli("debug", "step-over", "--timeout", "30")
+        _assert_at(seven, "ОтладкаСервер", 7, 2)
+        server_vars = _cli_variables(_cli("debug", "variables"))
+        assert server_vars["СерверноеЗначение"] == "21"
+        assert server_vars["СерверныйРезультат"] == "42"
+
+        # step-out: возврат на строку вызова в клиентском модуле
+        out = _cli("debug", "step-out", "--timeout", "30")
+        _assert_at(out, "DebugSpike", 5, 1)
+
+        # продолжаем шагами до конца процедуры
+        _assert_at(_cli("debug", "step-over", "--timeout", "30"), "DebugSpike", 6, 1)
+        _assert_at(_cli("debug", "step-over", "--timeout", "30"), "DebugSpike", 8, 1)
+        final = _cli("debug", "variables")
+        assert _cli_variables(final)["СерверныйИтог"] == "42"
+
+        # финал: программа выполнена, клиент завершился (ok + warning, не ошибка)
         done = _cli("debug", "continue", "--timeout", "60")
         assert not done.get("callStack")
     finally:

@@ -83,7 +83,7 @@ Paths к CF/CFE **не** дублировать: брать из `configurations
 | Цели | `debug targets` | `debug.targets` | list targets + metadata ready |
 | Breakpoints | `debug breakpoint set\|clear` | `debug.breakpoint` / `debug.clearBreakpoints` | set by moduleName / `--file` path / clear |
 | Ожидание | `debug wait [--timeout] [--fresh]` | `debug.wait` | по состоянию: мгновенно, если stop уже записан; `1CD016` при выходе клиента |
-| Управление | `debug continue\|step-over\|step-out\|pause` | `debug.continue` / `debug.stepOver` / `debug.stepOut` / `debug.pause` | `continue` — поддерживается; **step-in/over/out, pause — experimental** |
+| Управление | `debug continue\|step-in\|step-over\|step-out\|pause` | `debug.continue` / `debug.stepIn` / `debug.stepOver` / `debug.stepOut` / `debug.pause` | `continue`, `step-in/over/out` — поддерживаются (live acceptance); **`pause` — experimental**; выход клиента во время шага → `ok` + warning `1CD016` |
 | Инспекция | `debug stack` / `variables` / `eval <expr>` | `debug.stack` / `debug.variables` / `debug.evaluate` | from last stop / targetId |
 | Состояние | `debug status` | `debug.status` | session + targets + last stop summary |
 | Метаданные index | `debug reload-metadata` | `debug.reloadMetadata` | rebuild UUID↔module cache |
@@ -111,7 +111,6 @@ PRD §28 (`debug.start` / `debug.stop`) мапится так: **start** = serve
 
 ### Should (не блокеры acceptance)
 
-- `debug.stepIn` стабильный (сейчас known broken → `1CD005` в common module; prefer `step-over`)
 - `ide configure`: фрагмент launch.json для onec-debug-adapter / bsl-debug-server
 - `raw_request` (отладка протокола)
 - Doctor capability `debug.http` (dbgs найден, port слушает) — soft gap
@@ -210,7 +209,8 @@ build (ИБ актуальна)
 
 - [ ] `ide configure`: launch.json под внешний DAP-adapter (путь/версия — discovery или docs)
 - [x] `debug.stepOver` (CLI `step-over`, platform `Step`) — [#140](https://github.com/pila86/1c-dev/issues/140)
-- [ ] `debug.stepIn` / `stepOver` / `stepOut` / `pause` стабильны (сейчас experimental; ping-контракт исправлен, live acceptance не пройден)
+- [x] `debug.stepIn` / `stepOver` / `stepOut` стабильны (CLI; live acceptance `test_m6_acceptance_steps_cli`: 3 прогона подряд + расширение)
+- [ ] `debug.pause` стабилен (сейчас experimental, live acceptance не пройден)
 - [ ] Password через env; не писать секреты в манифест по умолчанию
 - [x] Кэш module index с инвалидацией (mtime) — [#139](https://github.com/pila86/1c-dev/issues/139)
 - [x] `breakpoint set --file` / `--object-id`+`--property-id` (escape) — [#145](https://github.com/pila86/1c-dev/issues/145)
@@ -270,7 +270,7 @@ build (ИБ актуальна)
 
 # пошаговый вариант (без --bp):
 # 1c-dev debug server start → attach → breakpoint set --file … → runtime start --debug → wait …
-# step-in/over/out, pause — experimental (могут не работать).
+# step-in/over/out — шаги после остановки; pause — experimental.
 # MCP: тот же сценарий через debug.*
 ```
 
