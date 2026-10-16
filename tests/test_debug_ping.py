@@ -141,7 +141,7 @@ def test_wait_starts_background_ping(tmp_path: Path) -> None:
     persist_stop(target, stop)
 
     def factory(client: Any, **kwargs: Any) -> MagicMock:
-        return fake_session(clear_cached_stop=MagicMock(), last_stop=stop, _last_stop=stop)
+        return fake_session(clear_cached_stop=MagicMock(), last_stop=stop)
 
     waited = run_wait(target, timeout=1.0, session_factory=factory)
     assert waited.status == "ok"

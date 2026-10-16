@@ -259,7 +259,7 @@ def test_process_ping_target_and_stop() -> None:
     )
     events = session.process_ping_body(_load("ping_target_started.xml"))
     assert any(e.type == "targetStarted" for e in events)
-    assert SPIKE_TARGET in session._attached_targets  # noqa: SLF001
+    assert SPIKE_TARGET in session.attached_targets
     # BP re-sent after target attach
     assert any(c[0] == "setBreakpoints" for c in transport.calls)
 
@@ -319,7 +319,7 @@ def test_ensure_targets_attached_from_states() -> None:
     )
     found = session.ensure_targets_attached(force=True)
     assert found[0].target_id == SPIKE_TARGET
-    assert SPIKE_TARGET in session._attached_targets  # noqa: SLF001
+    assert SPIKE_TARGET in session.attached_targets
     assert any(c[0] == "attachDetachDbgTargets" for c in transport.calls)
     assert sum(1 for c in transport.calls if c[0] == "setBreakpoints") >= 2
     session.detach()
@@ -606,3 +606,64 @@ def test_debug_spike_fixture_resolves_extension_modules(
     )
     assert (own.extension_name, own.module_name) == ("DebugExt", "Расш_ОтладкаСервер")
     assert own.module_type == "CommonModule"
+
+
+def test_session_restore_state_hydrates_without_http() -> None:
+    from adapters.debug_http import StackFrame, StopEvent
+
+    transport = MockTransport({})
+    client = DebugHttpClient("http://localhost:2550", transport=transport)
+    session = DebugSession(client, session_id="sid", ping_interval=60.0)
+    assert not session.attached
+
+    session.mark_attached()
+    bp = BreakpointSpec(
+        object_id=SPIKE_OBJECT_ID, property_id=PROPERTY_ID_COMMON_MODULE, lines=(5,)
+    )
+    stop = StopEvent(
+        target_id=SPIKE_TARGET,
+        frames=(
+            StackFrame(
+                object_id=SPIKE_OBJECT_ID,
+                property_id=PROPERTY_ID_COMMON_MODULE,
+                line_no=5,
+            ),
+        ),
+    )
+    session.restore_state(
+        attached_targets=["other"],
+        last_target_id="other",
+        breakpoints=[bp],
+        last_stop=stop,
+    )
+
+    assert session.attached
+    assert session.breakpoints == (bp,)
+    assert session.last_stop is stop
+    # stopped target wins over the stale last_target_id and joins attached targets
+    assert session.last_target_id == SPIKE_TARGET
+    assert session.attached_targets == frozenset({"other", SPIKE_TARGET})
+    assert transport.calls == []
+
+
+def test_session_restore_state_none_keeps_state_and_prune_merge() -> None:
+    client = DebugHttpClient("http://localhost:2550", transport=MockTransport({}))
+    session = DebugSession(client, session_id="sid", ping_interval=60.0)
+    session.restore_state(attached_targets=["a"], last_target_id="a")
+    session.restore_state()  # all None -> untouched
+    assert session.attached_targets == frozenset({"a"})
+    assert session.last_target_id == "a"
+
+    session.merge_attached_targets(["b", "c"])
+    assert session.attached_targets == frozenset({"a", "b", "c"})
+    session.prune_attached_targets({"a", "c"})
+    assert session.attached_targets == frozenset({"b"})
+    # snapshot is a copy: mutating it must not change the session
+    snapshot = set(session.attached_targets)
+    snapshot.add("x")
+    assert session.attached_targets == frozenset({"b"})
+
+
+def test_session_extract_target_id_is_public() -> None:
+    body = f"<r><id>{SPIKE_TARGET}</id></r>"
+    assert DebugSession.extract_target_id(body) == SPIKE_TARGET

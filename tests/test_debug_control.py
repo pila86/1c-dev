@@ -264,9 +264,6 @@ def test_step_in_waits_and_persists_stop(tmp_path: Path) -> None:
             step_in=step_in,
             clear_cached_stop=clear_cached_stop,
             last_stop=None,
-            _last_stop=None,
-            _attached_targets={SPIKE_TARGET},
-            _last_target_id=SPIKE_TARGET,
         )
 
     result = run_step_in(target, timeout=1.0, session_factory=factory)
@@ -318,9 +315,6 @@ def test_step_over_waits_and_sends_step_action(tmp_path: Path) -> None:
             step_over=step_over,
             clear_cached_stop=MagicMock(),
             last_stop=before,
-            _last_stop=before,
-            _attached_targets={SPIKE_TARGET},
-            _last_target_id=SPIKE_TARGET,
         )
 
     result = run_step_over(target, timeout=1.0, session_factory=factory)
@@ -372,10 +366,6 @@ def test_step_in_uses_stopped_target_not_stale_last_target(tmp_path: Path) -> No
             step_in=step_in,
             clear_cached_stop=MagicMock(),
             last_stop=before_stop,
-            _last_stop=before_stop,
-            _attached_targets={SPIKE_TARGET, other},
-            _last_target_id=other,
-            _breakpoints=[],
             resolver=None,
         )
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,7 @@ from core.debug.constants import (
 )
 from core.debug.result import DebugResult, exit_code_for_result
 from core.debug.state import (
+    breakpoints_from_stored,
     manifest_debug_settings,
     read_session,
     resolve_debugger_url,
@@ -278,7 +280,7 @@ def restore_session(
         session_kwargs["ping_interval"] = ping_interval
     session = factory(client, **session_kwargs)
     session.eval_result_reader = lambda rid, timeout: wait_eval_result(root, rid, timeout)
-    session._attached = True  # noqa: SLF001 — restore across CLI processes
+    session.mark_attached()  # restore across CLI processes
     if ping_interval is not None:
         session.ping_interval = ping_interval
     apply_stored_runtime(session, stored)
@@ -287,44 +289,42 @@ def restore_session(
     return session, base.rstrip("/"), alias, None
 
 
-def apply_stored_runtime(session: DebugSession, stored: dict[str, Any]) -> None:
-    """Hydrate stop/targets/BP from ``session.json`` (short-lived CLI)."""
+@dataclass(frozen=True)
+class StoredRuntime:
+    """Runtime part of ``session.json`` parsed into adapter types."""
+
+    attached_targets: frozenset[str] | None
+    last_target_id: str | None
+    breakpoints: tuple[BreakpointSpec, ...] | None
+    last_stop: StopEvent | None
+
+
+def parse_stored_runtime(stored: dict[str, Any]) -> StoredRuntime:
+    """Parse targets / BP / lastStop from ``session.json`` (pure, no session)."""
+    attached: frozenset[str] | None = None
     raw_targets = stored.get("attachedTargets")
     if isinstance(raw_targets, list):
-        session._attached_targets = {  # noqa: SLF001
-            str(t) for t in raw_targets if isinstance(t, str) and t
-        }
+        attached = frozenset(str(t) for t in raw_targets if isinstance(t, str) and t)
     last_tid = stored.get("lastTargetId")
-    if isinstance(last_tid, str) and last_tid.strip():
-        session._last_target_id = last_tid.strip()  # noqa: SLF001
+    last_target_id = (
+        last_tid.strip() if isinstance(last_tid, str) and last_tid.strip() else None
+    )
 
-    raw_bps = stored.get("breakpoints")
-    if isinstance(raw_bps, list):
-        restored: list[BreakpointSpec] = []
-        for item in raw_bps:
-            if not isinstance(item, dict):
-                continue
-            oid = str(item.get("objectId") or "")
-            pid = str(item.get("propertyId") or "")
-            lines_raw = item.get("lines") or []
-            if not oid or not pid or not isinstance(lines_raw, list):
-                continue
-            lines = tuple(int(x) for x in lines_raw if isinstance(x, int) or str(x).isdigit())
-            if not lines:
-                continue
-            restored.append(
-                BreakpointSpec(
-                    object_id=oid,
-                    property_id=pid,
-                    lines=lines,
-                    extension_name=str(item.get("extensionName") or ""),
-                )
-            )
-        session._breakpoints = restored  # noqa: SLF001
+    breakpoints: tuple[BreakpointSpec, ...] | None = None
+    if isinstance(stored.get("breakpoints"), list):
+        breakpoints = tuple(breakpoints_from_stored(stored))
 
-    raw_stop = stored.get("lastStop")
+    return StoredRuntime(
+        attached_targets=attached,
+        last_target_id=last_target_id,
+        breakpoints=breakpoints,
+        last_stop=_parse_stored_stop(stored.get("lastStop")),
+    )
+
+
+def _parse_stored_stop(raw_stop: Any) -> StopEvent | None:
     if not isinstance(raw_stop, dict):
-        return
+        return None
     frames_raw = raw_stop.get("frames") or []
     frames: list[StackFrame] = []
     if isinstance(frames_raw, list):
@@ -343,17 +343,19 @@ def apply_stored_runtime(session: DebugSession, stored: dict[str, Any]) -> None:
             )
     target_id = str(raw_stop.get("targetId") or "")
     if not frames and not target_id:
-        return
-    session._last_stop = StopEvent(  # noqa: SLF001
-        target_id=target_id,
-        frames=tuple(frames),
+        return None
+    return StopEvent(target_id=target_id, frames=tuple(frames))
+
+
+def apply_stored_runtime(session: DebugSession, stored: dict[str, Any]) -> None:
+    """Hydrate stop/targets/BP from ``session.json`` (short-lived CLI)."""
+    runtime = parse_stored_runtime(stored)
+    session.restore_state(
+        attached_targets=runtime.attached_targets,
+        last_target_id=runtime.last_target_id,
+        breakpoints=runtime.breakpoints,
+        last_stop=runtime.last_stop,
     )
-    session._stop_event.set()  # noqa: SLF001
-    if target_id:
-        session._attached_targets.add(target_id)  # noqa: SLF001
-        # Prefer stopped target over a stale lastTargetId (auto-arm used to
-        # overwrite it with another target from getDbgAllTargetStates).
-        session._last_target_id = target_id  # noqa: SLF001
 
 
 def frames_payload(frames: Sequence[Any]) -> list[dict[str, Any]]:

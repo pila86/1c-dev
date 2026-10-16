@@ -30,6 +30,7 @@ from core.debug.common import (
     handle_adapter_error,
     load_project,
     ok_result,
+    parse_stored_runtime,
     restore_session,
 )
 from core.debug.constants import (
@@ -81,18 +82,16 @@ def _stored_stop(root: Path, session: DebugSession) -> StopEvent | None:
     if stored is None or not isinstance(stored.get("lastStop"), dict):
         return None
     apply_stored_runtime(session, stored)
-    # Prefer _last_stop (set by hydrate); MagicMock may shadow .last_stop.
-    stop = getattr(session, "_last_stop", None) or getattr(session, "last_stop", None)
-    if not isinstance(stop, StopEvent):
+    stop = parse_stored_runtime(stored).last_stop
+    if stop is None:
         return None
     if isinstance(session, DebugSession) and stop.frames:
-        frames = session._enrich_frames(stop.frames)  # noqa: SLF001
         stop = StopEvent(
             target_id=stop.target_id,
-            frames=tuple(frames),
-            raw_xml=getattr(stop, "raw_xml", "") or "",
+            frames=session.enrich_frames(stop.frames),
+            raw_xml=stop.raw_xml or "",
         )
-        session._last_stop = stop  # noqa: SLF001
+        session.restore_state(last_stop=stop)
     return stop
 
 
@@ -266,7 +265,7 @@ def _run_step(
         )
     # Pin the stopped target before clearing state.
     step_tid = target_id
-    cached_stop = getattr(session, "_last_stop", None)
+    cached_stop = session.last_stop
     if step_tid is None and isinstance(cached_stop, StopEvent) and cached_stop.target_id:
         step_tid = cached_stop.target_id
     if wait:

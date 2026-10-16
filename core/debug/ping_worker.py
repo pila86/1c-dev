@@ -111,12 +111,12 @@ class _Daemon:
             alias=str(stored.get("alias") or "DefAlias"),
             session_id=self.session_id,
         )
-        session._attached = True  # noqa: SLF001 — attached by the CLI process
+        session.mark_attached()  # attached by the CLI process
         raw = stored.get("attachedTargets")
         if isinstance(raw, list):
-            session._attached_targets = {  # noqa: SLF001
-                str(t) for t in raw if isinstance(t, str) and t
-            }
+            session.restore_state(
+                attached_targets={str(t) for t in raw if isinstance(t, str) and t}
+            )
         self.session = session
         return True
 
@@ -126,7 +126,7 @@ class _Daemon:
 
     def _persist_targets(self) -> None:
         assert self.session is not None
-        targets = sorted(self.session._attached_targets)  # noqa: SLF001
+        targets = sorted(self.session.attached_targets)
 
         def _mutate(data: dict[str, Any]) -> dict[str, Any] | None:
             if data.get("sessionId") != self.session_id:
@@ -147,13 +147,13 @@ class _Daemon:
             # A stop recorded for this target means it is attached already.
             disk_targets = stored.get("attachedTargets")
             if isinstance(disk_targets, list):
-                self.session._attached_targets |= {  # noqa: SLF001
+                self.session.merge_attached_targets(
                     str(t) for t in disk_targets if isinstance(t, str) and t
-                }
-            if target_id in self.session._attached_targets:  # noqa: SLF001
+                )
+            if target_id in self.session.attached_targets:
                 return
-            self.session._breakpoints = breakpoints_from_stored(stored)  # noqa: SLF001
-            self.session._on_target_started(target_id)  # noqa: SLF001
+            self.session.restore_state(breakpoints=breakpoints_from_stored(stored))
+            self.session.attach_target(target_id)
             self._persist_targets()
             _log(f"attached target {target_id}")
 
@@ -165,9 +165,9 @@ class _Daemon:
         for tid in sorted(live):
             self.attach_target(tid)
         with self._attach_lock:
-            stale = self.session._attached_targets - live  # noqa: SLF001
+            stale = self.session.attached_targets - live
             if stale:
-                self.session._attached_targets -= stale  # noqa: SLF001
+                self.session.prune_attached_targets(stale)
                 self._persist_targets()
                 _log(f"pruned targets {sorted(stale)}")
         return len(live)
@@ -201,7 +201,7 @@ class _Daemon:
                 self._store_eval_result(body)
         for ev in events:
             if ev.type == "targetStarted":
-                tid = ev.target_id or DebugSession._extract_target_id(body)  # noqa: SLF001
+                tid = ev.target_id or DebugSession.extract_target_id(body)
                 if tid:
                     try:
                         self.attach_target(tid)

@@ -6,7 +6,7 @@ import threading
 import time
 import uuid
 from collections import deque
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 
 from adapters.debug_http import xml_build, xml_parse
@@ -92,6 +92,64 @@ class DebugSession:
     @property
     def last_stop(self) -> StopEvent | None:
         return self._last_stop
+
+    @property
+    def last_target_id(self) -> str:
+        return self._last_target_id
+
+    @property
+    def attached_targets(self) -> frozenset[str]:
+        """Targets this session has attached (snapshot copy)."""
+        return frozenset(self._attached_targets)
+
+    @property
+    def breakpoints(self) -> tuple[BreakpointSpec, ...]:
+        """Breakpoints held by the session (snapshot copy)."""
+        return tuple(self._breakpoints)
+
+    # --- state restore across processes --------------------------------------
+
+    def mark_attached(self) -> None:
+        """Mark the session as attached without sending ``attachDebugUI``.
+
+        For processes that continue a session attached by another process
+        (short-lived CLI, ping daemon) using ``session.json``.
+        """
+        self._attached = True
+
+    def restore_state(
+        self,
+        *,
+        attached_targets: Iterable[str] | None = None,
+        last_target_id: str | None = None,
+        breakpoints: Sequence[BreakpointSpec] | None = None,
+        last_stop: StopEvent | None = None,
+    ) -> None:
+        """Hydrate in-memory state from persisted data; nothing is sent to ``dbgs``.
+
+        ``None`` leaves the corresponding part untouched. A restored ``last_stop``
+        wins over a stale ``last_target_id`` (stopped target is authoritative).
+        """
+        if attached_targets is not None:
+            self._attached_targets = set(attached_targets)
+        if last_target_id:
+            self._last_target_id = last_target_id
+        if breakpoints is not None:
+            self._breakpoints = list(breakpoints)
+        if last_stop is not None:
+            self._last_stop = last_stop
+            self._stop_event.set()
+            if last_stop.target_id:
+                self._attached_targets.add(last_stop.target_id)
+                self._last_target_id = last_stop.target_id
+
+    def merge_attached_targets(self, target_ids: Iterable[str]) -> None:
+        """Add targets known to be attached (e.g. by another process)."""
+        self._attached_targets |= set(target_ids)
+
+    def prune_attached_targets(self, target_ids: Iterable[str]) -> None:
+        """Forget targets that are gone from ``getDbgAllTargetStates``."""
+        self._attached_targets -= set(target_ids)
 
     def attach(
         self,
@@ -218,9 +276,9 @@ class DebugSession:
         for ev in events:
             self._enqueue(ev)
             if ev.type == "targetStarted":
-                tid = ev.target_id or self._extract_target_id(body)
+                tid = ev.target_id or self.extract_target_id(body)
                 if tid:
-                    self._on_target_started(tid)
+                    self.attach_target(tid)
             if ev.type == "callStackFormed":
                 stop = xml_parse.parse_stop_event(
                     body,
@@ -229,7 +287,7 @@ class DebugSession:
                 if stop is not None:
                     stop = StopEvent(
                         target_id=stop.target_id,
-                        frames=self._enrich_frames(stop.frames),
+                        frames=self.enrich_frames(stop.frames),
                         raw_xml=stop.raw_xml,
                     )
                     self._last_stop = stop
@@ -238,7 +296,7 @@ class DebugSession:
                     self._stop_event.set()
         return events
 
-    def _enrich_frames(
+    def enrich_frames(
         self, frames: tuple[StackFrame, ...] | list[StackFrame]
     ) -> tuple[StackFrame, ...]:
         """Fill ``moduleName``/``moduleType`` from XML index (reverse objectID lookup)."""
@@ -291,7 +349,8 @@ class DebugSession:
         with self._events_lock:
             self._events.append(event)
 
-    def _on_target_started(self, target_id: str, *, force: bool = False) -> None:
+    def attach_target(self, target_id: str, *, force: bool = False) -> None:
+        """Attach one target (``attachDetachDbgTargets``) once and re-send breakpoints."""
         self._last_target_id = target_id
         if target_id in self._attached_targets and not force:
             return
@@ -316,11 +375,11 @@ class DebugSession:
         for target in found:
             tid = target.target_id
             if tid:
-                self._on_target_started(tid, force=force)
+                self.attach_target(tid, force=force)
         return found
 
     @staticmethod
-    def _extract_target_id(body: str) -> str:
+    def extract_target_id(body: str) -> str:
         ids = xml_parse.find_texts(body, "id")
         for cand in ids:
             if len(cand) >= 32:
@@ -457,7 +516,7 @@ class DebugSession:
         self.require_attached()
         # Already stopped (event set by process_ping_body / ping loop / disk hydrate)
         if self._last_stop is not None and self._stop_event.is_set():
-            frames = self._enrich_frames(self._last_stop.frames)
+            frames = self.enrich_frames(self._last_stop.frames)
             if frames != self._last_stop.frames:
                 self._last_stop = StopEvent(
                     target_id=self._last_stop.target_id,
@@ -566,7 +625,7 @@ class DebugSession:
                 f"last stop target={self._last_stop.target_id}, запрошен {target_id}",
                 code=CODE_NOT_STOPPED,
             )
-        frames = self._enrich_frames(self._last_stop.frames)
+        frames = self.enrich_frames(self._last_stop.frames)
         if frames != self._last_stop.frames:
             self._last_stop = StopEvent(
                 target_id=self._last_stop.target_id,
