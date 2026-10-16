@@ -77,7 +77,7 @@ Must: **Linux + Windows** (паритет с ADR-005). Helpers `is_running` / `t
 - Doctor по-прежнему warning без `1cv8`; `runtime.start` thick — жёсткий `1CR001`,
   thin — `1CR005`. Doctor не требует `1cv8c`.
 - Client state / pid per runtime path под `.1c-dev/` ([ADR-022](022-project-home.md), [ADR-026](026-runtimes-array.md) Proposed).
-- Debug API / HTTP attach — [ADR-031](031-debug-api-http.md); DAP для IDE — should (`ide configure` launch.json).
+- Debug API / HTTP attach — [ADR-031](031-debug-api-http.md); DAP для IDE / `ide configure` launch.json — follow-up [#143](https://github.com/pila86/1c-dev/issues/143) (вне M6).
 
 ## Связанные решения
 

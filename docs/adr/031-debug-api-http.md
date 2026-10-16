@@ -39,7 +39,7 @@ exit codes и связь с `runtime.start --debug` — без реализац�
 Agent / CLI  ──►  core.debug.*  ──►  adapters/debug_http  ──►  dbgs (HTTP)
 IDE (человек) ──►  DAP (внешний adapter)  ──►  dbgs (HTTP)
                       ▲
-                      └── ide configure → launch.json (should, #143)
+                      └── ide configure → launch.json (follow-up #143, вне M6)
 ```
 
 | Граница | Решение |
@@ -126,7 +126,7 @@ Silent auto-`runtime.start` внутри каждого `debug.*` — **запр
 - Timeout wait без stop → `status: failed` + `1CD005`.
 
 **Should (не blockers acceptance):** `raw_request` (opt-in, default off в MCP
-descriptions); `ide configure` → launch.json.
+descriptions). `ide configure` → launch.json — follow-up [#143](https://github.com/pila86/1c-dev/issues/143), **вне M6**.
 
 **Doctor soft `debug.http` (#142):** capability требует `dbgs` (бинарь) + `dbgs-listening`
 (короткий HTTP probe `rdbgTest`, если из CWD резолвится URL через live server.meta /
@@ -307,8 +307,8 @@ MCP: те же `diagnostics[]` в JSON; exit codes CLI на MCP не маппя�
   module index; [#140](https://github.com/pila86/1c-dev/issues/140) core+CLI;
   [#145](https://github.com/pila86/1c-dev/issues/145) `--file` / ObjectModule (wave 2.5);
   [#141](https://github.com/pila86/1c-dev/issues/141) MCP; [#142](https://github.com/pila86/1c-dev/issues/142)
-  doctor/AGENTS; [#143](https://github.com/pila86/1c-dev/issues/143) launch.json (should);
-  [#144](https://github.com/pila86/1c-dev/issues/144) acceptance.
+  doctor/AGENTS; [#144](https://github.com/pila86/1c-dev/issues/144) acceptance.
+  [#143](https://github.com/pila86/1c-dev/issues/143) launch.json — follow-up (вне M6).
 - Расширить `runtime.start --debug` до HTTP attach + DebuggerURL (в волне core/runtime, #140).
 - Добавить discovery `dbgs` в platform discovery.
 - Windows live E2E `dbgs` — follow-up (spike: Linux live; Windows — docs).

@@ -1,6 +1,6 @@
 # M6: Debug (HTTP Debug Protocol + CLI/MCP)
 
-**Статус:** In progress — [GitHub milestone M6](https://github.com/pila86/1c-dev/milestone/6); waves 0–3 DONE (#135–#140); #145 `--file` DONE; #141 MCP `debug.*` DONE; #142 doctor/AGENTS DONE; acceptance OPEN (#143–#144).  
+**Статус:** In progress — [GitHub milestone M6](https://github.com/pila86/1c-dev/milestone/6); waves 0–3 DONE (#135–#140); #145 `--file` DONE; #141 MCP `debug.*` DONE; #142 doctor/AGENTS DONE; acceptance OPEN (#144). `#143` (`ide configure` launch.json) — **вне M6**, follow-up.  
 **ADR:** [ADR-031](../adr/031-debug-api-http.md) (Accepted, [#136](https://github.com/pila86/1c-dev/issues/136); ранее в черновике ошибочно «ADR-030» — номер занят Designer `/CheckModules`). Закладка: [ADR-019](../adr/019-runtime-client-lifecycle.md) (`/Debug`, `debug.*` → M6). Spike: [135-http-debug-protocol.md](../spikes/135-http-debug-protocol.md).
 
 ## Goal
@@ -22,7 +22,7 @@ Lifecycle остаётся прежним: `change → build → check → test 
 | Тема | Решение | Примечание |
 |------|---------|------------|
 | Backend для агента/CLI | **Прямой HTTP Debug Protocol** → `dbgs` (`POST /e1crdbg/rdbg?cmd=…`) | Как [1c-debug-mcp](https://github.com/liga-1c-command/1c-debug-mcp) (MIT). Не MCP-в-MCP |
-| DAP | Protocol-level для **IDE** (человек). Генерация `launch.json` / документация attach — should | [onec-debug-adapter](https://github.com/akpaevj/onec-debug-adapter) / [bsl-debug-server](https://github.com/yukon39/bsl-debug-server) — reuse, не fork в core |
+| DAP | Protocol-level для **IDE** (человек). Reuse внешних adapter’ов; генерация `launch.json` — **вне M6** ([#143](https://github.com/pila86/1c-dev/issues/143) follow-up) | [onec-debug-adapter](https://github.com/akpaevj/onec-debug-adapter) / [bsl-debug-server](https://github.com/yukon39/bsl-debug-server) — не fork в core |
 | Platform Tools MCP | Только референс сценариев | IDE-IPC; ломает P1/P2. Не product-путь |
 | Поверхность | Свой MCP `debug.*` + CLI `1c-dev debug` | ADR-010 thin wrapper над `core.debug`; без `shell.exec` |
 | Свой debugger | **Нет** | PRD §4 non-goal; reuse-first |
@@ -49,7 +49,7 @@ Lifecycle остаётся прежним: `change → build → check → test 
 Agent / CLI  ──►  core.debug.*  ──►  adapters/debug_http  ──►  dbgs (HTTP)
 IDE (человек) ──►  DAP (внешний adapter)  ──►  dbgs (HTTP)
                       ▲
-                      └── ide configure может сгенерировать launch.json (should)
+                      └── ide configure → launch.json — follow-up (#143), не M6
 ```
 
 ## Эскиз манифеста
@@ -111,10 +111,11 @@ PRD §28 (`debug.start` / `debug.stop`) мапится так: **start** = serve
 
 ### Should (не блокеры acceptance)
 
-- `ide configure`: фрагмент launch.json для onec-debug-adapter / bsl-debug-server
 - `raw_request` (отладка протокола)
 - Doctor capability `debug.http` (dbgs найден, port слушает) — soft gap — DONE (#142)
 - Password / TLS — по необходимости spike
+
+`ide configure` → launch.json ([#143](https://github.com/pila86/1c-dev/issues/143)) — **не в scope M6** (follow-up / backlog).
 
 ## Scope
 
@@ -152,7 +153,6 @@ PRD §28 (`debug.start` / `debug.stop`) мапится так: **start** = serve
 - Tools в `mcp_server/tools.py`; descriptions: запрет shell/Designer для этих операций; предупреждение про stateful session.
 - `AGENTS.md`: когда предпочитать debug (воспроизводимый runtime failure) vs test.
 - `doctor`: soft capability.
-- Should: `ide configure` → launch.json hint.
 
 ### 6. Acceptance
 
@@ -167,7 +167,7 @@ PRD §28 (`debug.start` / `debug.stop`) мапится так: **start** = serve
 | **1. ADR + schema** | ADR-031 Accepted; optional `debug` в schema v2 (#137) | Замороженный контракт |
 | **2. Adapter** | `adapters/debug_http` + module index | Attach/BP/wait/vars/eval на fixture |
 | **3. Core + CLI** | `core/debug` + `1c-dev debug` | CI/человек без MCP |
-| **4. MCP + DX** | `debug.*`, doctor, AGENTS, opt launch.json | Агент без shell |
+| **4. MCP + DX** | `debug.*`, doctor, AGENTS | Агент без shell |
 | **5. Acceptance** | `tests/test_m6_acceptance.py` | E2E + skip rules |
 
 ## Agent workflow (целевой)
@@ -207,7 +207,6 @@ build (ИБ актуальна)
 
 ### Should
 
-- [ ] `ide configure`: launch.json под внешний DAP-adapter (путь/версия — discovery или docs)
 - [x] `debug.stepOver` (CLI `step-over`, platform `Step`) — [#140](https://github.com/pila86/1c-dev/issues/140)
 - [x] `debug.stepIn` / `stepOver` / `stepOut` стабильны (CLI; live acceptance `test_m6_acceptance_steps_cli`: 3 прогона подряд + расширение)
 - [ ] `debug.pause` стабилен (сейчас experimental, live acceptance не пройден)
@@ -228,7 +227,8 @@ build (ИБ актуальна)
 - EDT source / `source.convert` ([draft-source-formats](draft-source-formats.md))
 - Semantic diff / impact / verify
 - Remote / Docker / lockfile (отдельный draft)
-- Debug UI в Cursor как замена VS Code Debug View (только tools + opt launch.json)
+- Debug UI в Cursor как замена VS Code Debug View
+- `ide configure` → DAP `launch.json` hint — follow-up [#143](https://github.com/pila86/1c-dev/issues/143) (вне M6)
 - Conditional BP / logpoints / break-on-error filters — follow-up (есть в onec-debug-adapter; не must M6)
 - Автоматический «AI чинит по стеку» без явного сценария пользователя
 - Замена `test.*` отладчиком
@@ -311,8 +311,9 @@ build (ИБ актуальна)
 | [#145](https://github.com/pila86/1c-dev/issues/145) | 2.5 | `breakpoint set --file` (ObjectModule / path → objectID) | #138–#140 | DONE |
 | [#141](https://github.com/pila86/1c-dev/issues/141) | 4 | MCP `debug.*` tools | #140 | DONE |
 | [#142](https://github.com/pila86/1c-dev/issues/142) | 4 | Doctor `debug.http` + AGENTS debug workflow | #140, #141 | DONE |
-| [#143](https://github.com/pila86/1c-dev/issues/143) | 4 | should: `ide configure` DAP launch.json hint | #136 | OPEN |
 | [#144](https://github.com/pila86/1c-dev/issues/144) | 5 | Acceptance: M6 debug E2E | #140–#142 | OPEN |
+
+Вне milestone: [#143](https://github.com/pila86/1c-dev/issues/143) (`ide configure` DAP launch.json) — follow-up / backlog.
 
 ## Риски (коротко)
 
@@ -322,4 +323,4 @@ build (ИБ актуальна)
 | Stateful MCP + долгий wait | Жёсткий timeout; `force_detach`; одна сессия на process |
 | GUI / DISPLAY | Как runtime/YAxUnit: документировать; xvfb только если spike подтвердит для debug-клиента |
 | Расхождения Linux vs Windows `dbgs` | Spike обязан закрыть оба; иначе Windows-first must + Linux follow-up в ADR |
-| Scope creep (logpoints, EDT, Platform Tools) | Out of scope жёстко; should только launch.json |
+| Scope creep (logpoints, EDT, Platform Tools, launch.json) | Out of scope жёстко; `#143` вынесен из M6 |
