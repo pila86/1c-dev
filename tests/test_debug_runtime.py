@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -43,7 +44,7 @@ def test_runtime_start_debug_http_argv(tmp_path: Path) -> None:
     spawned: list[list[str]] = []
     alive: dict[int, bool] = {}
 
-    def spawn(argv: list[str]) -> int:
+    def spawn(argv: Sequence[str]) -> int:
         spawned.append(list(argv))
         alive[99] = True
         return 99
@@ -129,7 +130,7 @@ def test_runtime_start_debug_bp_orchestrates(
     monkeypatch.setattr("core.debug.ops.prepare_debug_for_spawn", fake_prepare)
     monkeypatch.setattr("core.debug.ops.await_debug_targets_armed", fake_armed)
 
-    def spawn(argv: list[str]) -> int:
+    def spawn(argv: Sequence[str]) -> int:
         events.append("spawn")
         spawned.append(list(argv))
         alive[42] = True
@@ -154,6 +155,79 @@ def test_runtime_start_debug_bp_orchestrates(
     assert result.breakpoints[0]["lines"] == [9]
     assert "-http" in spawned[0]
     assert any(a.startswith('/DebuggerURL"') for a in spawned[0])
+
+
+def test_runtime_start_debug_arms_existing_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """MCP stepwise: attach+BP already on disk → prepare+arm without --bp."""
+    from adapters.platform_ibcmd.constants import IB_MARKER
+
+    target = init_project(tmp_path)
+    ib = target / ".1c-dev" / "runtime" / "main"
+    ib.mkdir(parents=True, exist_ok=True)
+    (ib / IB_MARKER).write_bytes(b"")
+    write_session(
+        target,
+        url="http://localhost:2550",
+        alias="DefAlias",
+        session_id="sid-mcp",
+        breakpoints=[
+            {
+                "file": "src/main/Ext/ManagedApplicationModule.bsl",
+                "lines": [4],
+                "objectId": SPIKE_OBJECT,
+                "propertyId": PROPERTY_ID_COMMON_MODULE,
+            }
+        ],
+    )
+
+    events: list[str] = []
+    boot_calls: list[Any] = []
+
+    def fake_boot(*args: Any, **kwargs: Any) -> DebugResult:
+        events.append("boot")
+        boot_calls.append(kwargs)
+        return DebugResult(status="ok", exit_code=SUCCESS)
+
+    def fake_prepare(start: Path | None = None, **kwargs: Any) -> DebugResult:
+        events.append("prepare")
+        return DebugResult(status="ok", exit_code=SUCCESS)
+
+    def fake_armed(start: Path | None = None, **kwargs: Any) -> DebugResult:
+        events.append("armed")
+        return DebugResult(
+            status="ok",
+            exit_code=SUCCESS,
+            targets=[{"targetId": SPIKE_TARGET}],
+        )
+
+    monkeypatch.setattr("core.debug.ops.ensure_debug_for_runtime", fake_boot)
+    monkeypatch.setattr("core.debug.ops.prepare_debug_for_spawn", fake_prepare)
+    monkeypatch.setattr("core.debug.ops.await_debug_targets_armed", fake_armed)
+
+    alive: dict[int, bool] = {}
+
+    def spawn(argv: Sequence[str]) -> int:
+        events.append("spawn")
+        alive[7] = True
+        return 7
+
+    result = run_start(
+        target,
+        debug=True,
+        discover=lambda: make_discovery(dbgs=Path("/fake/dbgs")),
+        spawn=spawn,
+        is_alive=lambda pid: alive.get(pid, False),
+        settle_seconds=0,
+    )
+    assert result.status == "ok"
+    assert boot_calls == []
+    assert events == ["prepare", "spawn", "armed"]
+    assert result.session_id == "sid-mcp"
+    assert result.targets_armed is True
+    assert result.breakpoints[0]["lines"] == [4]
+    assert result.debugger_url == "http://localhost:2550"
 
 
 def test_run_start_has_no_wait_parameters() -> None:

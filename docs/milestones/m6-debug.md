@@ -1,6 +1,6 @@
 # M6: Debug (HTTP Debug Protocol + CLI/MCP)
 
-**Статус:** In progress — [GitHub milestone M6](https://github.com/pila86/1c-dev/milestone/6); waves 0–3 DONE (#135–#140); #145 `--file` DONE; #141 MCP `debug.*` DONE; #142 doctor/AGENTS DONE; acceptance OPEN (#144). `#143` (`ide configure` launch.json) — **вне M6**, follow-up.  
+**Статус:** Done — [GitHub milestone M6](https://github.com/pila86/1c-dev/milestone/6); acceptance E2E [#144](https://github.com/pila86/1c-dev/issues/144) (`tests/test_m6_acceptance.py`). `#143` (`ide configure` launch.json) — **вне M6**, follow-up.  
 **ADR:** [ADR-031](../adr/031-debug-api-http.md) (Accepted, [#136](https://github.com/pila86/1c-dev/issues/136); ранее в черновике ошибочно «ADR-030» — номер занят Designer `/CheckModules`). Закладка: [ADR-019](../adr/019-runtime-client-lifecycle.md) (`/Debug`, `debug.*` → M6). Spike: [135-http-debug-protocol.md](../spikes/135-http-debug-protocol.md).
 
 ## Goal
@@ -203,7 +203,7 @@ build (ИБ актуальна)
 - [x] `force_detach` / recovery при `ibInDebug` или мёртвом ping — поведение зафиксировано в ADR-031
 - [x] Doctor: soft gap `debug.http` (dbgs + listening probe) — [#142](https://github.com/pila86/1c-dev/issues/142)
 - [x] `AGENTS.md`: цикл с debug для runtime failures — [#142](https://github.com/pila86/1c-dev/issues/142)
-- [ ] Integration: `tests/test_m6_acceptance.py`; skip без dbgs/платформы/GUI
+- [x] Integration: `tests/test_m6_acceptance.py` (core + CLI + MCP); skip без dbgs/платформы/GUI — [#144](https://github.com/pila86/1c-dev/issues/144)
 
 ### Should
 
@@ -311,7 +311,7 @@ build (ИБ актуальна)
 | [#145](https://github.com/pila86/1c-dev/issues/145) | 2.5 | `breakpoint set --file` (ObjectModule / path → objectID) | #138–#140 | DONE |
 | [#141](https://github.com/pila86/1c-dev/issues/141) | 4 | MCP `debug.*` tools | #140 | DONE |
 | [#142](https://github.com/pila86/1c-dev/issues/142) | 4 | Doctor `debug.http` + AGENTS debug workflow | #140, #141 | DONE |
-| [#144](https://github.com/pila86/1c-dev/issues/144) | 5 | Acceptance: M6 debug E2E | #140–#142 | OPEN |
+| [#144](https://github.com/pila86/1c-dev/issues/144) | 5 | Acceptance: M6 debug E2E | #140–#142 | DONE (`tests/test_m6_acceptance.py`) |
 
 Вне milestone: [#143](https://github.com/pila86/1c-dev/issues/143) (`ide configure` DAP launch.json) — follow-up / backlog.
 

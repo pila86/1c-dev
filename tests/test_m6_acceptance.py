@@ -10,11 +10,13 @@ Fixture ``debug_spike``: ``ПриНачалеРаботыСистемы`` (кл�
 Расширение ``DebugExt`` (``src/cfe/debug_ext``): перехватчик ``&После`` в адоптированном
 ``ОтладкаДемо`` (клиент) и собственный серверный модуль ``Расш_ОтладкаСервер``;
 второй тест проходит сценарий целиком через CLI (``typer.testing.CliRunner``);
-третий — пошаговое выполнение (step-over / step-in / step-out) через CLI.
+третий — пошаговое выполнение (step-over / step-in / step-out) через CLI;
+четвёртый — тот же happy-path через MCP ``debug.*`` / ``runtime.*`` (#144).
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import shutil
@@ -39,6 +41,7 @@ from core.debug import (
     run_wait,
 )
 from core.runtime import run_start, run_stop
+from mcp_server import create_server
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "debug_spike"
 
@@ -127,6 +130,25 @@ def _cli_leaf(payload: dict[str, Any]) -> dict[str, Any]:
     stack = payload.get("callStack") or []
     assert stack, payload
     return stack[-1]  # type: ignore[no-any-return]
+
+
+def _mcp(name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Вызов MCP tool через FastMCP ``call_tool`` (как в ``test_mcp.py``)."""
+    server = create_server()
+
+    async def _run() -> dict[str, Any]:
+        result = await server.call_tool(name, arguments or {})
+        if isinstance(result, tuple) and len(result) == 2 and isinstance(result[1], dict):
+            return result[1]
+        raise AssertionError(f"Unexpected call_tool result: {result!r}")
+
+    return asyncio.run(_run())
+
+
+def _mcp_ok(name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+    payload = _mcp(name, arguments)
+    assert payload.get("status") == "ok", (name, payload)
+    return payload
 
 
 @pytest.mark.integration
@@ -310,6 +332,46 @@ def test_m6_acceptance_steps_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     finally:
         stopped = _cli("runtime", "stop", expect_ok=False)
         assert stopped["status"] == "ok", stopped
+
+    assert not (debug_dir / "session.json").exists()
+    assert not (debug_dir / "ping.pid").exists()
+    assert not (debug_dir / "server.pid").exists()
+
+
+@pytest.mark.integration
+def test_m6_acceptance_mcp(tmp_path: Path) -> None:
+    """Happy-path через MCP: server → attach → BP → runtime → wait → vars/eval → stop."""
+    project = _prepare_project(tmp_path)
+    path = str(project)
+    app_file, _, app_line = APP_BP.rpartition(":")
+    debug_dir = project / ".1c-dev" / "debug"
+    try:
+        _mcp_ok("debug.server.start", {"path": path})
+        _mcp_ok("debug.attach", {"path": path})
+        bp = _mcp_ok(
+            "debug.breakpoint",
+            {"path": path, "file": app_file, "lines": [int(app_line)]},
+        )
+        assert bp.get("breakpoints"), bp
+
+        started = _mcp_ok("runtime.start", {"path": path, "debug": True})
+        debug = started.get("debug") or {}
+        assert debug.get("targetsArmed"), started
+
+        waited = _mcp_ok("debug.wait", {"path": path, "timeout": 60})
+        assert (waited.get("moduleName"), waited.get("lineNo")) == ("DebugSpike", 4)
+        variables = _cli_variables(_mcp_ok("debug.variables", {"path": path}))
+        assert "DebugSpike" in variables["ИмяСценария"]
+        evaluated = _mcp_ok(
+            "debug.evaluate", {"path": path, "expression": "ИмяСценария"}
+        )
+        assert "DebugSpike" in str(evaluated.get("result") or "")
+
+        done = _mcp_ok("debug.continue", {"path": path, "timeout": 60})
+        assert not done.get("callStack")
+    finally:
+        stopped = _mcp("runtime.stop", {"path": path})
+        assert stopped.get("status") == "ok", stopped
 
     assert not (debug_dir / "session.json").exists()
     assert not (debug_dir / "ping.pid").exists()

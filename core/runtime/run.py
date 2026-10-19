@@ -382,6 +382,11 @@ def run_start(
     spawning the client, then polls ``session.json`` until the ping daemon has
     attached a debug target (or timeout). It never waits for a stop — use
     ``debug wait`` for that.
+
+    With ``debug=True`` and an existing ``session.json`` (MCP stepwise:
+    ``debug.attach`` + ``debug.breakpoint`` then ``runtime.start``), resets
+    stale stop/targets, ensures the ping daemon, and awaits target arm — same
+    as the ``--bp`` path, without re-running ensure/attach.
     """
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
@@ -427,6 +432,7 @@ def run_start(
     debug_bps: list[dict[str, Any]] = []
     debug_session_id: str | None = None
     extra_diags: list[Diagnostic] = []
+    arm_debug_targets = False
     resolved_url = (
         _resolve_debugger_url_for_start(root, manifest_data, explicit=debugger_url)
         if debug
@@ -460,6 +466,20 @@ def run_start(
         resolved_url = boot.debugger_url or boot.url or resolved_url
         debug_bps = list(boot.breakpoints)
         debug_session_id = boot.session_id
+        arm_debug_targets = True
+    elif debug:
+        from core.debug.state import read_session
+
+        stored = read_session(root)
+        if stored is not None:
+            arm_debug_targets = True
+            debug_session_id = str(stored.get("sessionId") or "") or None
+            raw_bps = stored.get("breakpoints")
+            if isinstance(raw_bps, list):
+                debug_bps = [bp for bp in raw_bps if isinstance(bp, dict)]
+            session_url = stored.get("url")
+            if isinstance(session_url, str) and session_url.strip():
+                resolved_url = session_url.strip()
 
     running, pid, mode, running_client, debug_enabled, running_url = _alive_snapshot(
         root, is_alive=alive
@@ -554,7 +574,8 @@ def run_start(
 
     # Reset stale stop/targets and make sure the daemon runs *before* spawn:
     # the daemon is the only ping reader, so no event of the new client is lost.
-    if debug and bp_raw:
+    # Also for MCP stepwise (session already on disk, no --bp).
+    if arm_debug_targets:
         from core.debug.ops import prepare_debug_for_spawn
 
         prepared = prepare_debug_for_spawn(
@@ -629,7 +650,7 @@ def run_start(
     )
 
     targets_armed = False
-    if debug and bp_raw:
+    if arm_debug_targets:
         from core.debug.ops import await_debug_targets_armed
 
         armed = await_debug_targets_armed(
