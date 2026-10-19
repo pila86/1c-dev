@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -28,9 +29,11 @@ runner = CliRunner()
 def test_cli_runtime_start_bp_help() -> None:
     result = runner.invoke(app, ["runtime", "start", "--help"])
     assert result.exit_code == 0
-    assert "--bp" in result.output
-    assert "--wait" not in result.output
-    assert "--debug" in result.output
+    # Rich may insert ANSI mid-token (e.g. styled "--bp") when COLUMNS is set (CI).
+    plain = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", result.stdout)
+    assert "--bp" in plain
+    assert "--wait" not in plain
+    assert "--debug" in plain
 
 
 def test_cli_debug_server_start_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
