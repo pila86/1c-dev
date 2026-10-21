@@ -231,6 +231,23 @@ ensure dbgs → attach (демон) → setBreakpoints
 Discovery `dbgs`: sibling рядом с `1cv8`/`ibcmd` (паттерн ADR-005); Windows — `bin\dbgs.exe`
 (docs; live E2E — follow-up CI).
 
+### 6a. Связь с `test.run --debug` (#147)
+
+Тот же HTTP-attach argv и оркестрация `ensure_debug_for_runtime` /
+`prepare_debug_for_spawn` / `await_debug_targets_armed`, но spawn — YaXUnit
+`ENTERPRISE … /CRunUnitTests=<cfg>` (не интерактивный клиент).
+
+| Поведение | Правило |
+|-----------|---------|
+| `test run --debug [--bp …]` / MCP `debug=true` | Non-blocking: ensure → BP → spawn → arm → `status: running` + pid |
+| Остановка на BP | `debug wait` (как у runtime) |
+| jUnit / `last-result` | `test wait` / MCP `test.wait` после exit `1cv8` (`closeAfterTests`) |
+| Без `--debug` | Blocking прогон без изменений (ADR-029) |
+| `--bp` без `--debug` | Ошибка проекта |
+| xvfb | При `--debug` **не** использовать; нужен живой `DISPLAY` |
+
+State detach-прогона: `.1c-dev/test/run.meta.json` (pid, workDir, debug, артефакты).
+
 ### 7. force_detach / recovery
 
 | Сценарий | Поведение |

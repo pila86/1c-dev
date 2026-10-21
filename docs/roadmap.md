@@ -2,7 +2,7 @@
 
 ## Текущий фокус
 
-**M6: Debug** закрыт: HTTP Debug Protocol → CLI/MCP `debug.*`; acceptance E2E (#144). DAP для IDE — reuse внешнего adapter; `ide configure` launch.json — follow-up [#143](https://github.com/pila86/1c-dev/issues/143). Документ: [m6-debug](milestones/m6-debug.md).
+**M6: Debug** In progress: HTTP Debug Protocol → CLI/MCP `debug.*`; acceptance E2E (#144). Добиваем `test.run --debug/--bp` + `test.wait` ([#147](https://github.com/pila86/1c-dev/issues/147)) в PR [#146](https://github.com/pila86/1c-dev/pull/146). DAP для IDE — reuse внешнего adapter; `ide configure` launch.json — follow-up [#143](https://github.com/pila86/1c-dev/issues/143). Документ: [m6-debug](milestones/m6-debug.md).
 
 **M5: Tests** закрыт: Test API (YAxUnit), CLI/MCP `test.*`, `configurations[].tests`, runner cache + ensure, acceptance E2E (#129). Vanessa adapter — follow-up [#128](https://github.com/pila86/1c-dev/issues/128).
 
@@ -24,7 +24,7 @@
 | **M3** | Product adopt: import `.cf`, user install/PATH **+ автозагрузка toolchain**, `ide configure`, BSL LS MCP, docs/context; **should (temporary):** metadata types coverage | Done |
 | **M4** | Project home `.1c-dev/`, multi-config + extensions, platform templates, publish (ibsrv / webinst), `runtimes[]` | Done |
 | **M5** | Test API: YAxUnit adapter, CLI/MCP `test.*`, `configurations[].tests`; Vanessa — follow-up | Done |
-| **M6** | Debug API: HTTP Debug Protocol (`dbgs`), CLI/MCP `debug.*`; DAP для IDE — reuse | Done |
+| **M6** | Debug API: HTTP Debug Protocol (`dbgs`), CLI/MCP `debug.*` + `test.* --debug`; DAP для IDE — reuse | In progress |
 
 Документы этапов: [M1](milestones/m1-catalog-via-agent.md) · [M2](milestones/m2-metadata-api.md) · [M3](milestones/m3-product-adopt.md) · [M4](milestones/m4-project-model.md) · [M5](milestones/m5-tests.md) · [M6](milestones/m6-debug.md)
 

@@ -148,6 +148,32 @@ def test_build_enterprise_run_argv(tmp_path: Path) -> None:
     assert f"/CRunUnitTests={cfg.resolve()}" in argv
 
 
+def test_build_enterprise_run_argv_debug_http(tmp_path: Path) -> None:
+    onecv8 = tmp_path / "1cv8"
+    onecv8.write_text("", encoding="utf-8")
+    ib = tmp_path / "ib"
+    ib.mkdir()
+    cfg = tmp_path / "cfg.json"
+    cfg.write_text("{}", encoding="utf-8")
+    out = tmp_path / "out.log"
+    url = "http://127.0.0.1:1550/"
+    argv = build_enterprise_run_argv(
+        onecv8,
+        ib_path=ib,
+        config_path=cfg,
+        out_log=out,
+        use_xvfb=False,
+        debug=True,
+        debugger_url=url,
+    )
+    assert "/Debug" in argv
+    assert "-http" in argv
+    assert "-attach" in argv
+    assert f'/DebuggerURL"{url}"' in argv
+    # /Debug comes before DisableStartup*
+    assert argv.index("/Debug") < argv.index("/DisableStartupDialogs")
+
+
 def test_run_unit_tests_mocked(tmp_path: Path) -> None:
     onecv8 = tmp_path / "1cv8"
     onecv8.write_text("", encoding="utf-8")

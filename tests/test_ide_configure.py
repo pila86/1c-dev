@@ -110,6 +110,7 @@ def test_configure_agents_includes_build_test_cycle(tmp_path: Path) -> None:
     assert "test.discover" in agents
     assert "test.run" in agents
     assert "test.runOne" in agents
+    assert "test.wait" in agents
     assert "test.report" in agents
     assert "1c-dev test" in agents
 
@@ -126,6 +127,7 @@ def test_configure_agents_includes_debug_workflow(tmp_path: Path) -> None:
     assert "runtime.start" in agents
     assert "--debug" in agents
     assert "debug.http" in agents
+    assert "test.wait" in agents
     assert "не вместо" in agents or "не заменять" in agents or "не вместо `test" in agents
 
 

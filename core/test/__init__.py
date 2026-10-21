@@ -1,4 +1,4 @@
-"""Test API: discover / list / run / runOne / report (ADR-029 / #123)."""
+"""Test API: discover / list / run / runOne / wait / report (ADR-029 / #123, #147)."""
 
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ from core.test.ops import (
     report_tests,
     run_one_test,
     run_tests,
+    wait_tests,
 )
 from core.test.result import TestResult, exit_code_for_run_status
 from core.test.runner_ensure import RunnerEnsureResult, ensure_yaxunit_runner
@@ -52,4 +53,5 @@ __all__ = [
     "report_tests",
     "run_one_test",
     "run_tests",
+    "wait_tests",
 ]

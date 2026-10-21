@@ -88,7 +88,9 @@ from core.test import (
     report_tests,
     run_one_test,
     run_tests,
+    wait_tests,
 )
+from core.test.constants import DEFAULT_WAIT_TIMEOUT_SEC
 from mcp_server._path import resolve_path
 
 _NO_SHELL = (
@@ -1262,7 +1264,11 @@ def register_tools(server: FastMCP) -> None:
             "Run selected (or all) YaXUnit suites in one 1cv8 process. "
             "Does not call build — prepare the IB with build first. "
             "Implicit ensure loads YAXUNIT from toolchain cache and clears "
-            "safe-mode unless no_runner_ensure=true."
+            "safe-mode unless no_runner_ensure=true. "
+            "With debug=true: non-blocking (status=running + pid); optional "
+            "breakpoints like 'path/to.bsl:line'; then debug.wait for stops "
+            "and test.wait for jUnit. breakpoints requires debug=true. "
+            "Needs live DISPLAY (no xvfb) when debug=true."
             + _CONFIG_RUNTIME
             + _TEST_SUITE
             + _PATH_SCOPE
@@ -1275,6 +1281,9 @@ def register_tools(server: FastMCP) -> None:
         runtime_id: str | None = None,
         suite: str | None = None,
         no_runner_ensure: bool = False,
+        debug: bool = False,
+        debugger_url: str | None = None,
+        breakpoints: list[str] | None = None,
     ) -> dict[str, Any]:
         result = run_tests(
             resolve_path(path),
@@ -1282,6 +1291,9 @@ def register_tools(server: FastMCP) -> None:
             runtime_id=runtime_id,
             suite_id=suite,
             skip_runner_ensure=no_runner_ensure,
+            debug=debug,
+            debugger_url=debugger_url,
+            breakpoints=breakpoints,
         )
         return result.to_payload()
 
@@ -1292,7 +1304,8 @@ def register_tools(server: FastMCP) -> None:
             "Does not call build — prepare the IB with build first. "
             "Pass suite when the module name is ambiguous across extensions. "
             "Implicit ensure loads YAXUNIT from toolchain cache unless "
-            "no_runner_ensure=true."
+            "no_runner_ensure=true. "
+            "debug=true / breakpoints / debugger_url — same as test.run (#147)."
             + _CONFIG_RUNTIME
             + _TEST_SUITE
             + _PATH_SCOPE
@@ -1306,6 +1319,9 @@ def register_tools(server: FastMCP) -> None:
         runtime_id: str | None = None,
         suite: str | None = None,
         no_runner_ensure: bool = False,
+        debug: bool = False,
+        debugger_url: str | None = None,
+        breakpoints: list[str] | None = None,
     ) -> dict[str, Any]:
         result = run_one_test(
             name,
@@ -1314,14 +1330,35 @@ def register_tools(server: FastMCP) -> None:
             runtime_id=runtime_id,
             suite_id=suite,
             skip_runner_ensure=no_runner_ensure,
+            debug=debug,
+            debugger_url=debugger_url,
+            breakpoints=breakpoints,
         )
+        return result.to_payload()
+
+    @server.tool(
+        name="test.wait",
+        description=(
+            "After test.run/test.runOne with debug=true: wait for 1cv8 exit, "
+            "parse jUnit, write last-result.json, clear run.meta.json. "
+            "Use after debug.wait / continue when the test client should finish."
+            + _PATH_SCOPE
+            + _NO_SHELL
+        ),
+    )
+    def test_wait_tool(
+        path: str | None = None,
+        timeout: float = DEFAULT_WAIT_TIMEOUT_SEC,
+    ) -> dict[str, Any]:
+        result = wait_tests(resolve_path(path), timeout=timeout)
         return result.to_payload()
 
     @server.tool(
         name="test.report",
         description=(
             "Return the last saved structured test result "
-            "(.1c-dev/test/last-result.json) from a prior test.run / test.runOne."
+            "(.1c-dev/test/last-result.json) from a prior test.run / test.runOne "
+            "/ test.wait."
             + _CONFIG_RUNTIME
             + _PATH_SCOPE
             + _NO_SHELL

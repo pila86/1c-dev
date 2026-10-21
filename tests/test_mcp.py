@@ -60,6 +60,7 @@ EXPECTED_TOOLS = {
     "test.list",
     "test.run",
     "test.runOne",
+    "test.wait",
     "test.report",
     "debug.server.start",
     "debug.server.stop",

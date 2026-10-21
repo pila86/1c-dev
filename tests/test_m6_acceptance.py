@@ -376,3 +376,106 @@ def test_m6_acceptance_mcp(tmp_path: Path) -> None:
     assert not (debug_dir / "session.json").exists()
     assert not (debug_dir / "ping.pid").exists()
     assert not (debug_dir / "server.pid").exists()
+
+
+# --- #147: test.run --debug --bp → debug.wait → test.wait ---
+
+YAXUNIT_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "yaxunit_spike"
+TEST_ARITH_BP = "src/cfe/test_ext1/CommonModules/ОМ_Арифметика/Ext/Module.bsl:18"
+
+
+def _ensure_yaxunit_cfe() -> Path:
+    import urllib.error
+
+    from core.toolchain.cache import tools_cache_dir
+    from core.toolchain.fetchers.yaxunit import fetch_yaxunit
+    from core.toolchain.manifest import load_manifest
+    from core.toolchain.resolve import resolve_yaxunit_cfe
+
+    resolved = resolve_yaxunit_cfe()
+    if resolved.found and resolved.path is not None:
+        return resolved.path
+
+    env_name = resolved.env_name or "ONEC_YAXUNIT_CFE"
+    skip_msg = (
+        f"YAxUnit.cfe не найден — выполните 1c-dev tools sync "
+        f"или задайте {env_name}=/path/to/YAxUnit.cfe"
+    )
+    manifest = load_manifest()
+    spec = manifest.get("yaxunit")
+    if spec is None:
+        pytest.skip(skip_msg)
+
+    try:
+        path, _diags = fetch_yaxunit(spec, tools_cache_dir(), quiet=True)
+    except (OSError, urllib.error.URLError) as exc:
+        pytest.skip(f"{skip_msg} ({exc})")
+
+    if path is None or not path.is_file():
+        resolved = resolve_yaxunit_cfe()
+        if resolved.found and resolved.path is not None:
+            return resolved.path
+        pytest.skip(skip_msg)
+    return path
+
+
+def _prepare_yaxunit_debug_project(tmp_path: Path) -> Path:
+    """yaxunit_spike + debug.port + build (для test.run --debug)."""
+    _require_platform()
+    yaxunit_cfe = _ensure_yaxunit_cfe()
+    assert yaxunit_cfe.is_file()
+
+    project = tmp_path / "yaxunit_spike"
+    shutil.copytree(
+        YAXUNIT_FIXTURE, project, ignore=shutil.ignore_patterns("run_yaxunit.py")
+    )
+    manifest = project / ".1c-dev" / "project.yaml"
+    manifest.write_text(
+        manifest.read_text(encoding="utf-8")
+        + "\ndebug:\n  host: localhost\n"
+        f"  port: {_free_port()}\n"
+        "  infobaseAlias: DefAlias\n"
+        "  autoAttachTypes: [Client, ManagedClient, Server, ServerEmulation]\n",
+        encoding="utf-8",
+    )
+    build = run_build(project)
+    assert build.status == "ok", build.to_payload()
+    assert (project / ".1c-dev" / "runtime" / "main" / IB_MARKER).is_file()
+    return project
+
+
+@pytest.mark.integration
+def test_m6_acceptance_test_run_debug(tmp_path: Path) -> None:
+    """#147: test runOne --debug --bp → wait → continue → test wait → passed."""
+    from core.debug import teardown_debug
+    from core.test import run_one_test, wait_tests
+
+    project = _prepare_yaxunit_debug_project(tmp_path)
+    try:
+        started = run_one_test(
+            "ОМ_Арифметика.Сложение",
+            project,
+            debug=True,
+            breakpoints=[TEST_ARITH_BP],
+        )
+        assert started.status == "running", started.to_payload()
+        assert started.pid is not None
+        assert started.debug_enabled is True
+
+        waited = run_wait(project, timeout=90)
+        assert waited.status == "ok", waited.to_payload()
+        assert waited.module_name == "ОМ_Арифметика"
+        assert waited.line_no == 18
+
+        done = run_continue(project, timeout=90)
+        assert done.status == "ok", done.to_payload()
+
+        finished = wait_tests(project, timeout=120)
+        assert finished.status == "passed", finished.to_payload()
+        assert finished.exit_code == 0
+        assert (finished.passed or 0) >= 1
+    finally:
+        teardown_debug(project)
+        meta = project / ".1c-dev" / "test" / "run.meta.json"
+        if meta.is_file():
+            wait_tests(project, timeout=30)

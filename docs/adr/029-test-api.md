@@ -29,7 +29,7 @@ default multi-suite filter, семантика discover/list без native dry-r
 | CLI | `1c-dev test` / `test list` / `test run` / `test run <name>` / `test report` … |
 | Core | `core/test/` — оркестрация, фильтры, JSON result |
 | Adapter | `adapters/test_yaxunit/` — subprocess `1cv8` + jUnit → structured JSON |
-| MCP | `test.discover`, `test.list`, `test.run`, `test.runOne`, `test.report` в `1c-dev mcp` |
+| MCP | `test.discover`, `test.list`, `test.run`, `test.runOne`, `test.wait`, `test.report` в `1c-dev mcp` |
 
 - Продукт — **orchestration layer**: не свой test framework, не замена YaXUnit.
 - MCP — thin wrapper над `core/test` (ADR-010): без `shell.exec`, без парсинга CLI stdout.
@@ -100,7 +100,14 @@ configurations:
 | list | `1c-dev test list` | `test.list` | Лучший доступный список тестов: из **последнего** `report` и/или best-effort parse; на чистом проекте может быть неполным |
 | run | `1c-dev test run` | `test.run` | Прогон выбранных suites → structured JSON |
 | runOne | `1c-dev test run <name>` | `test.runOne` | Один тест: `Module.Method[.Context]` → YaXUnit `filter.tests` |
+| wait | `1c-dev test wait` | `test.wait` | После `run --debug`: ждать exit pid, разобрать jUnit → `last-result` (ADR-031 §6a / #147) |
 | report | `1c-dev test report` | `test.report` | Последний сохранённый отчёт / артефакт прогона |
+
+**Debug-режим прогона** (`--debug` / MCP `debug=true`, #147): non-blocking как
+`runtime start --debug` — ensure dbgs + attach + optional `--bp` → spawn с
+`/Debug -http -attach` → arm targets → `status: running` + pid (без ожидания stop
+и без записи финального `last-result`). Stop — `debug.wait`; отчёт — `test.wait`.
+`--bp` без `--debug` — ошибка проекта. Без `--debug` поведение v1 без изменений.
 
 **Discover/list:** у YaXUnit 25.12 нет dry-run «список без выполнения» → вариант **C** spike §6
 (не полный прогон как inventory, не обещать точный list без `run`).
@@ -138,6 +145,7 @@ configurations:
 
 ```text
 1cv8 ENTERPRISE /F<abs ib>
+  [/Debug -http -attach /DebuggerURL"…" ]   # только --debug
   /DisableStartupDialogs /DisableStartupMessages /DisableSplash
   /L ru /Out <out.log>
   "/CRunUnitTests=<abs cfg.json>"
@@ -147,12 +155,18 @@ configurations:
 `closeAfterTests: true`, `showReport: false`, путь `exitCode` (файл), `logging.file`,
 явный `filter`. Формат `JSON` в YaXUnit 25.12 не поддерживается — только jUnit (или allure later).
 
+**Статусы результата:** `ok` | `passed` | `failed` | `error` | `empty` | **`running`**
+(`running` — только успешный detach-старт `run --debug`; финальный вердикт после `wait`).
+
 **Pre-flight / runtime wiring (ответственность adapter + core):**
 
 - нужен X-сервер (`DISPLAY`); fallback headless — `xvfb-run -a` (иначе exit 255 → `ENV_UNAVAILABLE`);
+  при `--debug` xvfb **запрещён** — только живой `DISPLAY` (как runtime debug);
 - у test-extension и `YAXUNIT` — `safe-mode=no` / `unsafe-action-protection=no`
   (`ibcmd extension update`, абсолютные пути) до прогона;
-- обязательный timeout; при timeout — kill **process group** (`start_new_session` / `killpg`).
+- обязательный timeout для blocking-прогона; при timeout — kill **process group**
+  (`start_new_session` / `killpg`);
+- detach `--debug`: state `.1c-dev/test/run.meta.json`; завершение — `test.wait`.
 
 Подготовка ИБ (import/apply пользовательских конфигурации и extension) — зона `build` (M4);
 runner-extension и safe-mode — pre-flight `ensure` (§7a).

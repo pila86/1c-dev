@@ -1,6 +1,6 @@
 # M6: Debug (HTTP Debug Protocol + CLI/MCP)
 
-**Статус:** Done — [GitHub milestone M6](https://github.com/pila86/1c-dev/milestone/6); acceptance E2E [#144](https://github.com/pila86/1c-dev/issues/144) (`tests/test_m6_acceptance.py`). `#143` (`ide configure` launch.json) — **вне M6**, follow-up.  
+**Статус:** In progress — [GitHub milestone M6](https://github.com/pila86/1c-dev/milestone/6); PR [#146](https://github.com/pila86/1c-dev/pull/146). Acceptance E2E [#144](https://github.com/pila86/1c-dev/issues/144) (`tests/test_m6_acceptance.py`); осталось `test.* --debug` [#147](https://github.com/pila86/1c-dev/issues/147). `#143` (`ide configure` launch.json) — **вне M6**, follow-up.  
 **ADR:** [ADR-031](../adr/031-debug-api-http.md) (Accepted, [#136](https://github.com/pila86/1c-dev/issues/136); ранее в черновике ошибочно «ADR-030» — номер занят Designer `/CheckModules`). Закладка: [ADR-019](../adr/019-runtime-client-lifecycle.md) (`/Debug`, `debug.*` → M6). Spike: [135-http-debug-protocol.md](../spikes/135-http-debug-protocol.md).
 
 ## Goal
@@ -31,6 +31,7 @@ Lifecycle остаётся прежним: `change → build → check → test 
 | Сессия | Stateful в процессе CLI/MCP; state на диске под `.1c-dev/` | pid/url/session id; `force_detach` при залипании |
 | Lifecycle dbgs | `debug.server start\|stop\|status` (или часть `debug.start`) | Discovery бинаря платформы; host/port из манифеста/флагов |
 | Связь с runtime | `runtime.start --debug` уже есть; `debug.attach` ждёт живой dbgs + клиент с `/Debug` | Не дублировать start клиента внутри каждого `debug.*` без явного флага |
+| Связь с test | `test.run --debug [--bp]` / `test.wait` (#147) | Non-blocking как runtime; stop → `debug.wait`; jUnit → `test.wait` |
 | Выбор ИБ / config | `--config` / `--runtime` как в test/build | Default = default runtime выбранной config |
 | Exit codes | Ошибки сессии/окружения → `RUNTIME_FAILURE` (4); project → 2; env (нет dbgs) → 3 | Новый код не вводить без ADR-003 amendment |
 | Schema | Additive в schema `"2"`: опциональный блок `debug` (host/port/alias/autoAttach) | Bump major не нужен, если только optional |
@@ -178,14 +179,23 @@ build (ИБ актуальна)
   → runtime.start(debug=true)
   → debug.attach
   → debug.breakpoint(module=…, lines=[…])
-  → <действие: UI / вызов / test.run — по сценарию>
+  → <действие: UI / вызов / test.run --debug — по сценарию>
   → debug.wait(timeout=…)
   → debug.variables / debug.evaluate
   → правки кода
   → debug.continue | detach
+  → test.wait   # если триггер был test.run --debug
 ```
 
 Агент **не** держит бесконечный step-loop без цели; prefer короткий сценарий «сломалось на строке N → подтвердить vars → fix».
+
+**Отладка упавшего теста** (симметрия с runtime, #147):
+
+```text
+test.run(debug=true, breakpoints=[…])   # status: running + pid; не ждёт stop / exit
+  → debug.wait → variables / eval → continue …
+  → test.wait                            # exit 1cv8 → jUnit → last-result
+```
 
 ## Acceptance criteria
 
@@ -204,6 +214,7 @@ build (ИБ актуальна)
 - [x] Doctor: soft gap `debug.http` (dbgs + listening probe) — [#142](https://github.com/pila86/1c-dev/issues/142)
 - [x] `AGENTS.md`: цикл с debug для runtime failures — [#142](https://github.com/pila86/1c-dev/issues/142)
 - [x] Integration: `tests/test_m6_acceptance.py` (core + CLI + MCP); skip без dbgs/платформы/GUI — [#144](https://github.com/pila86/1c-dev/issues/144)
+- [x] `test.run` / `test.runOne` `--debug` / `--bp` (non-blocking) + `test.wait` / MCP; reuse `ensure_debug_for_runtime` — [#147](https://github.com/pila86/1c-dev/issues/147)
 
 ### Should
 
@@ -312,6 +323,7 @@ build (ИБ актуальна)
 | [#141](https://github.com/pila86/1c-dev/issues/141) | 4 | MCP `debug.*` tools | #140 | DONE |
 | [#142](https://github.com/pila86/1c-dev/issues/142) | 4 | Doctor `debug.http` + AGENTS debug workflow | #140, #141 | DONE |
 | [#144](https://github.com/pila86/1c-dev/issues/144) | 5 | Acceptance: M6 debug E2E | #140–#142 | DONE (`tests/test_m6_acceptance.py`) |
+| [#147](https://github.com/pila86/1c-dev/issues/147) | 5.5 | `test.run --debug/--bp` + `test.wait` (симметрия с runtime) | #140, #144 | DONE (в PR #146) |
 
 Вне milestone: [#143](https://github.com/pila86/1c-dev/issues/143) (`ide configure` DAP launch.json) — follow-up / backlog.
 
