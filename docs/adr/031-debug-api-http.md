@@ -241,7 +241,8 @@ Discovery `dbgs`: sibling рядом с `1cv8`/`ibcmd` (паттерн ADR-005);
 |-----------|---------|
 | `test run --debug [--bp …]` / MCP `debug=true` | Non-blocking: ensure → BP → spawn → arm → `status: running` + pid |
 | Остановка на BP | `debug wait` (как у runtime) |
-| jUnit / `last-result` | `test wait` / MCP `test.wait` после exit `1cv8` (`closeAfterTests`) |
+| jUnit / `last-result` | `test wait` / MCP `test.wait` после exit `1cv8` (`closeAfterTests`); затем teardown debug (как `runtime stop`) |
+| Timeout `test.wait` (процесс жив) | Debug **не** сбрасывается — агент ещё может `debug.wait` / `continue` |
 | Без `--debug` | Blocking прогон без изменений (ADR-029) |
 | `--bp` без `--debug` | Ошибка проекта |
 | xvfb | При `--debug` **не** использовать; нужен живой `DISPLAY` |

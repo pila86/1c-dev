@@ -451,6 +451,7 @@ def test_m6_acceptance_test_run_debug(tmp_path: Path) -> None:
     from core.test import run_one_test, wait_tests
 
     project = _prepare_yaxunit_debug_project(tmp_path)
+    debug_dir = project / ".1c-dev" / "debug"
     try:
         started = run_one_test(
             "ОМ_Арифметика.Сложение",
@@ -474,7 +475,11 @@ def test_m6_acceptance_test_run_debug(tmp_path: Path) -> None:
         assert finished.status == "passed", finished.to_payload()
         assert finished.exit_code == 0
         assert (finished.passed or 0) >= 1
+        # test.wait tears down debug like runtime.stop
+        assert not (debug_dir / "session.json").exists()
+        assert not (debug_dir / "ping.pid").exists()
     finally:
+        # Best-effort if wait failed before teardown
         teardown_debug(project)
         meta = project / ".1c-dev" / "test" / "run.meta.json"
         if meta.is_file():

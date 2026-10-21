@@ -1340,7 +1340,9 @@ def register_tools(server: FastMCP) -> None:
         name="test.wait",
         description=(
             "After test.run/test.runOne with debug=true: wait for 1cv8 exit, "
-            "parse jUnit, write last-result.json, clear run.meta.json. "
+            "parse jUnit, write last-result.json, clear run.meta.json, then "
+            "teardown debug (detach / our dbgs) like runtime.stop. "
+            "Timeout while 1cv8 is still alive does not teardown. "
             "Use after debug.wait / continue when the test client should finish."
             + _PATH_SCOPE
             + _NO_SHELL

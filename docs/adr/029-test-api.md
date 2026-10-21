@@ -100,7 +100,7 @@ configurations:
 | list | `1c-dev test list` | `test.list` | Лучший доступный список тестов: из **последнего** `report` и/или best-effort parse; на чистом проекте может быть неполным |
 | run | `1c-dev test run` | `test.run` | Прогон выбранных suites → structured JSON |
 | runOne | `1c-dev test run <name>` | `test.runOne` | Один тест: `Module.Method[.Context]` → YaXUnit `filter.tests` |
-| wait | `1c-dev test wait` | `test.wait` | После `run --debug`: ждать exit pid, разобрать jUnit → `last-result` (ADR-031 §6a / #147) |
+| wait | `1c-dev test wait` | `test.wait` | После `run --debug`: ждать exit pid, разобрать jUnit → `last-result`, teardown debug (как `runtime stop`; ADR-031 §6a / #147) |
 | report | `1c-dev test report` | `test.report` | Последний сохранённый отчёт / артефакт прогона |
 
 **Debug-режим прогона** (`--debug` / MCP `debug=true`, #147): non-blocking как

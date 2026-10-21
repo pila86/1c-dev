@@ -1270,6 +1270,50 @@ def run_one_test(
     )
 
 
+def _teardown_debug_after_test(
+    start_path: Path,
+    root: Path,
+    *,
+    config_id: str | None,
+    runtime_id: str | None,
+    is_alive: IsAliveFn | None = None,
+) -> list[Diagnostic]:
+    """Detach ping/session/our dbgs after test client exit (mirror ``runtime stop``)."""
+    from core.debug.ops import has_debug_state, teardown_debug
+
+    if not has_debug_state(root):
+        return []
+    try:
+        result = teardown_debug(
+            start_path,
+            config_id=config_id,
+            runtime_id=runtime_id,
+            is_alive=is_alive,
+        )
+    except Exception as exc:  # noqa: BLE001 — wait must still return jUnit
+        return [
+            warning(
+                f"не удалось полностью остановить debug: {exc}",
+                code=CODE_WAIT_TIMEOUT,
+                source="test",
+            )
+        ]
+    diags: list[Diagnostic] = []
+    for diag in result.diagnostics:
+        if diag.get("severity") == "error":
+            diags.append(
+                warning(
+                    str(diag.get("message", "")),
+                    code=diag.get("code"),
+                    source="test",
+                    suggestion=diag.get("suggestion"),
+                )
+            )
+        else:
+            diags.append(diag)
+    return diags
+
+
 def wait_tests(
     start: Path | None = None,
     *,
@@ -1281,6 +1325,9 @@ def wait_tests(
     Wait for detach ``test.run --debug`` process exit, then parse jUnit (#147).
 
     Reads ``.1c-dev/test/run.meta.json``; writes ``last-result.json``; clears meta.
+    After the test client exits (success or jUnit failure), tears down debug
+    state like ``runtime stop`` (ping → detach → our dbgs). Timeout while the
+    process is still alive does **not** teardown — agent may still ``debug.wait``.
     """
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
@@ -1303,18 +1350,37 @@ def wait_tests(
     if meta is None:
         return _fail(started=started, root=root, diagnostics=meta_diags)
 
+    config_id = str(meta["configId"]) if isinstance(meta.get("configId"), str) else None
+    runtime_id = str(meta["runtimeId"]) if isinstance(meta.get("runtimeId"), str) else None
+    suite_ids = (
+        [str(s) for s in meta["suiteIds"]]
+        if isinstance(meta.get("suiteIds"), list)
+        else []
+    )
+
     pid_raw = meta.get("pid")
     if not isinstance(pid_raw, int) or pid_raw <= 0:
         clear_run_meta(root)
+        teardown_diags = _teardown_debug_after_test(
+            start_path,
+            root,
+            config_id=config_id,
+            runtime_id=runtime_id,
+            is_alive=is_alive,
+        )
         return _fail(
             started=started,
             root=root,
+            config_id=config_id,
+            runtime_id=runtime_id,
+            suite_ids=suite_ids,
             diagnostics=[
                 error(
                     "run.meta.json: некорректный pid",
                     code=CODE_PROJECT,
                     source="test",
-                )
+                ),
+                *teardown_diags,
             ],
         )
 
@@ -1324,16 +1390,28 @@ def wait_tests(
             return _fail(
                 started=started,
                 root=root,
+                config_id=config_id,
+                runtime_id=runtime_id,
+                suite_ids=suite_ids,
                 diagnostics=[
                     error(
                         f"таймаут ожидания завершения тестов ({timeout:g}s), pid={pid_raw}",
                         code=CODE_WAIT_TIMEOUT,
                         source="test",
-                        suggestion="debug continue / runtime stop или увеличьте --timeout",
+                        suggestion="debug continue / увеличьте --timeout; debug не сброшен",
                     )
                 ],
             )
         time.sleep(poll_interval)
+
+    # Client exited — always tear down debug (like runtime stop), then collect jUnit.
+    teardown_diags = _teardown_debug_after_test(
+        start_path,
+        root,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        is_alive=is_alive,
+    )
 
     report_raw = meta.get("reportPath")
     exit_raw = meta.get("exitCodePath")
@@ -1344,12 +1422,16 @@ def wait_tests(
         return _fail(
             started=started,
             root=root,
+            config_id=config_id,
+            runtime_id=runtime_id,
+            suite_ids=suite_ids,
             diagnostics=[
                 error(
                     "run.meta.json: отсутствуют пути артефактов YaXUnit",
                     code=CODE_PROJECT,
                     source="test",
-                )
+                ),
+                *teardown_diags,
             ],
         )
 
@@ -1369,22 +1451,13 @@ def wait_tests(
         return _fail(
             started=started,
             root=root,
-            config_id=str(meta["configId"]) if isinstance(meta.get("configId"), str) else None,
-            runtime_id=str(meta["runtimeId"]) if isinstance(meta.get("runtimeId"), str) else None,
-            suite_ids=[str(s) for s in meta["suiteIds"]]
-            if isinstance(meta.get("suiteIds"), list)
-            else None,
-            diagnostics=_map_adapter_error(exc),
+            config_id=config_id,
+            runtime_id=runtime_id,
+            suite_ids=suite_ids,
+            diagnostics=[*_map_adapter_error(exc), *teardown_diags],
         )
 
     clear_run_meta(root)
-    suite_ids = (
-        [str(s) for s in meta["suiteIds"]]
-        if isinstance(meta.get("suiteIds"), list)
-        else []
-    )
-    config_id = str(meta["configId"]) if isinstance(meta.get("configId"), str) else None
-    runtime_id = str(meta["runtimeId"]) if isinstance(meta.get("runtimeId"), str) else None
     status = run_result.status
     result = TestResult(
         status=status,
@@ -1401,11 +1474,10 @@ def wait_tests(
         duration_sec=run_result.duration_sec,
         tests=_cases_to_dicts(run_result.tests),
         report_path=str(run_result.report_path) if run_result.report_path else None,
-        debug_enabled=bool(meta.get("debug")),
-        debugger_url=str(meta["debuggerUrl"])
-        if isinstance(meta.get("debuggerUrl"), str)
-        else None,
-        session_id=str(meta["sessionId"]) if isinstance(meta.get("sessionId"), str) else None,
+        debug_enabled=False,
+        debugger_url=None,
+        session_id=None,
+        diagnostics=list(teardown_diags),
         exit_code=exit_code_for_run_status(status, total=run_result.total),
     )
     save_last_result(root, result)

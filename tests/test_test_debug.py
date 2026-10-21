@@ -12,7 +12,7 @@ from adapters.test_yaxunit import SpawnedUnitTests
 from core.debug.result import DebugResult
 from core.exit_codes import PROJECT_ERROR, SUCCESS
 from core.test import run_tests, wait_tests
-from core.test.constants import CODE_DEBUG_BP, CODE_NO_RUN_META
+from core.test.constants import CODE_DEBUG_BP, CODE_NO_RUN_META, CODE_WAIT_TIMEOUT
 from core.test.runner_ensure import RunnerEnsureResult
 from core.test.store import load_run_meta, run_meta_path, save_run_meta, work_dir
 from tests.helpers_project import bootstrap_configuration_project
@@ -107,7 +107,9 @@ def test_run_debug_detach_writes_meta(
     assert meta["debug"] is True
 
 
-def test_wait_tests_collects_junit(tmp_path: Path) -> None:
+def test_wait_tests_collects_junit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     target = _bootstrap_test_project(tmp_path)
     wd = work_dir(target)
     wd.mkdir(parents=True, exist_ok=True)
@@ -143,11 +145,61 @@ def test_wait_tests_collects_junit(tmp_path: Path) -> None:
         },
     )
 
+    teardown_calls: list[Path] = []
+
+    def fake_teardown(start: Path | None = None, **_kwargs: Any) -> DebugResult:
+        teardown_calls.append(Path(start) if start else Path())
+        return DebugResult(status="ok")
+
+    monkeypatch.setattr("core.debug.ops.has_debug_state", lambda _root: True)
+    monkeypatch.setattr("core.debug.ops.teardown_debug", fake_teardown)
+
     result = wait_tests(target, timeout=1.0, is_alive=lambda _pid: False)
     assert result.status == "passed", result.to_payload()
     assert result.exit_code == SUCCESS
     assert result.total == 1
+    assert result.debug_enabled is False
     assert not run_meta_path(target).exists()
+    assert len(teardown_calls) == 1
+
+
+def test_wait_timeout_does_not_teardown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = _bootstrap_test_project(tmp_path)
+    wd = work_dir(target)
+    wd.mkdir(parents=True, exist_ok=True)
+    save_run_meta(
+        target,
+        {
+            "pid": 9999,
+            "workDir": str(wd),
+            "reportPath": str(wd / "junit.xml"),
+            "exitCodePath": str(wd / "exit-code.txt"),
+            "logPath": str(wd / "yaxunit.log"),
+            "outLogPath": str(wd / "out.log"),
+            "configPath": str(wd / "cfg.json"),
+            "argv": ["1cv8"],
+            "debug": True,
+            "suiteIds": ["unit"],
+            "configId": "main",
+            "runtimeId": "main",
+        },
+    )
+    teardown_calls: list[Any] = []
+
+    def fake_teardown(*_a: Any, **_k: Any) -> DebugResult:
+        teardown_calls.append(True)
+        return DebugResult(status="ok")
+
+    monkeypatch.setattr("core.debug.ops.has_debug_state", lambda _root: True)
+    monkeypatch.setattr("core.debug.ops.teardown_debug", fake_teardown)
+
+    result = wait_tests(target, timeout=0.05, poll_interval=0.01, is_alive=lambda _pid: True)
+    assert result.status == "failed"
+    assert any(d.get("code") == CODE_WAIT_TIMEOUT for d in result.diagnostics)
+    assert teardown_calls == []
+    assert run_meta_path(target).is_file()
 
 
 def test_wait_without_meta(tmp_path: Path) -> None:

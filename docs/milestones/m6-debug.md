@@ -184,7 +184,7 @@ build (ИБ актуальна)
   → debug.variables / debug.evaluate
   → правки кода
   → debug.continue | detach
-  → test.wait   # если триггер был test.run --debug
+  → test.wait   # если триггер был test.run --debug (jUnit + teardown debug)
 ```
 
 Агент **не** держит бесконечный step-loop без цели; prefer короткий сценарий «сломалось на строке N → подтвердить vars → fix».
@@ -194,7 +194,7 @@ build (ИБ актуальна)
 ```text
 test.run(debug=true, breakpoints=[…])   # status: running + pid; не ждёт stop / exit
   → debug.wait → variables / eval → continue …
-  → test.wait                            # exit 1cv8 → jUnit → last-result
+  → test.wait                            # exit 1cv8 → jUnit → teardown debug (как runtime.stop)
 ```
 
 ## Acceptance criteria

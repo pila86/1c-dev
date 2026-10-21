@@ -273,7 +273,7 @@ def wait_command(
     ] = DEFAULT_WAIT_TIMEOUT_SEC,
     output: OutputOption = None,
 ) -> None:
-    """Дождаться конца detach-прогона (--debug) и разобрать jUnit."""
+    """Дождаться конца detach-прогона (--debug), jUnit и teardown debug."""
     result = wait_tests(Path.cwd(), timeout=timeout)
     finish(result, ctx, output)
 
