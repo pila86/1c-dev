@@ -224,8 +224,9 @@ def runtime_start(
         False,
         "--debug",
         help=(
-            "Запустить с HTTP /Debug -http -attach + DebuggerURL "
-            "(из --debugger-url / debug.server / manifest debug.port)."
+            "Ensure dbgs + attach, затем HTTP /Debug -http -attach + DebuggerURL "
+            "(из --debugger-url / debug.server / manifest debug.port). "
+            "С --bp дополнительно setBreakpoints + arm targets."
         ),
     ),
     debugger_url: str | None = typer.Option(

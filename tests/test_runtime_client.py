@@ -120,10 +120,35 @@ def test_run_start_missing_onecv8(tmp_path: Path) -> None:
     assert any(d.get("code") == CODE_ONECV8_MISSING for d in result.diagnostics)
 
 
-def test_run_start_stop_status_happy(tmp_path: Path) -> None:
+def test_run_start_stop_status_happy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from core.debug import DebugResult
+
     target = _init_with_ib(tmp_path)
     alive: dict[int, bool] = {}
     spawned: list[list[str]] = []
+
+    def fake_boot(start: Path | None = None, **kwargs: object) -> DebugResult:
+        return DebugResult(
+            status="ok",
+            exit_code=SUCCESS,
+            root=target,
+            url="http://localhost:2550",
+            debugger_url="http://localhost:2550",
+            session_id="sid-happy",
+            attached=True,
+        )
+
+    monkeypatch.setattr("core.debug.ops.ensure_debug_for_runtime", fake_boot)
+    monkeypatch.setattr(
+        "core.debug.ops.prepare_debug_for_spawn",
+        lambda *a, **k: DebugResult(status="ok", exit_code=SUCCESS),
+    )
+    monkeypatch.setattr(
+        "core.debug.ops.await_debug_targets_armed",
+        lambda *a, **k: DebugResult(status="ok", exit_code=SUCCESS, targets=[]),
+    )
 
     def spawn(argv: list[str]) -> int:
         spawned.append(list(argv))

@@ -175,17 +175,17 @@ PRD §28 (`debug.start` / `debug.stop`) мапится так: **start** = serve
 
 ```text
 build (ИБ актуальна)
-  → debug.server.start   # если ещё не поднят
-  → runtime.start(debug=true)
-  → debug.attach
-  → debug.breakpoint(module=…, lines=[…])
-  → <действие: UI / вызов / test.run --debug — по сценарию>
+  → runtime.start(debug=true, breakpoints=[…])  # ensure dbgs + attach + BP
+  → <действие: UI / вызов>
   → debug.wait(timeout=…)
   → debug.variables / debug.evaluate
   → правки кода
-  → debug.continue | detach
-  → test.wait   # если триггер был test.run --debug (jUnit + teardown debug)
+  → debug.continue
+  → runtime.stop   # teardown debug; явный detach часто 1CD003 — ок
 ```
+
+Stepwise (advanced): `debug.server.start` → `attach` → `breakpoint` →
+`runtime.start(debug=true)` → `debug.wait` → …
 
 Агент **не** держит бесконечный step-loop без цели; prefer короткий сценарий «сломалось на строке N → подтвердить vars → fix».
 

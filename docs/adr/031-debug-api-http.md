@@ -218,20 +218,25 @@ Spike: argv только `/Debug` **недостаточен** для HTTP `dbgs
 | Живой `debug.server` (state / status) | 2 |
 | Манифест `debug.host` + `debug.port` | 3 |
 
-**Упрощённый UX:** `runtime start --debug --bp path/to.bsl:line[,line…]` (повторяемый):
+**Bare `--debug` / MCP `debug=true`** (без `--bp`, без готового `session.json`) —
+тот же ensure, что у `test.run* --debug`:
 
 ```text
-ensure dbgs → attach (демон) → setBreakpoints
+ensure dbgs → attach (демон)
   → сброс stale lastStop/targets → spawn 1cv8 --debug
-  → poll session.json: демон прикрепил target (+ BP) → вернуть управление
+  → poll session.json: демон прикрепил target → вернуть управление
 ```
+
+**С `--bp` / MCP `breakpoints`:** `runtime start --debug --bp path/to.bsl:line[,line…]`
+(повторяемый) добавляет `setBreakpoints` перед spawn и arm targets с BP.
 
 `runtime start` **не ждёт остановку** (флаги `--wait` / `--wait-timeout` удалены):
 дальше `debug wait` → `debug variables|eval` → `debug continue` → `runtime stop`.
 `--bp` без `--debug` — ошибка проекта.
 
-`debug.attach` ожидает живой `dbgs` и клиент, зарегистрированный на нём. Meta
-`debug.enabled` дополняется фактом HTTP-attach (например `debuggerUrl` в `client.meta.json`).
+`debug.attach` нужен для stepwise (без ensure в `runtime.start`) или повторного
+attach; после `runtime.start --debug` dbgs уже live. Meta `debug.enabled`
+дополняется фактом HTTP-attach (например `debuggerUrl` в `client.meta.json`).
 
 Discovery `dbgs`: sibling рядом с `1cv8`/`ibcmd` (паттерн ADR-005); Windows — `bin\dbgs.exe`
 (docs; live E2E — follow-up CI).

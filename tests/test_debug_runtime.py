@@ -33,7 +33,9 @@ from tests.helpers_debug import (
 pytestmark = pytest.mark.usefixtures("stub_background_ping")
 
 
-def test_runtime_start_debug_http_argv(tmp_path: Path) -> None:
+def test_runtime_start_debug_http_argv(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from adapters.platform_ibcmd.constants import IB_MARKER
 
     target = init_project(tmp_path)
@@ -44,12 +46,37 @@ def test_runtime_start_debug_http_argv(tmp_path: Path) -> None:
     spawned: list[list[str]] = []
     alive: dict[int, bool] = {}
 
+    def fake_boot(start: Path | None = None, **kwargs: Any) -> DebugResult:
+        return DebugResult(
+            status="ok",
+            exit_code=SUCCESS,
+            root=target,
+            url="http://localhost:2550",
+            debugger_url="http://localhost:2550",
+            session_id="sid-argv",
+            attached=True,
+        )
+
+    def fake_prepare(start: Path | None = None, **kwargs: Any) -> DebugResult:
+        return DebugResult(status="ok", exit_code=SUCCESS)
+
+    def fake_armed(start: Path | None = None, **kwargs: Any) -> DebugResult:
+        return DebugResult(
+            status="ok",
+            exit_code=SUCCESS,
+            targets=[{"targetId": SPIKE_TARGET}],
+        )
+
+    monkeypatch.setattr("core.debug.ops.ensure_debug_for_runtime", fake_boot)
+    monkeypatch.setattr("core.debug.ops.prepare_debug_for_spawn", fake_prepare)
+    monkeypatch.setattr("core.debug.ops.await_debug_targets_armed", fake_armed)
+
     def spawn(argv: Sequence[str]) -> int:
         spawned.append(list(argv))
         alive[99] = True
         return 99
 
-    # DebuggerURL from manifest debug.host+port (ADR-031 order)
+    # DebuggerURL from ensure boot (parity with live dbgs after bare --debug)
     result = run_start(
         target,
         debug=True,
@@ -76,6 +103,75 @@ def test_runtime_start_bp_requires_debug(tmp_path: Path) -> None:
     )
     assert result.status == "failed"
     assert any(d.get("code") == CODE_PROJECT for d in result.diagnostics)
+
+
+def test_runtime_start_debug_without_bp_ensures(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Bare debug=True (no --bp, no session) still ensure dbgs + attach."""
+    from adapters.platform_ibcmd.constants import IB_MARKER
+
+    target = init_project(tmp_path)
+    ib = target / ".1c-dev" / "runtime" / "main"
+    ib.mkdir(parents=True, exist_ok=True)
+    (ib / IB_MARKER).write_bytes(b"")
+
+    events: list[str] = []
+    boot_calls: list[list[str]] = []
+    spawned: list[list[str]] = []
+    alive: dict[int, bool] = {}
+
+    def fake_boot(start: Path | None = None, **kwargs: Any) -> DebugResult:
+        events.append("boot")
+        boot_calls.append(list(kwargs.get("breakpoints") or []))
+        return DebugResult(
+            status="ok",
+            exit_code=SUCCESS,
+            root=target,
+            url="http://localhost:2550",
+            debugger_url="http://localhost:2550",
+            session_id="sid-bare",
+            attached=True,
+        )
+
+    def fake_prepare(start: Path | None = None, **kwargs: Any) -> DebugResult:
+        events.append("prepare")
+        return DebugResult(status="ok", exit_code=SUCCESS)
+
+    def fake_armed(start: Path | None = None, **kwargs: Any) -> DebugResult:
+        events.append("armed")
+        return DebugResult(
+            status="ok",
+            exit_code=SUCCESS,
+            targets=[{"targetId": SPIKE_TARGET}],
+        )
+
+    monkeypatch.setattr("core.debug.ops.ensure_debug_for_runtime", fake_boot)
+    monkeypatch.setattr("core.debug.ops.prepare_debug_for_spawn", fake_prepare)
+    monkeypatch.setattr("core.debug.ops.await_debug_targets_armed", fake_armed)
+
+    def spawn(argv: Sequence[str]) -> int:
+        events.append("spawn")
+        spawned.append(list(argv))
+        alive[55] = True
+        return 55
+
+    result = run_start(
+        target,
+        debug=True,
+        discover=lambda: make_discovery(dbgs=Path("/fake/dbgs")),
+        spawn=spawn,
+        is_alive=lambda pid: alive.get(pid, False),
+        settle_seconds=0,
+    )
+    assert result.status == "ok"
+    assert boot_calls == [[]]
+    assert events == ["boot", "prepare", "spawn", "armed"]
+    assert result.session_id == "sid-bare"
+    assert result.targets_armed is True
+    assert result.debugger_url == "http://localhost:2550"
+    assert "-http" in spawned[0]
+    assert any(a.startswith('/DebuggerURL"') for a in spawned[0])
 
 
 def test_runtime_start_debug_bp_orchestrates(

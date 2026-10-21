@@ -1031,7 +1031,10 @@ def register_tools(server: FastMCP) -> None:
             "Detach-start the 1C ENTERPRISE client against the project file IB. "
             "client=thick uses 1cv8; client=thin uses 1cv8c (default thick). "
             "Requires a prior build or runtime load. "
-            "Set debug=true to pass /Debug (DAP attach is M6)."
+            "With debug=true: ensure dbgs + attach, then spawn with HTTP "
+            "/Debug -http -attach + DebuggerURL. Optional breakpoints like "
+            "'path/to.bsl:line' (set BP + arm targets); breakpoints requires "
+            "debug=true. Optional debugger_url override."
             + _CONFIG_RUNTIME
             + _NO_SHELL
         ),
@@ -1040,6 +1043,8 @@ def register_tools(server: FastMCP) -> None:
         path: str | None = None,
         client: str = "thick",
         debug: bool = False,
+        debugger_url: str | None = None,
+        breakpoints: list[str] | None = None,
         config_id: str | None = None,
         runtime_id: str | None = None,
     ) -> dict[str, Any]:
@@ -1047,6 +1052,8 @@ def register_tools(server: FastMCP) -> None:
             resolve_path(path),
             client=client,
             debug=debug,
+            debugger_url=debugger_url,
+            breakpoints=breakpoints,
             config_id=config_id,
             runtime_id=runtime_id,
         )
@@ -1448,9 +1455,10 @@ def register_tools(server: FastMCP) -> None:
     @server.tool(
         name="debug.attach",
         description=(
-            "Attach debug UI to dbgs (attachDebugUI). Requires a live dbgs "
-            "(debug.server.start) and usually runtime.start(debug=true). "
-            "Optional url/password override; password else ONEC_DEBUG_PASSWORD."
+            "Attach debug UI to dbgs (attachDebugUI). After runtime.start"
+            "(debug=true) dbgs is already live (ensure+attach done); use this "
+            "for stepwise flows or re-attach. Optional url/password override; "
+            "password else ONEC_DEBUG_PASSWORD."
             + _DEBUG_COMMON
         ),
     )

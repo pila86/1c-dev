@@ -377,6 +377,8 @@ def run_start(
 
     With ``debug=True``, prefers HTTP attach argv when DebuggerURL is known
     (explicit / live ``debug.server`` / manifest ``debug.host``+``port``, ADR-031).
+    Without ``breakpoints`` and without an existing ``session.json``, still
+    ensures dbgs + attach before spawn (parity with ``test.run* --debug``, #147).
 
     With ``breakpoints`` (``--bp file:line``), ensures dbgs + attach + BP *before*
     spawning the client, then polls ``session.json`` until the ping daemon has
@@ -480,6 +482,34 @@ def run_start(
             session_url = stored.get("url")
             if isinstance(session_url, str) and session_url.strip():
                 resolved_url = session_url.strip()
+        if not arm_debug_targets:
+            # No prior session and no --bp: still ensure dbgs + attach before spawn.
+            from core.debug.ops import ensure_debug_for_runtime
+
+            boot = ensure_debug_for_runtime(
+                start_path,
+                breakpoints=[],
+                debugger_url=debugger_url,
+                config_id=config_id,
+                runtime_id=runtime_id,
+                discover=discover,
+                is_alive=alive,
+            )
+            if boot.status != "ok":
+                return RuntimeResult(
+                    status="failed",
+                    duration=time.perf_counter() - started,
+                    root=root,
+                    runtime_path=db_path,
+                    debug_enabled=True,
+                    debugger_url=boot.debugger_url or boot.url or resolved_url,
+                    breakpoints=list(boot.breakpoints),
+                    session_id=boot.session_id,
+                    diagnostics=list(boot.diagnostics),
+                )
+            resolved_url = boot.debugger_url or boot.url or resolved_url
+            debug_session_id = boot.session_id
+            arm_debug_targets = True
 
     running, pid, mode, running_client, debug_enabled, running_url = _alive_snapshot(
         root, is_alive=alive
