@@ -67,7 +67,8 @@ Cursor обычно стартует MCP из workspace root.
 | `runtime.stop` | `run_stop` |
 | `runtime.status` | `run_status` |
 
-Только file IB + ENTERPRISE, detach; client thick (`1cv8`) / thin (`1cv8c`). DAP / `debug.*` — M6.
+Только file IB + ENTERPRISE, detach; client thick (`1cv8`) / thin (`1cv8c`).  
+`debug.*` / HTTP Debug Protocol — [ADR-031](031-debug-api-http.md) / M6; DAP — только IDE (should).
 
 ### Вне M1–M2 / #6 / #26
 

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<response xmlns="http://v8.1c.ru/8.3/debugger/debugRDBGRequestResponse"
+          xmlns:calc="http://v8.1c.ru/8.3/debugger/debugCalculations">
+  <result>
+    <evalResultState>correctly</evalResultState>
+    <evalExprRes>
+      <propName>Значение</propName>
+      <typeName>Неопределено</typeName>
+      <presentation>Неопределено</presentation>
+    </evalExprRes>
+    <evalExprRes>
+      <propName>Результат</propName>
+      <typeName>Неопределено</typeName>
+      <presentation>Неопределено</presentation>
+    </evalExprRes>
+  </result>
+</response>

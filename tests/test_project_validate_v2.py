@@ -304,3 +304,112 @@ def test_validate_manifest_tests_invalid(mutate: Mutator, needle: str) -> None:
     assert diags
     assert all(d.get("code") == "1CP003" for d in diags)
     assert any(needle in d["message"] for d in diags), diags
+
+
+def _base_with_debug() -> dict[str, Any]:
+    """Minimal schema-2 manifest with top-level debug (ADR-031 / #137)."""
+    return {
+        "schema": "2",
+        "project": {"name": "shop"},
+        "platform": {"version": "8.3.27"},
+        "configurations": [
+            {
+                "id": "main",
+                "type": "configuration",
+                "default": True,
+                "source": {"format": "xml", "path": "src/cf"},
+            }
+        ],
+        "runtimes": [
+            {
+                "id": "main-dev",
+                "configuration": "main",
+                "type": "file",
+                "path": ".1c-dev/runtime/main",
+                "default": True,
+            }
+        ],
+        "debug": {
+            "host": "localhost",
+            "port": 2550,
+            "infobaseAlias": "DefAlias",
+            "autoAttachTypes": [
+                "Client",
+                "ManagedClient",
+                "Server",
+                "ServerEmulation",
+            ],
+        },
+    }
+
+
+def test_validate_manifest_debug_ok() -> None:
+    assert validate_manifest(_base_with_debug()) == []
+
+
+def test_validate_manifest_debug_absent_ok() -> None:
+    """Additive schema \"2\": без top-level debug — валидно (M4/M5)."""
+    data = _base_with_debug()
+    del data["debug"]
+    assert validate_manifest(data) == []
+
+
+def test_validate_manifest_debug_empty_object_ok() -> None:
+    data = _base_with_debug()
+    data["debug"] = {}
+    assert validate_manifest(data) == []
+
+
+def test_validate_manifest_debug_partial_ok() -> None:
+    data = _base_with_debug()
+    data["debug"] = {"port": 2550}
+    assert validate_manifest(data) == []
+
+
+def _debug_bad_port_zero(data: dict[str, Any]) -> None:
+    data["debug"]["port"] = 0
+
+
+def _debug_bad_port_type(data: dict[str, Any]) -> None:
+    data["debug"]["port"] = "2550"
+
+
+def _debug_bad_host_empty(data: dict[str, Any]) -> None:
+    data["debug"]["host"] = ""
+
+
+def _debug_bad_auto_attach(data: dict[str, Any]) -> None:
+    data["debug"]["autoAttachTypes"] = ["ThinClient"]
+
+
+def _debug_duplicate_auto_attach(data: dict[str, Any]) -> None:
+    data["debug"]["autoAttachTypes"] = ["Client", "Client"]
+
+
+def _debug_password_rejected(data: dict[str, Any]) -> None:
+    data["debug"]["password"] = "secret"
+
+
+def _debug_unknown_property(data: dict[str, Any]) -> None:
+    data["debug"]["debuggerUrl"] = "http://localhost:2550"
+
+
+@pytest.mark.parametrize(
+    ("mutate", "needle"),
+    [
+        (_debug_bad_port_zero, "debug"),
+        (_debug_bad_port_type, "debug"),
+        (_debug_bad_host_empty, "debug"),
+        (_debug_bad_auto_attach, "debug"),
+        (_debug_duplicate_auto_attach, "debug"),
+        (_debug_password_rejected, "debug"),
+        (_debug_unknown_property, "debug"),
+    ],
+)
+def test_validate_manifest_debug_invalid(mutate: Mutator, needle: str) -> None:
+    data = _base_with_debug()
+    mutate(data)
+    diags = validate_manifest(data)
+    assert diags
+    assert all(d.get("code") == "1CP003" for d in diags)
+    assert any(needle in d["message"] for d in diags), diags

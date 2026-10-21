@@ -31,7 +31,8 @@ from core.test.constants import (
 )
 
 # ok — discover/list/report without test-run verdict; rest — run/runOne (ADR-029).
-Status = Literal["ok", "passed", "failed", "error", "empty"]
+# running — detach start of test.run --debug (ADR-031 §6a / #147).
+Status = Literal["ok", "passed", "failed", "error", "empty", "running"]
 
 _ENV_CODES = frozenset(
     {CODE_ONECV8_MISSING, CODE_RUNNER_CFE_MISSING, CODE_IBCMD_MISSING, "1CT001", "1CT007"}
@@ -49,10 +50,12 @@ _PROJECT_CODES = frozenset(
         "1CT002",
         "1CT003",
         "1CT008",
+        "1CT114",
+        "1CT115",
     }
 )
 _RUNTIME_CODES = frozenset(
-    {CODE_RUNNER_ENSURE_FAILED, "1CT004", "1CT005", "1CT006", "1CT009"}
+    {CODE_RUNNER_ENSURE_FAILED, "1CT004", "1CT005", "1CT006", "1CT009", "1CT116"}
 )
 
 
@@ -85,6 +88,12 @@ class TestResult:
     incomplete: bool = False
     # Runner preflight (YAXUNIT from cache + safe-mode), ADR-029 §7a.
     runner_ensure: dict[str, Any] | None = None
+    # Detach debug run (#147)
+    pid: int | None = None
+    debug_enabled: bool = False
+    debugger_url: str | None = None
+    session_id: str | None = None
+    breakpoints: list[dict[str, Any]] = field(default_factory=list)
     # Suggested CLI exit (ADR-003 / ADR-029); MCP ignores.
     exit_code: int = PROJECT_ERROR
 
@@ -128,6 +137,17 @@ class TestResult:
             payload["incomplete"] = True
         if self.runner_ensure is not None:
             payload["runnerEnsure"] = dict(self.runner_ensure)
+        if self.pid is not None:
+            payload["pid"] = self.pid
+        if self.debug_enabled or self.debugger_url or self.session_id or self.breakpoints:
+            debug: dict[str, Any] = {"enabled": self.debug_enabled}
+            if self.debugger_url:
+                debug["debuggerUrl"] = self.debugger_url
+            if self.session_id:
+                debug["sessionId"] = self.session_id
+            if self.breakpoints:
+                debug["breakpoints"] = list(self.breakpoints)
+            payload["debug"] = debug
         payload["exitCode"] = self.exit_code
         if self.diagnostics:
             payload["diagnostics"] = list(self.diagnostics)
@@ -157,6 +177,8 @@ def exit_code_for_run_status(
             return PROJECT_ERROR
         if codes & _RUNTIME_CODES:
             return RUNTIME_FAILURE
+    if status == "running":
+        return SUCCESS
     if status == "passed" and total > 0:
         return SUCCESS
     if status in {"failed", "error"}:

@@ -35,6 +35,7 @@ def start_enterprise_client(
     *,
     ib_path: Path,
     debug: bool = False,
+    debugger_url: str | None = None,
     spawn: SpawnFn | None = None,
     settle_seconds: float = 0.3,
     is_alive: IsRunningFn | None = None,
@@ -46,7 +47,12 @@ def start_enterprise_client(
     """
     import time
 
-    argv = build_enterprise_argv(onecv8, ib_path=ib_path, debug=debug)
+    argv = build_enterprise_argv(
+        onecv8,
+        ib_path=ib_path,
+        debug=debug,
+        debugger_url=debugger_url,
+    )
     spawner = spawn or spawn_detached
     alive = is_alive or is_running
     pid = spawner(argv)

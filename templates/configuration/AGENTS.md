@@ -13,9 +13,11 @@
 - Greenfield: `project.init` → `configuration.add` → `project.get` → metadata.* / build.
 - `project.init` создаёт только home (пустые `configurations[]` / `runtimes[]`), не XML.
 - После правок BSL: diagnostics (bsl-ls) → build → check → `test.*`. `check` — по file IB после `build`.
-- Тесты: MCP `test.discover` / `test.list` / `test.run` / `test.runOne` / `test.report` или CLI `1c-dev test` (не сторонний MCP runner).
+- Тесты: MCP `test.discover` / `test.list` / `test.run` / `test.runOne` / `test.wait` / `test.report` или CLI `1c-dev test` (не сторонний MCP runner).
 - Перед завершением задачи — semantic diff.
-- Воспроизводимые runtime-сбои — debugger.
+- Воспроизводимые **runtime**-сбои (не вместо `test.*`): MCP `debug.*` / CLI `1c-dev debug` (не shell, не Конфигуратор, не сторонний debug MCP). Doctor soft gap `debug.http` (dbgs + порт).
+- Debug-цикл (runtime): MCP `runtime.start(debug=true, breakpoints=…)` / CLI `runtime start --debug [--bp …]` (ensure dbgs + `debug.attach` + BP) → действие → `debug.wait` → `debug.variables` / `debug.evaluate` → fix → `debug.continue` → `runtime.stop`. Коротко: «сломалось на строке N → vars → fix». Stepwise (`debug.server.start` → `debug.attach` → `debug.breakpoint` → `runtime.start(debug=true)`) — advanced. После `runtime.stop` явный `debug.detach` часто даёт `1CD003` — нормально (teardown уже сделал).
+- Debug упавшего теста: `test.run` / `test.runOne` с `debug=true` и `breakpoints` (CLI `--debug --bp`) → `status: running` → `debug.wait` (**`fresh=false`**, дефолт — стоп часто уже в `session.json`) → vars/eval/continue → `test.wait` (jUnit + teardown debug, как `runtime.stop`). `fresh=true` только для следующего стопа после continue/step. Без `debug` прогон блокирующий, как раньше.
 - BSL-анализ — MCP bsl-ls: сначала `list_workspace_folders`; при отсутствии корня — `register_workspace_folder` на корень IDE (не `src/cf`).
 
 ## Публикация

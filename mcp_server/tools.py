@@ -16,7 +16,37 @@ from core.configuration import (
     remove_configuration,
     set_default_configuration,
 )
+from core.debug import (
+    CODE_PROJECT,
+    DEFAULT_WAIT_TIMEOUT_SEC,
+    SOURCE_DEBUG,
+    DebugResult,
+    run_attach,
+    run_breakpoint_clear,
+    run_breakpoint_set,
+    run_continue,
+    run_detach,
+    run_evaluate,
+    run_force_detach,
+    run_pause,
+    run_reload_metadata,
+    run_server_start,
+    run_server_status,
+    run_server_stop,
+    run_stack,
+    run_step_in,
+    run_step_out,
+    run_step_over,
+    run_targets,
+    run_variables,
+    run_wait,
+)
+from core.debug import (
+    run_status as run_debug_status,
+)
+from core.diagnostics import error as diag_error
 from core.docs import get_docs, search_docs
+from core.exit_codes import PROJECT_ERROR
 from core.extension import add_extension, run_extension_list
 from core.import_cf import run_import
 from core.metadata import (
@@ -58,7 +88,9 @@ from core.test import (
     report_tests,
     run_one_test,
     run_tests,
+    wait_tests,
 )
+from core.test.constants import DEFAULT_WAIT_TIMEOUT_SEC as DEFAULT_TEST_WAIT_TIMEOUT_SEC
 from mcp_server._path import resolve_path
 
 _NO_SHELL = (
@@ -88,6 +120,51 @@ _TEST_SUITE = (
 _WRITE_TYPES = (
     "Write types (23 Meta DSL + Subsystem): " + WRITE_OBJECT_TYPES_HELP + "."
 )
+_DEBUG_STATEFUL = (
+    " Stateful debug session under .1c-dev/debug/ (session.json + ping worker). "
+    "One active session per project; use debug.forceDetach if stuck. "
+    "Does not auto-start runtime — call runtime.start(debug=true) first when needed."
+)
+_DEBUG_COMMON = _DEBUG_STATEFUL + _CONFIG_RUNTIME + _PATH_SCOPE + _NO_SHELL
+
+
+def _parse_breakpoint_lines(lines: str | list[int]) -> list[int] | DebugResult:
+    """Normalize MCP lines (CSV string or int list) for run_breakpoint_set."""
+    if isinstance(lines, list):
+        try:
+            return [int(n) for n in lines]
+        except (TypeError, ValueError):
+            return DebugResult(
+                status="failed",
+                diagnostics=[
+                    diag_error(
+                        "lines must be integers or a comma-separated string",
+                        code=CODE_PROJECT,
+                        source=SOURCE_DEBUG,
+                    )
+                ],
+                exit_code=PROJECT_ERROR,
+            )
+    parsed: list[int] = []
+    for part in str(lines).split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            parsed.append(int(part))
+        except ValueError:
+            return DebugResult(
+                status="failed",
+                diagnostics=[
+                    diag_error(
+                        f"invalid breakpoint line: {part!r}",
+                        code=CODE_PROJECT,
+                        source=SOURCE_DEBUG,
+                    )
+                ],
+                exit_code=PROJECT_ERROR,
+            )
+    return parsed
 
 
 def _parse_update_operations(
@@ -954,7 +1031,10 @@ def register_tools(server: FastMCP) -> None:
             "Detach-start the 1C ENTERPRISE client against the project file IB. "
             "client=thick uses 1cv8; client=thin uses 1cv8c (default thick). "
             "Requires a prior build or runtime load. "
-            "Set debug=true to pass /Debug (DAP attach is M6)."
+            "With debug=true: ensure dbgs + attach, then spawn with HTTP "
+            "/Debug -http -attach + DebuggerURL. Optional breakpoints like "
+            "'path/to.bsl:line' (set BP + arm targets); breakpoints requires "
+            "debug=true. Optional debugger_url override."
             + _CONFIG_RUNTIME
             + _NO_SHELL
         ),
@@ -963,6 +1043,8 @@ def register_tools(server: FastMCP) -> None:
         path: str | None = None,
         client: str = "thick",
         debug: bool = False,
+        debugger_url: str | None = None,
+        breakpoints: list[str] | None = None,
         config_id: str | None = None,
         runtime_id: str | None = None,
     ) -> dict[str, Any]:
@@ -970,6 +1052,8 @@ def register_tools(server: FastMCP) -> None:
             resolve_path(path),
             client=client,
             debug=debug,
+            debugger_url=debugger_url,
+            breakpoints=breakpoints,
             config_id=config_id,
             runtime_id=runtime_id,
         )
@@ -1187,7 +1271,11 @@ def register_tools(server: FastMCP) -> None:
             "Run selected (or all) YaXUnit suites in one 1cv8 process. "
             "Does not call build — prepare the IB with build first. "
             "Implicit ensure loads YAXUNIT from toolchain cache and clears "
-            "safe-mode unless no_runner_ensure=true."
+            "safe-mode unless no_runner_ensure=true. "
+            "With debug=true: non-blocking (status=running + pid); optional "
+            "breakpoints like 'path/to.bsl:line'; then debug.wait for stops "
+            "and test.wait for jUnit. breakpoints requires debug=true. "
+            "Needs live DISPLAY (no xvfb) when debug=true."
             + _CONFIG_RUNTIME
             + _TEST_SUITE
             + _PATH_SCOPE
@@ -1200,6 +1288,9 @@ def register_tools(server: FastMCP) -> None:
         runtime_id: str | None = None,
         suite: str | None = None,
         no_runner_ensure: bool = False,
+        debug: bool = False,
+        debugger_url: str | None = None,
+        breakpoints: list[str] | None = None,
     ) -> dict[str, Any]:
         result = run_tests(
             resolve_path(path),
@@ -1207,6 +1298,9 @@ def register_tools(server: FastMCP) -> None:
             runtime_id=runtime_id,
             suite_id=suite,
             skip_runner_ensure=no_runner_ensure,
+            debug=debug,
+            debugger_url=debugger_url,
+            breakpoints=breakpoints,
         )
         return result.to_payload()
 
@@ -1217,7 +1311,8 @@ def register_tools(server: FastMCP) -> None:
             "Does not call build — prepare the IB with build first. "
             "Pass suite when the module name is ambiguous across extensions. "
             "Implicit ensure loads YAXUNIT from toolchain cache unless "
-            "no_runner_ensure=true."
+            "no_runner_ensure=true. "
+            "debug=true / breakpoints / debugger_url — same as test.run (#147)."
             + _CONFIG_RUNTIME
             + _TEST_SUITE
             + _PATH_SCOPE
@@ -1231,6 +1326,9 @@ def register_tools(server: FastMCP) -> None:
         runtime_id: str | None = None,
         suite: str | None = None,
         no_runner_ensure: bool = False,
+        debug: bool = False,
+        debugger_url: str | None = None,
+        breakpoints: list[str] | None = None,
     ) -> dict[str, Any]:
         result = run_one_test(
             name,
@@ -1239,14 +1337,37 @@ def register_tools(server: FastMCP) -> None:
             runtime_id=runtime_id,
             suite_id=suite,
             skip_runner_ensure=no_runner_ensure,
+            debug=debug,
+            debugger_url=debugger_url,
+            breakpoints=breakpoints,
         )
+        return result.to_payload()
+
+    @server.tool(
+        name="test.wait",
+        description=(
+            "After test.run/test.runOne with debug=true: wait for 1cv8 exit, "
+            "parse jUnit, write last-result.json, clear run.meta.json, then "
+            "teardown debug (detach / our dbgs) like runtime.stop. "
+            "Timeout while 1cv8 is still alive does not teardown. "
+            "Use after debug.wait / continue when the test client should finish."
+            + _PATH_SCOPE
+            + _NO_SHELL
+        ),
+    )
+    def test_wait_tool(
+        path: str | None = None,
+        timeout: float = DEFAULT_TEST_WAIT_TIMEOUT_SEC,
+    ) -> dict[str, Any]:
+        result = wait_tests(resolve_path(path), timeout=timeout)
         return result.to_payload()
 
     @server.tool(
         name="test.report",
         description=(
             "Return the last saved structured test result "
-            "(.1c-dev/test/last-result.json) from a prior test.run / test.runOne."
+            "(.1c-dev/test/last-result.json) from a prior test.run / test.runOne "
+            "/ test.wait."
             + _CONFIG_RUNTIME
             + _PATH_SCOPE
             + _NO_SHELL
@@ -1258,6 +1379,466 @@ def register_tools(server: FastMCP) -> None:
         runtime_id: str | None = None,
     ) -> dict[str, Any]:
         result = report_tests(
+            resolve_path(path),
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        return result.to_payload()
+
+    # --- debug.* (ADR-031 / #141) ---
+
+    @server.tool(
+        name="debug.server.start",
+        description=(
+            "Start the 1C HTTP Debug Server (dbgs) for the project. "
+            "host/port override manifest debug.*; optional password "
+            "(else ONEC_DEBUG_PASSWORD)."
+            + _DEBUG_COMMON
+        ),
+    )
+    def debug_server_start_tool(
+        path: str | None = None,
+        host: str | None = None,
+        port: int | None = None,
+        password: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_server_start(
+            resolve_path(path),
+            host=host,
+            port=port,
+            password=password,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="debug.server.stop",
+        description=(
+            "Stop dbgs if this project started it; also stops background ping."
+            + _DEBUG_COMMON
+        ),
+    )
+    def debug_server_stop_tool(
+        path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_server_stop(
+            resolve_path(path),
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="debug.server.status",
+        description=(
+            "Report dbgs pid/url/liveness for the project debug state."
+            + _DEBUG_COMMON
+        ),
+    )
+    def debug_server_status_tool(
+        path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_server_status(
+            resolve_path(path),
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="debug.attach",
+        description=(
+            "Attach debug UI to dbgs (attachDebugUI). After runtime.start"
+            "(debug=true) dbgs is already live (ensure+attach done); use this "
+            "for stepwise flows or re-attach. Optional url/password override; "
+            "password else ONEC_DEBUG_PASSWORD."
+            + _DEBUG_COMMON
+        ),
+    )
+    def debug_attach_tool(
+        path: str | None = None,
+        url: str | None = None,
+        password: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_attach(
+            resolve_path(path),
+            url=url,
+            password=password,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="debug.detach",
+        description=("Detach debug UI from dbgs and clear session state." + _DEBUG_COMMON),
+    )
+    def debug_detach_tool(
+        path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_detach(
+            resolve_path(path),
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="debug.forceDetach",
+        description=(
+            "Force detach + reset session.json (recovery when detach sticks)."
+            + _DEBUG_COMMON
+        ),
+    )
+    def debug_force_detach_tool(
+        path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_force_detach(
+            resolve_path(path),
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="debug.targets",
+        description=(
+            "List attached debug targets and whether metadata index is ready."
+            + _DEBUG_COMMON
+        ),
+    )
+    def debug_targets_tool(
+        path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_targets(
+            resolve_path(path),
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="debug.breakpoint",
+        description=(
+            "Set breakpoints. Pass exactly one of: module (+ optional module_type), "
+            "file (path to .bsl), or object_id+property_id. "
+            "lines: comma-separated string or list of ints."
+            + _DEBUG_COMMON
+        ),
+    )
+    def debug_breakpoint_tool(
+        lines: str | list[int],
+        path: str | None = None,
+        module: str | None = None,
+        module_type: str = "CommonModule",
+        file: str | None = None,
+        object_id: str | None = None,
+        property_id: str | None = None,
+        extension: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        parsed = _parse_breakpoint_lines(lines)
+        if isinstance(parsed, DebugResult):
+            return parsed.to_payload()
+        result = run_breakpoint_set(
+            resolve_path(path),
+            module=module,
+            module_type=module_type,
+            lines=parsed,
+            extension=extension,
+            file=file,
+            object_id=object_id,
+            property_id=property_id,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="debug.clearBreakpoints",
+        description=("Clear all breakpoints in the current debug session." + _DEBUG_COMMON),
+    )
+    def debug_clear_breakpoints_tool(
+        path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_breakpoint_clear(
+            resolve_path(path),
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="debug.wait",
+        description=(
+            "Wait for a stop (breakpoint/step). Returns immediately if lastStop "
+            "is already recorded. Default timeout 30s (override via timeout); "
+            "does not hang forever. fresh=true clears lastStop and waits for the "
+            "next stop — use only after continue/step when the previous stop was "
+            "already handled. Right after test.run*/test.runOne(debug=true) keep "
+            "fresh=false (default): the BP stop is often already on disk. "
+            "Do not treat 1CD016 as final without checking pid / session.json.lastStop "
+            "/ run.meta.json."
+            + _DEBUG_COMMON
+        ),
+    )
+    def debug_wait_tool(
+        path: str | None = None,
+        timeout: float = DEFAULT_WAIT_TIMEOUT_SEC,
+        fresh: bool = False,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_wait(
+            resolve_path(path),
+            timeout=timeout,
+            fresh=fresh,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="debug.continue",
+        description=(
+            "Continue from the current stop. By default waits for the next stop "
+            "(timeout default 30s); set wait=false for fire-and-forget."
+            + _DEBUG_COMMON
+        ),
+    )
+    def debug_continue_tool(
+        path: str | None = None,
+        target_id: str | None = None,
+        wait: bool = True,
+        timeout: float = DEFAULT_WAIT_TIMEOUT_SEC,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_continue(
+            resolve_path(path),
+            target_id=target_id,
+            wait=wait,
+            timeout=timeout,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="debug.stepIn",
+        description=(
+            "Step into the called method; waits for the next stop by default "
+            "(timeout 30s). wait=false skips waiting."
+            + _DEBUG_COMMON
+        ),
+    )
+    def debug_step_in_tool(
+        path: str | None = None,
+        target_id: str | None = None,
+        wait: bool = True,
+        timeout: float = DEFAULT_WAIT_TIMEOUT_SEC,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_step_in(
+            resolve_path(path),
+            target_id=target_id,
+            wait=wait,
+            timeout=timeout,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="debug.stepOver",
+        description=(
+            "Step over to the next line in the current frame; waits for the next "
+            "stop by default (timeout 30s)."
+            + _DEBUG_COMMON
+        ),
+    )
+    def debug_step_over_tool(
+        path: str | None = None,
+        target_id: str | None = None,
+        wait: bool = True,
+        timeout: float = DEFAULT_WAIT_TIMEOUT_SEC,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_step_over(
+            resolve_path(path),
+            target_id=target_id,
+            wait=wait,
+            timeout=timeout,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="debug.stepOut",
+        description=(
+            "Step out of the current frame; waits for the next stop by default "
+            "(timeout 30s). From the outermost frame the program may run to end."
+            + _DEBUG_COMMON
+        ),
+    )
+    def debug_step_out_tool(
+        path: str | None = None,
+        target_id: str | None = None,
+        wait: bool = True,
+        timeout: float = DEFAULT_WAIT_TIMEOUT_SEC,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_step_out(
+            resolve_path(path),
+            target_id=target_id,
+            wait=wait,
+            timeout=timeout,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="debug.pause",
+        description=(
+            "[EXPERIMENTAL] Pause via breakOnNextLine — not covered by live "
+            "acceptance. Default waits for stop (timeout 30s)."
+            + _DEBUG_COMMON
+        ),
+    )
+    def debug_pause_tool(
+        path: str | None = None,
+        wait: bool = True,
+        timeout: float = DEFAULT_WAIT_TIMEOUT_SEC,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_pause(
+            resolve_path(path),
+            wait=wait,
+            timeout=timeout,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="debug.stack",
+        description=(
+            "Call stack from the last stop (or target_id override)." + _DEBUG_COMMON
+        ),
+    )
+    def debug_stack_tool(
+        path: str | None = None,
+        target_id: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_stack(
+            resolve_path(path),
+            target_id=target_id,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="debug.variables",
+        description=(
+            "Local variables (evalLocalVariables) from the last stop."
+            + _DEBUG_COMMON
+        ),
+    )
+    def debug_variables_tool(
+        path: str | None = None,
+        target_id: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_variables(
+            resolve_path(path),
+            target_id=target_id,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="debug.evaluate",
+        description=(
+            "Evaluate a BSL expression (evalExpr) at the last stop." + _DEBUG_COMMON
+        ),
+    )
+    def debug_evaluate_tool(
+        expression: str,
+        path: str | None = None,
+        target_id: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_evaluate(
+            resolve_path(path),
+            expression=expression,
+            target_id=target_id,
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="debug.status",
+        description=(
+            "Debug summary: server + session + client.meta debug.enabled."
+            + _DEBUG_COMMON
+        ),
+    )
+    def debug_status_tool(
+        path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_debug_status(
+            resolve_path(path),
+            config_id=config_id,
+            runtime_id=runtime_id,
+        )
+        return result.to_payload()
+
+    @server.tool(
+        name="debug.reloadMetadata",
+        description=(
+            "Rebuild UUID↔module cache from XML source (+ extensions)."
+            + _DEBUG_COMMON
+        ),
+    )
+    def debug_reload_metadata_tool(
+        path: str | None = None,
+        config_id: str | None = None,
+        runtime_id: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_reload_metadata(
             resolve_path(path),
             config_id=config_id,
             runtime_id=runtime_id,

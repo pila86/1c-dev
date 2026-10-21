@@ -34,11 +34,12 @@ Discovery `1cv8` / `1cv8.exe` и `1cv8c` / `1cv8c.exe` — reuse ADR-005 (+ sibl
 - Живой процесс с **другим** `client` — `failed` (`1CR004`), suggestion `runtime stop`.
 - Stale pid → status `running=false`, файлы чистятся.
 
-### Debug (закладка, не DAP)
+### Debug (закладка → ADR-031)
 
-Флаг CLI `--debug` / MCP `debug=true` добавляет `/Debug` в argv и пишет
-`debug.enabled` в meta. Tools `debug.*`, `debuggerUrl`, attach через
-bsl-debug-server / DAP — **M6**, не этот ADR.
+Флаг CLI `--debug` / MCP `debug=true` изначально добавлял только `/Debug` в argv и писал
+`debug.enabled` в meta. Контракт Debug API (`debug.*`, HTTP `dbgs`, DebuggerURL) —
+[ADR-031](031-debug-api-http.md) / M6: `--debug` расширяется до
+`/Debug -http -attach` + `/DebuggerURL`. DAP для IDE — внешний adapter (should), не путь агента.
 
 ### Кроссплатформенность
 
@@ -76,10 +77,10 @@ Must: **Linux + Windows** (паритет с ADR-005). Helpers `is_running` / `t
 - Doctor по-прежнему warning без `1cv8`; `runtime.start` thick — жёсткий `1CR001`,
   thin — `1CR005`. Doctor не требует `1cv8c`.
 - Client state / pid per runtime path под `.1c-dev/` ([ADR-022](022-project-home.md), [ADR-026](026-runtimes-array.md) Proposed).
-- DAP attach к уже запущенному клиенту с `/Debug` — вне активного roadmap (отдельный draft при появлении).
+- Debug API / HTTP attach — [ADR-031](031-debug-api-http.md); DAP для IDE / `ide configure` launch.json — follow-up [#143](https://github.com/pila86/1c-dev/issues/143) (вне M6).
 
 ## Связанные решения
 
-- ADR-005, ADR-008, ADR-010, ADR-015, ADR-022, ADR-026 (Proposed)
+- ADR-005, ADR-008, ADR-010, ADR-015, ADR-022, ADR-026, ADR-031
 - PRD §27, §28
-- [M4](../milestones/m4-project-model.md)
+- [M4](../milestones/m4-project-model.md), [M6](../milestones/m6-debug.md)

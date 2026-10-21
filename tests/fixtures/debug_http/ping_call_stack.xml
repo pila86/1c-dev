@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<response xmlns="http://v8.1c.ru/8.3/debugger/debugRDBGRequestResponse"
+          xmlns:bd="http://v8.1c.ru/8.3/debugger/debugBaseData">
+  <result>
+    <callStackFormed>
+      <id>aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee</id>
+      <callStack>
+        <stackItemInfo>
+          <objectID>d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f80</objectID>
+          <propertyID>d22e852a-cf8a-4f77-8ccb-3548e7792bea</propertyID>
+          <lineNo>9</lineNo>
+        </stackItemInfo>
+        <stackItemInfo>
+          <objectID>b7e2c4a1-8f3d-4a6e-9c1b-2d5e8f0a3b6c</objectID>
+          <propertyID>d5963243-262e-4398-b4d7-fb16d06484f6</propertyID>
+          <lineNo>5</lineNo>
+        </stackItemInfo>
+      </callStack>
+    </callStackFormed>
+  </result>
+</response>

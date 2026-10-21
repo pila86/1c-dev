@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<response xmlns="http://v8.1c.ru/8.3/debugger/debugRDBGRequestResponse"
+          xmlns:bd="http://v8.1c.ru/8.3/debugger/debugBaseData">
+  <result>
+    <targetStarted>
+      <id>aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee</id>
+      <targetType>Client</targetType>
+    </targetStarted>
+  </result>
+</response>

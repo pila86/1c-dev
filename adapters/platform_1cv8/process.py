@@ -23,7 +23,31 @@ def is_running(pid: int) -> bool:
         return False
     except PermissionError:
         return True
-    return True
+    return not _is_zombie(pid)
+
+
+def _is_zombie(pid: int) -> bool:
+    """True for an exited child nobody has reaped yet (still answers ``kill(pid, 0)``).
+
+    A long-lived parent (MCP server, test runner) that spawned the client would
+    otherwise see a finished client as running and fail ``runtime stop``.
+    """
+    try:
+        reaped, _status = os.waitpid(pid, os.WNOHANG)
+        if reaped == pid:
+            return True
+    except ChildProcessError:
+        pass  # not our child
+    except OSError:
+        pass
+    try:
+        with open(f"/proc/{pid}/stat", encoding="utf-8", errors="replace") as handle:
+            stat = handle.read()
+    except OSError:
+        return False
+    # ``pid (comm) S ...`` — comm may contain spaces/parentheses, state follows the last ")".
+    state = stat.rsplit(")", 1)[-1].split()[:1]
+    return state == ["Z"]
 
 
 def terminate(pid: int, *, timeout: float = 5.0) -> bool:
@@ -90,15 +114,31 @@ def build_enterprise_argv(
     *,
     ib_path: Path,
     debug: bool = False,
+    debugger_url: str | None = None,
 ) -> list[str]:
-    """Build argv for thick client ENTERPRISE against a file IB."""
+    """Build argv for thick client ENTERPRISE against a file IB.
+
+    With ``debug`` + ``debugger_url``: HTTP attach
+    (``/Debug -http -attach /DebuggerURL"…"``, ADR-031 / spike #135).
+    With ``debug`` alone: plain ``/Debug`` (insufficient for HTTP ``dbgs``).
+    """
     argv = [
         str(onecv8),
         "ENTERPRISE",
         f"/F{ib_path.resolve()}",
     ]
     if debug:
-        argv.append("/Debug")
+        if debugger_url:
+            argv.extend(
+                [
+                    "/Debug",
+                    "-http",
+                    "-attach",
+                    f'/DebuggerURL"{debugger_url}"',
+                ]
+            )
+        else:
+            argv.append("/Debug")
     return argv
 
 

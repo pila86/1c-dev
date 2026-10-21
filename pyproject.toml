@@ -56,6 +56,8 @@ markers = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# Spike prototype (#135), не product-код
+extend-exclude = ["tests/fixtures/debug_spike/run_http_debug.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]

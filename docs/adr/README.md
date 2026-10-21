@@ -42,6 +42,7 @@
 | [028](028-configuration-import.md) | Accepted | Product API: `configuration.import` (supersedes `project.import` name) |
 | [029](029-test-api.md) | Accepted | Test API facade + граница с METR (CLI/MCP, exit 5, YaXUnit adapter) |
 | [030](030-designer-check-modules.md) | Accepted | Designer `/CheckModules` в `1c-dev check` (синтаксис модулей) |
+| [031](031-debug-api-http.md) | Accepted | Debug API: CLI/MCP поверх HTTP Debug Protocol (`dbgs`) |
 
 ## Когда писать ADR
 

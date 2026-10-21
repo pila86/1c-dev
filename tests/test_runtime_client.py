@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -66,6 +67,23 @@ def test_build_enterprise_argv_with_debug(tmp_path: Path) -> None:
     assert argv[2].startswith("/F")
     assert Path(argv[2][2:]) == ib.resolve()
     assert "/Debug" in argv
+    assert "-http" not in argv
+
+
+def test_build_enterprise_argv_with_debugger_url(tmp_path: Path) -> None:
+    onecv8 = tmp_path / "1cv8"
+    ib = tmp_path / "ib"
+    ib.mkdir()
+    argv = build_enterprise_argv(
+        onecv8,
+        ib_path=ib,
+        debug=True,
+        debugger_url="http://localhost:2550",
+    )
+    assert "/Debug" in argv
+    assert "-http" in argv
+    assert "-attach" in argv
+    assert '/DebuggerURL"http://localhost:2550"' in argv
 
 
 def test_run_start_no_project(tmp_path: Path) -> None:
@@ -102,10 +120,35 @@ def test_run_start_missing_onecv8(tmp_path: Path) -> None:
     assert any(d.get("code") == CODE_ONECV8_MISSING for d in result.diagnostics)
 
 
-def test_run_start_stop_status_happy(tmp_path: Path) -> None:
+def test_run_start_stop_status_happy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from core.debug import DebugResult
+
     target = _init_with_ib(tmp_path)
     alive: dict[int, bool] = {}
     spawned: list[list[str]] = []
+
+    def fake_boot(start: Path | None = None, **kwargs: object) -> DebugResult:
+        return DebugResult(
+            status="ok",
+            exit_code=SUCCESS,
+            root=target,
+            url="http://localhost:2550",
+            debugger_url="http://localhost:2550",
+            session_id="sid-happy",
+            attached=True,
+        )
+
+    monkeypatch.setattr("core.debug.ops.ensure_debug_for_runtime", fake_boot)
+    monkeypatch.setattr(
+        "core.debug.ops.prepare_debug_for_spawn",
+        lambda *a, **k: DebugResult(status="ok", exit_code=SUCCESS),
+    )
+    monkeypatch.setattr(
+        "core.debug.ops.await_debug_targets_armed",
+        lambda *a, **k: DebugResult(status="ok", exit_code=SUCCESS, targets=[]),
+    )
 
     def spawn(argv: list[str]) -> int:
         spawned.append(list(argv))
@@ -423,3 +466,23 @@ def test_clear_state(tmp_path: Path) -> None:
     assert (tmp_path / CLIENT_META_REL).is_file()
     clear_state(tmp_path)
     assert not (tmp_path / CLIENT_PID_REL).exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="zombie только на POSIX")
+def test_is_running_false_for_unreaped_zombie_child() -> None:
+    """Завершившийся, но не прибранный потомок не считается живым (runtime stop из MCP/pytest)."""
+    import subprocess
+    import time
+
+    from adapters.platform_1cv8 import is_running, terminate
+
+    proc = subprocess.Popen([sys.executable, "-c", "pass"])
+    deadline = time.monotonic() + 5
+    # Ждём выхода без poll()/wait(): процесс остаётся zombie.
+    while time.monotonic() < deadline and Path(f"/proc/{proc.pid}/stat").exists():
+        stat = Path(f"/proc/{proc.pid}/stat").read_text(encoding="utf-8")
+        if stat.rsplit(")", 1)[-1].split()[0] == "Z":
+            break
+        time.sleep(0.05)
+    assert is_running(proc.pid) is False
+    assert terminate(proc.pid) is True

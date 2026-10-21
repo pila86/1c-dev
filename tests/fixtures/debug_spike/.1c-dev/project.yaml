@@ -1,0 +1,26 @@
+schema: '2'
+project:
+  name: DebugSpike
+  type: configuration
+platform:
+  version: 8.3.25
+configurations:
+- id: main
+  type: configuration
+  source:
+    format: xml
+    path: src/main
+  default: true
+  extensions:
+  - id: debug_ext
+    name: DebugExt
+    purpose: product
+    source:
+      format: xml
+      path: src/cfe/debug_ext
+runtimes:
+- id: main
+  configuration: main
+  type: file
+  path: .1c-dev/runtime/main
+  default: true

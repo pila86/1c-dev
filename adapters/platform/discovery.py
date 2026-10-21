@@ -15,6 +15,7 @@ _IBSRV = "ibsrv"
 _WEBINST = "webinst"
 _ONECV8 = "1cv8"
 _ONECV8C = "1cv8c"
+_DBGS = "dbgs"
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,7 @@ class DiscoveryResult:
     onecv8c: ToolInfo
     ibsrv: ToolInfo
     webinst: ToolInfo
+    dbgs: ToolInfo = ToolInfo(found=False, path=None)
 
 
 def version_from_path(path: Path) -> str | None:
@@ -174,12 +176,14 @@ def discover_environment(
     webinst_which = _which_tool(_WEBINST)
     onecv8_which = _which_tool(_ONECV8)
     onecv8c_which = _which_tool(_ONECV8C)
+    dbgs_which = _which_tool(_DBGS)
 
     ibcmd = _tool_from_installs(_IBCMD, installs, ibcmd_which)
     ibsrv = _tool_from_installs(_IBSRV, installs, ibsrv_which)
     webinst = _tool_from_installs(_WEBINST, installs, webinst_which)
     onecv8 = _tool_from_installs(_ONECV8, installs, onecv8_which)
     onecv8c = _tool_from_installs(_ONECV8C, installs, onecv8c_which)
+    dbgs = _tool_from_installs(_DBGS, installs, dbgs_which)
     if not onecv8c.found and onecv8.path is not None:
         sibling = _find_binary_in_dir(onecv8.path.parent, _ONECV8C)
         if sibling is not None:
@@ -192,6 +196,14 @@ def discover_environment(
         sibling = _find_binary_in_dir(ibcmd.path.parent, _WEBINST)
         if sibling is not None:
             webinst = ToolInfo(found=True, path=sibling)
+    if not dbgs.found:
+        for sibling_of in (onecv8, ibcmd, onecv8c):
+            if sibling_of.path is None:
+                continue
+            sibling = _find_binary_in_dir(sibling_of.path.parent, _DBGS)
+            if sibling is not None:
+                dbgs = ToolInfo(found=True, path=sibling)
+                break
     platform = _platform_from(installs, ibcmd, onecv8)
 
     return DiscoveryResult(
@@ -201,4 +213,5 @@ def discover_environment(
         onecv8c=onecv8c,
         ibsrv=ibsrv,
         webinst=webinst,
+        dbgs=dbgs,
     )

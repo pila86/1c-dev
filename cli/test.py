@@ -17,7 +17,9 @@ from core.test import (
     report_tests,
     run_one_test,
     run_tests,
+    wait_tests,
 )
+from core.test.constants import DEFAULT_WAIT_TIMEOUT_SEC
 
 app = typer.Typer(
     name="test",
@@ -121,6 +123,16 @@ def _result_text(result: TestResult) -> list[str]:
         lines.append("incomplete: true")
     if result.report_path:
         lines.append(f"report: {result.report_path}")
+    if result.pid is not None:
+        lines.append(f"pid: {result.pid}")
+    if result.debug_enabled or result.debugger_url or result.session_id:
+        lines.append(f"debug.enabled: {str(result.debug_enabled).lower()}")
+        if result.debugger_url:
+            lines.append(f"debug.debuggerUrl: {result.debugger_url}")
+        if result.session_id:
+            lines.append(f"debug.sessionId: {result.session_id}")
+        if result.breakpoints:
+            lines.append(f"debug.breakpoints: {len(result.breakpoints)}")
     if result.runner_ensure:
         lines.extend(_runner_ensure_lines(result.runner_ensure))
     if result.suites:
@@ -203,6 +215,33 @@ def run_command(
     runtime: RuntimeOption = None,
     suite: SuiteOption = None,
     no_runner_ensure: NoRunnerEnsureOption = False,
+    debug: Annotated[
+        bool,
+        typer.Option(
+            "--debug",
+            help=(
+                "HTTP debug: ensure dbgs → attach → optional --bp → spawn с /Debug, "
+                "сразу status=running. Stop: debug wait; jUnit: test wait."
+            ),
+        ),
+    ] = False,
+    debugger_url: Annotated[
+        str | None,
+        typer.Option(
+            "--debugger-url",
+            help="Явный DebuggerURL (иначе live dbgs / manifest debug.port).",
+        ),
+    ] = None,
+    bp: Annotated[
+        list[str],
+        typer.Option(
+            "--bp",
+            help=(
+                "Точка останова path/to.bsl:line[,line…] (требует --debug). "
+                "Повторяемый. Остановку ждите: debug wait."
+            ),
+        ),
+    ] = [],
     output: OutputOption = None,
 ) -> None:
     """Прогнать тесты (run) или один тест (runOne). Не вызывает build."""
@@ -214,6 +253,9 @@ def run_command(
             runtime_id=runtime,
             suite_id=suite,
             skip_runner_ensure=no_runner_ensure,
+            debug=debug,
+            debugger_url=debugger_url,
+            breakpoints=bp,
         )
     else:
         result = run_tests(
@@ -222,7 +264,27 @@ def run_command(
             runtime_id=runtime,
             suite_id=suite,
             skip_runner_ensure=no_runner_ensure,
+            debug=debug,
+            debugger_url=debugger_url,
+            breakpoints=bp,
         )
+    finish(result, ctx, output)
+
+
+@app.command("wait")
+def wait_command(
+    ctx: typer.Context,
+    timeout: Annotated[
+        float,
+        typer.Option(
+            "--timeout",
+            help="Секунды ожидания exit 1cv8 после test.run --debug.",
+        ),
+    ] = DEFAULT_WAIT_TIMEOUT_SEC,
+    output: OutputOption = None,
+) -> None:
+    """Дождаться конца detach-прогона (--debug), jUnit и teardown debug."""
+    result = wait_tests(Path.cwd(), timeout=timeout)
     finish(result, ctx, output)
 
 

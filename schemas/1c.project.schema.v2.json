@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/pila86/1c-dev/schemas/1c.project.schema.v2.json",
   "title": "1c-dev project.yaml (schema 2)",
-  "description": "Манифест schema \"2\" для M4–M5 (ADR-022–026, ADR-029). Единственный поддерживаемый формат (.1c-dev/project.yaml). Семантические инварианты runtimes/publish/tests — в core/project/validate.py.",
+  "description": "Манифест schema \"2\" для M4–M6 (ADR-022–026, ADR-029, ADR-031). Единственный поддерживаемый формат (.1c-dev/project.yaml). Семантические инварианты runtimes/publish/tests — в core/project/validate.py.",
   "type": "object",
   "required": ["schema", "project", "platform", "configurations", "runtimes"],
   "additionalProperties": false,
@@ -254,6 +254,55 @@
     "tools": {
       "type": "object",
       "description": "Опционально; глубокая валидация отложена (forward-compat)."
+    },
+    "debug": {
+      "type": "object",
+      "description": "Top-level HTTP Debug Server (dbgs) settings (ADR-031). Опционально; additive в schema \"2\". Password — через env ONEC_DEBUG_PASSWORD, не в манифесте.",
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Host dbgs / DebuggerURL. Default при отсутствии: localhost (runtime/CLI)."
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Порт dbgs. Обязателен при debug.server.start; тихого default 1550 нет (ADR-031)."
+        },
+        "infobaseAlias": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Alias ИБ на debug-сервере. Default для file IB: DefAlias."
+        },
+        "autoAttachTypes": {
+          "type": "array",
+          "uniqueItems": true,
+          "description": "Типы auto-attach (канон платформы / onec-debug-adapter).",
+          "items": {
+            "type": "string",
+            "enum": [
+              "Client",
+              "ManagedClient",
+              "WebClient",
+              "ComConnector",
+              "Server",
+              "ServerEmulation",
+              "WebService",
+              "HttpService",
+              "OData",
+              "Job",
+              "JobFileMode",
+              "MobileClient",
+              "MobileServer",
+              "MobileJobFileMode",
+              "MobileManagedClient",
+              "MobileManagedServer"
+            ]
+          }
+        }
+      }
     }
   }
 }
