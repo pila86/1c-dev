@@ -61,14 +61,36 @@ _ACTION_LABEL = {
 }
 
 
+def _test_run_pid(root: Path) -> int | None:
+    """Pid from ``test.run* --debug`` (``.1c-dev/test/run.meta.json``), if any."""
+    # Lazy import: core.test.__init__ pulls ops → debug.ops → this module.
+    from core.test.store import load_run_meta
+
+    meta, _diags = load_run_meta(root)
+    if not isinstance(meta, dict):
+        return None
+    pid = meta.get("pid")
+    if isinstance(pid, int) and pid > 0:
+        return pid
+    return None
+
+
 def _client_alive_probe(root: Path) -> ClientAliveFn:
-    """``True``/``False`` if ``runtime start`` recorded a client pid; ``None`` unknown."""
+    """Alive if runtime and/or test-debug client pid is running; ``None`` if unknown."""
 
     def probe() -> bool | None:
-        pid = read_pid(root)
-        if pid is None:
+        pids: list[int] = []
+        runtime_pid = read_pid(root)
+        if runtime_pid is not None:
+            pids.append(runtime_pid)
+        test_pid = _test_run_pid(root)
+        if test_pid is not None:
+            pids.append(test_pid)
+        if not pids:
             return None
-        return is_running(pid)
+        if any(is_running(pid) for pid in pids):
+            return True
+        return False
 
     return probe
 

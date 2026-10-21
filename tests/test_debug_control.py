@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -25,12 +27,16 @@ from core.debug import (
     run_step_over,
     run_wait,
 )
+from core.debug.common import client_debug_hint
+from core.debug.constants import CODE_CLIENT_EXITED
 from core.debug.state import (
     read_session,
     serialize_last_stop,
     write_session,
 )
 from core.exit_codes import RUNTIME_FAILURE
+from core.runtime.state import write_state
+from core.test.store import save_run_meta
 from tests.helpers_debug import (
     SPIKE_OBJECT,
     SPIKE_TARGET,
@@ -38,6 +44,8 @@ from tests.helpers_debug import (
     init_project,
     persist_stop,
 )
+
+_DEAD_PID = 5_000_001
 
 pytestmark = pytest.mark.usefixtures("stub_background_ping")
 
@@ -113,6 +121,92 @@ def test_wait_fresh_drops_recorded_stop(tmp_path: Path) -> None:
     result = run_wait(target, timeout=0.2, fresh=True, client_alive=lambda: True)
     assert result.status == "failed"
     assert "lastStop" not in (read_session(target) or {})
+
+
+def test_wait_fresh_uses_test_run_pid_not_stale_runtime(tmp_path: Path) -> None:
+    """test.run* --debug pid is alive → no false 1CD016 despite dead runtime pid."""
+    target = init_project(tmp_path)
+    write_session(target, url="http://localhost:2550", alias="DefAlias", session_id="sid-tr")
+    write_state(target, pid=_DEAD_PID, debug=False)
+    save_run_meta(
+        target,
+        {
+            "pid": os.getpid(),
+            "debug": True,
+            "debuggerUrl": "http://localhost:2550",
+        },
+    )
+    t0 = time.perf_counter()
+    result = run_wait(target, timeout=0.25, fresh=True)
+    elapsed = time.perf_counter() - t0
+    assert result.status == "failed"
+    assert any(d.get("code") == CODE_WAIT_TIMEOUT for d in result.diagnostics)
+    assert not any(d.get("code") == CODE_CLIENT_EXITED for d in result.diagnostics)
+    assert elapsed >= 0.2
+
+
+def test_wait_fails_fast_when_runtime_and_test_pids_dead(tmp_path: Path) -> None:
+    target = init_project(tmp_path)
+    write_session(target, url="http://localhost:2550", alias="DefAlias", session_id="sid-dead")
+    write_state(target, pid=_DEAD_PID, debug=True)
+    save_run_meta(target, {"pid": _DEAD_PID + 1, "debug": True})
+    t0 = time.perf_counter()
+    result = run_wait(target, timeout=30.0, fresh=True)
+    assert time.perf_counter() - t0 < 5
+    assert result.status == "failed"
+    assert any(d.get("code") == CODE_CLIENT_EXITED for d in result.diagnostics)
+
+
+def test_wait_fresh_picks_up_stop_while_test_pid_alive(tmp_path: Path) -> None:
+    target = init_project(tmp_path)
+    write_session(
+        target,
+        url="http://localhost:2550",
+        alias="DefAlias",
+        session_id="sid-pick",
+        last_stop={"targetId": SPIKE_TARGET, "frames": []},
+    )
+    write_state(target, pid=_DEAD_PID, debug=False)
+    save_run_meta(target, {"pid": os.getpid(), "debug": True})
+
+    stop = StopEvent(
+        target_id=SPIKE_TARGET,
+        frames=(
+            StackFrame(
+                object_id=SPIKE_OBJECT,
+                property_id=PROPERTY_ID_COMMON_MODULE,
+                line_no=19,
+                module_name="ОМ_Системы",
+                module_type="CommonModule",
+            ),
+        ),
+    )
+
+    def _write_later() -> None:
+        time.sleep(0.05)
+        persist_stop(target, stop, session_id="sid-pick")
+
+    threading.Thread(target=_write_later, daemon=True).start()
+    result = run_wait(target, timeout=2.0, fresh=True)
+    assert result.status == "ok"
+    assert result.line_no == 19
+
+
+def test_client_debug_hint_from_test_run_meta(tmp_path: Path) -> None:
+    target = init_project(tmp_path)
+    write_state(target, pid=_DEAD_PID, debug=False)
+    assert client_debug_hint(target) == (False, None)
+    save_run_meta(
+        target,
+        {
+            "pid": os.getpid(),
+            "debug": True,
+            "debuggerUrl": "http://localhost:1551",
+        },
+    )
+    enabled, url = client_debug_hint(target)
+    assert enabled is True
+    assert url == "http://localhost:1551"
 
 
 def test_only_pause_carries_experimental_warning(tmp_path: Path) -> None:

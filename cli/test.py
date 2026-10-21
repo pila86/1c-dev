@@ -245,19 +245,29 @@ def run_command(
     output: OutputOption = None,
 ) -> None:
     """Прогнать тесты (run) или один тест (runOne). Не вызывает build."""
-    common = {
-        "config_id": config,
-        "runtime_id": runtime,
-        "suite_id": suite,
-        "skip_runner_ensure": no_runner_ensure,
-        "debug": debug,
-        "debugger_url": debugger_url,
-        "breakpoints": bp,
-    }
     if name:
-        result = run_one_test(name, Path.cwd(), **common)
+        result = run_one_test(
+            name,
+            Path.cwd(),
+            config_id=config,
+            runtime_id=runtime,
+            suite_id=suite,
+            skip_runner_ensure=no_runner_ensure,
+            debug=debug,
+            debugger_url=debugger_url,
+            breakpoints=bp,
+        )
     else:
-        result = run_tests(Path.cwd(), **common)
+        result = run_tests(
+            Path.cwd(),
+            config_id=config,
+            runtime_id=runtime,
+            suite_id=suite,
+            skip_runner_ensure=no_runner_ensure,
+            debug=debug,
+            debugger_url=debugger_url,
+            breakpoints=bp,
+        )
     finish(result, ctx, output)
 
 

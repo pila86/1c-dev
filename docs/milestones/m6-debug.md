@@ -83,7 +83,7 @@ Paths к CF/CFE **не** дублировать: брать из `configurations
 | Сессия | `debug attach` / `detach` / `force-detach` | `debug.attach` / `debug.detach` / `debug.forceDetach` | session |
 | Цели | `debug targets` | `debug.targets` | list targets + metadata ready |
 | Breakpoints | `debug breakpoint set\|clear` | `debug.breakpoint` / `debug.clearBreakpoints` | set by moduleName / `--file` path / clear |
-| Ожидание | `debug wait [--timeout] [--fresh]` | `debug.wait` | по состоянию: мгновенно, если stop уже записан; `1CD016` при выходе клиента |
+| Ожидание | `debug wait [--timeout] [--fresh]` | `debug.wait` | по состоянию: мгновенно, если stop уже записан; `--fresh` — следующий стоп; `1CD016` если runtime/test pid мертвы; после `test.run* --debug` — `fresh=false` |
 | Управление | `debug continue\|step-in\|step-over\|step-out\|pause` | `debug.continue` / `debug.stepIn` / `debug.stepOver` / `debug.stepOut` / `debug.pause` | `continue`, `step-in/over/out` — поддерживаются (live acceptance); **`pause` — experimental**; выход клиента во время шага → `ok` + warning `1CD016` |
 | Инспекция | `debug stack` / `variables` / `eval <expr>` | `debug.stack` / `debug.variables` / `debug.evaluate` | from last stop / targetId |
 | Состояние | `debug status` | `debug.status` | session + targets + last stop summary |

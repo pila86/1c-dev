@@ -182,14 +182,38 @@ def load_project(
 
 
 def client_debug_hint(root: Path) -> tuple[bool | None, str | None]:
+    """Whether a debug-attached 1C client is expected (runtime and/or test detach)."""
     meta = read_meta(root)
     debug = meta.get("debug")
     if not isinstance(debug, dict):
-        return None, None
-    enabled = bool(debug.get("enabled", False))
-    url = debug.get("debuggerUrl")
-    url_s = url.strip() if isinstance(url, str) and url.strip() else None
-    return enabled, url_s
+        enabled = None
+        url_s = None
+    else:
+        enabled = bool(debug.get("enabled", False))
+        url = debug.get("debuggerUrl")
+        url_s = url.strip() if isinstance(url, str) and url.strip() else None
+        if enabled:
+            return True, url_s
+
+    # test.run* --debug stores pid in run.meta.json, not runtime client.meta.
+    from adapters.platform_1cv8 import is_running
+    from core.test.store import load_run_meta
+
+    run_meta, _diags = load_run_meta(root)
+    if isinstance(run_meta, dict) and run_meta.get("debug"):
+        pid = run_meta.get("pid")
+        if isinstance(pid, int) and pid > 0 and is_running(pid):
+            test_url = run_meta.get("debuggerUrl")
+            test_url_s = (
+                test_url.strip()
+                if isinstance(test_url, str) and test_url.strip()
+                else None
+            )
+            return True, test_url_s or url_s
+
+    if enabled is False:
+        return False, url_s
+    return None, None
 
 
 def session_url(

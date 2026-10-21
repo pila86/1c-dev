@@ -90,7 +90,7 @@ from core.test import (
     run_tests,
     wait_tests,
 )
-from core.test.constants import DEFAULT_WAIT_TIMEOUT_SEC
+from core.test.constants import DEFAULT_WAIT_TIMEOUT_SEC as DEFAULT_TEST_WAIT_TIMEOUT_SEC
 from mcp_server._path import resolve_path
 
 _NO_SHELL = (
@@ -1350,7 +1350,7 @@ def register_tools(server: FastMCP) -> None:
     )
     def test_wait_tool(
         path: str | None = None,
-        timeout: float = DEFAULT_WAIT_TIMEOUT_SEC,
+        timeout: float = DEFAULT_TEST_WAIT_TIMEOUT_SEC,
     ) -> dict[str, Any]:
         result = wait_tests(resolve_path(path), timeout=timeout)
         return result.to_payload()
@@ -1583,7 +1583,12 @@ def register_tools(server: FastMCP) -> None:
         description=(
             "Wait for a stop (breakpoint/step). Returns immediately if lastStop "
             "is already recorded. Default timeout 30s (override via timeout); "
-            "does not hang forever. fresh=true clears lastStop and waits for the next."
+            "does not hang forever. fresh=true clears lastStop and waits for the "
+            "next stop — use only after continue/step when the previous stop was "
+            "already handled. Right after test.run*/test.runOne(debug=true) keep "
+            "fresh=false (default): the BP stop is often already on disk. "
+            "Do not treat 1CD016 as final without checking pid / session.json.lastStop "
+            "/ run.meta.json."
             + _DEBUG_COMMON
         ),
     )

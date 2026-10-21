@@ -182,10 +182,15 @@ Project-scoped (не per-runtime) каталог debug-сервера и сес�
 `1c-dev debug ping start|stop|status`.
 
 **`debug wait` — по состоянию:** если `lastStop` уже записан — возвращает сразу;
-`--fresh` сбрасывает его. Если клиент (pid из `runtime start`) завершился без
-остановки — быстрый отказ `1CD016`. Иначе поллинг диска до `--timeout` (`1CD005`).
-`continue` по умолчанию ждёт следующую остановку; если клиент завершился (программа
-отработала) — результат `ok` с warning `1CD016`.
+`--fresh` сбрасывает его и ждёт *следующий* стоп. Живость клиента — pid из
+`runtime start` **или** из `test.run* --debug` (`.1c-dev/test/run.meta.json`);
+если все известные pid мертвы без стопа — быстрый отказ `1CD016`. Иначе поллинг
+диска до `--timeout` (`1CD005`). Сразу после `test.run*` / `runtime start --debug`
+использовать `fresh=false` (дефолт): стоп часто уже записан. `fresh=true` — только
+когда предыдущий стоп обработан и нужен именно следующий (после `continue`/`step`).
+`1CD016` без проверки pid / `session.json.lastStop` / `run.meta.json` не считать
+финальным. `continue` по умолчанию ждёт следующую остановку; если клиент завершился
+(программа отработала) — результат `ok` с warning `1CD016`.
 
 **Шаги:** `step-in` / `step-over` / `step-out` поддерживаются (live acceptance пройден:
 `test_m6_acceptance_steps_cli`, основная конфигурация и расширение). Прежний сбой `1CD005`
@@ -240,7 +245,7 @@ Discovery `dbgs`: sibling рядом с `1cv8`/`ibcmd` (паттерн ADR-005);
 | Поведение | Правило |
 |-----------|---------|
 | `test run --debug [--bp …]` / MCP `debug=true` | Non-blocking: ensure → BP → spawn → arm → `status: running` + pid |
-| Остановка на BP | `debug wait` (как у runtime) |
+| Остановка на BP | `debug wait` с `fresh=false` (дефолт); `fresh=true` только для *следующего* стопа после continue/step |
 | jUnit / `last-result` | `test wait` / MCP `test.wait` после exit `1cv8` (`closeAfterTests`); затем teardown debug (как `runtime stop`) |
 | Timeout `test.wait` (процесс жив) | Debug **не** сбрасывается — агент ещё может `debug.wait` / `continue` |
 | Без `--debug` | Blocking прогон без изменений (ADR-029) |
