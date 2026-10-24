@@ -77,11 +77,13 @@
 - [M4 project model](m4-project-model.md)
 - [PRD §12 Source API](../../1c-dev-runtime-PRD-v0.1.md), [§13 Sync](../../1c-dev-runtime-PRD-v0.1.md), [§49 Format switching](../../1c-dev-runtime-PRD-v0.1.md)
 - ADR: XML/EDT adapters, source sync — завести при возврате темы в roadmap
+- Выбор write-backend (xml-gen / md-sparrow / bridge): [draft-write-backend-bakeoff](draft-write-backend-bakeoff.md)
 
 ## Suggested work packages
 
 | Тема | Зависит от |
 |------|------------|
-| EDT Source Adapter + doctor capability | M2 metadata read; желательно M4 project home |
-| `source.convert` XML ↔ EDT | оба adapters |
+| Write-backend bake-off (XML + EDT path) | [draft-write-backend-bakeoff](draft-write-backend-bakeoff.md) |
+| EDT Source Adapter + doctor capability | M2 metadata read; желательно M4 project home; вердикт bake-off |
+| `source.convert` XML ↔ EDT | оба adapters / bridge |
 | Contract tests + acceptance | convert |

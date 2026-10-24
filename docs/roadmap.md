@@ -35,6 +35,7 @@
 | Черновик | Было | Документ |
 |----------|------|----------|
 | Source formats (EDT) | M4 EDT | [draft-source-formats](milestones/draft-source-formats.md) |
+| Write-backend bake-off | — | [draft-write-backend-bakeoff](milestones/draft-write-backend-bakeoff.md) |
 
 Remote (Docker, lockfile) — при появлении текста как `draft-remote.md`.
 
