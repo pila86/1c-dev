@@ -2,18 +2,18 @@
 
 ## Текущий фокус
 
-**M6: Debug** In progress: HTTP Debug Protocol → CLI/MCP `debug.*`; acceptance E2E (#144). Добиваем `test.run --debug/--bp` + `test.wait` ([#147](https://github.com/pila86/1c-dev/issues/147)) в PR [#146](https://github.com/pila86/1c-dev/pull/146). DAP для IDE — reuse внешнего adapter; `ide configure` launch.json — follow-up [#143](https://github.com/pila86/1c-dev/issues/143). Документ: [m6-debug](milestones/m6-debug.md).
+**M6: Debug** — **Done** (GitHub milestone [M6](https://github.com/pila86/1c-dev/milestone/6) closed; PR [#146](https://github.com/pila86/1c-dev/pull/146)). HTTP Debug Protocol → CLI/MCP `debug.*` + `test.* --debug`/`test.wait` (#144, #147). Документ: [m6-debug](milestones/m6-debug.md).
 
-**M5: Tests** закрыт: Test API (YAxUnit), CLI/MCP `test.*`, `configurations[].tests`, runner cache + ensure, acceptance E2E (#129). Vanessa adapter — follow-up [#128](https://github.com/pila86/1c-dev/issues/128).
+**Follow-ups (вне milestone):**
+- [#143](https://github.com/pila86/1c-dev/issues/143) — `ide configure` DAP `launch.json` hint
+- [#128](https://github.com/pila86/1c-dev/issues/128) — Vanessa adapter (M5)
 
-**M4: Project home, multi-config, templates, publish** закрыт: якорь `.1c-dev/`, несколько конфигураций и расширений, `runtimes[]`, tmplts, publish (ibsrv / webinst), acceptance E2E (#96).
+**Черновик next (не номер milestone):** Source formats (EDT) — write path выбран bake-off’ом (**D**: md-sparrow `.mdo` + `1cedtcli` export). Документы: [draft-source-formats](milestones/draft-source-formats.md), [draft-write-backend-bakeoff](milestones/draft-write-backend-bakeoff.md) (**Done** 2026-11-05).
 
 → [M6 Debug](milestones/m6-debug.md)  
 → [GitHub milestone M6](https://github.com/pila86/1c-dev/milestone/6)  
 → [Acceptance criteria M5](milestones/m5-tests.md)  
-→ [M4 project model](milestones/m4-project-model.md)  
-→ [GitHub milestone M5](https://github.com/pila86/1c-dev/milestone/5)  
-→ [GitHub milestone M4](https://github.com/pila86/1c-dev/milestone/4)
+→ [M4 project model](milestones/m4-project-model.md)
 
 ## Этапы
 
@@ -24,7 +24,7 @@
 | **M3** | Product adopt: import `.cf`, user install/PATH **+ автозагрузка toolchain**, `ide configure`, BSL LS MCP, docs/context; **should (temporary):** metadata types coverage | Done |
 | **M4** | Project home `.1c-dev/`, multi-config + extensions, platform templates, publish (ibsrv / webinst), `runtimes[]` | Done |
 | **M5** | Test API: YAxUnit adapter, CLI/MCP `test.*`, `configurations[].tests`; Vanessa — follow-up | Done |
-| **M6** | Debug API: HTTP Debug Protocol (`dbgs`), CLI/MCP `debug.*` + `test.* --debug`; DAP для IDE — reuse | In progress |
+| **M6** | Debug API: HTTP Debug Protocol (`dbgs`), CLI/MCP `debug.*` + `test.* --debug`; DAP для IDE — reuse | Done |
 
 Документы этапов: [M1](milestones/m1-catalog-via-agent.md) · [M2](milestones/m2-metadata-api.md) · [M3](milestones/m3-product-adopt.md) · [M4](milestones/m4-project-model.md) · [M5](milestones/m5-tests.md) · [M6](milestones/m6-debug.md)
 
@@ -32,10 +32,10 @@
 
 Темы вне активного roadmap; файлы сохранены без номера milestone:
 
-| Черновик | Было | Документ |
-|----------|------|----------|
-| Source formats (EDT) | M4 EDT | [draft-source-formats](milestones/draft-source-formats.md) |
-| Write-backend bake-off | — | [draft-write-backend-bakeoff](milestones/draft-write-backend-bakeoff.md) |
+| Черновик | Было | Статус | Документ |
+|----------|------|--------|----------|
+| Write-backend bake-off | — | **Done** 2026-11-05 (XML=A, EDT=D) | [draft-write-backend-bakeoff](milestones/draft-write-backend-bakeoff.md) · [protocol](spikes/write-backend-bakeoff-protocol.md) |
+| Source formats (EDT) | M4 EDT | Draft — next candidate; write=D | [draft-source-formats](milestones/draft-source-formats.md) |
 
 Remote (Docker, lockfile) — при появлении текста как `draft-remote.md`.
 

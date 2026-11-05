@@ -1,6 +1,6 @@
 # M6: Debug (HTTP Debug Protocol + CLI/MCP)
 
-**Статус:** In progress — [GitHub milestone M6](https://github.com/pila86/1c-dev/milestone/6); PR [#146](https://github.com/pila86/1c-dev/pull/146). Acceptance E2E [#144](https://github.com/pila86/1c-dev/issues/144) (`tests/test_m6_acceptance.py`); осталось `test.* --debug` [#147](https://github.com/pila86/1c-dev/issues/147). `#143` (`ide configure` launch.json) — **вне M6**, follow-up.  
+**Статус:** **Done** — [GitHub milestone M6](https://github.com/pila86/1c-dev/milestone/6) closed (2026-10); PR [#146](https://github.com/pila86/1c-dev/pull/146) merged. Acceptance [#144](https://github.com/pila86/1c-dev/issues/144) + `test.* --debug` [#147](https://github.com/pila86/1c-dev/issues/147) закрыты. `#143` (`ide configure` launch.json) — **вне M6**, follow-up (open).  
 **ADR:** [ADR-031](../adr/031-debug-api-http.md) (Accepted, [#136](https://github.com/pila86/1c-dev/issues/136); ранее в черновике ошибочно «ADR-030» — номер занят Designer `/CheckModules`). Закладка: [ADR-019](../adr/019-runtime-client-lifecycle.md) (`/Debug`, `debug.*` → M6). Spike: [135-http-debug-protocol.md](../spikes/135-http-debug-protocol.md).
 
 ## Goal

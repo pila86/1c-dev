@@ -1,6 +1,8 @@
 # Draft: source formats (EDT)
 
-**Статус:** Draft (вне roadmap) — бывший план «M4 EDT»; активный M4 сейчас — [project model](m4-project-model.md).
+**Статус:** Draft (вне roadmap) — кандидат на следующий крупный этап после M6.  
+Бывший план «M4 EDT»; M4 закрыт как [project model](m4-project-model.md).  
+Write-backend выбран: [draft-write-backend-bakeoff](draft-write-backend-bakeoff.md) (**Done** 2026-11 — XML=xml-gen, EDT=md-sparrow `.mdo` + export).
 
 ## Goal
 
