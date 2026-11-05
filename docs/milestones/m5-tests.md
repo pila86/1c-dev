@@ -15,7 +15,7 @@
 - Платформа 1С + YaXUnit в тестовом расширении user project
 - JDK **не** обязателен для своего runner’а (в отличие от METR jar)
 
-EDT ([draft-source-formats](draft-source-formats.md)) **не** блокер для XML-ветки тестов.
+EDT ([m7-source-formats](m7-source-formats.md)) **не** блокер для XML-ветки тестов.
 
 ## Decisions
 
@@ -188,7 +188,7 @@ AI читает BSL
 - [Roadmap](../roadmap.md)
 - [PRD §25 Test API](../../1c-dev-runtime-PRD-v0.1.md), [§26 Test Result](../../1c-dev-runtime-PRD-v0.1.md)
 - [ADR-003](../adr/003-diagnostics-exit-codes.md) (exit 5), [ADR-010](../adr/010-mcp-architecture.md), [ADR-023](../adr/023-multi-config-extensions.md), [ADR-026](../adr/026-runtimes-array.md), [ADR-029](../adr/029-test-api.md)
-- [M3](m3-product-adopt.md), [M4](m4-project-model.md), [draft-source-formats](draft-source-formats.md)
+- [M3](m3-product-adopt.md), [M4](m4-project-model.md), [m7-source-formats](m7-source-formats.md)
 - Acceptance: [`tests/test_m5_acceptance.py`](../../tests/test_m5_acceptance.py) (#129)
 - Внешние: [bia-technologies/yaxunit](https://github.com/bia-technologies/yaxunit), [alkoleft/mcp-onec-test-runner](https://github.com/alkoleft/mcp-onec-test-runner) (референс / spike only)
 

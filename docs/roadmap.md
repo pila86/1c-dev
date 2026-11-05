@@ -2,18 +2,17 @@
 
 ## Текущий фокус
 
-**M6: Debug** — **Done** (GitHub milestone [M6](https://github.com/pila86/1c-dev/milestone/6) closed; PR [#146](https://github.com/pila86/1c-dev/pull/146)). HTTP Debug Protocol → CLI/MCP `debug.*` + `test.* --debug`/`test.wait` (#144, #147). Документ: [m6-debug](milestones/m6-debug.md).
+**M7: Source formats (EDT)** — Planned ([GitHub milestone M7](https://github.com/pila86/1c-dev/milestone/7)). Полный паритет с XML (**B**): EDT Source Adapter + semantic write (**D**: md-sparrow `.mdo` + `1cedtcli` export) + `source.convert`. Документ: [m7-source-formats](milestones/m7-source-formats.md). Старт: spike [#149](https://github.com/pila86/1c-dev/issues/149).
 
 **Follow-ups (вне milestone):**
 - [#143](https://github.com/pila86/1c-dev/issues/143) — `ide configure` DAP `launch.json` hint
 - [#128](https://github.com/pila86/1c-dev/issues/128) — Vanessa adapter (M5)
 
-**Черновик next (не номер milestone):** Source formats (EDT) — write path выбран bake-off’ом (**D**: md-sparrow `.mdo` + `1cedtcli` export). Документы: [draft-source-formats](milestones/draft-source-formats.md), [draft-write-backend-bakeoff](milestones/draft-write-backend-bakeoff.md) (**Done** 2026-11-05).
+**Закрыто недавно:** M6 Debug — Done ([m6-debug](milestones/m6-debug.md), PR [#146](https://github.com/pila86/1c-dev/pull/146)); write-backend bake-off — Done ([write-backend-bakeoff](spikes/write-backend-bakeoff.md), 2026-11-05).
 
-→ [M6 Debug](milestones/m6-debug.md)  
-→ [GitHub milestone M6](https://github.com/pila86/1c-dev/milestone/6)  
-→ [Acceptance criteria M5](milestones/m5-tests.md)  
-→ [M4 project model](milestones/m4-project-model.md)
+→ [M7 Source formats](milestones/m7-source-formats.md)  
+→ [GitHub milestone M7](https://github.com/pila86/1c-dev/milestone/7)  
+→ [M6 Debug](milestones/m6-debug.md)
 
 ## Этапы
 
@@ -25,19 +24,17 @@
 | **M4** | Project home `.1c-dev/`, multi-config + extensions, platform templates, publish (ibsrv / webinst), `runtimes[]` | Done |
 | **M5** | Test API: YAxUnit adapter, CLI/MCP `test.*`, `configurations[].tests`; Vanessa — follow-up | Done |
 | **M6** | Debug API: HTTP Debug Protocol (`dbgs`), CLI/MCP `debug.*` + `test.* --debug`; DAP для IDE — reuse | Done |
+| **M7** | Source formats: EDT adapter + `source.convert` + metadata/build/check parity (write=D) | Planned |
 
-Документы этапов: [M1](milestones/m1-catalog-via-agent.md) · [M2](milestones/m2-metadata-api.md) · [M3](milestones/m3-product-adopt.md) · [M4](milestones/m4-project-model.md) · [M5](milestones/m5-tests.md) · [M6](milestones/m6-debug.md)
+Документы этапов: [M1](milestones/m1-catalog-via-agent.md) · [M2](milestones/m2-metadata-api.md) · [M3](milestones/m3-product-adopt.md) · [M4](milestones/m4-project-model.md) · [M5](milestones/m5-tests.md) · [M6](milestones/m6-debug.md) · [M7](milestones/m7-source-formats.md)
 
-## Черновики (вне нумерации)
+## Spikes / архив решений
 
-Темы вне активного roadmap; файлы сохранены без номера milestone:
+| Тема | Статус | Документ |
+|------|--------|----------|
+| Write-backend bake-off | **Done** 2026-11-05 (XML=A, EDT=D) | [write-backend-bakeoff](spikes/write-backend-bakeoff.md) · [protocol](spikes/write-backend-bakeoff-protocol.md) |
 
-| Черновик | Было | Статус | Документ |
-|----------|------|--------|----------|
-| Write-backend bake-off | — | **Done** 2026-11-05 (XML=A, EDT=D) | [draft-write-backend-bakeoff](milestones/draft-write-backend-bakeoff.md) · [protocol](spikes/write-backend-bakeoff-protocol.md) |
-| Source formats (EDT) | M4 EDT | Draft — next candidate; write=D | [draft-source-formats](milestones/draft-source-formats.md) |
-
-Remote (Docker, lockfile) — при появлении текста как `draft-remote.md`.
+Remote (Docker, lockfile) — при появлении текста как `docs/milestones/draft-remote.md`.
 
 ## Принципы (из PRD)
 

@@ -14,7 +14,7 @@ Lifecycle остаётся прежним: `change → build → check → test 
 
 - M1–M5 Done: project home, multi-config/extensions, `runtime.start|stop|status` (+ `--debug` / `/Debug`), Test API
 - Платформа 1С 8.3.x с HTTP Debug Server (`dbgs` / эквивалент в составе платформы) и GUI-клиентом
-- XML source (`source.format: xml`); EDT — out of scope ([draft-source-formats](draft-source-formats.md))
+- XML source (`source.format: xml`); EDT — out of scope ([m7-source-formats](m7-source-formats.md))
 - File IB + `runtimes[]` (ADR-026); server IB — should / follow-up
 
 ## Decisions
@@ -235,7 +235,7 @@ test.run(debug=true, breakpoints=[…])   # status: running + pid; не ждёт
 
 - Собственный debugger / свой DAP-server с нуля
 - Vendor / зависимость runtime от [mcp-1c-platform-tools](https://github.com/yellow-hammer/mcp-1c-platform-tools/) или второго MCP `1c-debug-mcp` как обязательного компонента
-- EDT source / `source.convert` ([draft-source-formats](draft-source-formats.md))
+- EDT source / `source.convert` ([m7-source-formats](m7-source-formats.md))
 - Semantic diff / impact / verify
 - Remote / Docker / lockfile (отдельный draft)
 - Debug UI в Cursor как замена VS Code Debug View

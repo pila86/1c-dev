@@ -2,7 +2,7 @@
 
 **Статус:** harness готов (Фаза 1); прогоны S* — ниже.  
 **План:** [`.cursor/plans/write_backend_bakeoff_bcf3573c.plan.md`](../../.cursor/plans/write_backend_bakeoff_bcf3573c.plan.md)  
-**Draft:** [draft-write-backend-bakeoff.md](../milestones/draft-write-backend-bakeoff.md)
+**Вердикт:** [write-backend-bakeoff.md](write-backend-bakeoff.md)
 
 ## Header / env (2026-11-05)
 
@@ -402,4 +402,4 @@ date: 2026-11-05
 
 **3. Второй write-backend:** XML — нет; EDT — да, позже (wrapper md-sparrow), без замены xml-gen.
 
-Зафиксировано в [draft-write-backend-bakeoff](../milestones/draft-write-backend-bakeoff.md), [ADR-007](../adr/007-metadata-ir.md), [draft-source-formats](../milestones/draft-source-formats.md).
+Зафиксировано в [write-backend-bakeoff](write-backend-bakeoff.md), [ADR-007](../adr/007-metadata-ir.md), [m7-source-formats](../milestones/m7-source-formats.md).

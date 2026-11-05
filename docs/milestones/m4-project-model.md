@@ -99,7 +99,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 
 ## Scope
 
-Пять треков (+ уточнение API конфигураций). EDT / DAP / Remote — **не** входят ([draft-source-formats](draft-source-formats.md)). Test runner API — [M5](m5-tests.md) (модель test-extension в манифесте — да).
+Пять треков (+ уточнение API конфигураций). EDT / DAP / Remote — **не** входят ([m7-source-formats](m7-source-formats.md)). Test runner API — [M5](m5-tests.md) (модель test-extension в манифесте — да).
 
 ### A. Project home и schema 2
 
@@ -237,7 +237,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 
 ## Out of scope (M4)
 
-- EDT / `source.convert` → [draft-source-formats](draft-source-formats.md)
+- EDT / `source.convert` → [m7-source-formats](m7-source-formats.md)
 - YAxUnit / Vanessa test runner API → [M5](m5-tests.md) (модель test-extension в манифесте — да)
 - DAP / debug, Remote / Docker / server IB как primary
 - Vendor-in vanessa-runner / EPF для `.cfe` как hard dependency
@@ -273,7 +273,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 - [GitHub milestone M4](https://github.com/pila86/1c-dev/milestone/4)
 - [Roadmap](../roadmap.md)
 - [M3](m3-product-adopt.md)
-- [draft-source-formats](draft-source-formats.md) · [M5 tests](m5-tests.md)
+- [m7-source-formats](m7-source-formats.md) · [M5 tests](m5-tests.md)
 - ADR: [022](../adr/022-project-home.md) · [023](../adr/023-multi-config-extensions.md) · [024](../adr/024-platform-templates.md) · [025](../adr/025-publish-backends.md) · [026](../adr/026-runtimes-array.md) · [027](../adr/027-configuration-lifecycle.md) · [028](../adr/028-configuration-import.md)
 - Spike argv: [084-ibcmd-extension-ibsrv](../spikes/084-ibcmd-extension-ibsrv.md)
 - Schema v2: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json)

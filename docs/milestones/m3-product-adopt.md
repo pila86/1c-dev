@@ -30,7 +30,7 @@
 
 ## Scope
 
-Четыре трека. EDT **не** входит (→ [draft-source-formats](draft-source-formats.md)).
+Четыре трека. EDT **не** входит (→ [m7-source-formats](m7-source-formats.md)).
 
 ### A. Import из `.cf` (CF → XML source)
 
@@ -268,7 +268,7 @@ Out of this track: Role / Form / Command / SessionParameter / …; `xml-gen inte
 
 ## Out of scope M3
 
-- EDT adapter / `source.convert` (→ [draft-source-formats](draft-source-formats.md))
+- EDT adapter / `source.convert` (→ [m7-source-formats](m7-source-formats.md))
 - YAxUnit / Vanessa (→ [M5](m5-tests.md))
 - DAP, semantic diff, verify против `.cf` как baseline — вне активного roadmap
 - Remote runtime / Docker / lockfile / marketplace — вне активного roadmap
@@ -327,7 +327,7 @@ poetry run pytest tests/test_e_acceptance.py -m integration
 - [GitHub milestone M3](https://github.com/pila86/1c-dev/milestone/3)
 - [Roadmap](../roadmap.md)
 - [M2](m2-metadata-api.md)
-- [M4](m4-project-model.md) · [draft-source-formats](draft-source-formats.md)
+- [M4](m4-project-model.md) · [m7-source-formats](m7-source-formats.md)
 - [ADR-001](../adr/001-language-core-cli.md) (packaging → [ADR-013](../adr/013-packaging-toolchain-cache.md))
 - [ADR-013](../adr/013-packaging-toolchain-cache.md) (uv tool / cache / pin toolchain)
 - [ADR-010](../adr/010-mcp-architecture.md)

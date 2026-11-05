@@ -72,8 +72,8 @@ Bake-off 2026-09-17 (сценарий: `Catalog.Products`, synonym «Товар�
 Повторный прогон A vs B (+ EDT C/D) на платформе **8.5.1.1529**, dump **2.17**, md-sparrow **0.6.7**, EDT **2026.2.2+21**:
 
 - **XML write:** xml-gen **остаётся** (IR proximity: 1× `--from-json`; ops/diff лучше B). Миграция на md-sparrow для Designer XML **не** принята.
-- **EDT write (вне этого ADR):** предпочтительно native `.mdo` через md-sparrow `apply-mutation` + `1cedtcli` export; bridge xml-gen→`1cedtcli import` — запасной. Следствия для EDT Source Adapter — [draft-source-formats](../milestones/draft-source-formats.md).
-- Протокол: [write-backend-bakeoff-protocol](../spikes/write-backend-bakeoff-protocol.md); draft: [draft-write-backend-bakeoff](../milestones/draft-write-backend-bakeoff.md).
+- **EDT write (вне этого ADR):** предпочтительно native `.mdo` через md-sparrow `apply-mutation` + `1cedtcli` export; bridge xml-gen→`1cedtcli import` — запасной. Следствия для EDT Source Adapter — [m7-source-formats](../milestones/m7-source-formats.md).
+- Вердикт: [write-backend-bakeoff](../spikes/write-backend-bakeoff.md); протокол: [write-backend-bakeoff-protocol](../spikes/write-backend-bakeoff-protocol.md).
 
 ## Связанные решения
 

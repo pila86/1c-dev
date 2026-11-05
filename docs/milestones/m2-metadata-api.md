@@ -183,7 +183,7 @@ Feature-issues #20–#26, #28, #29, #35, #39, #40 и сквозной acceptance
 ## Out of scope M2
 
 - Import `.cf`, user install, `ide configure`, BSL LS MCP, docs/context (→ [M3](m3-product-adopt.md))
-- EDT / `source.convert` (→ [draft-source-formats](draft-source-formats.md))
+- EDT / `source.convert` (→ [m7-source-formats](m7-source-formats.md))
 - Project home / multi-config / extensions (→ [M4](m4-project-model.md))
 - `references` / `dependencies` / `impact` (→ later / graph)
 - Nested delete ТЧ / values / dimensions через `metadata.delete` (атрибуты / ТЧ / values / dimensions / resources — через `metadata.update`; Enum/регистры — #39)
@@ -250,7 +250,7 @@ Feature-issues #20–#26, #28, #29, #35, #39, #40 и сквозной acceptance
 - [M1](m1-catalog-via-agent.md)
 - [M3](m3-product-adopt.md)
 - [M4](m4-project-model.md)
-- [draft-source-formats](draft-source-formats.md)
+- [m7-source-formats](m7-source-formats.md)
 - [ADR-007](../adr/007-metadata-ir.md) (IR v0 + xml-gen)
 - [ADR-011](../adr/011-metadata-ir-v1.md) (IR v1)
 - [PRD §16–§18](../../1c-dev-runtime-PRD-v0.1.md), [§47](../../1c-dev-runtime-PRD-v0.1.md)

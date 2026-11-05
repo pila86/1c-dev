@@ -34,7 +34,7 @@ isProject: false
 
 # Write-backend bake-off (урывками)
 
-Ссылка на сценарии/скоринг: [docs/milestones/draft-write-backend-bakeoff.md](docs/milestones/draft-write-backend-bakeoff.md).
+Ссылка на сценарии/скоринг: [docs/spikes/write-backend-bakeoff.md](docs/spikes/write-backend-bakeoff.md).
 
 ## Как продолжать после паузы
 
@@ -220,7 +220,7 @@ Must-fail не сработали (export непустой, ibcmd OK). EDT-ло�
 
 **Цель:** зафиксировать решение в репо. **Done:** summary + 3 Decisions + правты ADR.
 
-### 4.1 Заполнить summary-таблицу в draft-write-backend-bakeoff
+### 4.1 Заполнить summary-таблицу в write-backend-bakeoff (spike)
 
 S1/S4/S5/S6, JDK/jar, вердикты XML и EDT.
 

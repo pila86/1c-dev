@@ -39,7 +39,7 @@ AI-агент через MCP создаёт конфигурацию 1С с од
 
 ## Out of scope M1
 
-- EDT adapter, `source.convert` (→ [draft-source-formats](draft-source-formats.md)); import из `.cf` (→ [M3](m3-product-adopt.md))
+- EDT adapter, `source.convert` (→ [m7-source-formats](m7-source-formats.md)); import из `.cf` (→ [M3](m3-product-adopt.md))
 - `metadata.list` / `get` / `find`, `metadata.update`, create кроме `Catalog` (→ [M2](m2-metadata-api.md))
 - User install / `ide configure` / BSL LS MCP / docs index (→ [M3](m3-product-adopt.md))
 - Project home / multi-config / templates / publish (→ [M4](m4-project-model.md))
@@ -79,7 +79,7 @@ AI-агент через MCP создаёт конфигурацию 1С с од
 
 - [GitHub milestone M1](https://github.com/pila86/1c-dev/milestone/1)
 - [Roadmap](../roadmap.md)
-- [M2](m2-metadata-api.md) · [M3](m3-product-adopt.md) · [M4](m4-project-model.md) · [draft-source-formats](draft-source-formats.md)
+- [M2](m2-metadata-api.md) · [M3](m3-product-adopt.md) · [M4](m4-project-model.md) · [m7-source-formats](m7-source-formats.md)
 - [PRD §47](../../1c-dev-runtime-PRD-v0.1.md)
 
 ## Issues

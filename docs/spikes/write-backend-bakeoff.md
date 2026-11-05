@@ -1,7 +1,7 @@
-# Draft: write-backend bake-off
+# Write-backend bake-off
 
-**Статус:** Done (2026-11-05) — вердикт зафиксирован; протокол: [write-backend-bakeoff-protocol](../spikes/write-backend-bakeoff-protocol.md).  
-Связан с [draft-source-formats](draft-source-formats.md) и [ADR-007](../adr/007-metadata-ir.md) (xml-gen).
+**Статус:** Done (2026-11-05) — вердикт зафиксирован; протокол: [write-backend-bakeoff-protocol](write-backend-bakeoff-protocol.md).  
+Связан с [m7-source-formats](../milestones/m7-source-formats.md) и [ADR-007](../adr/007-metadata-ir.md) (xml-gen).
 
 ## Goal
 
@@ -13,10 +13,10 @@
 
 | Слой | Сейчас | Заметка |
 |------|--------|---------|
-| Read | MDClasses (ADR-012); EDT-ready позже | Не кандидат на write |
+| Read | MDClasses (ADR-012); EDT-ready → [M7](../milestones/m7-source-formats.md) | Не кандидат на write |
 | Write XML | xml-gen (ADR-007) | IR → `meta compile` / `edit` / `remove` |
 | Write EDT | **D** (md-sparrow `.mdo` + `1cedtcli` export) | bake-off 2026-11; C bridge — запасной |
-| EDT runtime | draft: нужен `1cedtcli` | export перед build/check |
+| EDT runtime | нужен `1cedtcli` | export перед build/check |
 
 Аргумент «md-sparrow избавит от EDT CLI» **слаб**: env-cost EDT-ветки уже включает `1cedtcli`. Остаётся асимметрия **export** (build) vs **import** (write через bridge).
 
@@ -67,7 +67,7 @@
 
 1. Получить EDT-проект с тем же объектом.
 2. `1cedtcli export` → XML.
-3. `build` / `check` как в [draft-source-formats](draft-source-formats.md).
+3. `build` / `check` как в [m7-source-formats](../milestones/m7-source-formats.md).
 4. Повторный S1 **уже в EDT-проекте** (второй каталог).
 
 ### S7 — EDT claim (только B)
@@ -115,7 +115,7 @@ notes: …
 | Вердикт XML write | **оставить A** | не мигрировать | — | — |
 | Вердикт EDT write | — | — | запасной | **предпочтительно D** |
 
-Полные логи: [write-backend-bakeoff-protocol](../spikes/write-backend-bakeoff-protocol.md).
+Полные логи: [write-backend-bakeoff-protocol](write-backend-bakeoff-protocol.md).
 
 ## Decisions (ответы)
 
@@ -134,11 +134,11 @@ notes: …
 
 1. **День 1:** A vs B на S1+S4+S5 (актуальные версии xml-gen / md-sparrow).
 2. **День 2:** S7 claim B; если нет `.mdo` — только C: S6 на результате A.
-3. **День 3:** вердикт на 1 страницу → ADR (дополнить/заменить следствия ADR-007 + обновить [draft-source-formats](draft-source-formats.md)).
+3. **День 3:** вердикт на 1 страницу → ADR (дополнить/заменить следствия ADR-007 + обновить [m7-source-formats](../milestones/m7-source-formats.md)).
 
 ## Links
 
-- [draft-source-formats](draft-source-formats.md)
+- [m7-source-formats](../milestones/m7-source-formats.md)
 - [ADR-007](../adr/007-metadata-ir.md) (xml-gen + исторический bake-off с md-sparrow)
 - [ADR-012](../adr/012-metadata-read-mdclasses.md) (read; EDT later)
 - [ADR-018](../adr/018-metadata-types-coverage.md) (coverage write-типов)
