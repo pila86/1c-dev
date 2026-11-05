@@ -1,6 +1,6 @@
 # Draft: write-backend bake-off
 
-**Статус:** Draft (вне roadmap) — подготовка выбора инструмента записи исходников (XML / EDT).  
+**Статус:** Done (2026-11-05) — вердикт зафиксирован; протокол: [write-backend-bakeoff-protocol](../spikes/write-backend-bakeoff-protocol.md).  
 Связан с [draft-source-formats](draft-source-formats.md) и [ADR-007](../adr/007-metadata-ir.md) (xml-gen).
 
 ## Goal
@@ -15,7 +15,7 @@
 |------|--------|---------|
 | Read | MDClasses (ADR-012); EDT-ready позже | Не кандидат на write |
 | Write XML | xml-gen (ADR-007) | IR → `meta compile` / `edit` / `remove` |
-| Write EDT | не выбран | md-sparrow отложен в bake-off 2026-09-17 |
+| Write EDT | **D** (md-sparrow `.mdo` + `1cedtcli` export) | bake-off 2026-11; C bridge — запасной |
 | EDT runtime | draft: нужен `1cedtcli` | export перед build/check |
 
 Аргумент «md-sparrow избавит от EDT CLI» **слаб**: env-cost EDT-ветки уже включает `1cedtcli`. Остаётся асимметрия **export** (build) vs **import** (write через bridge).
@@ -31,13 +31,15 @@
 
 **Вне конкурса:** EDT-MCP / живой EDT IDE, свои XML-шаблоны, MDClasses-as-writer, 1CFilesConverter / vrunner как sole write (только как обёртка convert).
 
-## Environment (зафиксировать до прогона)
+## Environment (прогон 2026-11-05)
 
-- Платформа: как в ADR-007 bake-off или явно (напр. 8.3.27)
-- Dump / format version: как после `1c-dev init` / import
-- JDK: 17 для A, 21+ для B
-- EDT: одна версия + путь к `1cedtcli`
-- Fixture: чистый проект после `init` / маленький fixture (не ERP)
+- Платформа: **8.5.1.1529**
+- Dump / format: MetaDataObject **2.17**, `CompatibilityMode=Version8_5_1`
+- JDK: A — 21 (doctor); B/D — Temurin **25.0.5+8**
+- xml-gen: pin jar `~/.cache/1c-dev/tools/xml-gen.jar` (~7 MB)
+- md-sparrow: **0.6.7** (Platform Tools jar, ~24 MB)
+- EDT: **2026.2.2+21** (`1cedtcli`)
+- Fixture: `$BAKEOFF_ROOT` (`.bakeoff/`, gitignored)
 
 ## Scenarios
 
@@ -100,33 +102,33 @@ ibcmd/check: pass|fail|skip
 notes: …
 ```
 
-### Summary table
+### Summary table (факт 2026-11)
 
 | | A xml-gen | B md-sparrow | C bridge | D mdo+export |
 |--|:---------:|:------------:|:--------:|:------------:|
-| S1 create | | | | |
-| S4 platform | | | | |
-| S5 IR fit | | | | |
-| S6 EDT | n/a | ? | | |
-| JDK / jar | 17 / ~7MB | 21–25 / ~24MB | A+EDT | B+EDT |
-| Вердикт XML write | | | — | — |
-| Вердикт EDT write | — | | | |
+| S1 create | OK ~1s | OK ~1.9s (3 CLI) | via A | via apply-mutation |
+| S4 platform | OK | OK | — | — |
+| S5 IR fit | 1× `--from-json` | ~8 CLI + DTO craft | — | — |
+| S6 EDT | n/a | S7: incremental-ok | OK ~11s import | OK export + native create ~0.45s |
+| S7 .mdo | n/a | **incremental-ok** | — | in play |
+| JDK / jar | 21 / ~7MB | 25 / ~24MB | A+EDT | B+EDT |
+| Вердикт XML write | **оставить A** | не мигрировать | — | — |
+| Вердикт EDT write | — | — | запасной | **предпочтительно D** |
 
-## Decisions bake-off must answer
+Полные логи: [write-backend-bakeoff-protocol](../spikes/write-backend-bakeoff-protocol.md).
 
-1. **XML write:** оставить **A** или мигрировать на **B**?
-2. **EDT write:**
-   - **C** (xml-gen + import/convert), или
-   - **D** (native `.mdo`), или
-   - **отложить create на edt** (только read + convert + export→build)?
-3. Нужен ли **второй** write-backend в toolchain или один + bridge?
+## Decisions (ответы)
 
-### Гипотеза до прогона (не вердикт)
+1. **XML write:** оставить **A** (xml-gen). B корректнее по S4, но хуже IR proximity / diff / ops; tabular attr set и type hygiene — gaps для drop-in.
+2. **EDT write:** **D** (md-sparrow native `.mdo` через `apply-mutation`) + `1cedtcli` только на export. **C** — рабочий запасной bridge (full re-import ~11s; quirks workspace).
+3. **Второй write-backend:** для XML — **нет**; для EDT — **да, позже** (тонкий wrapper md-sparrow), без замены xml-gen. Код adapter B→XML — не делать по итогам этого bake-off.
 
-- A выигрывает XML по IR/простоте → не трогать xml-gen.
-- B без `.mdo` → D вне игры.
-- C работает, но хрупко на S6 create → EDT write = convert batch, не каждый `metadata.create`.
-- D стабилен → native write + `1cedtcli` только на export.
+### Гипотеза до прогона → факт
+
+- A выигрывает XML по IR → **подтверждено**.
+- B без `.mdo` → D вне игры → **опровергнуто** (S7 incremental-ok).
+- C хрупко на create → **частично**: работает, но re-import/workspace дороже D.
+- D стабилен → native + export only → **подтверждено** на S6.
 
 ## Suggested schedule
 

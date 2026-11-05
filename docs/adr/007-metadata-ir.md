@@ -67,6 +67,14 @@ Bake-off 2026-09-17 (сценарий: `Catalog.Products`, synonym «Товар�
 - Onboarding: один раз `./scripts/fetch-xml-gen.sh` или `pwsh scripts/fetch-xml-gen.ps1`.
 - Обновление xml-gen — смена pin SHA + пересборка скриптом.
 
+### Bake-off 2026-11-05 (подтверждение XML write)
+
+Повторный прогон A vs B (+ EDT C/D) на платформе **8.5.1.1529**, dump **2.17**, md-sparrow **0.6.7**, EDT **2026.2.2+21**:
+
+- **XML write:** xml-gen **остаётся** (IR proximity: 1× `--from-json`; ops/diff лучше B). Миграция на md-sparrow для Designer XML **не** принята.
+- **EDT write (вне этого ADR):** предпочтительно native `.mdo` через md-sparrow `apply-mutation` + `1cedtcli` export; bridge xml-gen→`1cedtcli import` — запасной. Следствия для EDT Source Adapter — [draft-source-formats](../milestones/draft-source-formats.md).
+- Протокол: [write-backend-bakeoff-protocol](../spikes/write-backend-bakeoff-protocol.md); draft: [draft-write-backend-bakeoff](../milestones/draft-write-backend-bakeoff.md).
+
 ## Связанные решения
 
 - ADR-002, ADR-003, ADR-006

@@ -1,34 +1,34 @@
 ---
 name: Write backend bakeoff
-overview: "Фаза 0 — установка (JDK 25 + EDT ≥2025.1). Затем prep, A vs B, EDT S6/S7, вердикт. План рассчитан на выполнение урывками с чекпоинтами."
+overview: "Done 2026-11-05. XML=A (xml-gen); EDT=D (md-sparrow .mdo + 1cedtcli export). Protocol + ADR-007 + drafts."
 todos:
   - id: phase0-jdk25
     content: "Фаза 0.1: установить JDK 25, проверить java -version"
-    status: pending
+    status: completed
   - id: phase0-edt
     content: "Фаза 0.2: установить EDT ≥2025.1, проверить 1cedtcli"
-    status: pending
+    status: completed
   - id: phase0-smoke
     content: "Фаза 0.3–0.6: smoke md-sparrow/doctor + env + чеклист готовности"
-    status: pending
+    status: completed
   - id: phase1-prep
     content: "Фаза 1: каталоги bakeoff, protocol.md, init A/B, dump version"
-    status: pending
+    status: completed
   - id: phase2a
     content: "Фаза 2A: xml-gen S1→S5 + логи в protocol"
-    status: pending
+    status: completed
   - id: phase2b
     content: "Фаза 2B: md-sparrow S1→S5 + логи; черновик XML-вердикта"
-    status: pending
+    status: completed
   - id: phase3-s7
     content: "Фаза 3A: S7 .mdo claim (D в игре или нет)"
-    status: pending
+    status: completed
   - id: phase3-s6
     content: "Фаза 3B: S6 C (+ D если S7 OK) import/export/build/check"
-    status: pending
+    status: completed
   - id: phase4-verdict
     content: "Фаза 4: summary + ответы Decisions + ADR-007 / draft-source-formats"
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -69,10 +69,12 @@ flowchart TD
 | Компонент | Статус |
 |-----------|--------|
 | Платформа / ibcmd | **8.5.1.1529** |
-| JDK 17 / 21 | есть; default 21 |
+| JDK 17 / 21 | есть; default 21 (не трогали) |
+| JDK **25** Temurin | ✓ `~/.jdks/jdk-25.0.5+8`; `java -version` → 25.0.5+8-LTS |
 | xml-gen jar | `~/.cache/1c-dev/tools/xml-gen.jar` |
-| md-sparrow 0.6.7 | Platform Tools jar |
-| EDT 2024.x | устарел для 8.5.1 — рядом оставить, для bake-off не использовать |
+| md-sparrow **0.6.7** | ✓ Platform Tools jar; `--help` / `-V` OK на JDK 25 |
+| EDT **2026.2.2+21** | ✓ `/opt/1C/1CE/components/1c-edt-2026.2.2+21-x86_64/`; `1cedtcli --help` OK |
+| EDT 2023.x / 2024.x | рядом оставить, для bake-off **не** использовать |
 
 ---
 
@@ -80,95 +82,78 @@ flowchart TD
 
 **Цель:** окружение для A, B и S6. **Done:** чеклист 0.6 зелёный.
 
-### 0.1 JDK 25
+### 0.1 JDK 25 — **DONE**
 
-- Temurin/`~/.jdks`, SDKMAN или apt — на твой выбор.
-- Не менять системный default `java`.
-- Check: `"$JAVA25_HOME/bin/java" -version` → 25.x
+- Temurin **25.0.5+8-LTS** → `~/.jdks/jdk-25.0.5+8`
+- Системный default `java` остался 21.
+- Check: `"$JAVA25_HOME/bin/java" -version` → 25.0.5 (2026-11-05).
+- Env: `JAVA25_HOME=/home/pila86/.jdks/jdk-25.0.5+8` / `BAKEOFF_JAVA25=$JAVA25_HOME`
 
-### 0.2 EDT ≥2025.1 (лучше 2025.2 / 2026.1)
+### 0.2 EDT ≥2025.1 (лучше 2025.2 / 2026.1) — **DONE**
 
-- С ИТС / 1CE; поддержка 8.5.1 с EDT 2025.1; платформа 8.5.1.1529 подходит.
-- Check: `ls /opt/1C/1CE/components/1c-edt-202[56]*` + `$EDTCLI --help` (или аналог).
+- Установлен: **2026.2.2+21** (`/opt/1C/1CE/components/1c-edt-2026.2.2+21-x86_64/`).
+- Check: `1cedtcli --help` OK (2026-11-05).
+- Env: `BAKEOFF_EDTCLI=/opt/1C/1CE/components/1c-edt-2026.2.2+21-x86_64/1cedtcli`
+- Старые 2023.2 / 2024.x в `/opt/1C/1CE/components/` не трогать и не указывать в bake-off.
 
-### 0.3 Smoke md-sparrow
+### 0.3 Smoke md-sparrow — **DONE**
+
+- Jar: `~/.config/Code/User/globalStorage/yellow-hammer.1c-platform-tools/md-sparrow/v0.6.7/md-sparrow-0.6.7-all.jar`
+- `"$JAVA25_HOME/bin/java" -jar … --help` → exit 0; `-V` → `md-sparrow 0.6.7` (2026-11-05).
+
+### 0.4 Smoke doctor (A) — **DONE**
+
+- `poetry run 1c-dev doctor --output json` → `status: ok`
+- platform **8.5.1.1529**, ibcmd ✓, xml-gen ✓, java (product default) 21 ✓, gaps: []
+
+### 0.5 Env (черновик до protocol в Ф1) — **DONE**
 
 ```bash
-"$JAVA25_HOME/bin/java" -jar "$BAKEOFF_MD_SPARROW_JAR" --help
-```
-
-### 0.4 Smoke doctor (A)
-
-```bash
-poetry run 1c-dev doctor --output json  # java, xml-gen, ibcmd, platform 8.5.1
-```
-
-### 0.5 Записать env в protocol (после создания файла в Ф1 можно заранее в чат)
-
-```bash
-export BAKEOFF_JAVA25=…
-export BAKEOFF_MD_SPARROW_JAR=…/md-sparrow-0.6.7-all.jar
+export BAKEOFF_JAVA25=/home/pila86/.jdks/jdk-25.0.5+8
+export BAKEOFF_MD_SPARROW_JAR=/home/pila86/.config/Code/User/globalStorage/yellow-hammer.1c-platform-tools/md-sparrow/v0.6.7/md-sparrow-0.6.7-all.jar
 export BAKEOFF_PLATFORM=8.5.1.1529
-export BAKEOFF_EDTCLI=…/1cedtcli
-export BAKEOFF_ROOT=~/work/my/1c-dev/.bakeoff
+export BAKEOFF_EDTCLI=/opt/1C/1CE/components/1c-edt-2026.2.2+21-x86_64/1cedtcli
+export BAKEOFF_ROOT=/home/pila86/work/my/1c-dev/.bakeoff
 ```
 
-### 0.6 Чеклист готовности
+Перенести в шапку `docs/spikes/write-backend-bakeoff-protocol.md` при Фазе 1.
 
-- [ ] JDK 25
-- [ ] md-sparrow `--help`
-- [ ] doctor xml-gen + ibcmd + 8.5.1
-- [ ] EDT ≥2025.1 `1cedtcli`
-- [ ] bake-off не указывает на EDT 2024.x
+### 0.6 Чеклист готовности — **DONE**
 
-**Пауза OK после:** любого 0.x; resume = следующий незакрытый пункт.
+- [x] JDK 25 → Temurin **25.0.5+8** (`~/.jdks/jdk-25.0.5+8`)
+- [x] md-sparrow `--help` → 0.6.7 на JDK 25
+- [x] doctor xml-gen + ibcmd + 8.5.1
+- [x] EDT ≥2025.1 `1cedtcli` → **2026.2.2+21**
+- [x] bake-off не указывает на EDT 2024.x
 
 ---
 
-## Фаза 1 — prep / harness
+## Фаза 1 — prep / harness — **DONE** (2026-11-05)
 
 **Цель:** воспроизводимые каталоги + журнал. **Done:** protocol создан, A и B после `init`, dump version записан.
 
-### 1.1 Структура
+### 1.1 Структура — **DONE**
 
 ```text
-$BAKEOFF_ROOT/
-  A/          # xml-gen
-  B/          # md-sparrow Designer XML
-  C/          # bridge: XML→EDT (фаза 3)
-  D/          # native .mdo (если S7 OK)
+$BAKEOFF_ROOT/   # gitignored (.bakeoff/)
+  A/ B/ C/ D/
 docs/spikes/write-backend-bakeoff-protocol.md
 ```
 
-### 1.2 Protocol
+### 1.2 Protocol — **DONE**
 
-Шаблон записи (из draft):
+Файл: `docs/spikes/write-backend-bakeoff-protocol.md` (env + шаблон + summary).
 
-```text
-variant: A|B|C|D
-scenario: S1…
-command(s): …
-wall_time_s: …
-exit_code: …
-artifacts: paths
-ibcmd/check: pass|fail|skip
-notes: …
-```
+### 1.3 Init — **DONE**
 
-Плюс шапка: даты, версии JDK/EDT/xml-gen pin/md-sparrow/platform/dump.
+- A/B: `1c-dev init --type configuration --config Bakeoff{A,B} --ide-target none`
+- Source: `src/BakeoffA|BakeoffB/Configuration.xml`
+- Dump: **version 2.17**, `CompatibilityMode=Version8_5_1`
+- `git init` + baseline commit в A и B (для S2 diff noise)
 
-### 1.3 Init
+### 1.4 B: шпаргалка — **DONE**
 
-- В `A/` и `B/`: `poetry run 1c-dev init --type configuration` (или согласованный bootstrap как в M1 acceptance).
-- Зафиксировать dump/format version из манифеста / `Configuration.xml`.
-- `git init` в каждом fixture (для diff noise) — опционально, но удобно для S2.
-
-### 1.4 B: шпаргалка команд
-
-- Один раз снять `--help` / список cf-* команд в protocol.
-- Мини-скрипт или copy-paste рецепт IR→S1 **без** adapter в репо.
-
-**Пауза OK после:** 1.1, 1.2, 1.3, 1.4 по отдельности.
+В protocol: таблица S1–S7 + copy-paste skeleton `add-md-object` / attribute / set.
 
 ---
 
@@ -182,12 +167,12 @@ notes: …
 
 | Атом | Что |
 |------|-----|
-| 2A.S1 | create `Catalog.Products` + Article String(50) |
-| 2A.S2 | update: реквизит, ТЧ, synonym; no-op/duplicate |
-| 2A.S3 | delete; ChildObjects / Configuration.xml |
-| 2A.S4 | `build` + `check` — **must** |
-| 2A.S5 | шаги IR→tool, потери полей |
-| 2A.meta | wall_time S1, diff noise после S2, ops cost |
+| 2A.S1 | create `Catalog.Products` + Article String(50) — **DONE** (0.98s, OK) |
+| 2A.S2 | update: реквизит, ТЧ, synonym; no-op/duplicate — **DONE** (dup=warn; ts-attr synonym→Qty) |
+| 2A.S3 | delete; ChildObjects / Configuration.xml — **DONE** (0.83s; Products убран) |
+| 2A.S4 | `build` + `check` — **DONE** (must OK; Wayland→нужен unset WAYLAND_DISPLAY) |
+| 2A.S5 | шаги IR→tool, потери полей — **DONE** (1× `--from-json`; sugar ts-attr synonym caveat) |
+| 2A.meta | wall_time / diff / ops — **DONE** (в protocol) |
 
 Команды A: `poetry run 1c-dev metadata create|update|delete` из корня fixture.
 
@@ -208,28 +193,22 @@ notes: …
 
 **Цель:** Decisions 2–3. **Done:** S7 записан; S6 для C (и D если применимо); промежуточный или финальный EDT-вердикт.
 
-### 3A — S7 (claim `.mdo` у B)
+### 3A — S7 (claim `.mdo` у B) — **DONE: incremental-ok**
 
-- `init-empty-cf --format edt` и/или add Catalog в EDT-layout.
-- Результат: `scaffold-only` | `incremental-ok` | `no-mdo` → D в игре или снят.
+- `init-empty-cf --format=edt` → `Configuration.mdo` + `.project`
+- `apply-mutation add-md-object` на `.mdo` → `Catalogs/Products/Products.mdo`
+- `apply-mutation cf-md-attribute-add` → incremental attr OK
+- Прямые `cf-*` CLI на `.mdo` — fail (Designer JAXB); путь EDT = apply-mutation
+- **D в игре** для S6
 
-### 3B — S6
+### 3B — S6 — **DONE** (C pass, D pass)
 
-Общий каркас (из draft):
+| Вариант | Результат |
+|---------|-----------|
+| **C bridge** | import ~11s → export ~13s → build/check OK; Article(50) сохранился; re-import create нужен fresh `-data` |
+| **D native** | export ~16s → build/check OK; native create-in-EDT `apply-mutation` ~0.45s |
 
-1. Получить EDT-проект с тем же объектом.
-2. `$BAKEOFF_EDTCLI` export → XML.
-3. `build` / `check` (как draft-source-formats).
-4. Повторный create уже в EDT-каталоге.
-
-Варианты:
-
-| Вариант | Путь |
-|---------|------|
-| **C bridge** | write XML (A) → `1cedtcli import` (или convert) → export → build/check; отдельно create-in-EDT через повторный bridge |
-| **D native** | только если 3A = incremental-ok; write `.mdo` (B) → export → build/check |
-
-Must-fail S6: пустой export при exit 0; export не грузится в ibcmd.
+Must-fail не сработали (export непустой, ibcmd OK). EDT-лог «Premature end of file» при exit 0 — шум.
 
 **Пауза OK после:** 3A; после C; после D; после любого подшага export/build.
 
@@ -273,4 +252,4 @@ Must-fail: не грузится в ibcmd; битый `Configuration.xml`; пу�
 
 ## Старт
 
-При approve плана: **Фаза 0.1 JDK 25** (параллельно можно качать EDT для 0.2). Дальше — строго по чеклистам, по одному атому за сообщение, если работаешь урывками.
+**Bake-off закрыт.** XML=A (xml-gen); EDT=D (md-sparrow `.mdo` + export); protocol + ADR-007 + drafts обновлены.

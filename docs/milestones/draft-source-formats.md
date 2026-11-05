@@ -77,13 +77,19 @@
 - [M4 project model](m4-project-model.md)
 - [PRD §12 Source API](../../1c-dev-runtime-PRD-v0.1.md), [§13 Sync](../../1c-dev-runtime-PRD-v0.1.md), [§49 Format switching](../../1c-dev-runtime-PRD-v0.1.md)
 - ADR: XML/EDT adapters, source sync — завести при возврате темы в roadmap
-- Выбор write-backend (xml-gen / md-sparrow / bridge): [draft-write-backend-bakeoff](draft-write-backend-bakeoff.md)
+- Выбор write-backend (xml-gen / md-sparrow / bridge): [draft-write-backend-bakeoff](draft-write-backend-bakeoff.md) — **Done 2026-11-05**
+
+### Bake-off → EDT (2026-11)
+
+- XML semantic write: **xml-gen** (ADR-007 подтверждён).
+- EDT semantic write (когда вернёмся в roadmap): **md-sparrow** native `.mdo` (`apply-mutation`) + **`1cedtcli` только export** перед `build`/`check`. Bridge (xml-gen → `1cedtcli import`) — запасной, не primary create path.
+- `1cedtcli` на EDT-ветке всё равно нужен (платформа не читает `.mdo`).
 
 ## Suggested work packages
 
 | Тема | Зависит от |
 |------|------------|
-| Write-backend bake-off (XML + EDT path) | [draft-write-backend-bakeoff](draft-write-backend-bakeoff.md) |
-| EDT Source Adapter + doctor capability | M2 metadata read; желательно M4 project home; вердикт bake-off |
-| `source.convert` XML ↔ EDT | оба adapters / bridge |
+| ~~Write-backend bake-off (XML + EDT path)~~ | **Done** — [draft-write-backend-bakeoff](draft-write-backend-bakeoff.md) |
+| EDT Source Adapter + doctor capability | M2 metadata read; желательно M4 project home; вердикт bake-off (D) |
+| `source.convert` XML ↔ EDT | оба adapters / bridge; write EDT = D |
 | Contract tests + acceptance | convert |
