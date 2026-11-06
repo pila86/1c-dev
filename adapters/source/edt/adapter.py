@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal
 
+from adapters.source.capabilities import SourceFormat, capabilities_payload
 from adapters.source.edt.detect import EdtDetectResult, detect_edt, validate_edt_source_dir
 from adapters.source.edt.inspect import EdtInspectInfo, inspect_edt
 from adapters.source.mdclasses import MdReaderError, run_md_reader
@@ -34,7 +35,13 @@ class EdtSourceAdapter:
 
     Read идёт через MDClasses (md-reader) с корня EDT-проекта.
     Write (md-sparrow apply-mutation) — #153 / #154.
+    capabilities() — PRD §50 / #158.
     """
+
+    format: SourceFormat = "edt"
+
+    def capabilities(self) -> dict[str, Any]:
+        return capabilities_payload(self.format)
 
     def detect(self, path: Path) -> EdtDetectResult:
         return detect_edt(path)
