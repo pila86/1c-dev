@@ -8,10 +8,15 @@ from typing import Any
 
 import typer
 
+from adapters.source.mdsparrow.constants import (
+    ENV_UNAVAILABLE_CODE,
+    GAP_CODE,
+    MUTATION_FAILED_CODE,
+)
 from adapters.source.xmlgen import EditOp, edit_op_from_dict
 from cli.options import ConfigOption, ExtensionOption, RuntimeOption
 from cli.output import OutputFormat, OutputOption, resolve_output
-from core.exit_codes import ENV_UNAVAILABLE, PROJECT_ERROR, SUCCESS
+from core.exit_codes import ENV_UNAVAILABLE, PROJECT_ERROR, RUNTIME_FAILURE, SUCCESS
 from core.metadata import (
     IrError,
     MetadataResult,
@@ -143,8 +148,12 @@ def _exit_for(result: MetadataResult) -> None:
     if result.status == "ok":
         raise typer.Exit(code=SUCCESS)
     codes = {d.get("code") for d in result.diagnostics}
-    if "1CM006" in codes:
+    # ADR-007/012: md-reader/xml-gen missing; ADR-032: md-sparrow/JDK missing
+    if codes & {"1CM006", ENV_UNAVAILABLE_CODE}:
         raise typer.Exit(code=ENV_UNAVAILABLE)
+    # ADR-032: gap / mutation failure → RUNTIME_FAILURE (не PROJECT_ERROR)
+    if codes & {GAP_CODE, MUTATION_FAILED_CODE}:
+        raise typer.Exit(code=RUNTIME_FAILURE)
     raise typer.Exit(code=PROJECT_ERROR)
 
 

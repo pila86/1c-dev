@@ -25,8 +25,9 @@ from adapters.source.mdsparrow.resolve import ToolResolve
 from adapters.source.mdsparrow.write import create_edt_object
 from adapters.source.xmlgen.edit import EditOp, EditResult
 from cli.main import app
-from core.exit_codes import SUCCESS
+from core.exit_codes import ENV_UNAVAILABLE, RUNTIME_FAILURE, SUCCESS
 from core.metadata import (
+    MetadataResult,
     catalog_from_parts,
     create_metadata,
     delete_metadata,
@@ -123,6 +124,73 @@ def test_create_edt_env_unavailable(tmp_path: Path) -> None:
     )
     assert result.status == "error"
     assert any(d.get("code") == ENV_UNAVAILABLE_CODE for d in result.diagnostics)
+
+
+def test_cli_metadata_1cs008_exit_env_unavailable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ADR-032: 1CS008 (md-sparrow/JDK) → ENV_UNAVAILABLE (3)."""
+    target = _copy_edt_fixture(tmp_path)
+    monkeypatch.chdir(target)
+
+    def fake_create(*_a: Any, **_k: Any) -> MetadataResult:
+        return MetadataResult(
+            status="error",
+            diagnostics=[
+                {
+                    "severity": "error",
+                    "code": ENV_UNAVAILABLE_CODE,
+                    "message": "Java 25+ не найдена",
+                    "source": "edt",
+                }
+            ],
+        )
+
+    monkeypatch.setattr("cli.metadata.create_metadata", fake_create)
+    result = runner.invoke(
+        app,
+        ["metadata", "create", "Catalog.Extra", "--output", "json"],
+    )
+    assert result.exit_code == ENV_UNAVAILABLE
+
+
+def test_cli_metadata_1cs010_exit_runtime_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ADR-032: жёсткий 1CS010 (gap) → RUNTIME_FAILURE (4)."""
+    target = _copy_edt_fixture(tmp_path)
+    monkeypatch.chdir(target)
+
+    def fake_update(*_a: Any, **_k: Any) -> MetadataResult:
+        return MetadataResult(
+            status="error",
+            object="Catalog.Products",
+            diagnostics=[
+                {
+                    "severity": "error",
+                    "code": GAP_CODE,
+                    "message": "известный gap path D",
+                    "source": "edt",
+                }
+            ],
+        )
+
+    monkeypatch.setattr("cli.metadata.update_metadata", fake_update)
+    result = runner.invoke(
+        app,
+        [
+            "metadata",
+            "update",
+            "Catalog.Products",
+            "--attr",
+            "Price:Number:15.2",
+            "--output",
+            "json",
+        ],
+    )
+    assert result.exit_code == RUNTIME_FAILURE
 
 
 def test_update_edt_mock(tmp_path: Path) -> None:
