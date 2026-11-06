@@ -175,6 +175,8 @@ def test_run_doctor_reports_all_toolchain_tools(
 ) -> None:
     _clear_path(monkeypatch)
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "empty-cache"))
+    # Force edt discovery miss even if /opt/1C has a real install.
+    monkeypatch.setenv("ONEC_EDTCLI", str(tmp_path / "missing-1cedtcli"))
     for key in (
         "ONEC_XMLGEN_JAR",
         "ONEC_MDREADER_JAR",
@@ -200,6 +202,7 @@ def test_run_doctor_reports_all_toolchain_tools(
         "bsl-language-server",
         "docs-facade",
         "yaxunit",
+        "1cedtcli",
     ):
         assert key in result.tools
         assert "found" in result.tools[key]
@@ -210,6 +213,7 @@ def test_run_doctor_reports_all_toolchain_tools(
     assert "1CD014" in codes  # apache missing (empty cache)
     assert "1CD015" in codes  # yaxunit.cfe missing (empty cache)
     assert "1CD017" in codes  # dbgs missing (not in _make_install default)
+    assert "1CD019" in codes  # 1cedtcli missing (forced via ONEC_EDTCLI)
     docs_diag = next(d for d in result.diagnostics if d.get("code") == "1CD008")
     assert docs_diag["severity"] == "warning"
     ibsrv_diag = next(d for d in result.diagnostics if d.get("code") == "1CD011")
@@ -217,6 +221,7 @@ def test_run_doctor_reports_all_toolchain_tools(
     assert result.capabilities["ibsrv"]["available"] is False
     assert result.capabilities["webinst"]["available"] is False
     assert result.capabilities["debug.http"]["available"] is False
+    assert result.capabilities["edt"]["available"] is False
     assert "templates" in result.capabilities
     assert result.status == "ok"  # soft gaps must not hard-fail doctor
 
@@ -360,6 +365,96 @@ def test_run_doctor_yaxunit_cache(
     assert result.tools["yaxunit"]["source"] == "cache"
     assert result.tools["yaxunit"]["version"] == "25.12"
     assert result.capabilities["test.yaxunit"]["available"] is True
+
+
+def test_run_doctor_edtcli_missing_gap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from adapters.edtcli import EDTCLI_MISSING_HINT
+
+    _clear_path(monkeypatch)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "empty-cache"))
+    monkeypatch.setenv("ONEC_EDTCLI", str(tmp_path / "missing-1cedtcli"))
+    _make_install(tmp_path, "8.3.27.1549", tools=("ibcmd", "1cv8"))
+    result = run_doctor(search_roots=[tmp_path])
+    assert result.tools["1cedtcli"]["found"] is False
+    assert result.capabilities["edt"]["available"] is False
+    assert result.capabilities["edt"]["requires"] == ["1cedtcli"]
+    gap = next(g for g in result.gaps if g["capability"] == "edt")
+    assert gap["missing"] == ["1cedtcli"]
+    assert gap["suggestion"] == EDTCLI_MISSING_HINT
+    diag = next(d for d in result.diagnostics if d.get("code") == "1CD019")
+    assert diag["severity"] == "warning"
+    assert result.status == "ok"  # soft: XML CLI без EDT не hard-fail
+
+
+def test_run_doctor_edtcli_env_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _clear_path(monkeypatch)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "empty-cache"))
+    binary = tmp_path / "1c-edt-2026.2.2+21-x86_64" / "1cedtcli"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("#!/bin/sh\n", encoding="utf-8")
+    binary.chmod(0o755)
+    monkeypatch.setenv("ONEC_EDTCLI", str(binary))
+    _make_install(tmp_path, "8.3.27.1549", tools=("ibcmd", "1cv8"))
+    result = run_doctor(search_roots=[tmp_path])
+    edt = result.tools["1cedtcli"]
+    assert edt["found"] is True
+    assert edt["path"] == str(binary.resolve())
+    assert edt["version"] == "2026.2.2+21"
+    assert result.capabilities["edt"]["available"] is True
+    assert not any(g["capability"] == "edt" for g in result.gaps)
+    assert not any(d.get("code") == "1CD019" for d in result.diagnostics)
+    assert result.status == "ok"
+
+
+def test_run_doctor_md_sparrow_jdk_soft_gap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from adapters.edtcli import MD_SPARROW_JDK_HINT, MD_SPARROW_MIN_JAVA_MAJOR
+    from adapters.source.xmlgen.resolve import ToolResolve
+
+    _clear_path(monkeypatch)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "empty-cache"))
+    monkeypatch.setenv("ONEC_EDTCLI", str(tmp_path / "missing-1cedtcli"))
+    _make_install(tmp_path, "8.3.27.1549", tools=("ibcmd",))
+    monkeypatch.setattr(
+        "core.doctor.run.resolve_java",
+        lambda **_kwargs: ToolResolve(
+            found=True, path=tmp_path / "java", version="21"
+        ),
+    )
+    result = run_doctor(search_roots=[tmp_path])
+    assert result.tools["java"]["found"] is True
+    assert result.tools["java"]["version"] == "21"
+    diag = next(d for d in result.diagnostics if d.get("code") == "1CD020")
+    assert diag["severity"] == "warning"
+    assert str(MD_SPARROW_MIN_JAVA_MAJOR) in (diag.get("message") or "")
+    assert diag.get("suggestion") == MD_SPARROW_JDK_HINT
+    assert result.status == "ok"
+
+
+def test_run_doctor_md_sparrow_jdk_ok(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from adapters.source.xmlgen.resolve import ToolResolve
+
+    _clear_path(monkeypatch)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "empty-cache"))
+    monkeypatch.setenv("ONEC_EDTCLI", str(tmp_path / "missing-1cedtcli"))
+    _make_install(tmp_path, "8.3.27.1549", tools=("ibcmd",))
+    monkeypatch.setattr(
+        "core.doctor.run.resolve_java",
+        lambda **_kwargs: ToolResolve(
+            found=True, path=tmp_path / "java", version="25"
+        ),
+    )
+    result = run_doctor(search_roots=[tmp_path])
+    assert result.tools["java"]["version"] == "25"
+    assert not any(d.get("code") == "1CD020" for d in result.diagnostics)
+    assert result.status == "ok"
 
 
 def test_discover_webinst_sibling(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

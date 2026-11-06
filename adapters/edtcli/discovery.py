@@ -9,8 +9,9 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from .constants import EDTCLI_ENV
+
 _EDTCLI = "1cedtcli"
-_ENV_EDTCLI = "ONEC_EDTCLI"
 
 # Directory name: 1c-edt-2026.2.2+21-x86_64
 _EDT_DIR_RE = re.compile(
@@ -113,7 +114,7 @@ def discover_edtcli(
 ) -> EdtCliInfo:
     """Resolve ``1cedtcli``: ``ONEC_EDTCLI`` → ``PATH`` → newest under search roots."""
     environ = env if env is not None else os.environ
-    override = (environ.get(_ENV_EDTCLI) or "").strip()
+    override = (environ.get(EDTCLI_ENV) or "").strip()
     if override:
         path = Path(override).expanduser()
         if path.is_file():

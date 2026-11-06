@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from adapters.edtcli import discover_edtcli
+from adapters.edtcli import EDTCLI_SKIP_MESSAGE, discover_edtcli
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "edt_spike"
 _TIMEOUT = 300
@@ -16,7 +16,7 @@ _TIMEOUT = 300
 def _require_edtcli() -> Path:
     info = discover_edtcli()
     if not info.found or info.path is None:
-        pytest.skip("1cedtcli не найден — EDT smoke пропущен (ONEC_EDTCLI / PATH / components)")
+        pytest.skip(EDTCLI_SKIP_MESSAGE)
     return info.path
 
 

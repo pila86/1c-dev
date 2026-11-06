@@ -2,7 +2,7 @@
 
 ## Текущий фокус
 
-**M7: Source formats (EDT)** — Planned ([GitHub milestone M7](https://github.com/pila86/1c-dev/milestone/7)). Полный паритет с XML (**B**): EDT Source Adapter + semantic write (**D**: md-sparrow `.mdo` + `1cedtcli` export) + `source.convert`. Документ: [m7-source-formats](milestones/m7-source-formats.md). Волна 0 Done: spike [#149](https://github.com/pila86/1c-dev/issues/149); волна 1 — ADR [#150](https://github.com/pila86/1c-dev/issues/150) Done ([ADR-032](adr/032-edt-source-adapter.md)); doctor [#151](https://github.com/pila86/1c-dev/issues/151) OPEN.
+**M7: Source formats (EDT)** — Planned ([GitHub milestone M7](https://github.com/pila86/1c-dev/milestone/7)). Полный паритет с XML (**B**): EDT Source Adapter + semantic write (**D**: md-sparrow `.mdo` + `1cedtcli` export) + `source.convert`. Документ: [m7-source-formats](milestones/m7-source-formats.md). Волна 0 Done: spike [#149](https://github.com/pila86/1c-dev/issues/149); волна 1 — ADR [#150](https://github.com/pila86/1c-dev/issues/150) Done ([ADR-032](adr/032-edt-source-adapter.md)); doctor [#151](https://github.com/pila86/1c-dev/issues/151) Done.
 
 **Follow-ups (вне milestone):**
 - [#143](https://github.com/pila86/1c-dev/issues/143) — `ide configure` DAP `launch.json` hint

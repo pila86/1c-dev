@@ -23,6 +23,7 @@ _TOOL_ORDER = (
     "md-reader",
     "bsl-language-server",
     "docs-facade",
+    "1cedtcli",
 )
 
 

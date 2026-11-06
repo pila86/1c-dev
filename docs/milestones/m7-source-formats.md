@@ -111,7 +111,7 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 |---|------|--------|------------|--------|
 | [#149](https://github.com/pila86/1c-dev/issues/149) | 0 | Spike: EDT fixture + `1cedtcli` export/import smoke | bake-off Done | Done ([spike](../spikes/149-edt-source-adapter.md)) |
 | [#150](https://github.com/pila86/1c-dev/issues/150) | 1 | ADR: EDT Source Adapter + write path D | #149 | Done ([ADR-032](../adr/032-edt-source-adapter.md)) |
-| [#151](https://github.com/pila86/1c-dev/issues/151) | 1 | Doctor: capability `edt` / `1cedtcli` (+ JDK md-sparrow soft) | — | OPEN |
+| [#151](https://github.com/pila86/1c-dev/issues/151) | 1 | Doctor: capability `edt` / `1cedtcli` (+ JDK md-sparrow soft) | — | Done |
 | [#152](https://github.com/pila86/1c-dev/issues/152) | 2 | `EdtSourceAdapter`: detect / read → Metadata API | #150, #149 | OPEN |
 | [#153](https://github.com/pila86/1c-dev/issues/153) | 2 | Toolchain: pin md-sparrow + wiring `apply-mutation` | #150 | OPEN |
 | [#154](https://github.com/pila86/1c-dev/issues/154) | 3 | `metadata.*` create/update/delete на `source.format: edt` | #152, #153 | OPEN |
