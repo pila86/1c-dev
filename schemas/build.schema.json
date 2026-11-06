@@ -30,7 +30,7 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["create", "import", "apply", "save"]
+        "description": "Pipeline step: edt-export, create/import/apply/save, or import|apply|load:<extensionName>."
       }
     },
     "diagnostics": {

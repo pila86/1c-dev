@@ -6,6 +6,9 @@ HOME_MANIFEST_NAME = "project.yaml"
 HOME_MANIFEST_REL = f"{HOME_DIR_NAME}/{HOME_MANIFEST_NAME}"
 HOME_RUNTIME_DIR_NAME = f"{HOME_DIR_NAME}/runtime"
 HOME_PUBLISH_DIR_NAME = f"{HOME_DIR_NAME}/publish"
+# EDT → Designer XML staging for build (#155 / ADR-032): ``.1c-dev/export/<config-id>/``.
+HOME_EXPORT_DIR_NAME = f"{HOME_DIR_NAME}/export"
+CODE_EXPORT_CLEARED = "1CP017"
 
 # Историческое имя корневого манифеста (только для ошибки unsupported layout).
 UNSUPPORTED_ROOT_MANIFEST_NAME = "1c.project.yaml"

@@ -25,7 +25,7 @@
 - HTTP-сервисы публиковать только через webinst (`backend=webinst` / профиль `local-webinst`). Не через ibsrv.
 
 ## Опасное
-- `project.clean` — только с `yes=true` после подтверждения. Стирает source и `.1c-dev/runtime/`. Не трогает манифест, AGENTS.md, IDE MCP, git.
+- `project.clean` — только с `yes=true` после подтверждения. Стирает source, `.1c-dev/runtime/` и `.1c-dev/export/` (EDT XML staging). При `source.path: .` (EDT) wipe source пропускается. Не трогает манифест, AGENTS.md, IDE MCP, git.
 
 ## MCP
 - `path` = корень scope (родитель `.1c-dev`).

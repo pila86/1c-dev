@@ -115,7 +115,7 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 | [#152](https://github.com/pila86/1c-dev/issues/152) | 2 | `EdtSourceAdapter`: detect / read → Metadata API | #150, #149 | Done |
 | [#153](https://github.com/pila86/1c-dev/issues/153) | 2 | Toolchain: pin md-sparrow + wiring `apply-mutation` | #150 | Done |
 | [#154](https://github.com/pila86/1c-dev/issues/154) | 3 | `metadata.*` create/update/delete на `source.format: edt` | #152, #153 | OPEN |
-| [#155](https://github.com/pila86/1c-dev/issues/155) | 3 | `build` / `check` для EDT: export XML → ibcmd/Designer | #152, #151 | OPEN |
+| [#155](https://github.com/pila86/1c-dev/issues/155) | 3 | `build` / `check` для EDT: export XML → ibcmd/Designer | #152, #151 | Done |
 | [#156](https://github.com/pila86/1c-dev/issues/156) | 4 | `source.convert` XML ↔ EDT + манифест | #152, #155 | OPEN |
 | [#157](https://github.com/pila86/1c-dev/issues/157) | 4 | MCP `source.convert` | #156 | OPEN |
 | [#158](https://github.com/pila86/1c-dev/issues/158) | 5 | Contract tests Source Adapter (PRD §50) + skip без EDT | #156, #154 | OPEN |

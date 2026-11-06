@@ -983,9 +983,10 @@ def register_tools(server: FastMCP) -> None:
     @server.tool(
         name="build",
         description=(
-            "Load XML configuration into a file infobase via ibcmd, then each "
+            "Load configuration into a file infobase via ibcmd, then each "
             "nested configurations[].extensions[] (XML import or .cfe load) "
-            "with --extension. "
+            "with --extension. For source.format=edt: 1cedtcli export to "
+            ".1c-dev/export/<config-id>/ then the same ibcmd path. "
             "Optional artifact='cf' exports a .cf file for the main configuration."
             + _CONFIG_RUNTIME
             + _NO_SHELL

@@ -1,4 +1,4 @@
-"""Build orchestration: project + ibcmd adapter (ADR-008)."""
+"""Build orchestration: project + ibcmd adapter (ADR-008 / ADR-032 #155)."""
 
 from __future__ import annotations
 
@@ -6,6 +6,8 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
+from adapters.edtcli import EdtCliError, EdtCliInfo
+from adapters.edtcli import RunFn as EdtRunFn
 from adapters.platform import DiscoveryResult, discover_environment
 from adapters.platform_ibcmd import IbcmdError, RunFn, build_with_ibcmd
 from adapters.platform_ibcmd.constants import (
@@ -17,6 +19,7 @@ from adapters.platform_ibcmd.constants import (
     DEFAULT_ARTIFACT_REL,
     IBCMD_DATA_REL,
 )
+from core.build.edt_export import export_edt_to_xml
 from core.build.result import BuildResult
 from core.diagnostics import Diagnostic, error
 from core.project.constants import HOME_MANIFEST_REL
@@ -26,6 +29,7 @@ from core.project.paths import scope_root_from_manifest
 from core.project.resolve import resolve_config_runtime
 
 BuildFn = Callable[..., list[str]]
+EdtDiscoverFn = Callable[[], EdtCliInfo]
 
 
 def _nested_extensions(
@@ -138,13 +142,18 @@ def run_build(
     run: RunFn | None = None,
     build_fn: BuildFn | None = None,
     discover: Callable[[], DiscoveryResult] | None = None,
+    edt_run: EdtRunFn | None = None,
+    edt_discover: EdtDiscoverFn | None = None,
 ) -> BuildResult:
     """
-    Load XML configuration (then nested extensions) into file IB via ibcmd.
+    Load configuration (then nested extensions) into file IB via ibcmd.
+
+    ``source.format: xml`` — load Designer XML from ``source.path``.
+    ``source.format: edt`` — ``1cedtcli export`` → ``.1c-dev/export/<id>/`` → ibcmd.
 
     artifact: None | \"cf\"
     config_id / runtime_id: selection from configurations[] / runtimes[] (#87).
-    run / build_fn / discover: injectable for tests.
+    run / build_fn / discover / edt_*: injectable for tests.
     """
     started = time.perf_counter()
     start_path = (start or Path.cwd()).resolve()
@@ -219,17 +228,21 @@ def run_build(
         )
 
     fmt = target.source_format
-    if fmt != "xml":
+    if fmt not in ("xml", "edt"):
         return BuildResult(
             status="failed",
             duration=time.perf_counter() - started,
             root=root,
             diagnostics=[
                 error(
-                    f"source.format={fmt!r}: M1 build поддерживает только xml",
+                    f"source.format={fmt!r}: build поддерживает xml и edt",
                     code=CODE_SOURCE_FORMAT,
                     file=manifest_path.name,
                     source="runtime",
+                    suggestion=(
+                        "Укажите format: xml (Designer XML) или format: edt "
+                        "(1cedtcli export → ibcmd)"
+                    ),
                 )
             ],
         )
@@ -264,6 +277,33 @@ def run_build(
     db_path = (root / runtime_rel).resolve()
     data_path = (root / IBCMD_DATA_REL).resolve()
 
+    steps_prefix: list[str] = []
+    if fmt == "edt":
+        try:
+            source_dir, steps_prefix, _ = export_edt_to_xml(
+                root=root,
+                config_id=target.config_id,
+                project_dir=source_dir,
+                run=edt_run,
+                discover=edt_discover,
+            )
+        except EdtCliError as exc:
+            return BuildResult(
+                status="failed",
+                duration=time.perf_counter() - started,
+                root=root,
+                runtime_path=db_path,
+                steps=list(steps_prefix),
+                diagnostics=list(exc.diagnostics)
+                or [
+                    error(
+                        exc.message,
+                        code=exc.code,
+                        source="edt",
+                    )
+                ],
+            )
+
     discovery = (discover or discover_environment)()
     ibcmd_info = discovery.ibcmd
     if not ibcmd_info.found or ibcmd_info.path is None:
@@ -272,6 +312,7 @@ def run_build(
             duration=time.perf_counter() - started,
             root=root,
             runtime_path=db_path,
+            steps=list(steps_prefix),
             diagnostics=[
                 error(
                     "ibcmd не найден",
@@ -337,7 +378,7 @@ def run_build(
             duration=time.perf_counter() - started,
             root=root,
             runtime_path=db_path,
-            steps=[],
+            steps=list(steps_prefix),
             diagnostics=diags,
         )
 
@@ -347,5 +388,5 @@ def run_build(
         root=root,
         runtime_path=db_path,
         artifact=artifact_rel,
-        steps=list(steps),
+        steps=[*steps_prefix, *steps],
     )

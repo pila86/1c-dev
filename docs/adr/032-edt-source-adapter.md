@@ -118,8 +118,9 @@ XML write **не** мигрирует на md-sparrow (ADR-007 / bake-off под
 source.format: edt
   → 1cedtcli -data <fresh-tmpdir> -timeout <N> -command export
        --project <abs source.path>
-       --configuration-files <abs export-xml>
-  → существующий ibcmd load/apply (build) / check (+ Designer /CheckModules)
+       --configuration-files <scope>/.1c-dev/export/<config-id>/
+  → существующий ibcmd import/apply (build)
+  → check: file IB после build (ibcmd metadata + Designer /CheckModules; без повторного export)
 ```
 
 | Правило | Решение |
@@ -127,12 +128,14 @@ source.format: edt
 | Workspace | **Всегда** fresh `-data` (tmpdir) на операцию; не шарить bake-off/`_edt-ws-*` |
 | Мин. EDT | ≥ **2025.1**; discovery newest под `/opt/1C/1CE/components` (Linux) / Program Files (Windows) |
 | Override | `ONEC_EDTCLI` → PATH → newest install (`adapters.edtcli.discover_edtcli`) |
+| Export cache | ``.1c-dev/export/<config-id>/`` (пересоздаётся на каждый build); gitignore; `project.clean` удаляет |
 | Export «шум» | `[Fatal Error] Premature end of file` при **exit 0** + непустой `Configuration.xml` — **не** fail |
-| Пустой export / нет ChildObjects | fail (`RUNTIME_FAILURE` / `BUILD_FAILURE` по контексту) |
-| rc **204** | project already in workspace → сообщение + fresh `-data` (не «общая ошибка») |
+| Пустой export / нет ChildObjects | fail (`1CS007` → `BUILD_FAILURE` в build) |
+| rc **204** | project already in workspace → `1CS006` + suggestion fresh `-data` |
+| Нет `1cedtcli` | `1CS001` → `ENV_UNAVAILABLE` (3) |
 | Compatibility / PMF | Spike: PMF `8.3.24` при dump 2.17 — уточнять при init/convert; не блокирует export smoke |
 
-`check` после export использует тот же XML staging, что и build (детали оркестрации — #155).
+`check` не зависит от `source.format`: работает по уже собранной file IB после EDT `build` (тот же staging используется только на шаге load). Оркестрация — [#155](https://github.com/pila86/1c-dev/issues/155).
 
 ### 5. `source.convert` (CLI + MCP)
 

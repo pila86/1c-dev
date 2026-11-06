@@ -1,9 +1,22 @@
-"""EDT CLI / md-sparrow JDK hints shared by doctor and integration skips (#151)."""
+"""EDT CLI / md-sparrow JDK hints shared by doctor and integration skips (#151 / #155)."""
 
 from __future__ import annotations
 
 EDTCLI_ENV = "ONEC_EDTCLI"
 MD_SPARROW_MIN_JAVA_MAJOR = 25
+
+# Minimum EDT for M7 ops (spike #149 / ADR-032).
+MIN_EDT_MAJOR = 2025
+MIN_EDT_MINOR = 1
+
+DEFAULT_EXPORT_TIMEOUT_SEC = 300
+
+# Diagnostics 1CS… (ADR-032 §7) — export / CLI (#155).
+CODE_EDTCLI_MISSING = "1CS001"
+CODE_EDTCLI_VERSION = "1CS002"
+CODE_EDTCLI_FAILED = "1CS005"
+CODE_EDTCLI_COLLISION = "1CS006"
+CODE_EDTCLI_EMPTY_EXPORT = "1CS007"
 
 EDTCLI_MISSING_HINT = (
     "Установите 1C:EDT CLI (≥2025.1), добавьте 1cedtcli в PATH "
@@ -24,4 +37,9 @@ EDTCLI_SKIP_MESSAGE = (
 MD_SPARROW_JDK_SKIP_MESSAGE = (
     "JDK 25+ (Temurin) не найден — md-sparrow / EDT write пропущен "
     "(JAVA_HOME / java в PATH)"
+)
+
+# Platform / ibcmd skip (build+check integration on EDT).
+PLATFORM_SKIP_MESSAGE = (
+    "ibcmd / платформа 1С не найдены — EDT build/check integration пропущен"
 )
