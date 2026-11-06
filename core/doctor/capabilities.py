@@ -16,6 +16,9 @@ CAPABILITY_REQUIREMENTS: dict[str, list[str]] = {
     "ibsrv": ["ibsrv"],
     "webinst": ["webinst", "apache"],
     "templates": ["templates"],
+    # XML write path (ADR-007). EDT write (ADR-032 path D) depends on
+    # md-sparrow + JDK 25+ — soft doctor diagnostics 1CD020/1CD021, not
+    # hard requires here (format-aware matrix — follow-up; see ADR-032 §6).
     "metadata.create": ["java", "xml-gen"],
     "metadata.update": ["java", "xml-gen"],
     "metadata.delete": ["java", "xml-gen"],

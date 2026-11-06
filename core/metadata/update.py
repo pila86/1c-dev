@@ -467,8 +467,9 @@ def _update_edt(
             diag_kw["suggestion"] = mdsparrow_fetch_suggestion()
         elif exc.code == GAP_CODE:
             diag_kw["suggestion"] = (
-                "Известный gap EDT write (ADR-032); см. contract tests #158 "
-                "или fallback bridge C"
+                "Известный gap EDT write path D (ADR-032); bridge C "
+                "(xml-gen → 1cedtcli import) пока не реализован — см. "
+                "contract tests #158"
             )
         return MetadataResult(
             status="error",

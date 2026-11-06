@@ -14,7 +14,8 @@ M7 ([m7-source-formats](../milestones/m7-source-formats.md)) требует по
 - XML write — xml-gen ([ADR-007](007-metadata-ir.md)); XML read — MDClasses
   ([ADR-012](012-metadata-read-mdclasses.md)).
 - Bake-off 2026-11: EDT write = **D** (md-sparrow native `.mdo` / `apply-mutation` +
-  `1cedtcli` export); bridge **C** (xml-gen → `1cedtcli import`) — запасной
+  `1cedtcli` export); bridge **C** (xml-gen → `1cedtcli import`) — future / opt-in,
+  **не** реализован в M7
   ([write-backend-bakeoff](../spikes/write-backend-bakeoff.md)).
 - Spike [#149](https://github.com/pila86/1c-dev/issues/149)
   ([149-edt-source-adapter](../spikes/149-edt-source-adapter.md)): layout EDT,
@@ -88,7 +89,7 @@ source:
 | Оркестрация | `core/source/`, `core/metadata/`, `core/build/` | выбор adapter по `source.format` |
 | CLI / MCP | `cli/source.py`, `mcp_server` | `source convert` / `source.convert` |
 
-### 3. Write path: primary D, bridge C — fallback only
+### 3. Write path: primary D; bridge C — future / opt-in (не в M7)
 
 ```text
 metadata.create|update|delete  (source.format: edt)
@@ -98,13 +99,17 @@ metadata.create|update|delete  (source.format: edt)
         │
         │  (gap / known hole)
         ▼
-  fallback C (opt-in): xml-gen → temp XML → 1cedtcli import
+  1CS010 (warning или hard refuse) — без автоматического fallback
+        │
+        ┊  future / opt-in (НЕ реализован в M7):
+        ┊  bridge C: xml-gen → temp XML → 1cedtcli import
 ```
 
 | Правило | Решение |
 |---------|---------|
 | Primary | **D** — native `.mdo` через md-sparrow `apply-mutation` |
-| Fallback C | Только для **известных gaps** (contract tests #158); не default path |
+| Bridge C | **Future / opt-in** — xml-gen → `1cedtcli import`; **не** реализован в M7; не обещать как текущий fallback в diagnostics |
+| Path D gaps | → diagnostic `1CS010` (warning или hard refuse) + contract tests #158; **без** несуществующего auto-fallback C |
 | Обычные `cf-*` CLI | Designer-only; **не** write-backend для EDT |
 | JDK md-sparrow | Temurin **25+** (bake-off); soft gap в doctor (#151) |
 | Pin jar | toolchain cache / `1c-dev tools sync` (#153); override env (эскиз `ONEC_MDSPARROW_JAR`) |
@@ -171,11 +176,12 @@ source.format: edt
 | tool `1cedtcli` / `edtcli` | soft, если нет EDT-проектов; **required** для ops при `format: edt` | discovery как spike |
 | capability `edt` (или `source.edt`) | soft gap без бинаря на XML-only машине | наличие CLI ≥2025.1 |
 | capability `build` / `check` при edt | требуют `1cedtcli` + `ibcmd` (+ `1cv8` для check) | расширить matrix |
-| md-sparrow / JDK 25+ | **soft** warning | нужен для `metadata.*` на edt |
-| xml-gen | без изменений для XML; нужен для fallback C | |
+| md-sparrow / JDK 25+ | **soft** warning (`1CD020` / `1CD021`) | нужен для `metadata.*` на edt |
+| xml-gen | без изменений для XML; bridge C future | capability `metadata.create|update|delete` в matrix остаётся XML-path (`java`+`xml-gen`); EDT write deps — soft diagnostics, не hard requires |
 
 Doctor **не** hard-fail весь отчёт только из-за отсутствия EDT на машине без `format: edt`.
 При работе с EDT-проектом отсутствие `1cedtcli` → `ENV_UNAVAILABLE` (3) на build/convert/metadata write.
+Format-aware requires (EDT → `md-sparrow`+JDK 25 вместо xml-gen) — follow-up; сейчас XML path в capability matrix не ломаем.
 
 ### 7. Diagnostics и exit codes
 
@@ -195,7 +201,8 @@ Doctor **не** hard-fail весь отчёт только из-за отсут�
 | Пустой export при exit 0 | `1CS007` | `BUILD_FAILURE` (6) или (4) вне build |
 | md-sparrow / JDK недоступен | `1CS008` | `ENV_UNAVAILABLE` (3) |
 | Convert: грязный / неоднозначный target | `1CS009` | `PROJECT_ERROR` (2) |
-| Fallback C исчерпан / gap | `1CS010` | `RUNTIME_FAILURE` (4) |
+| Path D gap (warning или hard refuse; без bridge C) | `1CS010` | `RUNTIME_FAILURE` (4) на hard refuse; warning при soft gap |
+| md-sparrow `apply-mutation` failed / timeout | `1CS011` | `RUNTIME_FAILURE` (4) |
 
 `source` в diagnostics: `"source"` / `"edt"` для product API; `"doctor"` для soft gaps.
 MCP: те же `diagnostics[]` в JSON (ADR-010).
@@ -210,7 +217,7 @@ Metadata IR ошибки на EDT переиспользуют семейств�
 | Scope B (полный паритет) | Один agent API | Больше волн M7 | **Принято** |
 | Scope A (только convert/read) | Меньше работы | Ломает PRD §49 для create | **Отвергнуто** |
 | Write D (md-sparrow `.mdo`) | Native; быстрый incremental | JDK 25; synonym gaps | **Принято** (primary) |
-| Write C (xml-gen → import) | Reuse xml-gen | Full re-import ~11s; workspace quirks | **Fallback only** |
+| Write C (xml-gen → import) | Reuse xml-gen | Full re-import ~11s; workspace quirks | **Future / opt-in** (не M7) |
 | Write только C | Проще pin | Хуже DX/diff/время | **Отвергнуто** как primary |
 | Свой `.mdo` writer в Python | Полный контроль | G7; invent bicycle | **Отвергнуто** |
 | Префикс `1CE` для EDT | «E = EDT» | Коллизия с extensions | **Отвергнуто** → `1CS` |
