@@ -10,6 +10,7 @@ from core.toolchain.fetchers.apache import fetch_apache
 from core.toolchain.fetchers.bslls import fetch_bsl_language_server
 from core.toolchain.fetchers.docsfacade import fetch_docs_facade
 from core.toolchain.fetchers.mdreader import fetch_md_reader
+from core.toolchain.fetchers.mdsparrow import fetch_md_sparrow
 from core.toolchain.fetchers.xmlgen import fetch_xml_gen
 from core.toolchain.fetchers.yaxunit import fetch_yaxunit
 from core.toolchain.manifest import ComponentSpec, ToolchainManifest, load_manifest
@@ -17,7 +18,9 @@ from core.toolchain.progress import ProgressFn, noop_progress
 from core.toolchain.result import ComponentResult, OverallStatus, SyncResult
 
 MUST_IDS = frozenset({"xml-gen", "md-reader"})
-SOFT_IDS = frozenset({"bsl-language-server", "docs-facade", "apache", "yaxunit"})
+SOFT_IDS = frozenset(
+    {"bsl-language-server", "docs-facade", "apache", "yaxunit", "md-sparrow"}
+)
 
 
 def _sync_component(
@@ -70,6 +73,10 @@ def _sync_component(
         )
     elif spec.id == "yaxunit":
         path, diags = fetch_yaxunit(
+            spec, tools_dir, env=env, progress=progress, quiet=quiet
+        )
+    elif spec.id == "md-sparrow":
+        path, diags = fetch_md_sparrow(
             spec, tools_dir, env=env, progress=progress, quiet=quiet
         )
     else:

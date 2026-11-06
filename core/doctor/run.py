@@ -17,6 +17,8 @@ from adapters.edtcli import (
 from adapters.platform.discovery import DiscoveryResult, discover_environment
 from adapters.platform.templates import discover_template_roots
 from adapters.source.mdclasses.resolve import resolve_jar as resolve_mdreader_jar
+from adapters.source.mdsparrow.constants import MDSPARROW_JAR_ENV
+from adapters.source.mdsparrow.resolve import resolve_jar as resolve_mdsparrow_jar
 from adapters.source.xmlgen.resolve import resolve_jar as resolve_xmlgen_jar
 from adapters.source.xmlgen.resolve import resolve_java
 from core.debug.state import resolve_debugger_url
@@ -86,6 +88,7 @@ _DBGS_LISTENING_HINT = (
 )
 _XMLGEN_ENV = "ONEC_XMLGEN_JAR"
 _MDREADER_ENV = "ONEC_MDREADER_JAR"
+_MDSPARROW_ENV = MDSPARROW_JAR_ENV
 _DBGS_PROBE_TIMEOUT_SEC = 1.0
 
 
@@ -201,6 +204,7 @@ def run_doctor(
     java = resolve_java(env=env)
     xmlgen = resolve_xmlgen_jar(env=env)
     mdreader = resolve_mdreader_jar(env=env)
+    mdsparrow = resolve_mdsparrow_jar(env=env)
     cli = _resolve_cli()
     tmplts = discover_template_roots(
         cfg_paths=template_cfg_paths,
@@ -247,6 +251,9 @@ def run_doctor(
         "md-reader": _adapter_jar_payload(
             mdreader.found, mdreader.path, env_name=_MDREADER_ENV, env=env
         ),
+        "md-sparrow": _adapter_jar_payload(
+            mdsparrow.found, mdsparrow.path, env_name=_MDSPARROW_ENV, env=env
+        ),
         "bsl-language-server": _jar_payload(bsl),
         "docs-facade": _jar_payload(docs),
         "yaxunit": _yaxunit_payload(yaxunit),
@@ -264,6 +271,7 @@ def run_doctor(
         "java": java.found,
         "xml-gen": xmlgen.found,
         "md-reader": mdreader.found,
+        "md-sparrow": mdsparrow.found,
         "bsl-language-server": bsl.found,
         "docs-facade": docs.found,
         "yaxunit": yaxunit.found,
@@ -391,6 +399,15 @@ def run_doctor(
                 code="1CD006",
                 source="doctor",
                 suggestion=f"{hint} (или задайте {_MDREADER_ENV}).",
+            )
+        )
+    if not mdsparrow.found:
+        diagnostics.append(
+            warning(
+                "md-sparrow jar не найден (нужен для metadata.* при source.format: edt)",
+                code="1CD021",
+                source="doctor",
+                suggestion=f"{hint} (или задайте {_MDSPARROW_ENV}).",
             )
         )
     if not bsl.found:

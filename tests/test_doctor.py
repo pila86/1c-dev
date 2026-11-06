@@ -180,6 +180,7 @@ def test_run_doctor_reports_all_toolchain_tools(
     for key in (
         "ONEC_XMLGEN_JAR",
         "ONEC_MDREADER_JAR",
+        "ONEC_MDSPARROW_JAR",
         "ONEC_BSLLS_JAR",
         "ONEC_DOCS_FACADE_JAR",
         "ONEC_YAXUNIT_CFE",
@@ -199,6 +200,7 @@ def test_run_doctor_reports_all_toolchain_tools(
         "java",
         "xml-gen",
         "md-reader",
+        "md-sparrow",
         "bsl-language-server",
         "docs-facade",
         "yaxunit",
@@ -214,6 +216,7 @@ def test_run_doctor_reports_all_toolchain_tools(
     assert "1CD015" in codes  # yaxunit.cfe missing (empty cache)
     assert "1CD017" in codes  # dbgs missing (not in _make_install default)
     assert "1CD019" in codes  # 1cedtcli missing (forced via ONEC_EDTCLI)
+    assert "1CD021" in codes  # md-sparrow missing (empty cache)
     docs_diag = next(d for d in result.diagnostics if d.get("code") == "1CD008")
     assert docs_diag["severity"] == "warning"
     ibsrv_diag = next(d for d in result.diagnostics if d.get("code") == "1CD011")
