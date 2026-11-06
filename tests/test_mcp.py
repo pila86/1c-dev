@@ -16,6 +16,7 @@ from core.debug import DEFAULT_WAIT_TIMEOUT_SEC, DebugResult
 from core.metadata import MetadataResult
 from core.metadata.types import WRITE_OBJECT_TYPES_HELP, WRITE_OBJECT_TYPES_SORTED
 from core.project import ProjectResult
+from core.source import ConvertResult
 from core.test.result import TestResult as TestApiResult
 from mcp_server import create_server
 from mcp_server._path import resolve_path
@@ -45,6 +46,7 @@ EXPECTED_TOOLS = {
     "metadata.create",
     "metadata.update",
     "metadata.delete",
+    "source.convert",
     "build",
     "check",
     "runtime.start",
@@ -554,6 +556,62 @@ def test_metadata_delete_mocked(tmp_path: Path, monkeypatch: Any) -> None:
     assert payload["status"] == "ok"
     assert payload["object"] == "Catalog.Products"
     assert payload["deleted"] == ["src/cf/Catalogs/Products.xml"]
+
+
+def test_source_convert_mocked(tmp_path: Path, monkeypatch: Any) -> None:
+    """#157: MCP source.convert thin-wraps core.source.run_convert (no shell.exec)."""
+    target = tmp_path / "shop"
+    target.mkdir()
+
+    def fake_convert(
+        start: Path | None = None,
+        *,
+        to: str,
+        config_id: str | None = None,
+        force: bool = False,
+        platform_version: str | None = None,
+        **kwargs: Any,
+    ) -> ConvertResult:
+        assert start == target.resolve()
+        assert to == "edt"
+        assert config_id == "main"
+        assert force is True
+        assert platform_version == "8.3.27"
+        assert "edt_run" not in kwargs
+        return ConvertResult(
+            status="ok",
+            root=start,
+            config_id=config_id,
+            source_rel="src/cf",
+            from_format="xml",
+            to_format="edt",
+            steps=["import", "manifest"],
+        )
+
+    monkeypatch.setattr("mcp_server.tools.run_convert", fake_convert)
+
+    payload = _call(
+        "source.convert",
+        {
+            "path": str(target),
+            "to": "edt",
+            "config_id": "main",
+            "force": True,
+            "platform_version": "8.3.27",
+        },
+    )
+    assert payload["status"] == "ok"
+    assert payload["fromFormat"] == "xml"
+    assert payload["toFormat"] == "edt"
+    assert payload["sourcePath"] == "src/cf"
+    assert payload["configId"] == "main"
+    assert payload["steps"] == ["import", "manifest"]
+
+    server = create_server()
+    tools = {t.name: t for t in asyncio.run(server.list_tools())}
+    desc = tools["source.convert"].description or ""
+    assert "Do not use shell" in desc
+    assert "edt" in desc.lower() and "xml" in desc.lower()
 
 
 def test_build_and_check_mocked(tmp_path: Path, monkeypatch: Any) -> None:

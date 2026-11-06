@@ -75,8 +75,8 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 - [x] EDT Source Adapter: detect / read path совместим с Metadata API (M2)
 - [x] `metadata.create|update|delete` работают при `source.format: edt` (write path D)
 - [x] `1c-dev source convert --to=edt` и `--to=xml` меняют `source.format` и содержимое source
-- [ ] После convert тот же MCP flow (`metadata.*`, `build`, `check`) без смены tool names
-- [ ] MCP: `source.convert` без shell.exec
+- [x] После convert тот же MCP flow (`metadata.*`, `build`, `check`) без смены tool names
+- [x] MCP: `source.convert` без shell.exec
 - [ ] Integration-тесты: skip с сообщением, если нет EDT CLI / md-sparrow JDK
 - [ ] Contract tests Source Adapter: XML и EDT на общем наборе capabilities (PRD §50)
 
@@ -117,7 +117,7 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 | [#154](https://github.com/pila86/1c-dev/issues/154) | 3 | `metadata.*` create/update/delete на `source.format: edt` | #152, #153 | Done |
 | [#155](https://github.com/pila86/1c-dev/issues/155) | 3 | `build` / `check` для EDT: export XML → ibcmd/Designer | #152, #151 | Done |
 | [#156](https://github.com/pila86/1c-dev/issues/156) | 4 | `source.convert` XML ↔ EDT + манифест | #152, #155 | Done |
-| [#157](https://github.com/pila86/1c-dev/issues/157) | 4 | MCP `source.convert` | #156 | OPEN |
+| [#157](https://github.com/pila86/1c-dev/issues/157) | 4 | MCP `source.convert` | #156 | Done |
 | [#158](https://github.com/pila86/1c-dev/issues/158) | 5 | Contract tests Source Adapter (PRD §50) + skip без EDT | #156, #154 | OPEN |
 | [#159](https://github.com/pila86/1c-dev/issues/159) | 5 | Acceptance: M7 EDT E2E | #154–#158 | OPEN |
 
