@@ -1,4 +1,4 @@
-"""1C:EDT CLI (`1cedtcli`) discovery + export (M7 / #149, #151, #155)."""
+"""1C:EDT CLI (`1cedtcli`) discovery + export/import (M7 / #149, #151, #155, #156)."""
 
 from __future__ import annotations
 
@@ -8,18 +8,22 @@ from .client import (
     RunFn,
     default_run,
     export_configuration,
+    import_configuration,
     is_edt_version_supported,
     prepare_export_dir,
     require_edtcli,
     version_tuple,
 )
 from .constants import (
+    CODE_CONVERT_DIRTY,
     CODE_EDTCLI_COLLISION,
     CODE_EDTCLI_EMPTY_EXPORT,
     CODE_EDTCLI_FAILED,
     CODE_EDTCLI_MISSING,
     CODE_EDTCLI_VERSION,
     DEFAULT_EXPORT_TIMEOUT_SEC,
+    DEFAULT_IMPORT_PLATFORM_VERSION,
+    DEFAULT_IMPORT_TIMEOUT_SEC,
     EDTCLI_ENV,
     EDTCLI_MISSING_HINT,
     EDTCLI_SKIP_MESSAGE,
@@ -33,12 +37,15 @@ from .constants import (
 from .discovery import EdtCliInfo, default_edt_search_roots, discover_edtcli, version_from_edt_path
 
 __all__ = [
+    "CODE_CONVERT_DIRTY",
     "CODE_EDTCLI_COLLISION",
     "CODE_EDTCLI_EMPTY_EXPORT",
     "CODE_EDTCLI_FAILED",
     "CODE_EDTCLI_MISSING",
     "CODE_EDTCLI_VERSION",
     "DEFAULT_EXPORT_TIMEOUT_SEC",
+    "DEFAULT_IMPORT_PLATFORM_VERSION",
+    "DEFAULT_IMPORT_TIMEOUT_SEC",
     "EDTCLI_ENV",
     "EDTCLI_MISSING_HINT",
     "EDTCLI_SKIP_MESSAGE",
@@ -56,6 +63,7 @@ __all__ = [
     "default_run",
     "discover_edtcli",
     "export_configuration",
+    "import_configuration",
     "is_edt_version_supported",
     "prepare_export_dir",
     "require_edtcli",

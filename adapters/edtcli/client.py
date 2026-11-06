@@ -1,4 +1,4 @@
-"""Subprocess wrappers for ``1cedtcli`` export (ADR-032 / #155)."""
+"""Subprocess wrappers for ``1cedtcli`` export/import (ADR-032 / #155 / #156)."""
 
 from __future__ import annotations
 
@@ -16,11 +16,14 @@ from adapters.edtcli.constants import (
     CODE_EDTCLI_MISSING,
     CODE_EDTCLI_VERSION,
     DEFAULT_EXPORT_TIMEOUT_SEC,
+    DEFAULT_IMPORT_PLATFORM_VERSION,
+    DEFAULT_IMPORT_TIMEOUT_SEC,
     EDTCLI_MISSING_HINT,
     MIN_EDT_MAJOR,
     MIN_EDT_MINOR,
 )
 from adapters.edtcli.discovery import EdtCliInfo, discover_edtcli
+from adapters.source.edt.constants import CONFIGURATION_MDO_REL, PROJECT_FILE_NAME
 from core.diagnostics import Diagnostic, error
 
 
@@ -272,3 +275,123 @@ def prepare_export_dir(export_dir: Path) -> Path:
         shutil.rmtree(export_dir)
     export_dir.mkdir(parents=True, exist_ok=True)
     return export_dir.resolve()
+
+
+def _validate_import_project(project_dir: Path) -> None:
+    """Fail if import did not produce an EDT project root."""
+    project_file = project_dir / PROJECT_FILE_NAME
+    configuration_mdo = project_dir / CONFIGURATION_MDO_REL
+    if not project_file.is_file() and not configuration_mdo.is_file():
+        raise EdtCliError(
+            f"Пустой import: нет {PROJECT_FILE_NAME} / {CONFIGURATION_MDO_REL} в {project_dir}",
+            code=CODE_EDTCLI_EMPTY_EXPORT,
+            diagnostics=[
+                error(
+                    "1cedtcli import завершился без EDT-проекта "
+                    f"({PROJECT_FILE_NAME} / {CONFIGURATION_MDO_REL})",
+                    code=CODE_EDTCLI_EMPTY_EXPORT,
+                    source="edt",
+                    suggestion=(
+                        "Проверьте Designer XML (Configuration.xml) и --version платформы"
+                    ),
+                )
+            ],
+        )
+
+
+def import_configuration(
+    edtcli: Path,
+    *,
+    configuration_files: Path,
+    project: Path,
+    platform_version: str = DEFAULT_IMPORT_PLATFORM_VERSION,
+    timeout: int = DEFAULT_IMPORT_TIMEOUT_SEC,
+    workspace: Path | None = None,
+    run: RunFn | None = None,
+) -> EdtCliRunResult:
+    """
+    ``1cedtcli -data <fresh> -timeout N -command import --version …``
+    ``--configuration-files … --project …``.
+
+    Always uses a fresh ``-data`` workspace (tmpdir unless ``workspace`` is set).
+    """
+    xml_abs = configuration_files.resolve()
+    project_abs = project.resolve()
+    project_abs.mkdir(parents=True, exist_ok=True)
+
+    if not (xml_abs / "Configuration.xml").is_file():
+        raise EdtCliError(
+            f"Нет Configuration.xml в {xml_abs}",
+            code=CODE_EDTCLI_FAILED,
+            diagnostics=[
+                error(
+                    f"Нет Configuration.xml для 1cedtcli import: {xml_abs}",
+                    code=CODE_EDTCLI_FAILED,
+                    source="edt",
+                    suggestion="Укажите каталог Designer XML с Configuration.xml",
+                )
+            ],
+        )
+
+    runner = run or (lambda argv: default_run(argv, timeout=timeout))
+    version = (platform_version or DEFAULT_IMPORT_PLATFORM_VERSION).strip()
+
+    def _invoke(ws: Path) -> EdtCliRunResult:
+        argv = [
+            str(edtcli),
+            "-data",
+            str(ws),
+            "-timeout",
+            str(timeout),
+            "-command",
+            "import",
+            "--version",
+            version,
+            "--configuration-files",
+            str(xml_abs),
+            "--project",
+            str(project_abs),
+        ]
+        return runner(argv)
+
+    if workspace is not None:
+        workspace.mkdir(parents=True, exist_ok=True)
+        result = _invoke(workspace.resolve())
+    else:
+        with tempfile.TemporaryDirectory(prefix="1c-dev-edt-ws-") as tmp:
+            result = _invoke(Path(tmp))
+
+    if result.returncode == 204:
+        raise EdtCliError(
+            "1cedtcli: проект уже есть в workspace (rc 204)",
+            code=CODE_EDTCLI_COLLISION,
+            diagnostics=[
+                error(
+                    "1cedtcli import: workspace collision (rc 204)",
+                    code=CODE_EDTCLI_COLLISION,
+                    source="edt",
+                    suggestion=(
+                        "Используйте свежий -data (tmpdir); не шарьте bake-off workspace"
+                    ),
+                )
+            ],
+        )
+
+    if result.returncode != 0:
+        detail = _combined_output(result)
+        raise EdtCliError(
+            f"1cedtcli import завершился с кодом {result.returncode}",
+            code=CODE_EDTCLI_FAILED,
+            diagnostics=[
+                error(
+                    f"1cedtcli import failed (rc={result.returncode})"
+                    + (f": {detail[:500]}" if detail else ""),
+                    code=CODE_EDTCLI_FAILED,
+                    source="edt",
+                    suggestion="Проверьте логи -data workspace, XML и версию EDT ≥2025.1",
+                )
+            ],
+        )
+
+    _validate_import_project(project_abs)
+    return result

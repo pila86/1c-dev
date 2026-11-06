@@ -1,4 +1,4 @@
-"""Unit tests: 1cedtcli export client (#155)."""
+"""Unit tests: 1cedtcli export/import client (#155 / #156)."""
 
 from __future__ import annotations
 
@@ -16,11 +16,13 @@ from adapters.edtcli import (
     EdtCliInfo,
     EdtCliRunResult,
     export_configuration,
+    import_configuration,
     is_edt_version_supported,
     prepare_export_dir,
     require_edtcli,
     version_tuple,
 )
+from adapters.source.edt.constants import CONFIGURATION_MDO_REL, PROJECT_FILE_NAME
 
 
 def test_version_tuple_and_supported() -> None:
@@ -164,3 +166,76 @@ def test_export_configuration_empty_xml(tmp_path: Path) -> None:
             run=run,
         )
     assert exc.value.code == CODE_EDTCLI_EMPTY_EXPORT
+
+
+def test_import_configuration_ok(tmp_path: Path) -> None:
+    edtcli = tmp_path / "1cedtcli"
+    edtcli.write_text("", encoding="utf-8")
+    xml_dir = tmp_path / "xml"
+    xml_dir.mkdir()
+    (xml_dir / "Configuration.xml").write_text(
+        '<?xml version="1.0"?>\n<MetaDataObject>\n'
+        "<ChildObjects/>\n</MetaDataObject>\n",
+        encoding="utf-8",
+    )
+    project = tmp_path / "edt"
+    captured: list[list[str]] = []
+
+    def run(argv: list[str]) -> EdtCliRunResult:
+        captured.append(argv)
+        proj = Path(argv[argv.index("--project") + 1])
+        proj.mkdir(parents=True, exist_ok=True)
+        (proj / PROJECT_FILE_NAME).write_text("<projectDescription/>\n", encoding="utf-8")
+        mdo = proj / CONFIGURATION_MDO_REL
+        mdo.parent.mkdir(parents=True, exist_ok=True)
+        mdo.write_text("<Configuration/>\n", encoding="utf-8")
+        return EdtCliRunResult(returncode=0, stdout="ok", stderr="", argv=argv)
+
+    result = import_configuration(
+        edtcli,
+        configuration_files=xml_dir,
+        project=project,
+        platform_version="8.5.1",
+        workspace=tmp_path / "ws",
+        run=run,
+    )
+    assert result.returncode == 0
+    assert "import" in captured[0]
+    assert "--version" in captured[0]
+    assert captured[0][captured[0].index("--version") + 1] == "8.5.1"
+    assert (project / PROJECT_FILE_NAME).is_file()
+
+
+def test_import_configuration_rc204(tmp_path: Path) -> None:
+    edtcli = tmp_path / "1cedtcli"
+    edtcli.write_text("", encoding="utf-8")
+    xml_dir = tmp_path / "xml"
+    xml_dir.mkdir()
+    (xml_dir / "Configuration.xml").write_text("<MetaDataObject/>\n", encoding="utf-8")
+
+    def run(argv: list[str]) -> EdtCliRunResult:
+        return EdtCliRunResult(returncode=204, stdout="", stderr="уже существует", argv=argv)
+
+    with pytest.raises(EdtCliError) as exc:
+        import_configuration(
+            edtcli,
+            configuration_files=xml_dir,
+            project=tmp_path / "edt",
+            workspace=tmp_path / "ws",
+            run=run,
+        )
+    assert exc.value.code == CODE_EDTCLI_COLLISION
+
+
+def test_import_configuration_missing_xml(tmp_path: Path) -> None:
+    edtcli = tmp_path / "1cedtcli"
+    edtcli.write_text("", encoding="utf-8")
+    with pytest.raises(EdtCliError) as exc:
+        import_configuration(
+            edtcli,
+            configuration_files=tmp_path / "empty",
+            project=tmp_path / "edt",
+            workspace=tmp_path / "ws",
+            run=lambda argv: EdtCliRunResult(0, "", "", argv),
+        )
+    assert exc.value.code == CODE_EDTCLI_FAILED
