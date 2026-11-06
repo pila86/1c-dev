@@ -8,7 +8,11 @@ from typing import Any
 
 import typer
 
-from adapters.edtcli import CODE_EDTCLI_MISSING, CODE_EDTCLI_VERSION
+from adapters.edtcli import (
+    CODE_EDTCLI_COLLISION,
+    CODE_EDTCLI_MISSING,
+    CODE_EDTCLI_VERSION,
+)
 from adapters.platform_ibcmd.constants import (
     CODE_ARTIFACT,
     CODE_IBCMD_MISSING,
@@ -20,7 +24,13 @@ from adapters.source.edt.constants import CODE_LAYOUT_NOT_EDT, CODE_PATH_NOT_EDT
 from cli.options import ConfigOption, RuntimeOption
 from cli.output import OutputFormat, OutputOption, resolve_output
 from core.build import BuildResult, run_build
-from core.exit_codes import BUILD_FAILURE, ENV_UNAVAILABLE, PROJECT_ERROR, SUCCESS
+from core.exit_codes import (
+    BUILD_FAILURE,
+    ENV_UNAVAILABLE,
+    PROJECT_ERROR,
+    RUNTIME_FAILURE,
+    SUCCESS,
+)
 from core.project.constants import (
     CODE_CONFIG_AMBIGUOUS,
     CODE_CONFIG_UNKNOWN,
@@ -86,6 +96,9 @@ def _exit_for(result: BuildResult) -> None:
         CODE_PATH_NOT_EDT_ROOT,
     }:
         raise typer.Exit(code=PROJECT_ERROR)
+    # ADR-032: rc 204 workspace collision → RUNTIME_FAILURE (4), не BUILD_FAILURE
+    if CODE_EDTCLI_COLLISION in codes:
+        raise typer.Exit(code=RUNTIME_FAILURE)
     raise typer.Exit(code=BUILD_FAILURE)
 
 

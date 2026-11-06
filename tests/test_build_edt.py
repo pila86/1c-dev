@@ -10,6 +10,7 @@ import pytest
 from typer.testing import CliRunner
 
 from adapters.edtcli import (
+    CODE_EDTCLI_COLLISION,
     CODE_EDTCLI_MISSING,
     EDTCLI_SKIP_MESSAGE,
     PLATFORM_SKIP_MESSAGE,
@@ -21,9 +22,9 @@ from adapters.platform.discovery import DiscoveryResult, PlatformInfo, ToolInfo
 from adapters.platform_ibcmd.client import IbcmdRunResult
 from adapters.platform_ibcmd.constants import IB_MARKER
 from cli.main import app
-from core.build import run_build
+from core.build import BuildResult, run_build
 from core.check import run_check
-from core.exit_codes import ENV_UNAVAILABLE
+from core.exit_codes import ENV_UNAVAILABLE, RUNTIME_FAILURE
 from core.project.constants import HOME_EXPORT_DIR_NAME
 
 runner = CliRunner()
@@ -140,6 +141,31 @@ def test_cli_build_edt_env_unavailable(
     payload = json.loads(result.stdout)
     assert payload["status"] == "failed"
     assert any(d.get("code") == CODE_EDTCLI_MISSING for d in payload["diagnostics"])
+
+
+def test_cli_build_1cs006_exit_runtime_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ADR-032: 1CS006 (workspace collision) → RUNTIME_FAILURE (4), не 6."""
+    target = _copy_edt_fixture(tmp_path)
+    monkeypatch.chdir(target)
+
+    def fake_build(*_a: object, **_k: object) -> BuildResult:
+        return BuildResult(
+            status="failed",
+            diagnostics=[
+                {
+                    "severity": "error",
+                    "code": CODE_EDTCLI_COLLISION,
+                    "message": "проект уже существует в workspace",
+                    "source": "edt",
+                }
+            ],
+        )
+
+    monkeypatch.setattr("cli.build.run_build", fake_build)
+    result = runner.invoke(app, ["build", "--output", "json"])
+    assert result.exit_code == RUNTIME_FAILURE
 
 
 def test_run_build_edt_then_check_mock(tmp_path: Path) -> None:
