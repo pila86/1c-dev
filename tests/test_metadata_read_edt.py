@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 
 from adapters.source.edt import CODE_LAYOUT_NOT_EDT, CODE_PATH_NOT_EDT_ROOT
 from adapters.source.mdclasses.resolve import resolve_jar, resolve_java
+from adapters.source.mdsparrow import EdtWriteResult
 from cli.main import app
 from core.exit_codes import SUCCESS
 from core.metadata import create_metadata, find_metadata, get_metadata, list_metadata
@@ -84,16 +85,25 @@ def test_edt_path_not_layout_diagnostic(tmp_path: Path) -> None:
     assert any(d.get("code") == CODE_LAYOUT_NOT_EDT for d in result.diagnostics)
 
 
-def test_create_still_rejects_edt_format(tmp_path: Path) -> None:
-    """Write path остаётся xml-only до #154."""
+def test_create_edt_routed_not_1cm005(tmp_path: Path) -> None:
+    """Write path D (#154): format edt больше не 1CM005."""
     target = _copy_edt_fixture(tmp_path)
+
+    def fake_create(edt_root: Path, catalog: Any) -> EdtWriteResult:
+        mdo = edt_root / "src" / "Catalogs" / catalog.name / f"{catalog.name}.mdo"
+        mdo.parent.mkdir(parents=True)
+        mdo.write_text("<mdclass:Catalog/>", encoding="utf-8")
+        return EdtWriteResult(
+            changed_paths=[f"src/Catalogs/{catalog.name}/{catalog.name}.mdo"]
+        )
+
     result = create_metadata(
         target,
         catalog_from_parts(qualified_name="Catalog.Extra", synonym="Ещё"),
+        edt_create_fn=fake_create,
     )
-    assert result.status == "error"
-    assert any(d.get("code") == "1CM005" for d in result.diagnostics)
-    assert any("edt" in (d.get("message") or "").lower() for d in result.diagnostics)
+    assert result.status == "ok", result.diagnostics
+    assert not any(d.get("code") == "1CM005" for d in result.diagnostics)
 
 
 @pytest.mark.integration

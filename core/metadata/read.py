@@ -25,9 +25,9 @@ from core.project.resolve import resolve_config_runtime
 Command = Literal["list", "get", "find"]
 ReadFn = Callable[[Command, Path, tuple[str, ...]], dict[str, Any]]
 
-# Read (#152): xml | edt. Write semantic (#154): пока только xml.
+# Read (#152) + write semantic (#154): xml | edt.
 READ_SOURCE_FORMATS: frozenset[str] = frozenset({SOURCE_FORMAT_XML, SOURCE_FORMAT_EDT})
-WRITE_SOURCE_FORMATS: frozenset[str] = frozenset({SOURCE_FORMAT_XML})
+WRITE_SOURCE_FORMATS: frozenset[str] = frozenset({SOURCE_FORMAT_XML, SOURCE_FORMAT_EDT})
 
 
 def _lookup_nested_extension(
@@ -62,12 +62,7 @@ def _format_not_allowed(
     label: str,
 ) -> MetadataResult:
     allowed_list = ", ".join(sorted(allowed))
-    if fmt == SOURCE_FORMAT_EDT and SOURCE_FORMAT_EDT not in allowed:
-        suggestion = (
-            "Semantic write для EDT — issue #154 (md-sparrow); "
-            "сейчас metadata.create|update|delete только для source.format: xml"
-        )
-    elif label.startswith("extensions["):
+    if label.startswith("extensions["):
         suggestion = (
             "Выгрузите XML через extension add --from *.cfe "
             "или укажите format: xml|edt"
@@ -144,7 +139,7 @@ def _resolve_source(
     runtime_id: str | None = None,
     extension_id: str | None = None,
     allowed_formats: Collection[str] | None = None,
-) -> MetadataResult | tuple[Path, Path, Path]:
+) -> MetadataResult | tuple[Path, Path, Path, str]:
     """
     Resolve project root + source dir.
 
@@ -152,9 +147,9 @@ def _resolve_source(
     (by id or name) under the selected configuration (#112).
 
     ``allowed_formats`` defaults to read formats (xml|edt, #152).
-    Write path passes ``WRITE_SOURCE_FORMATS`` until #154.
+    Write path passes ``WRITE_SOURCE_FORMATS`` (xml|edt, #154).
 
-    Returns MetadataResult on error, or (root, source_dir, manifest_path).
+    Returns MetadataResult on error, or (root, source_dir, manifest_path, format).
     """
     formats = frozenset(allowed_formats) if allowed_formats is not None else READ_SOURCE_FORMATS
     start_path = (start or Path.cwd()).resolve()
@@ -275,7 +270,7 @@ def _resolve_source(
         )
         if invalid is not None:
             return invalid
-        return root, source_dir, manifest_path
+        return root, source_dir, manifest_path, fmt
 
     fmt = target.source_format
     if not isinstance(fmt, str) or fmt not in formats:
@@ -298,7 +293,7 @@ def _resolve_source(
     )
     if invalid is not None:
         return invalid
-    return root, source_dir, manifest_path
+    return root, source_dir, manifest_path, fmt
 
 
 def _default_read(command: Command, source_dir: Path, args: tuple[str, ...]) -> dict[str, Any]:
@@ -322,7 +317,7 @@ def _run_read(
     )
     if isinstance(resolved, MetadataResult):
         return resolved
-    root, source_dir, _manifest = resolved
+    root, source_dir, _manifest, _fmt = resolved
 
     runner: ReadFn = read_fn if read_fn is not None else _default_read
     try:

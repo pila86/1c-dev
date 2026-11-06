@@ -1,4 +1,4 @@
-"""metadata.create orchestration (ADR-007 / #23 / #24 / #62)."""
+"""metadata.create orchestration (ADR-007 / #23 / #24 / #62 / ADR-032 #154)."""
 
 from __future__ import annotations
 
@@ -6,6 +6,14 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from adapters.source.edt import SOURCE_FORMAT_EDT, SOURCE_FORMAT_XML
+from adapters.source.mdsparrow.constants import GAP_CODE
+from adapters.source.mdsparrow.mutation import MdSparrowError
+from adapters.source.mdsparrow.paths import object_mdo_path
+from adapters.source.mdsparrow.resolve import (
+    fetch_script_suggestion as mdsparrow_fetch_suggestion,
+)
+from adapters.source.mdsparrow.write import create_edt_object
 from adapters.source.xmlgen import (
     EditOp,
     XmlGenError,
@@ -18,7 +26,7 @@ from adapters.source.xmlgen import (
     resolve_jar,
     resolve_java,
 )
-from core.diagnostics import error
+from core.diagnostics import error, warning
 from core.metadata.delete import object_xml_path
 from core.metadata.ir import CREATE_OBJECT_TYPES, CatalogObject
 from core.metadata.read import WRITE_SOURCE_FORMATS, _resolve_source
@@ -27,6 +35,7 @@ from core.project.validate import validate_project
 
 CompileFn = Callable[[Path, dict[str, Any]], list[str]]
 FollowupFn = Callable[[Path, list[EditOp]], None]
+EdtCreateFn = Callable[[Path, CatalogObject], Any]
 
 
 def create_metadata(
@@ -38,15 +47,17 @@ def create_metadata(
     extension_id: str | None = None,
     compile_fn: CompileFn | None = None,
     followup_fn: FollowupFn | None = None,
+    edt_create_fn: EdtCreateFn | None = None,
 ) -> MetadataResult:
     """
-    Create metadata object via xml-gen write-path (ADR-011 / ADR-018 / #62).
+    Create metadata object via xml-gen (XML) or md-sparrow (EDT, #154).
 
     Supported write types: Meta DSL 23 + Subsystem (see CREATE_OBJECT_TYPES).
-    Subsystem uses ``subsystem compile``; others use ``meta compile``.
+    Subsystem uses ``subsystem compile``; others use ``meta compile`` (XML).
+    EDT uses ``apply-mutation`` (path D).
 
-    compile_fn: optional injectable (source_dir, dsl) -> list[str] for tests.
-    followup_fn: optional injectable for tabular-section synonym edits.
+    compile_fn / followup_fn: injectable for XML unit tests.
+    edt_create_fn: injectable for EDT unit tests.
     extension_id: nested extensions[] id or name (#112).
     """
     if catalog.type not in CREATE_OBJECT_TYPES:
@@ -78,7 +89,121 @@ def create_metadata(
             root=resolved.root,
             diagnostics=list(resolved.diagnostics),
         )
-    root, source_dir, _manifest = resolved
+    root, source_dir, _manifest, fmt = resolved
+
+    if fmt == SOURCE_FORMAT_EDT:
+        return _create_edt(
+            root,
+            source_dir,
+            catalog,
+            edt_create_fn=edt_create_fn,
+        )
+    if fmt != SOURCE_FORMAT_XML:
+        return MetadataResult(
+            status="error",
+            object=catalog.qualified_name,
+            root=root,
+            source_path=source_dir,
+            diagnostics=[
+                error(
+                    f"configuration: source.format={fmt!r}; поддерживается: "
+                    f"{', '.join(sorted(WRITE_SOURCE_FORMATS))}",
+                    code="1CM005",
+                    source="metadata",
+                )
+            ],
+        )
+
+    return _create_xml(
+        root,
+        source_dir,
+        catalog,
+        compile_fn=compile_fn,
+        followup_fn=followup_fn,
+    )
+
+
+def _create_edt(
+    root: Path,
+    source_dir: Path,
+    catalog: CatalogObject,
+    *,
+    edt_create_fn: EdtCreateFn | None,
+) -> MetadataResult:
+    object_file = object_mdo_path(source_dir, catalog.type, catalog.name)
+    if object_file.is_file():
+        try:
+            file_rel = object_file.relative_to(root).as_posix()
+        except ValueError:
+            file_rel = str(object_file)
+        return MetadataResult(
+            status="error",
+            object=catalog.qualified_name,
+            root=root,
+            source_path=source_dir,
+            diagnostics=[
+                error(
+                    f"Объект уже существует: {catalog.qualified_name}",
+                    code="1CM003",
+                    file=file_rel,
+                    source="metadata",
+                )
+            ],
+        )
+
+    runner = edt_create_fn if edt_create_fn is not None else create_edt_object
+    try:
+        write_result = runner(source_dir, catalog)
+    except MdSparrowError as exc:
+        diag_kw: dict[str, Any] = {
+            "code": exc.code,
+            "source": "metadata" if exc.code.startswith("1CM") else "edt",
+        }
+        if exc.code in {"1CS008", "1CM006"}:
+            diag_kw["suggestion"] = mdsparrow_fetch_suggestion()
+        return MetadataResult(
+            status="error",
+            object=catalog.qualified_name,
+            root=root,
+            source_path=source_dir,
+            diagnostics=[error(exc.message, **diag_kw)],
+        )
+
+    created = list(getattr(write_result, "changed_paths", []) or [])
+    gap_warnings = [
+        warning(msg, code=GAP_CODE, source="edt")
+        for msg in (getattr(write_result, "warnings", None) or [])
+    ]
+
+    validated = validate_project(root)
+    if validated.status != "ok":
+        return MetadataResult(
+            status="error",
+            object=catalog.qualified_name,
+            root=root,
+            source_path=source_dir,
+            created=created,
+            diagnostics=list(validated.diagnostics) + gap_warnings,
+        )
+
+    return MetadataResult(
+        status="ok",
+        object=catalog.qualified_name,
+        root=root,
+        source_path=source_dir,
+        created=created,
+        diagnostics=gap_warnings,
+    )
+
+
+def _create_xml(
+    root: Path,
+    source_dir: Path,
+    catalog: CatalogObject,
+    *,
+    compile_fn: CompileFn | None,
+    followup_fn: FollowupFn | None,
+) -> MetadataResult:
     object_file = object_xml_path(source_dir, catalog.type, catalog.name)
     if object_file.is_file():
         try:

@@ -17,3 +17,5 @@ MIN_JAVA_MAJOR = MD_SPARROW_MIN_JAVA_MAJOR
 ENV_UNAVAILABLE_CODE = "1CS008"
 # Process failure apply-mutation (wiring #153; metadata.* maps in #154)
 MUTATION_FAILED_CODE = "1CS011"
+# Known bake-off / spike gaps (ADR-032 §3 / #154) — warning or hard refuse
+GAP_CODE = "1CS010"

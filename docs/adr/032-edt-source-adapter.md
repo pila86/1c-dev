@@ -108,7 +108,7 @@ metadata.create|update|delete  (source.format: edt)
 | Обычные `cf-*` CLI | Designer-only; **не** write-backend для EDT |
 | JDK md-sparrow | Temurin **25+** (bake-off); soft gap в doctor (#151) |
 | Pin jar | toolchain cache / `1c-dev tools sync` (#153); override env (эскиз `ONEC_MDSPARROW_JAR`) |
-| Synonym / TS gaps | Фиксировать в contract tests; не молчаливый success (spike: `synonymRu` не попал в `.mdo`) |
+| Synonym / TS gaps | Workaround #154: после `add-md-object` — `cf-md-object-set` (синоним объекта / String length); Number precision и синонимы ТЧ — warning `1CS010`; contract tests #158 |
 
 XML write **не** мигрирует на md-sparrow (ADR-007 / bake-off подтверждён).
 
