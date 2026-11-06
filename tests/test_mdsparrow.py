@@ -127,6 +127,37 @@ def test_apply_mutation_subprocess_failure(
     assert "boom" in exc.value.message
 
 
+def test_apply_mutation_timeout_raises_1cs011(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import subprocess
+
+    jar = tmp_path / "md-sparrow.jar"
+    jar.write_bytes(b"x")
+    java = tmp_path / "java"
+    java.write_text("#!/bin/sh\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "adapters.source.mdsparrow.mutation.resolve_java",
+        lambda **_k: ToolResolve(found=True, path=java, version="25"),
+    )
+    monkeypatch.setattr(
+        "adapters.source.mdsparrow.mutation.resolve_jar",
+        lambda **_k: ToolResolve(found=True, path=jar),
+    )
+
+    def boom_timeout(*_a: object, **_k: object) -> None:
+        raise subprocess.TimeoutExpired(cmd="java", timeout=360)
+
+    monkeypatch.setattr(
+        "adapters.source.mdsparrow.mutation.subprocess.run",
+        boom_timeout,
+    )
+    with pytest.raises(MdSparrowError) as exc:
+        apply_mutation({"op": "add-md-object", "name": "X"}, timeout=300)
+    assert exc.value.code == MUTATION_FAILED_CODE
+    assert "timeout" in exc.value.message.lower()
+
+
 def test_apply_mutation_success_mocked(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -164,6 +195,7 @@ def test_apply_mutation_success_mocked(
     assert captured["cmd"][2] == str(jar)
     assert captured["cmd"][3] == "apply-mutation"
     assert captured["cmd"][4].startswith("--params=")
+    assert captured["kwargs"].get("timeout") == 360
 
 
 def _require_mdsparrow_runtime() -> tuple[ToolResolve, ToolResolve]:

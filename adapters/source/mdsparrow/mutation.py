@@ -11,6 +11,7 @@ from typing import Any
 
 from adapters.edtcli.constants import MD_SPARROW_JDK_HINT
 from adapters.source.mdsparrow.constants import (
+    DEFAULT_MUTATION_TIMEOUT_SEC,
     ENV_UNAVAILABLE_CODE,
     MIN_JAVA_MAJOR,
     MUTATION_FAILED_CODE,
@@ -46,12 +47,16 @@ def apply_mutation(
     jar: ToolResolve | None = None,
     java: ToolResolve | None = None,
     cwd: Path | None = None,
+    timeout: int = DEFAULT_MUTATION_TIMEOUT_SEC,
 ) -> ApplyMutationResult:
     """
     Invoke ``md-sparrow apply-mutation --params=<ascii-path.json>``.
 
     ``params`` is either a JSON-serializable dict (written to a temp UTF-8 file)
     or an existing params file path (must be ASCII-friendly for Windows JVM).
+
+    ``timeout`` is the wall-clock budget in seconds (subprocess gets
+    ``timeout + 60``, same slack as ``1cedtcli``).
     """
     jar_r = jar if jar is not None else resolve_jar()
     java_r = java if java is not None else resolve_java()
@@ -98,13 +103,21 @@ def apply_mutation(
             "apply-mutation",
             f"--params={params_path}",
         ]
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=False,
-            cwd=str(cwd) if cwd is not None else None,
-        )
+        try:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                cwd=str(cwd) if cwd is not None else None,
+                timeout=timeout + 60,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise MdSparrowError(
+                f"md-sparrow apply-mutation превысил timeout "
+                f"({timeout + 60}s)",
+                code=MUTATION_FAILED_CODE,
+            ) from exc
         if proc.returncode != 0:
             detail = (proc.stderr or proc.stdout or "").strip()
             msg = "md-sparrow apply-mutation завершился с ошибкой"

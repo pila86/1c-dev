@@ -19,3 +19,5 @@ ENV_UNAVAILABLE_CODE = "1CS008"
 MUTATION_FAILED_CODE = "1CS011"
 # Known bake-off / spike gaps (ADR-032 §3 / #154) — warning or hard refuse
 GAP_CODE = "1CS010"
+# Wall-clock budget for apply-mutation JVM (analog edtcli timeout+60).
+DEFAULT_MUTATION_TIMEOUT_SEC = 300
