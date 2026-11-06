@@ -45,7 +45,21 @@ class EdtWriteResult:
 
     changed_paths: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    # Parallel to ``warnings``; ``1CS010`` for Number/TS soft gaps (ADR-032).
+    warning_codes: list[str | None] = field(default_factory=list)
     stdout: str = ""
+
+
+def _append_warning(
+    warnings: list[str],
+    codes: list[str | None],
+    message: str,
+    *,
+    code: str | None = None,
+) -> None:
+    """Append a soft warning and its structured diagnostic code (or None)."""
+    warnings.append(message)
+    codes.append(code)
 
 
 def _require_tools(
@@ -188,22 +202,37 @@ def _find_named(
     return None
 
 
-def _apply_attr_fields(target: dict[str, Any], attr: Any) -> list[str]:
-    """Patch attribute DTO in-place; return gap warning messages."""
-    warnings: list[str] = []
+def _apply_attr_fields(
+    target: dict[str, Any],
+    attr: Any,
+) -> list[tuple[str, str | None]]:
+    """Patch attribute DTO in-place; return (message, code) soft warnings."""
+    out: list[tuple[str, str | None]] = []
     if attr.synonym:
         target["synonym"] = attr.synonym
     try:
         target["type"] = attr_type_dto(attr)
     except ValueError as exc:
-        warnings.append(str(exc))
-        return warnings
+        out.append((str(exc), None))
+        return out
     if number_precision_gap(attr):
-        warnings.append(
-            f"Number precision/scale для {attr.name!r} может не сохраниться "
-            f"в .mdo (известный gap md-sparrow / bake-off S2; code {GAP_CODE})"
+        out.append(
+            (
+                f"Number precision/scale для {attr.name!r} может не сохраниться "
+                f"в .mdo (известный gap md-sparrow / bake-off S2)",
+                GAP_CODE,
+            )
         )
-    return warnings
+    return out
+
+
+def _extend_warnings(
+    warnings: list[str],
+    codes: list[str | None],
+    items: list[tuple[str, str | None]],
+) -> None:
+    for message, code in items:
+        _append_warning(warnings, codes, message, code=code)
 
 
 def create_edt_object(
@@ -236,6 +265,7 @@ def create_edt_object(
         )
 
     warnings: list[str] = []
+    warning_codes: list[str | None] = []
     add_params: dict[str, Any] = {
         "op": "add-md-object",
         "configurationXml": str(cfg),
@@ -354,19 +384,30 @@ def create_edt_object(
         for attr in catalog.attributes:
             target = _find_attr(dto, attr.name)
             if target is None:
-                warnings.append(f"Реквизит {attr.name!r} не найден после add")
+                _append_warning(
+                    warnings,
+                    warning_codes,
+                    f"Реквизит {attr.name!r} не найден после add",
+                )
                 continue
-            warnings.extend(_apply_attr_fields(target, attr))
+            _extend_warnings(warnings, warning_codes, _apply_attr_fields(target, attr))
         for section in catalog.tabular_sections:
             ts = _find_ts(dto, section.name)
             if ts is None:
-                warnings.append(f"ТЧ {section.name!r} не найдена после add")
+                _append_warning(
+                    warnings,
+                    warning_codes,
+                    f"ТЧ {section.name!r} не найдена после add",
+                )
                 continue
             if section.synonym:
                 ts["synonym"] = section.synonym
-                warnings.append(
+                _append_warning(
+                    warnings,
+                    warning_codes,
                     f"Синоним ТЧ {section.name!r} может не сохраниться в .mdo "
-                    f"(известный gap; code {GAP_CODE})"
+                    f"(известный gap)",
+                    code=GAP_CODE,
                 )
             ts_attrs = ts.get("attributes")
             if not isinstance(ts_attrs, list):
@@ -382,35 +423,54 @@ def create_edt_object(
                     None,
                 )
                 if target is None:
-                    warnings.append(
-                        f"Реквизит ТЧ {section.name}.{attr.name} не найден после add"
+                    _append_warning(
+                        warnings,
+                        warning_codes,
+                        f"Реквизит ТЧ {section.name}.{attr.name} не найден после add",
                     )
                     continue
-                warnings.extend(_apply_attr_fields(target, attr))
-                warnings.append(
+                _extend_warnings(
+                    warnings, warning_codes, _apply_attr_fields(target, attr)
+                )
+                _append_warning(
+                    warnings,
+                    warning_codes,
                     f"Тип/синоним реквизита ТЧ {section.name}.{attr.name} "
-                    f"может не сохраниться в .mdo (известный gap; code {GAP_CODE})"
+                    f"может не сохраниться в .mdo (известный gap)",
+                    code=GAP_CODE,
                 )
         for value in catalog.values:
             if not value.synonym:
                 continue
             ev = _find_enum_value(dto, value.name)
             if ev is None:
-                warnings.append(f"Значение перечисления {value.name!r} не найдено")
+                _append_warning(
+                    warnings,
+                    warning_codes,
+                    f"Значение перечисления {value.name!r} не найдено",
+                )
                 continue
             ev["synonym"] = value.synonym
         for dim in catalog.dimensions:
             target = _find_named(dto, "dimensions", dim.name)
             if target is None:
-                warnings.append(f"Измерение {dim.name!r} не найдено после add")
+                _append_warning(
+                    warnings,
+                    warning_codes,
+                    f"Измерение {dim.name!r} не найдено после add",
+                )
                 continue
-            warnings.extend(_apply_attr_fields(target, dim))
+            _extend_warnings(warnings, warning_codes, _apply_attr_fields(target, dim))
         for res in catalog.resources:
             target = _find_named(dto, "resources", res.name)
             if target is None:
-                warnings.append(f"Ресурс {res.name!r} не найден после add")
+                _append_warning(
+                    warnings,
+                    warning_codes,
+                    f"Ресурс {res.name!r} не найден после add",
+                )
                 continue
-            warnings.extend(_apply_attr_fields(target, res))
+            _extend_warnings(warnings, warning_codes, _apply_attr_fields(target, res))
         for prop, val in flag_props.items():
             _set_dto_property(dto, prop, val)
         _set_object_dto(
@@ -429,7 +489,11 @@ def create_edt_object(
         if rel not in seen:
             seen.add(rel)
             ordered.append(rel)
-    return EdtWriteResult(changed_paths=ordered, warnings=warnings)
+    return EdtWriteResult(
+        changed_paths=ordered,
+        warnings=warnings,
+        warning_codes=warning_codes,
+    )
 
 
 def _common_module_flag_props(catalog: CatalogObject) -> dict[str, Any]:
@@ -586,7 +650,11 @@ def update_edt_object(
             d = ensure_dto()
             target = _find_attr(d, attr.name)
             if target is not None:
-                result.warnings.extend(_apply_attr_fields(target, attr))
+                _extend_warnings(
+                    result.warnings,
+                    result.warning_codes,
+                    _apply_attr_fields(target, attr),
+                )
                 dto_dirty = True
             result.added += 1
         elif op.op == "remove-attribute":
@@ -609,7 +677,11 @@ def update_edt_object(
             d = ensure_dto()
             target = _find_attr(d, attr_name)
             if target is None:
-                result.warnings.append(f"Реквизит {attr_name!r} не найден для modify")
+                _append_warning(
+                    result.warnings,
+                    result.warning_codes,
+                    f"Реквизит {attr_name!r} не найден для modify",
+                )
             else:
                 if synonym is not None:
                     target["synonym"] = synonym
@@ -646,9 +718,11 @@ def update_edt_object(
                 if ts is not None:
                     ts["synonym"] = synonym
                     dto_dirty = True
-                    result.warnings.append(
-                        f"Синоним ТЧ {ts_name!r} может не сохраниться "
-                        f"(gap; code {GAP_CODE})"
+                    _append_warning(
+                        result.warnings,
+                        result.warning_codes,
+                        f"Синоним ТЧ {ts_name!r} может не сохраниться (известный gap)",
+                        code=GAP_CODE,
                     )
             result.added += 1
         elif op.op == "remove-ts":
@@ -671,13 +745,20 @@ def update_edt_object(
             d = ensure_dto()
             ts = _find_ts(d, ts_name)
             if ts is None:
-                result.warnings.append(f"ТЧ {ts_name!r} не найдена для modify")
+                _append_warning(
+                    result.warnings,
+                    result.warning_codes,
+                    f"ТЧ {ts_name!r} не найдена для modify",
+                )
             elif synonym is not None:
                 ts["synonym"] = synonym
                 dto_dirty = True
                 result.modified += 1
-                result.warnings.append(
-                    f"Синоним ТЧ {ts_name!r} может не сохраниться (gap; code {GAP_CODE})"
+                _append_warning(
+                    result.warnings,
+                    result.warning_codes,
+                    f"Синоним ТЧ {ts_name!r} может не сохраниться (известный gap)",
+                    code=GAP_CODE,
                 )
         elif op.op == "add-ts-attribute":
             # value: TS.Name:TypeSpec
@@ -703,9 +784,12 @@ def update_edt_object(
             dto = None
             dto_dirty = False
             result.added += 1
-            result.warnings.append(
+            _append_warning(
+                result.warnings,
+                result.warning_codes,
                 f"Тип/синоним реквизита ТЧ {ts_name.strip()}.{attr.name} "
-                f"может не сохраниться (gap; code {GAP_CODE})"
+                f"может не сохраниться (известный gap)",
+                code=GAP_CODE,
             )
         elif op.op == "remove-ts-attribute":
             raw = op.value.strip()
@@ -763,7 +847,11 @@ def update_edt_object(
             d = ensure_dto()
             ev = _find_enum_value(d, ev_name)
             if ev is None:
-                result.warnings.append(f"Значение {ev_name!r} не найдено")
+                _append_warning(
+                    result.warnings,
+                    result.warning_codes,
+                    f"Значение {ev_name!r} не найдено",
+                )
             elif synonym is not None:
                 ev["synonym"] = synonym
                 dto_dirty = True
@@ -791,7 +879,11 @@ def update_edt_object(
             d = ensure_dto()
             target = _find_named(d, key, attr.name)
             if target is not None:
-                result.warnings.extend(_apply_attr_fields(target, attr))
+                _extend_warnings(
+                    result.warnings,
+                    result.warning_codes,
+                    _apply_attr_fields(target, attr),
+                )
                 dto_dirty = True
             result.added += 1
         elif op.op in {"remove-dimension", "remove-resource"}:
@@ -819,7 +911,11 @@ def update_edt_object(
             d = ensure_dto()
             target = _find_named(d, key, child_name)
             if target is None:
-                result.warnings.append(f"{child_name!r} не найден для {op.op}")
+                _append_warning(
+                    result.warnings,
+                    result.warning_codes,
+                    f"{child_name!r} не найден для {op.op}",
+                )
             elif synonym is not None:
                 target["synonym"] = synonym
                 dto_dirty = True

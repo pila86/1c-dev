@@ -60,6 +60,9 @@ class EditResult:
     modified: int = 0
     removed: int = 0
     warnings: list[str] = field(default_factory=list)
+    # Parallel to ``warnings`` (same length when used); structured diagnostic
+    # codes such as ``1CS010`` for EDT path D soft gaps (ADR-032).
+    warning_codes: list[str | None] = field(default_factory=list)
 
 
 def edit_metadata(

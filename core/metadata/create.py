@@ -170,10 +170,14 @@ def _create_edt(
         )
 
     created = list(getattr(write_result, "changed_paths", []) or [])
-    gap_warnings = [
-        warning(msg, code=GAP_CODE, source="edt")
-        for msg in (getattr(write_result, "warnings", None) or [])
-    ]
+    warn_msgs = list(getattr(write_result, "warnings", None) or [])
+    warn_codes = list(getattr(write_result, "warning_codes", None) or [])
+    gap_warnings = []
+    for i, msg in enumerate(warn_msgs):
+        code = warn_codes[i] if i < len(warn_codes) else None
+        if code is None and ("gap" in msg.lower() or GAP_CODE in msg):
+            code = GAP_CODE
+        gap_warnings.append(warning(msg, code=code, source="edt"))
 
     validated = validate_project(root)
     if validated.status != "ok":

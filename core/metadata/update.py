@@ -489,14 +489,13 @@ def _update_edt(
         except ValueError:
             updated.append(rel_src)
 
-    diagnostics = [
-        warning(
-            msg,
-            code=GAP_CODE if "gap" in msg.lower() or GAP_CODE in msg else None,
-            source="edt",
-        )
-        for msg in edit_result.warnings
-    ]
+    warn_codes = list(getattr(edit_result, "warning_codes", None) or [])
+    diagnostics = []
+    for i, msg in enumerate(edit_result.warnings):
+        code = warn_codes[i] if i < len(warn_codes) else None
+        if code is None and ("gap" in msg.lower() or GAP_CODE in msg):
+            code = GAP_CODE
+        diagnostics.append(warning(msg, code=code, source="edt"))
 
     getter: GetFn = get_fn if get_fn is not None else get_metadata
     if get_fn is None:
