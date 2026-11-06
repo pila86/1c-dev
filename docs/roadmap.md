@@ -2,7 +2,7 @@
 
 ## Текущий фокус
 
-**M7: Source formats (EDT)** — Planned ([GitHub milestone M7](https://github.com/pila86/1c-dev/milestone/7)). Полный паритет с XML (**B**): EDT Source Adapter + semantic write (**D**: md-sparrow `.mdo` + `1cedtcli` export) + `source.convert`. Документ: [m7-source-formats](milestones/m7-source-formats.md). Старт: spike [#149](https://github.com/pila86/1c-dev/issues/149).
+**M7: Source formats (EDT)** — Planned ([GitHub milestone M7](https://github.com/pila86/1c-dev/milestone/7)). Полный паритет с XML (**B**): EDT Source Adapter + semantic write (**D**: md-sparrow `.mdo` + `1cedtcli` export) + `source.convert`. Документ: [m7-source-formats](milestones/m7-source-formats.md). Волна 0 Done: spike [#149](https://github.com/pila86/1c-dev/issues/149); дальше волна 1 — ADR [#150](https://github.com/pila86/1c-dev/issues/150) + doctor [#151](https://github.com/pila86/1c-dev/issues/151).
 
 **Follow-ups (вне milestone):**
 - [#143](https://github.com/pila86/1c-dev/issues/143) — `ide configure` DAP `launch.json` hint
@@ -33,6 +33,7 @@
 | Тема | Статус | Документ |
 |------|--------|----------|
 | Write-backend bake-off | **Done** 2026-11-05 (XML=A, EDT=D) | [write-backend-bakeoff](spikes/write-backend-bakeoff.md) · [protocol](spikes/write-backend-bakeoff-protocol.md) |
+| EDT fixture + `1cedtcli` smoke | **Done** 2026-11-06 | [149-edt-source-adapter](spikes/149-edt-source-adapter.md) · fixture `tests/fixtures/edt_spike` |
 
 Remote (Docker, lockfile) — при появлении текста как `docs/milestones/draft-remote.md`.
 
