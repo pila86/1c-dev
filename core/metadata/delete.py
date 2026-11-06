@@ -15,7 +15,7 @@ from adapters.source.xmlgen import (
 )
 from core.diagnostics import error
 from core.metadata.ir import IrError, parse_qualified_name
-from core.metadata.read import _resolve_source
+from core.metadata.read import WRITE_SOURCE_FORMATS, _resolve_source
 from core.metadata.result import MetadataResult
 from core.metadata.types import TYPE_DIRS
 
@@ -62,6 +62,7 @@ def delete_metadata(
         config_id=config_id,
         runtime_id=runtime_id,
         extension_id=extension_id,
+        allowed_formats=WRITE_SOURCE_FORMATS,
     )
     if isinstance(resolved, MetadataResult):
         return MetadataResult(

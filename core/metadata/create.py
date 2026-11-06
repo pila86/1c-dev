@@ -21,7 +21,7 @@ from adapters.source.xmlgen import (
 from core.diagnostics import error
 from core.metadata.delete import object_xml_path
 from core.metadata.ir import CREATE_OBJECT_TYPES, CatalogObject
-from core.metadata.read import _resolve_source
+from core.metadata.read import WRITE_SOURCE_FORMATS, _resolve_source
 from core.metadata.result import MetadataResult
 from core.project.validate import validate_project
 
@@ -69,6 +69,7 @@ def create_metadata(
         config_id=config_id,
         runtime_id=runtime_id,
         extension_id=extension_id,
+        allowed_formats=WRITE_SOURCE_FORMATS,
     )
     if isinstance(resolved, MetadataResult):
         return MetadataResult(

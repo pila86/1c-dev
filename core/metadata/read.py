@@ -1,11 +1,17 @@
-"""metadata.list / get / find orchestration (ADR-012)."""
+"""metadata.list / get / find orchestration (ADR-012 / ADR-032 #152)."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from pathlib import Path
 from typing import Any, Literal
 
+from adapters.source.edt import (
+    SOURCE_FORMAT_EDT,
+    SOURCE_FORMAT_XML,
+    EdtSourceError,
+    validate_edt_source_dir,
+)
 from adapters.source.mdclasses import MdReaderError, fetch_script_suggestion, run_md_reader
 from core.diagnostics import error
 from core.metadata.ir import summary_from_dict
@@ -18,6 +24,10 @@ from core.project.resolve import resolve_config_runtime
 
 Command = Literal["list", "get", "find"]
 ReadFn = Callable[[Command, Path, tuple[str, ...]], dict[str, Any]]
+
+# Read (#152): xml | edt. Write semantic (#154): пока только xml.
+READ_SOURCE_FORMATS: frozenset[str] = frozenset({SOURCE_FORMAT_XML, SOURCE_FORMAT_EDT})
+WRITE_SOURCE_FORMATS: frozenset[str] = frozenset({SOURCE_FORMAT_XML})
 
 
 def _lookup_nested_extension(
@@ -43,12 +53,97 @@ def _lookup_nested_extension(
     return by_id if by_id is not None else by_name
 
 
+def _format_not_allowed(
+    *,
+    fmt: object,
+    allowed: Collection[str],
+    root: Path,
+    manifest_path: Path,
+    label: str,
+) -> MetadataResult:
+    allowed_list = ", ".join(sorted(allowed))
+    if fmt == SOURCE_FORMAT_EDT and SOURCE_FORMAT_EDT not in allowed:
+        suggestion = (
+            "Semantic write для EDT — issue #154 (md-sparrow); "
+            "сейчас metadata.create|update|delete только для source.format: xml"
+        )
+    elif label.startswith("extensions["):
+        suggestion = (
+            "Выгрузите XML через extension add --from *.cfe "
+            "или укажите format: xml|edt"
+        )
+    else:
+        suggestion = f"Поддерживаемые форматы для этой операции: {allowed_list}"
+    return MetadataResult(
+        status="error",
+        root=root,
+        diagnostics=[
+            error(
+                f"{label}: source.format={fmt!r}; поддерживается: {allowed_list}",
+                code="1CM005",
+                file=str(manifest_path),
+                source="metadata",
+                suggestion=suggestion,
+            )
+        ],
+    )
+
+
+def _validate_source_dir(
+    *,
+    fmt: str,
+    source_dir: Path,
+    root: Path,
+    manifest_path: Path,
+    label: str,
+) -> MetadataResult | None:
+    """Return error result if source_dir invalid for format; else None."""
+    if not source_dir.is_dir():
+        suggestion = (
+            "Добавьте расширение через extension add"
+            if label.startswith("extensions[")
+            else None
+        )
+        return MetadataResult(
+            status="error",
+            root=root,
+            diagnostics=[
+                error(
+                    f"Каталог исходников не найден: {source_dir}",
+                    code="1CM001",
+                    source="metadata",
+                    suggestion=suggestion,
+                )
+            ],
+        )
+    if fmt == SOURCE_FORMAT_EDT:
+        detected = validate_edt_source_dir(source_dir)
+        if not detected.is_edt:
+            return MetadataResult(
+                status="error",
+                root=root,
+                source_path=source_dir,
+                diagnostics=[
+                    error(
+                        detected.message
+                        or f"{label}: путь не является корнем EDT-проекта",
+                        code=detected.code or "1CS003",
+                        file=str(manifest_path),
+                        source="edt",
+                        suggestion=detected.suggestion,
+                    )
+                ],
+            )
+    return None
+
+
 def _resolve_source(
     start: Path | None,
     *,
     config_id: str | None = None,
     runtime_id: str | None = None,
     extension_id: str | None = None,
+    allowed_formats: Collection[str] | None = None,
 ) -> MetadataResult | tuple[Path, Path, Path]:
     """
     Resolve project root + source dir.
@@ -56,8 +151,12 @@ def _resolve_source(
     When ``extension_id`` is set, resolves nested ``extensions[]`` source
     (by id or name) under the selected configuration (#112).
 
+    ``allowed_formats`` defaults to read formats (xml|edt, #152).
+    Write path passes ``WRITE_SOURCE_FORMATS`` until #154.
+
     Returns MetadataResult on error, or (root, source_dir, manifest_path).
     """
+    formats = frozenset(allowed_formats) if allowed_formats is not None else READ_SOURCE_FORMATS
     start_path = (start or Path.cwd()).resolve()
     manifest_path = detect_manifest(start_path)
     if manifest_path is None:
@@ -143,23 +242,14 @@ def _resolve_source(
                 ],
             )
         fmt = source.get("format")
-        if fmt != "xml":
-            return MetadataResult(
-                status="error",
+        label = f"extensions[{extension_id!r}]"
+        if not isinstance(fmt, str) or fmt not in formats:
+            return _format_not_allowed(
+                fmt=fmt,
+                allowed=formats,
                 root=root,
-                diagnostics=[
-                    error(
-                        f"extensions[{extension_id!r}]: source.format={fmt!r}; "
-                        "metadata поддерживает только xml",
-                        code="1CM005",
-                        file=str(manifest_path),
-                        source="metadata",
-                        suggestion=(
-                            "Выгрузите XML через extension add --from *.cfe "
-                            "или укажите format: xml"
-                        ),
-                    )
-                ],
+                manifest_path=manifest_path,
+                label=label,
             )
         path = source.get("path")
         if not isinstance(path, str) or not path:
@@ -176,50 +266,38 @@ def _resolve_source(
                 ],
             )
         source_dir = (root / path).resolve()
-        if not source_dir.is_dir():
-            return MetadataResult(
-                status="error",
-                root=root,
-                diagnostics=[
-                    error(
-                        f"Каталог исходников расширения не найден: {source_dir}",
-                        code="1CM001",
-                        source="metadata",
-                        suggestion="Добавьте расширение через extension add",
-                    )
-                ],
-            )
+        invalid = _validate_source_dir(
+            fmt=fmt,
+            source_dir=source_dir,
+            root=root,
+            manifest_path=manifest_path,
+            label=label,
+        )
+        if invalid is not None:
+            return invalid
         return root, source_dir, manifest_path
 
     fmt = target.source_format
-    if fmt != "xml":
-        return MetadataResult(
-            status="error",
+    if not isinstance(fmt, str) or fmt not in formats:
+        return _format_not_allowed(
+            fmt=fmt,
+            allowed=formats,
             root=root,
-            diagnostics=[
-                error(
-                    f"source.format={fmt!r}: M2 read поддерживает только xml",
-                    code="1CM005",
-                    file=str(manifest_path),
-                    source="metadata",
-                )
-            ],
+            manifest_path=manifest_path,
+            label="configuration",
         )
 
     rel = target.source_rel
     source_dir = (root / rel).resolve()
-    if not source_dir.is_dir():
-        return MetadataResult(
-            status="error",
-            root=root,
-            diagnostics=[
-                error(
-                    f"Каталог исходников не найден: {source_dir}",
-                    code="1CM001",
-                    source="metadata",
-                )
-            ],
-        )
+    invalid = _validate_source_dir(
+        fmt=fmt,
+        source_dir=source_dir,
+        root=root,
+        manifest_path=manifest_path,
+        label="configuration",
+    )
+    if invalid is not None:
+        return invalid
     return root, source_dir, manifest_path
 
 
@@ -249,6 +327,16 @@ def _run_read(
     runner: ReadFn = read_fn if read_fn is not None else _default_read
     try:
         payload = runner(command, source_dir, args)
+    except EdtSourceError as exc:
+        diag_kw_edt: dict[str, Any] = {"code": exc.code, "source": "edt"}
+        if exc.suggestion:
+            diag_kw_edt["suggestion"] = exc.suggestion
+        return MetadataResult(
+            status="error",
+            root=root,
+            source_path=source_dir,
+            diagnostics=[error(exc.message, **diag_kw_edt)],
+        )
     except MdReaderError as exc:
         diag_kw: dict[str, Any] = {"code": exc.code, "source": "metadata"}
         if exc.code == "1CM006":

@@ -26,7 +26,7 @@ from core.metadata.ir import (
     TabularSection,
     parse_qualified_name,
 )
-from core.metadata.read import _resolve_source, get_metadata
+from core.metadata.read import WRITE_SOURCE_FORMATS, _resolve_source, get_metadata
 from core.metadata.result import MetadataResult
 
 EditFn = Callable[[Path, list[EditOp]], EditResult]
@@ -350,6 +350,7 @@ def update_metadata(
         config_id=config_id,
         runtime_id=runtime_id,
         extension_id=extension_id,
+        allowed_formats=WRITE_SOURCE_FORMATS,
     )
     if isinstance(resolved, MetadataResult):
         return MetadataResult(

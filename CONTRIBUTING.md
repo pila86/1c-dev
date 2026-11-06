@@ -62,6 +62,7 @@ pwsh scripts/fetch-md-reader.ps1
 
 - xml-gen: JDK 17+, override `ONEC_XMLGEN_JAR`
 - md-reader: JDK 21+ (MDClasses 0.20.0), override `ONEC_MDREADER_JAR`
+- md-sparrow (M7 / #153, ADR-032 write D): `1c-dev tools sync` кладёт `md-sparrow.jar` в `tools/` (soft, pin 0.6.7); JDK **Temurin 25+**; override `ONEC_MDSPARROW_JAR`. Без jar/JDK → diagnostic `1CS008` / `ENV_UNAVAILABLE` на `apply-mutation`
 - yaxunit (M5, ADR-029 §7a): `1c-dev tools sync` кладёт `YAxUnit-<pin>.cfe` в `tools/` (soft); override `ONEC_YAXUNIT_CFE=/path/to/YAxUnit.cfe`. В `project.yaml` не объявляется — runner подключается `1c-dev yaxunit ensure` / `test run`
 - apache (publish/webinst, #94): Unix — `./scripts/fetch-apache.sh` или `1c-dev tools sync` (gcc, make, `libpcre2-dev`); Windows — prebuilt zip из манифеста; override `ONEC_APACHE_HOME`
 
@@ -75,6 +76,8 @@ pwsh scripts/fetch-md-reader.ps1
 - M6-accept (#144 / #147): `poetry run pytest tests/test_m6_acceptance.py -m integration` — fixture `debug_spike` → `runtime start --debug --bp` / CLI steps / MCP `debug.*` → wait → variables/eval → continue → stop; плюс `test run --debug --bp` → `debug wait` → `test wait` (yaxunit_spike); без `ibcmd` / `1cv8` / `dbgs` / `DISPLAY` (не-Windows) — skip.
 - M7 spike (#149): `poetry run pytest tests/test_edt_cli_smoke.py -m integration` — fixture `edt_spike` → `1cedtcli` export/import + collision rc 204; без `1cedtcli` (`ONEC_EDTCLI` / PATH / `/opt/1C/1CE/components`) — skip (`EDTCLI_SKIP_MESSAGE`). Unit: `tests/test_edtcli_discovery.py`.
 - M7 doctor (#151): `1c-dev doctor --output json` → tools.`1cedtcli` + capability `edt` (soft gap `1CD019`); JDK 25+ для md-sparrow — soft `1CD020` (не hard-fail XML-CLI). Unit: `tests/test_doctor.py` (`edtcli` / `md_sparrow_jdk`).
+- M7 EdtSourceAdapter (#152): `poetry run pytest tests/test_edt_source_adapter.py tests/test_metadata_read_edt.py` — detect/inspect + `metadata list|get|find` на `edt_spike`; без md-reader jar — skip integration-кейсов.
+- M7 md-sparrow (#153): `1c-dev tools sync` → soft `md-sparrow.jar`; override `ONEC_MDSPARROW_JAR`; wrapper `adapters.source.mdsparrow.apply_mutation`. Unit: `tests/test_mdsparrow.py`, `tests/test_mdsparrow_toolchain.py`; smoke mutation на `edt_spike` — skip без jar/JDK 25 (`MD_SPARROW_JDK_SKIP_MESSAGE`).
 - E-accept (трек E / #71): `poetry run pytest tests/test_e_acceptance.py -m integration` — sample CRUD по волнам E0–E8; без platform/jars — skip.
 - Publish ibsrv (#89): `poetry run pytest tests/test_publish_integration.py -m integration` — build → `publish.up` → HTTP 200 на url → down; без `ibcmd`/`ibsrv` — skip.
 - Publish webinst (#94): `poetry run pytest tests/test_publish_webinst_integration.py -m integration` — `publish.up` (backend webinst) → url → down; без `wsap24.so` / Apache home (`tools sync` / `ONEC_APACHE_HOME`) — skip. Бинарь `webinst` не обязателен (1c-dev пишет vrd/conf сам).
