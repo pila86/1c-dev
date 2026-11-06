@@ -1,6 +1,6 @@
 # ADR-032: EDT Source Adapter + write path D
 
-**Статус:** Proposed  
+**Статус:** Accepted  
 **Дата:** 2026-11-06
 
 ## Контекст
@@ -45,7 +45,7 @@ diagnostics и имена CLI/MCP — **без** реализации adapter/CL
 **Out of scope этого ADR и M7:** публичный `source.write` как замена `metadata.create`;
 `source.format: cf`; Remote/Docker/lockfile; Vanessa; DAP `launch.json` (#143).
 
-Статус ADR: **Proposed** до acceptance M7 (#159); затем **Accepted**.
+Статус ADR: **Accepted** после acceptance M7 (#159).
 
 ### 2. Контракт Source Adapter (XML vs EDT)
 

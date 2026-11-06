@@ -2,13 +2,11 @@
 
 ## Текущий фокус
 
-**M7: Source formats (EDT)** — Planned ([GitHub milestone M7](https://github.com/pila86/1c-dev/milestone/7)). Полный паритет с XML (**B**): EDT Source Adapter + semantic write (**D**: md-sparrow `.mdo` + `1cedtcli` export) + `source.convert`. Документ: [m7-source-formats](milestones/m7-source-formats.md). Волна 0 Done: spike [#149](https://github.com/pila86/1c-dev/issues/149); волна 1 — ADR [#150](https://github.com/pila86/1c-dev/issues/150) Done ([ADR-032](adr/032-edt-source-adapter.md)); doctor [#151](https://github.com/pila86/1c-dev/issues/151) Done; волна 2 — [#152](https://github.com/pila86/1c-dev/issues/152) Done (`EdtSourceAdapter` detect/read); [#153](https://github.com/pila86/1c-dev/issues/153) Done (pin md-sparrow + `apply-mutation`); волна 3 — [#154](https://github.com/pila86/1c-dev/issues/154) Done (`metadata.*` create/update/delete на `format: edt`); [#155](https://github.com/pila86/1c-dev/issues/155) Done (`build`/`check` EDT: `1cedtcli` export → ibcmd); волна 4 — [#156](https://github.com/pila86/1c-dev/issues/156) Done (`source.convert` XML ↔ EDT + манифест); [#157](https://github.com/pila86/1c-dev/issues/157) Done (MCP `source.convert`); волна 5 — [#158](https://github.com/pila86/1c-dev/issues/158) Done (contract tests Source Adapter PRD §50 + skip без EDT/JDK).
-
 **Follow-ups (вне milestone):**
 - [#143](https://github.com/pila86/1c-dev/issues/143) — `ide configure` DAP `launch.json` hint
 - [#128](https://github.com/pila86/1c-dev/issues/128) — Vanessa adapter (M5)
 
-**Закрыто недавно:** M6 Debug — Done ([m6-debug](milestones/m6-debug.md), PR [#146](https://github.com/pila86/1c-dev/pull/146)); write-backend bake-off — Done ([write-backend-bakeoff](spikes/write-backend-bakeoff.md), 2026-11-05).
+**Закрыто недавно:** M7 Source formats (EDT) — Done ([m7-source-formats](milestones/m7-source-formats.md), acceptance [#159](https://github.com/pila86/1c-dev/issues/159), [ADR-032](adr/032-edt-source-adapter.md) Accepted); M6 Debug — Done ([m6-debug](milestones/m6-debug.md), PR [#146](https://github.com/pila86/1c-dev/pull/146)); write-backend bake-off — Done ([write-backend-bakeoff](spikes/write-backend-bakeoff.md), 2026-11-05).
 
 → [M7 Source formats](milestones/m7-source-formats.md)  
 → [GitHub milestone M7](https://github.com/pila86/1c-dev/milestone/7)  
@@ -24,7 +22,7 @@
 | **M4** | Project home `.1c-dev/`, multi-config + extensions, platform templates, publish (ibsrv / webinst), `runtimes[]` | Done |
 | **M5** | Test API: YAxUnit adapter, CLI/MCP `test.*`, `configurations[].tests`; Vanessa — follow-up | Done |
 | **M6** | Debug API: HTTP Debug Protocol (`dbgs`), CLI/MCP `debug.*` + `test.* --debug`; DAP для IDE — reuse | Done |
-| **M7** | Source formats: EDT adapter + `source.convert` + metadata/build/check parity (write=D) | Planned |
+| **M7** | Source formats: EDT adapter + `source.convert` + metadata/build/check parity (write=D) | Done |
 
 Документы этапов: [M1](milestones/m1-catalog-via-agent.md) · [M2](milestones/m2-metadata-api.md) · [M3](milestones/m3-product-adopt.md) · [M4](milestones/m4-project-model.md) · [M5](milestones/m5-tests.md) · [M6](milestones/m6-debug.md) · [M7](milestones/m7-source-formats.md)
 

@@ -1,6 +1,6 @@
 # M7: Source formats (EDT)
 
-**Статус:** Planned — [GitHub milestone M7](https://github.com/pila86/1c-dev/milestone/7).  
+**Статус:** **Done** — acceptance E2E [#159](https://github.com/pila86/1c-dev/issues/159) (`tests/test_m7_acceptance.py`); [GitHub milestone M7](https://github.com/pila86/1c-dev/milestone/7); [ADR-032](../adr/032-edt-source-adapter.md) Accepted.  
 Бывший план «M4 EDT» / черновик `draft-source-formats`; M4 закрыт как [project model](m4-project-model.md).  
 Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bakeoff.md) (**Done** 2026-11 — XML=xml-gen, EDT=**D** md-sparrow `.mdo` + export).  
 Волна 0: spike [#149](https://github.com/pila86/1c-dev/issues/149) — **Done** ([spike](../spikes/149-edt-source-adapter.md), fixture `tests/fixtures/edt_spike`).
@@ -27,7 +27,7 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 | Platform load | `1cedtcli export` → XML → существующий ibcmd/Designer | Платформа не читает `.mdo` |
 | Agent API | Те же tool names на `xml` и `edt` | PRD §49 / §50; без `shell.exec` |
 | Schema | `source.format: edt` уже в ADR-004; additive при необходимости | Major bump не нужен без breaking |
-| EDT adapter / write D | [ADR-032](../adr/032-edt-source-adapter.md) (**Proposed**) | Accepted после waves 2–5 / #159 |
+| EDT adapter / write D | [ADR-032](../adr/032-edt-source-adapter.md) (**Accepted**) | После waves 2–5 / #159 |
 | Публичный `source.write` | Out of scope | Не замена `metadata.create` |
 
 ## Scope
@@ -119,7 +119,7 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 | [#156](https://github.com/pila86/1c-dev/issues/156) | 4 | `source.convert` XML ↔ EDT + манифест | #152, #155 | Done |
 | [#157](https://github.com/pila86/1c-dev/issues/157) | 4 | MCP `source.convert` | #156 | Done |
 | [#158](https://github.com/pila86/1c-dev/issues/158) | 5 | Contract tests Source Adapter (PRD §50) + skip без EDT | #156, #154 | Done |
-| [#159](https://github.com/pila86/1c-dev/issues/159) | 5 | Acceptance: M7 EDT E2E | #154–#158 | OPEN |
+| [#159](https://github.com/pila86/1c-dev/issues/159) | 5 | Acceptance: M7 EDT E2E | #154–#158 | Done (`tests/test_m7_acceptance.py`) |
 
 ## Риски (коротко)
 
@@ -136,4 +136,4 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 - [Bake-off](../spikes/write-backend-bakeoff.md) · [protocol](../spikes/write-backend-bakeoff-protocol.md) · [EDT spike #149](../spikes/149-edt-source-adapter.md)
 - [M2](m2-metadata-api.md) · [M3](m3-product-adopt.md) · [M4](m4-project-model.md) · [M6](m6-debug.md)
 - [PRD §12 Source API](../../1c-dev-runtime-PRD-v0.1.md), [§13 Sync](../../1c-dev-runtime-PRD-v0.1.md), [§49 Format switching](../../1c-dev-runtime-PRD-v0.1.md), [§50 Contract tests](../../1c-dev-runtime-PRD-v0.1.md)
-- [ADR-007](../adr/007-metadata-ir.md) (XML write); [ADR-032](../adr/032-edt-source-adapter.md) (EDT adapter + write D, Proposed)
+- [ADR-007](../adr/007-metadata-ir.md) (XML write); [ADR-032](../adr/032-edt-source-adapter.md) (EDT adapter + write D, Accepted)
