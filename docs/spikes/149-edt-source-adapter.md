@@ -144,5 +144,5 @@ Integration skip, если `discover_edtcli().found` is False.
 
 - [M7 milestone](../milestones/m7-source-formats.md)
 - [Bake-off](write-backend-bakeoff.md) · [protocol](write-backend-bakeoff-protocol.md) (S6/S7, Variant D)
-- [ADR-007](../adr/007-metadata-ir.md) (XML write; EDT write вне ADR — wave 1)
+- [ADR-007](../adr/007-metadata-ir.md) (XML write); [ADR-032](../adr/032-edt-source-adapter.md) (EDT adapter + write D, Proposed)
 - PRD §12 Source API, §49 Format switching, §50 Contract tests, R1 `1cedtcli`

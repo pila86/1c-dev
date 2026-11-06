@@ -27,6 +27,7 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 | Platform load | `1cedtcli export` → XML → существующий ibcmd/Designer | Платформа не читает `.mdo` |
 | Agent API | Те же tool names на `xml` и `edt` | PRD §49 / §50; без `shell.exec` |
 | Schema | `source.format: edt` уже в ADR-004; additive при необходимости | Major bump не нужен без breaking |
+| EDT adapter / write D | [ADR-032](../adr/032-edt-source-adapter.md) (**Proposed**) | Accepted после waves 2–5 / #159 |
 | Публичный `source.write` | Out of scope | Не замена `metadata.create` |
 
 ## Scope
@@ -109,7 +110,7 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 | # | Wave | Задача | Depends on | Status |
 |---|------|--------|------------|--------|
 | [#149](https://github.com/pila86/1c-dev/issues/149) | 0 | Spike: EDT fixture + `1cedtcli` export/import smoke | bake-off Done | Done ([spike](../spikes/149-edt-source-adapter.md)) |
-| [#150](https://github.com/pila86/1c-dev/issues/150) | 1 | ADR: EDT Source Adapter + write path D | #149 | OPEN |
+| [#150](https://github.com/pila86/1c-dev/issues/150) | 1 | ADR: EDT Source Adapter + write path D | #149 | Done ([ADR-032](../adr/032-edt-source-adapter.md)) |
 | [#151](https://github.com/pila86/1c-dev/issues/151) | 1 | Doctor: capability `edt` / `1cedtcli` (+ JDK md-sparrow soft) | — | OPEN |
 | [#152](https://github.com/pila86/1c-dev/issues/152) | 2 | `EdtSourceAdapter`: detect / read → Metadata API | #150, #149 | OPEN |
 | [#153](https://github.com/pila86/1c-dev/issues/153) | 2 | Toolchain: pin md-sparrow + wiring `apply-mutation` | #150 | OPEN |
@@ -135,4 +136,4 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 - [Bake-off](../spikes/write-backend-bakeoff.md) · [protocol](../spikes/write-backend-bakeoff-protocol.md) · [EDT spike #149](../spikes/149-edt-source-adapter.md)
 - [M2](m2-metadata-api.md) · [M3](m3-product-adopt.md) · [M4](m4-project-model.md) · [M6](m6-debug.md)
 - [PRD §12 Source API](../../1c-dev-runtime-PRD-v0.1.md), [§13 Sync](../../1c-dev-runtime-PRD-v0.1.md), [§49 Format switching](../../1c-dev-runtime-PRD-v0.1.md), [§50 Contract tests](../../1c-dev-runtime-PRD-v0.1.md)
-- [ADR-007](../adr/007-metadata-ir.md) (XML write); EDT ADR — wave 1
+- [ADR-007](../adr/007-metadata-ir.md) (XML write); [ADR-032](../adr/032-edt-source-adapter.md) (EDT adapter + write D, Proposed)

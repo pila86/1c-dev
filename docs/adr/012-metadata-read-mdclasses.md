@@ -38,7 +38,7 @@ Issue #21 требует `metadata.list` / `get` / `find` без платфор�
 ### Границы #21
 
 - Только read (`list` / `get` / `find`) в core/CLI; MCP wrappers — [#26](https://github.com/pila86/1c-dev/issues/26)
-- Source format M2: XML; EDT — после M4 (MDClasses умеет EDT, adapter пока xml-only по манифесту)
+- Source format M2: XML; EDT read — [ADR-032](032-edt-source-adapter.md) / M7 (#152); MDClasses умеет EDT, adapter пока xml-only по манифесту
 - Без публичного `source.write` и без парсинга XML в `core`
 
 ## Альтернативы

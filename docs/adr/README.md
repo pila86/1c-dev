@@ -43,6 +43,7 @@
 | [029](029-test-api.md) | Accepted | Test API facade + граница с METR (CLI/MCP, exit 5, YaXUnit adapter) |
 | [030](030-designer-check-modules.md) | Accepted | Designer `/CheckModules` в `1c-dev check` (синтаксис модулей) |
 | [031](031-debug-api-http.md) | Accepted | Debug API: CLI/MCP поверх HTTP Debug Protocol (`dbgs`) |
+| [032](032-edt-source-adapter.md) | Proposed | EDT Source Adapter + write path D (md-sparrow `.mdo` + `1cedtcli` export) |
 
 ## Когда писать ADR
 
