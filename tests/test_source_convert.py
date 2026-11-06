@@ -246,6 +246,74 @@ def test_convert_missing_edtcli(tmp_path: Path) -> None:
     assert any(d.get("code") == CODE_EDTCLI_MISSING for d in result.diagnostics)
 
 
+def test_convert_rollback_on_copy_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Failed copy after backup must restore source and leave format unchanged."""
+    from core.source import convert as convert_mod
+
+    root = _write_xml_project(tmp_path)
+    source = root / "src" / "cf"
+    marker = (source / "Configuration.xml").read_text(encoding="utf-8")
+    edtcli = tmp_path / "1cedtcli"
+    edtcli.write_text("", encoding="utf-8")
+
+    real_copy = convert_mod._copy_tree_into
+    calls = {"n": 0}
+
+    def boom_then_real(src: Path, dest: Path) -> None:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise OSError("simulated copy failure")
+        real_copy(src, dest)
+
+    monkeypatch.setattr("core.source.convert._copy_tree_into", boom_then_real)
+
+    result = run_convert(
+        root,
+        to="edt",
+        edt_run=_fake_edt_run,
+        edt_discover=lambda: EdtCliInfo(found=True, path=edtcli, version="2026.2.2+21"),
+    )
+    assert result.status == "failed"
+    assert any(d.get("code") == CODE_CONVERT_DIRTY for d in result.diagnostics)
+    assert (source / "Configuration.xml").is_file()
+    assert (source / "Configuration.xml").read_text(encoding="utf-8") == marker
+    assert _read_format(root) == ("xml", "src/cf")
+    assert not (source / PROJECT_FILE_NAME).exists()
+
+
+def test_convert_rollback_on_manifest_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Failed atomic manifest write must restore source and leave format unchanged."""
+    root = _write_xml_project(tmp_path)
+    source = root / "src" / "cf"
+    marker = (source / "Configuration.xml").read_text(encoding="utf-8")
+    edtcli = tmp_path / "1cedtcli"
+    edtcli.write_text("", encoding="utf-8")
+
+    def boom_manifest(_path: Path, _data: object) -> None:
+        raise OSError("simulated manifest failure")
+
+    monkeypatch.setattr("core.source.convert._write_manifest_atomic", boom_manifest)
+
+    result = run_convert(
+        root,
+        to="edt",
+        edt_run=_fake_edt_run,
+        edt_discover=lambda: EdtCliInfo(found=True, path=edtcli, version="2026.2.2+21"),
+    )
+    assert result.status == "failed"
+    assert any(d.get("code") == CODE_CONVERT_DIRTY for d in result.diagnostics)
+    assert (source / "Configuration.xml").is_file()
+    assert (source / "Configuration.xml").read_text(encoding="utf-8") == marker
+    assert _read_format(root) == ("xml", "src/cf")
+    assert not (source / PROJECT_FILE_NAME).exists()
+
+
 def test_cli_source_convert_mock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     root = _write_xml_project(tmp_path)
     monkeypatch.chdir(root)

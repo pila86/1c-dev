@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import tempfile
 import time
@@ -49,6 +50,13 @@ def _platform_version(data: dict[str, Any]) -> str:
     return DEFAULT_IMPORT_PLATFORM_VERSION
 
 
+def _preserve_names_for(directory: Path, *, root: Path) -> frozenset[str]:
+    """Names kept when ``directory`` is the project root."""
+    if directory.resolve() == root.resolve():
+        return ROOT_PRESERVE_NAMES
+    return frozenset()
+
+
 def _clear_directory_contents(
     directory: Path,
     *,
@@ -66,7 +74,7 @@ def _clear_directory_contents(
     if not directory.is_dir():
         raise OSError(f"source.path не каталог: {directory}")
 
-    preserve = ROOT_PRESERVE_NAMES if directory.resolve() == root.resolve() else frozenset()
+    preserve = _preserve_names_for(directory, root=root)
     for child in list(directory.iterdir()):
         if child.name in preserve:
             continue
@@ -89,6 +97,55 @@ def _copy_tree_into(src: Path, dest: Path) -> None:
             shutil.copy2(child, target)
 
 
+def _move_replaceable_into(
+    source_dir: Path,
+    backup_dir: Path,
+    *,
+    root: Path,
+) -> None:
+    """
+    Move replaceable children of ``source_dir`` into ``backup_dir``.
+
+    Preserves ``ROOT_PRESERVE_NAMES`` when ``source_dir`` is the project root.
+    Leaves ``source_dir`` with only preserved entries (or empty).
+    """
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    if not source_dir.exists():
+        source_dir.mkdir(parents=True, exist_ok=True)
+        return
+    if not source_dir.is_dir():
+        raise OSError(f"source.path не каталог: {source_dir}")
+
+    preserve = _preserve_names_for(source_dir, root=root)
+    for child in list(source_dir.iterdir()):
+        if child.name in preserve:
+            continue
+        shutil.move(str(child), str(backup_dir / child.name))
+
+
+def _rollback_source_from_backup(
+    source_dir: Path,
+    backup_dir: Path,
+    *,
+    root: Path,
+) -> None:
+    """Best-effort restore of ``source_dir`` from ``backup_dir`` after a failed swap."""
+    _clear_directory_contents(source_dir, root=root)
+    if backup_dir.is_dir():
+        _copy_tree_into(backup_dir, source_dir)
+
+
+def _write_manifest_atomic(manifest_path: Path, data: dict[str, Any]) -> None:
+    """Write project.yaml via temp file + ``os.replace`` (no half-written manifest)."""
+    tmp = manifest_path.with_name(f"{manifest_path.name}.{os.getpid()}.tmp")
+    try:
+        write_manifest_yaml(tmp, data)
+        os.replace(tmp, manifest_path)
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
 def _stage_xml_for_import(source_dir: Path, staging_xml: Path, *, root: Path) -> Path:
     """
     Copy Designer XML into a clean temp dir for ``1cedtcli import``.
@@ -97,7 +154,7 @@ def _stage_xml_for_import(source_dir: Path, staging_xml: Path, *, root: Path) ->
     so ``.1c-dev`` / ``.git`` do not enter ``--configuration-files``.
     """
     staging_xml.mkdir(parents=True, exist_ok=True)
-    preserve = ROOT_PRESERVE_NAMES if source_dir.resolve() == root.resolve() else frozenset()
+    preserve = _preserve_names_for(source_dir, root=root)
     for child in source_dir.iterdir():
         if child.name in preserve:
             continue
@@ -391,6 +448,7 @@ def run_convert(
         with tempfile.TemporaryDirectory(prefix="1c-dev-convert-") as tmp:
             staging = Path(tmp) / "staging"
             staging.mkdir(parents=True, exist_ok=True)
+            backup = Path(tmp) / "backup"
 
             if target_fmt == SOURCE_FORMAT_EDT:
                 xml_input = Path(tmp) / "xml-input"
@@ -412,9 +470,24 @@ def run_convert(
                 )
                 steps.append("edt-export")
 
-            _clear_directory_contents(source_dir, root=root)
-            _copy_tree_into(staging, source_dir)
-            steps.append("replace-source")
+            # Safe swap: move current source aside → copy staging → atomic
+            # manifest. On any failure after the move, restore from backup so
+            # source.path is never left empty and format↔disk never drifts.
+            _move_replaceable_into(source_dir, backup, root=root)
+            try:
+                _copy_tree_into(staging, source_dir)
+                steps.append("replace-source")
+                _update_source_format(
+                    data,
+                    config_id=target.config_id,
+                    fmt=target_fmt,
+                    path_rel=source_rel,
+                )
+                _write_manifest_atomic(manifest_path, data)
+                steps.append("update-manifest")
+            except OSError:
+                _rollback_source_from_backup(source_dir, backup, root=root)
+                raise
     except EdtCliError as exc:
         return _failed(
             started=started,
@@ -452,15 +525,6 @@ def run_convert(
                 )
             ],
         )
-
-    _update_source_format(
-        data,
-        config_id=target.config_id,
-        fmt=target_fmt,
-        path_rel=source_rel,
-    )
-    write_manifest_yaml(manifest_path, data)
-    steps.append("update-manifest")
 
     return ConvertResult(
         status="ok",
