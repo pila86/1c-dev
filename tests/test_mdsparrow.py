@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 from typing import Any
@@ -12,14 +13,22 @@ import pytest
 from adapters.edtcli.constants import MD_SPARROW_JDK_SKIP_MESSAGE
 from adapters.source.mdsparrow import (
     ENV_UNAVAILABLE_CODE,
+    GAP_CODE,
     MDSPARROW_JAR_ENV,
     MUTATION_FAILED_CODE,
+    REGISTER_RECORDS_GAP_SUGGESTION,
     MdSparrowError,
     apply_mutation,
+    coerce_list_str,
     resolve_jar,
     resolve_java,
 )
 from adapters.source.mdsparrow.resolve import ToolResolve
+from adapters.source.mdsparrow.write import (
+    _set_dto_property,
+    update_edt_object,
+)
+from adapters.source.xmlgen.edit import EditOp
 
 _FIXTURE = Path(__file__).resolve().parent / "fixtures" / "edt_spike"
 
@@ -236,3 +245,164 @@ def test_apply_mutation_smoke_on_edt_spike(tmp_path: Path) -> None:
     assert "<name>Partners</name>" in text
     cfg_text = cfg.read_text(encoding="utf-8")
     assert "Catalog.Partners" in cfg_text
+
+
+def test_coerce_list_str_wire_forms() -> None:
+    """#167: CLI Prop=value → list[str] (JSON array / CSV / scalar)."""
+    assert coerce_list_str("AccumulationRegister.Stock") == [
+        "AccumulationRegister.Stock"
+    ]
+    assert coerce_list_str(
+        "AccumulationRegister.A, InformationRegister.B"
+    ) == ["AccumulationRegister.A", "InformationRegister.B"]
+    assert coerce_list_str(
+        '["AccumulationRegister.A","InformationRegister.B"]'
+    ) == ["AccumulationRegister.A", "InformationRegister.B"]
+    assert coerce_list_str(["AccumulationRegister.A", "  "]) == [
+        "AccumulationRegister.A"
+    ]
+    with pytest.raises(ValueError):
+        coerce_list_str('{"not":"array"}')
+
+
+def test_set_dto_property_register_records_is_array_not_string() -> None:
+    """#167: registerRecords must land as list[str] in DTO (Gson BEGIN_ARRAY)."""
+    dto: dict[str, Any] = {
+        "kind": "Document",
+        "internalName": "Sale",
+        "document": {"registerRecords": []},
+    }
+    _set_dto_property(dto, "registerRecords", "AccumulationRegister.Stock")
+    assert dto["registerRecords"] == ["AccumulationRegister.Stock"]
+    assert isinstance(dto["registerRecords"], list)
+    assert not isinstance(dto["registerRecords"], str)
+    assert dto["document"]["registerRecords"] == ["AccumulationRegister.Stock"]
+
+    # Scalar CommonModule flags stay boolean (no list coerce).
+    flags: dict[str, Any] = {
+        "kind": "CommonModule",
+        "commonModule": {"server": False},
+    }
+    _set_dto_property(flags, "Server", "true")
+    assert flags["commonModule"]["server"] is True
+
+
+def test_update_edt_register_records_hard_fail_when_not_persisted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#167 worst case: array wire OK, .mdo silent no-op → 1CS010 + suggestion."""
+    root = tmp_path / "edt"
+    doc = root / "src" / "Documents" / "Sale" / "Sale.mdo"
+    doc.parent.mkdir(parents=True)
+    doc.write_text("<mdclass:Document/>", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "adapters.source.mdsparrow.write.resolve_java",
+        lambda **_k: ToolResolve(
+            found=True, path=Path("/usr/bin/java"), version="25"
+        ),
+    )
+    monkeypatch.setattr(
+        "adapters.source.mdsparrow.write.resolve_jar",
+        lambda **_k: ToolResolve(found=True, path=tmp_path / "md-sparrow.jar"),
+    )
+
+    payloads: list[dict[str, Any]] = []
+
+    def fake_get(_object_mdo: Path, **_k: Any) -> dict[str, Any]:
+        return {
+            "kind": "Document",
+            "internalName": "Sale",
+            "registerRecords": None,
+            "document": {"registerRecords": []},
+        }
+
+    def fake_set(
+        _object_mdo: Path, dto: dict[str, Any], **_k: Any
+    ) -> None:
+        payloads.append(dto)
+        # Simulate EDT writer accepting array but not persisting (probe result).
+
+    monkeypatch.setattr(
+        "adapters.source.mdsparrow.write.read_object_dto", fake_get
+    )
+    monkeypatch.setattr(
+        "adapters.source.mdsparrow.write._set_object_dto", fake_set
+    )
+
+    with pytest.raises(MdSparrowError) as exc:
+        update_edt_object(
+            root,
+            "Document",
+            "Sale",
+            [EditOp("modify-property", "registerRecords=AccumulationRegister.Stock")],
+        )
+    assert exc.value.code == GAP_CODE
+    assert exc.value.suggestion == REGISTER_RECORDS_GAP_SUGGESTION
+    assert payloads, "cf-md-object-set must be attempted with array wire"
+    sent = payloads[0]["registerRecords"]
+    assert sent == ["AccumulationRegister.Stock"]
+    assert isinstance(sent, list)
+
+
+def test_update_edt_register_records_success_when_persisted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#167 best case: after set, get sees registerRecords → ok."""
+    root = tmp_path / "edt"
+    doc = root / "src" / "Documents" / "Sale" / "Sale.mdo"
+    doc.parent.mkdir(parents=True)
+    doc.write_text("<mdclass:Document/>", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "adapters.source.mdsparrow.write.resolve_java",
+        lambda **_k: ToolResolve(
+            found=True, path=Path("/usr/bin/java"), version="25"
+        ),
+    )
+    monkeypatch.setattr(
+        "adapters.source.mdsparrow.write.resolve_jar",
+        lambda **_k: ToolResolve(found=True, path=tmp_path / "md-sparrow.jar"),
+    )
+
+    state = {"after_set": False}
+
+    def fake_get(_object_mdo: Path, **_k: Any) -> dict[str, Any]:
+        if state["after_set"]:
+            return {
+                "kind": "Document",
+                "internalName": "Sale",
+                "registerRecords": ["AccumulationRegister.Stock"],
+                "document": {
+                    "registerRecords": ["AccumulationRegister.Stock"]
+                },
+            }
+        return {
+            "kind": "Document",
+            "internalName": "Sale",
+            "registerRecords": None,
+            "document": {"registerRecords": []},
+        }
+
+    def fake_set(_object_mdo: Path, dto: dict[str, Any], **_k: Any) -> None:
+        assert dto["registerRecords"] == ["AccumulationRegister.Stock"]
+        # payloadJson must serialize as JSON array, not a quoted string.
+        wire = json.dumps(dto["registerRecords"])
+        assert wire.startswith("[")
+        state["after_set"] = True
+
+    monkeypatch.setattr(
+        "adapters.source.mdsparrow.write.read_object_dto", fake_get
+    )
+    monkeypatch.setattr(
+        "adapters.source.mdsparrow.write._set_object_dto", fake_set
+    )
+
+    result = update_edt_object(
+        root,
+        "Document",
+        "Sale",
+        [EditOp("modify-property", "registerRecords=AccumulationRegister.Stock")],
+    )
+    assert result.modified == 1
+    assert state["after_set"] is True
