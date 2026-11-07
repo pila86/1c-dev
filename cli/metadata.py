@@ -363,7 +363,12 @@ def update_command(
         help=(
             "Операция: attribute/ts/enumValue/dimension/resource ops, "
             "set-flag, modify-property, add-exchange-content; для Subsystem: "
-            "add-content, remove-content, add-child, remove-child, set-property."
+            "add-content, remove-content, add-child, remove-child, set-property. "
+            "Список регистров документа (EDT): "
+            "modify-property --value "
+            "'registerRecords=AccumulationRegister.X' "
+            "(или comma-separated / JSON array); скалярные флаги "
+            "CommonModule (Server=true) без изменений."
         ),
     ),
     value: list[str] | None = typer.Option(

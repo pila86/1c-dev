@@ -5,6 +5,7 @@ Does not import ``core.metadata`` (circular-import safe).
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any, Protocol
 
@@ -177,3 +178,41 @@ def parse_property_assignment(value: str) -> tuple[str, str]:
     if not prop:
         raise ValueError(f"modify-property: пустое имя свойства в {value!r}")
     return prop, val
+
+
+def coerce_list_str(value: Any) -> list[str]:
+    """Coerce CLI/MCP ``Prop=value`` payload into ``list[str]`` for DTO list fields.
+
+    Accepted forms (documented for ``registerRecords`` / #167):
+
+    - already a ``list`` → each item ``str.strip()``, empty dropped
+    - JSON array string: ``'["AccumulationRegister.X","InformationRegister.Y"]'``
+    - comma-separated: ``AccumulationRegister.X,InformationRegister.Y``
+    - single scalar string: one-element list
+
+    Scalar CommonModule flags stay on the bool ``Prop=value`` path and must not
+    call this helper.
+    """
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if value is None:
+        return []
+    if not isinstance(value, str):
+        text = str(value).strip()
+        return [text] if text else []
+    raw = value.strip()
+    if not raw:
+        return []
+    if raw.startswith(("[", "{")):
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"список свойств: ожидался JSON array, получено {value!r}"
+            ) from exc
+        if not isinstance(parsed, list):
+            raise ValueError(
+                f"список свойств: JSON должен быть array, получено {type(parsed).__name__}"
+            )
+        return [str(item).strip() for item in parsed if str(item).strip()]
+    return [part.strip() for part in raw.split(",") if part.strip()]

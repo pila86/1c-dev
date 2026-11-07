@@ -10,7 +10,9 @@ from adapters.source.mdsparrow.constants import (
     MDSPARROW_URL,
     MIN_JAVA_MAJOR,
     MUTATION_FAILED_CODE,
+    REGISTER_RECORDS_GAP_SUGGESTION,
 )
+from adapters.source.mdsparrow.dto import coerce_list_str
 from adapters.source.mdsparrow.mutation import (
     ApplyMutationResult,
     MdSparrowError,
@@ -48,11 +50,13 @@ __all__ = [
     "MDSPARROW_URL",
     "MIN_JAVA_MAJOR",
     "MUTATION_FAILED_CODE",
+    "REGISTER_RECORDS_GAP_SUGGESTION",
     "ApplyMutationResult",
     "EdtWriteResult",
     "MdSparrowError",
     "ToolResolve",
     "apply_mutation",
+    "coerce_list_str",
     "configuration_mdo_path",
     "create_edt_object",
     "default_jar_path",

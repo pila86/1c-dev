@@ -271,6 +271,39 @@ def test_parse_attr_shorthand_helpers() -> None:
     assert n.scale == 2
 
 
+def test_update_edt_register_records_gap_surfaces_1cs010(
+    tmp_path: Path,
+) -> None:
+    """#167: metadata.update maps registerRecords EDT gap → error 1CS010."""
+    from adapters.source.mdsparrow import REGISTER_RECORDS_GAP_SUGGESTION
+
+    target = _copy_edt_fixture(tmp_path)
+
+    def boom(
+        _edt_root: Path,
+        _obj_type: str,
+        _name: str,
+        _ops: list[EditOp],
+    ) -> EditResult:
+        raise MdSparrowError(
+            f"registerRecords не сохранились в .mdo (gap; code {GAP_CODE})",
+            code=GAP_CODE,
+            suggestion=REGISTER_RECORDS_GAP_SUGGESTION,
+        )
+
+    result = update_metadata(
+        target,
+        "Catalog.Products",
+        [EditOp("modify-property", "registerRecords=AccumulationRegister.Stock")],
+        edt_edit_fn=boom,
+        get_fn=lambda *_a, **_k: MagicMock(status="ok", ir={"type": "Catalog"}),
+    )
+    assert result.status == "error"
+    gap = next(d for d in result.diagnostics if d.get("code") == GAP_CODE)
+    assert gap.get("severity") == "error"
+    assert gap.get("suggestion") == REGISTER_RECORDS_GAP_SUGGESTION
+
+
 @pytest.mark.integration
 def test_create_update_delete_edt_live(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Live Catalog + attribute on edt_spike copy; skip без jar/JDK 25."""

@@ -21,3 +21,12 @@ MUTATION_FAILED_CODE = "1CS011"
 GAP_CODE = "1CS010"
 # Wall-clock budget for apply-mutation JVM (analog edtcli timeout+60).
 DEFAULT_MUTATION_TIMEOUT_SEC = 300
+# Probe 2026-11-07 / md-sparrow 0.6.7 EDT: cf-md-object-set accepts
+# registerRecords as JSON array but does not persist into .mdo (silent no-op).
+# String payload fails Gson (Expected BEGIN_ARRAY). See #167.
+REGISTER_RECORDS_GAP_SUGGESTION = (
+    "EDT/md-sparrow пока не пишет registerRecords в .mdo. "
+    "Обход: править registerRecords вручную в .mdo документа "
+    "или 1c-dev source.convert --to=xml, задать движения в Designer XML, "
+    "затем convert --to=edt."
+)

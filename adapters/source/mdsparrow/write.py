@@ -13,9 +13,11 @@ from adapters.source.mdsparrow.constants import (
     ENV_UNAVAILABLE_CODE,
     GAP_CODE,
     MUTATION_FAILED_CODE,
+    REGISTER_RECORDS_GAP_SUGGESTION,
 )
 from adapters.source.mdsparrow.dto import (
     attr_type_dto,
+    coerce_list_str,
     number_precision_gap,
     parse_attr_shorthand,
     parse_named_synonym,
@@ -519,12 +521,28 @@ def _common_module_flag_props(catalog: CatalogObject) -> dict[str, Any]:
     return props
 
 
+# DTO list[str] fields that must not be sent as a scalar string (#167).
+_LIST_STRING_PROPS = frozenset({"registerrecords"})
+
+
+def _is_list_string_prop(prop: str) -> bool:
+    return prop.lower().replace("_", "") in _LIST_STRING_PROPS
+
+
 def _set_dto_property(dto: dict[str, Any], prop: str, value: Any) -> None:
     """Map Designer/IR property names onto cf-md-object-get DTO keys."""
     lower = prop.lower().replace("_", "")
     # Synonym on object root.
     if lower == "synonym":
         dto["synonym"] = value
+        return
+    # Document registerRecords: List<String> on root and nested document (#167).
+    if lower == "registerrecords":
+        items = coerce_list_str(value)
+        dto["registerRecords"] = items
+        document = dto.get("document")
+        if isinstance(document, dict):
+            document["registerRecords"] = list(items)
         return
     # CommonModule lives under nested block in some schemas; try flat first.
     camel_map = {
@@ -557,6 +575,35 @@ def _coerce_flag(value: Any) -> Any:
         if lower in {"false", "0", "no"}:
             return False
     return value
+
+
+def _register_records_from_dto(dto: dict[str, Any]) -> list[str]:
+    """Collect registerRecords from root and nested document block."""
+    found: list[str] = []
+    root = dto.get("registerRecords")
+    if isinstance(root, list):
+        found.extend(str(item).strip() for item in root if str(item).strip())
+    document = dto.get("document")
+    if isinstance(document, dict):
+        nested = document.get("registerRecords")
+        if isinstance(nested, list):
+            found.extend(str(item).strip() for item in nested if str(item).strip())
+    # Preserve order, drop duplicates.
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for item in found:
+        if item not in seen:
+            seen.add(item)
+            ordered.append(item)
+    return ordered
+
+
+def _register_records_persisted(dto: dict[str, Any], expected: list[str]) -> bool:
+    """True when every expected register qname is present after cf-md-object-set."""
+    if not expected:
+        return True
+    have = set(_register_records_from_dto(dto))
+    return all(item in have for item in expected)
 
 
 def delete_edt_object(
@@ -924,8 +971,32 @@ def update_edt_object(
             prop, val = parse_property_assignment(op.value)
             d = ensure_dto()
             _set_dto_property(d, prop, val)
-            dto_dirty = True
-            result.modified += 1
+            if _is_list_string_prop(prop):
+                # List-valued wire must be array (not string). Flush immediately
+                # and verify persistence — EDT writer may accept array and
+                # silently no-op (#167 probe / md-sparrow 0.6.7).
+                expected = coerce_list_str(val)
+                _set_object_dto(
+                    obj_path,
+                    d,
+                    jar=jar_r,
+                    java=java_r,
+                    schema_version=schema_version,
+                )
+                dto = None
+                dto_dirty = False
+                after = ensure_dto()
+                if not _register_records_persisted(after, expected):
+                    raise MdSparrowError(
+                        "registerRecords не сохранились в .mdo после "
+                        f"cf-md-object-set (gap; code {GAP_CODE})",
+                        code=GAP_CODE,
+                        suggestion=REGISTER_RECORDS_GAP_SUGGESTION,
+                    )
+                result.modified += 1
+            else:
+                dto_dirty = True
+                result.modified += 1
         elif op.op == "add-exchange-content":
             raise MdSparrowError(
                 "add-exchange-content на EDT пока не поддержан "
