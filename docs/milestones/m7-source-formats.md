@@ -1,6 +1,6 @@
 # M7: Source formats (EDT)
 
-**Статус:** **In progress (wave 6)** — config EDT Done ([#159](https://github.com/pila86/1c-dev/issues/159)); nested extensions EDT — [#161](https://github.com/pila86/1c-dev/issues/161)–[#164](https://github.com/pila86/1c-dev/issues/164). [GitHub milestone M7](https://github.com/pila86/1c-dev/milestone/7); [ADR-032](../adr/032-edt-source-adapter.md) Accepted (+ additive nested).  
+**Статус:** **In progress (wave 6)** — config EDT Done ([#159](https://github.com/pila86/1c-dev/issues/159)); nested extensions EDT — [#161](https://github.com/pila86/1c-dev/issues/161)–[#164](https://github.com/pila86/1c-dev/issues/164); write honesty Subsystem content — [#165](https://github.com/pila86/1c-dev/issues/165). [GitHub milestone M7](https://github.com/pila86/1c-dev/milestone/7); [ADR-032](../adr/032-edt-source-adapter.md) Accepted (+ additive nested).  
 Бывший план «M4 EDT» / черновик `draft-source-formats`; M4 закрыт как [project model](m4-project-model.md).  
 Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bakeoff.md) (**Done** 2026-11 — XML=xml-gen, EDT=**D** md-sparrow `.mdo` + export).  
 Волна 0: spike [#149](https://github.com/pila86/1c-dev/issues/149) — **Done** ([spike](../spikes/149-edt-source-adapter.md), fixture `tests/fixtures/edt_spike`).
@@ -103,6 +103,7 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 - [ ] `source.convert --extension` CLI + MCP (#162)
 - [ ] `extension add` с `format=edt` (#163)
 - [ ] Acceptance: convert tests → build → test.run; YAXUNIT без изменений (#164)
+- [ ] EDT: hard-fail состава подсистемы + suggestion с обходом ([#165](https://github.com/pila86/1c-dev/issues/165); upstream [md-sparrow#78](https://github.com/yellow-hammer/md-sparrow/issues/78))
 
 ## Out of scope
 
@@ -114,7 +115,9 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 - `.cf` как постоянный source format в манифесте (`source.format: cf`)
 - Публичный `source.write` как замена `metadata.create`
 - YAXUNIT как EDT/XML в `project.yaml` / `src/` (остаётся cache `.cfe` + ensure)
-- Автоконверт всех nested без `--extension`; EDT write-gaps (Subsystem content, Number, …) — follow-up
+- Автоконверт всех nested без `--extension`
+- Запись состава подсистемы в `.mdo` у себя (ждём md-sparrow#78); прочие EDT write-gaps (Number, ts-attribute, registerRecords) — follow-up
+- Тихий no-op content на EDT — **не** out of scope: честный fail → [#165](https://github.com/pila86/1c-dev/issues/165)
 
 ## Manual verification
 
@@ -155,12 +158,14 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 | [#162](https://github.com/pila86/1c-dev/issues/162) | 6 | `source.convert --extension` XML ↔ EDT (CLI + MCP) | #156, #157 | Open |
 | [#163](https://github.com/pila86/1c-dev/issues/163) | 6 | `extension add` с `format=edt` | #161, #162 | Open |
 | [#164](https://github.com/pila86/1c-dev/issues/164) | 6 | Acceptance: nested extension EDT E2E (+ test.run) | #161–#163 | Open |
+| [#165](https://github.com/pila86/1c-dev/issues/165) | 6 | EDT: hard-fail состава подсистемы + обход в diagnostic | #154; [md-sparrow#78](https://github.com/yellow-hammer/md-sparrow/issues/78) | Open |
 
 ## Риски (коротко)
 
 | Риск | Митигация |
 |------|-----------|
 | md-sparrow дыры на TS/синонимах (bake-off S2) | Contract tests; fallback bridge только для известных gaps; фиксировать в spike |
+| md-sparrow EDT: `contentRefs` не пишется (тихий no-op) | Upstream [md-sparrow#78](https://github.com/yellow-hammer/md-sparrow/issues/78); у нас hard-fail + suggestion [#165](https://github.com/pila86/1c-dev/issues/165) |
 | `1cedtcli` / workspace collision | Fresh `-data` workspace; документировать в doctor/spike |
 | Wayland / GTK для `/CheckModules` | Уже известен workaround (X11); не специфичен EDT |
 | Scope creep (Remote, `.cf` format, Vanessa) | Out of scope жёстко |

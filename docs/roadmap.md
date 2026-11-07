@@ -6,7 +6,7 @@
 - [#143](https://github.com/pila86/1c-dev/issues/143) — `ide configure` DAP `launch.json` hint
 - [#128](https://github.com/pila86/1c-dev/issues/128) — Vanessa adapter (M5)
 
-**Сейчас:** M7 wave 6 — nested extensions EDT ([#161](https://github.com/pila86/1c-dev/issues/161)–[#164](https://github.com/pila86/1c-dev/issues/164); config EDT waves 0–5 Done / [#159](https://github.com/pila86/1c-dev/issues/159)).
+**Сейчас:** M7 wave 6 — nested extensions EDT ([#161](https://github.com/pila86/1c-dev/issues/161)–[#164](https://github.com/pila86/1c-dev/issues/164)) + hard-fail состава подсистемы ([#165](https://github.com/pila86/1c-dev/issues/165); config EDT waves 0–5 Done / [#159](https://github.com/pila86/1c-dev/issues/159)).
 
 **Закрыто недавно:** M6 Debug — Done ([m6-debug](milestones/m6-debug.md), PR [#146](https://github.com/pila86/1c-dev/pull/146)); write-backend bake-off — Done ([write-backend-bakeoff](spikes/write-backend-bakeoff.md), 2026-11-05).
 
