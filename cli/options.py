@@ -28,7 +28,7 @@ ExtensionOption = Annotated[
         "--extension",
         help=(
             "Id или name nested extension из configurations[].extensions[] "
-            "(metadata.* → src/cfe/…; #112)."
+            "(metadata.* / source convert → src/cfe/…; #112, #162)."
         ),
     ),
 ]

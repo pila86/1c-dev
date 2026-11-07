@@ -168,7 +168,30 @@ def _stage_xml_for_import(source_dir: Path, staging_xml: Path, *, root: Path) ->
     return staging_xml
 
 
-def _update_source_format(
+def _lookup_nested_extension(
+    configuration: dict[str, Any],
+    extension_id: str,
+) -> dict[str, Any] | None:
+    """Find nested extensions[] entry by id, else by name."""
+    raw = configuration.get("extensions")
+    if not isinstance(raw, list):
+        return None
+    by_id: dict[str, Any] | None = None
+    by_name: dict[str, Any] | None = None
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        eid = item.get("id")
+        if isinstance(eid, str) and eid == extension_id:
+            by_id = item
+            break
+        ename = item.get("name")
+        if by_name is None and isinstance(ename, str) and ename == extension_id:
+            by_name = item
+    return by_id if by_id is not None else by_name
+
+
+def _update_config_source_format(
     data: dict[str, Any],
     *,
     config_id: str,
@@ -190,12 +213,46 @@ def _update_source_format(
         return
 
 
+def _update_extension_source_format(
+    data: dict[str, Any],
+    *,
+    config_id: str,
+    extension_id: str,
+    fmt: str,
+    path_rel: str,
+) -> None:
+    configurations = data.get("configurations")
+    if not isinstance(configurations, list):
+        return
+    for item in configurations:
+        if not isinstance(item, dict) or item.get("id") != config_id:
+            continue
+        extensions = item.get("extensions")
+        if not isinstance(extensions, list):
+            return
+        for ext in extensions:
+            if not isinstance(ext, dict):
+                continue
+            eid = ext.get("id")
+            if not (isinstance(eid, str) and eid == extension_id):
+                continue
+            source = ext.get("source")
+            if not isinstance(source, dict):
+                source = {}
+                ext["source"] = source
+            source["format"] = fmt
+            source["path"] = path_rel
+            return
+        return
+
+
 def _failed(
     *,
     started: float,
     root: Path | None,
     diagnostics: list[Diagnostic],
     config_id: str | None = None,
+    extension_id: str | None = None,
     source_path: Path | None = None,
     source_rel: str | None = None,
     from_format: str | None = None,
@@ -207,6 +264,7 @@ def _failed(
         duration=time.perf_counter() - started,
         root=root,
         config_id=config_id,
+        extension_id=extension_id,
         source_path=source_path,
         source_rel=source_rel,
         from_format=from_format,
@@ -221,16 +279,23 @@ def run_convert(
     *,
     to: ConvertTarget,
     config_id: str | None = None,
+    extension_id: str | None = None,
     force: bool = False,
     platform_version: str | None = None,
     edt_run: RunFn | None = None,
     edt_discover: Callable[[], EdtCliInfo] | None = None,
 ) -> ConvertResult:
     """
-    Convert configuration source between Designer XML and EDT.
+    Convert configuration or nested extension source between Designer XML and EDT.
+
+    Without ``extension_id``: only ``configurations[].source`` (unchanged API).
+
+    With ``extension_id`` (id or name): only that ``extensions[].source``;
+    the main configuration source is not touched. No silent all-extensions convert.
 
     XML → EDT: ``1cedtcli import`` into staging, replace ``source.path``, set
-    ``source.format: edt``.
+    ``source.format: edt`` (path stays the EDT project root, typically
+    ``src/cfe/<id>/`` for nested extensions).
 
     EDT → XML: ``1cedtcli export`` into staging, replace ``source.path``, set
     ``source.format: xml``.
@@ -303,9 +368,75 @@ def run_convert(
             diagnostics=list(resolve_diags),
         )
 
-    source_rel = target.source_rel
+    resolved_ext_id: str | None = None
+    source_label = "source"
+    if extension_id:
+        ext = _lookup_nested_extension(target.configuration, extension_id)
+        if ext is None:
+            return _failed(
+                started=started,
+                root=root,
+                config_id=target.config_id,
+                to_format=target_fmt,
+                diagnostics=[
+                    error(
+                        f"Расширение не найдено: {extension_id!r}",
+                        code=CODE_PROJECT_MISSING,
+                        source="source",
+                        suggestion=(
+                            "Укажите id или name из configurations[].extensions[]; "
+                            "добавьте через extension add"
+                        ),
+                    )
+                ],
+            )
+        eid_raw = ext.get("id")
+        resolved_ext_id = (
+            eid_raw if isinstance(eid_raw, str) and eid_raw else extension_id
+        )
+        source = ext.get("source")
+        if not isinstance(source, dict):
+            return _failed(
+                started=started,
+                root=root,
+                config_id=target.config_id,
+                extension_id=resolved_ext_id,
+                to_format=target_fmt,
+                diagnostics=[
+                    error(
+                        f"extensions[{resolved_ext_id!r}]: отсутствует source",
+                        code=CODE_PROJECT_MISSING,
+                        file=str(manifest_path.name),
+                        source="source",
+                    )
+                ],
+            )
+        path_raw = source.get("path")
+        if not isinstance(path_raw, str) or not path_raw.strip():
+            return _failed(
+                started=started,
+                root=root,
+                config_id=target.config_id,
+                extension_id=resolved_ext_id,
+                to_format=target_fmt,
+                diagnostics=[
+                    error(
+                        f"extensions[{resolved_ext_id!r}]: отсутствует source.path",
+                        code=CODE_PROJECT_MISSING,
+                        file=str(manifest_path.name),
+                        source="source",
+                    )
+                ],
+            )
+        source_rel = path_raw.strip()
+        fmt_raw = source.get("format")
+        from_fmt = (fmt_raw.strip().lower() if isinstance(fmt_raw, str) else "") or None
+        source_label = f"extensions[{resolved_ext_id!r}].source"
+    else:
+        source_rel = target.source_rel
+        from_fmt = (target.source_format or "").strip().lower() or None
+
     source_dir = (root / source_rel).resolve()
-    from_fmt = (target.source_format or "").strip().lower() or None
 
     if from_fmt == target_fmt:
         if force:
@@ -314,6 +445,7 @@ def run_convert(
                 duration=time.perf_counter() - started,
                 root=root,
                 config_id=target.config_id,
+                extension_id=resolved_ext_id,
                 source_path=source_dir,
                 source_rel=source_rel,
                 from_format=from_fmt,
@@ -325,13 +457,14 @@ def run_convert(
             started=started,
             root=root,
             config_id=target.config_id,
+            extension_id=resolved_ext_id,
             source_path=source_dir,
             source_rel=source_rel,
             from_format=from_fmt,
             to_format=target_fmt,
             diagnostics=[
                 error(
-                    f"source.format уже {target_fmt!r}",
+                    f"{source_label}.format уже {target_fmt!r}",
                     code=CODE_CONVERT_DIRTY,
                     source="source",
                     suggestion="Укажите другой --to или --force для идемпотентного no-op",
@@ -344,13 +477,14 @@ def run_convert(
             started=started,
             root=root,
             config_id=target.config_id,
+            extension_id=resolved_ext_id,
             source_path=source_dir,
             source_rel=source_rel,
             from_format=from_fmt,
             to_format=target_fmt,
             diagnostics=[
                 error(
-                    f"source.format={from_fmt!r}: convert поддерживает xml ↔ edt",
+                    f"{source_label}.format={from_fmt!r}: convert поддерживает xml ↔ edt",
                     code=CODE_CONVERT_DIRTY,
                     source="source",
                     suggestion="Укажите source.format: xml или edt в манифесте",
@@ -363,13 +497,14 @@ def run_convert(
             started=started,
             root=root,
             config_id=target.config_id,
+            extension_id=resolved_ext_id,
             source_path=source_dir,
             source_rel=source_rel,
             from_format=from_fmt,
             to_format=target_fmt,
             diagnostics=[
                 error(
-                    f"source.path не существует или не каталог: {source_rel}",
+                    f"{source_label}.path не существует или не каталог: {source_rel}",
                     code=CODE_PROJECT_MISSING,
                     source="source",
                 )
@@ -383,16 +518,22 @@ def run_convert(
                 started=started,
                 root=root,
                 config_id=target.config_id,
+                extension_id=resolved_ext_id,
                 source_path=source_dir,
                 source_rel=source_rel,
                 from_format=from_fmt,
                 to_format=target_fmt,
                 diagnostics=[
                     error(
-                        f"Нет Configuration.xml в source.path ({source_rel})",
+                        f"Нет Configuration.xml в {source_label}.path ({source_rel})",
                         code=CODE_CONVERT_DIRTY,
                         source="source",
-                        suggestion="Проверьте XML-выгрузку или выполните configuration import",
+                        suggestion=(
+                            "Проверьте XML-выгрузку расширения или выполните "
+                            "extension add / configuration import"
+                            if resolved_ext_id
+                            else "Проверьте XML-выгрузку или выполните configuration import"
+                        ),
                     )
                 ],
             )
@@ -403,6 +544,7 @@ def run_convert(
                 started=started,
                 root=root,
                 config_id=target.config_id,
+                extension_id=resolved_ext_id,
                 source_path=source_dir,
                 source_rel=source_rel,
                 from_format=from_fmt,
@@ -426,6 +568,7 @@ def run_convert(
             started=started,
             root=root,
             config_id=target.config_id,
+            extension_id=resolved_ext_id,
             source_path=source_dir,
             source_rel=source_rel,
             from_format=from_fmt,
@@ -477,12 +620,21 @@ def run_convert(
             try:
                 _copy_tree_into(staging, source_dir)
                 steps.append("replace-source")
-                _update_source_format(
-                    data,
-                    config_id=target.config_id,
-                    fmt=target_fmt,
-                    path_rel=source_rel,
-                )
+                if resolved_ext_id is not None:
+                    _update_extension_source_format(
+                        data,
+                        config_id=target.config_id,
+                        extension_id=resolved_ext_id,
+                        fmt=target_fmt,
+                        path_rel=source_rel,
+                    )
+                else:
+                    _update_config_source_format(
+                        data,
+                        config_id=target.config_id,
+                        fmt=target_fmt,
+                        path_rel=source_rel,
+                    )
                 _write_manifest_atomic(manifest_path, data)
                 steps.append("update-manifest")
             except OSError:
@@ -493,6 +645,7 @@ def run_convert(
             started=started,
             root=root,
             config_id=target.config_id,
+            extension_id=resolved_ext_id,
             source_path=source_dir,
             source_rel=source_rel,
             from_format=from_fmt,
@@ -512,6 +665,7 @@ def run_convert(
             started=started,
             root=root,
             config_id=target.config_id,
+            extension_id=resolved_ext_id,
             source_path=source_dir,
             source_rel=source_rel,
             from_format=from_fmt,
@@ -531,6 +685,7 @@ def run_convert(
         duration=time.perf_counter() - started,
         root=root,
         config_id=target.config_id,
+        extension_id=resolved_ext_id,
         source_path=source_dir,
         source_rel=source_rel,
         from_format=from_fmt,
