@@ -168,6 +168,21 @@ source.format: edt
 
 Публичные `source.write` / raw sync — **не** must M7.
 
+### 5a. Additive: nested extensions EDT (wave 6 / #161–#164)
+
+Контракт §2 / §4 / §5 распространяется на **`extensions[].source`** так же, как на
+`configurations[].source` (смешанный xml|edt|cfe ок):
+
+| Поверхность | Правило |
+|-------------|---------|
+| `source.convert --extension <id\|name>` | Только выбранный nested source; config не трогать (#162) |
+| `build` при `extensions[].source.format: edt` | Per-ext `1cedtcli export` → `.1c-dev/export/<config-id>/ext/<ext-id>/` → ibcmd `--extension` (#161) |
+| `extension add --format edt` | XML scaffold / `.cfe` export → convert → `format: edt` (#163) |
+| YAXUNIT | Не convert / не `src/`; cache `.cfe` + `ensure` (ADR-029 §7a) |
+| Acceptance | convert tests → build → `test.run` (#164); config edt + extension edt не ломает runner |
+
+Автоконверт всех nested без `--extension` — **out of scope**.
+
 ### 6. Doctor capabilities (контракт для #151)
 
 Реализация — issue [#151](https://github.com/pila86/1c-dev/issues/151); здесь только контракт.
@@ -237,8 +252,9 @@ Metadata IR ошибки на EDT переиспользуют семейств�
   - [#156](https://github.com/pila86/1c-dev/issues/156) / [#157](https://github.com/pila86/1c-dev/issues/157) — convert CLI/MCP;
   - [#158](https://github.com/pila86/1c-dev/issues/158) — contract tests PRD §50;
   - [#159](https://github.com/pila86/1c-dev/issues/159) — acceptance → ADR **Accepted**.
+  - Wave 6 (#161–#164, #165, #167) — nested EDT + write honesty; §5a additive.
 - Обновить capability matrix doctor и schema doctor.tools additive (#151).
-- Fixture `tests/fixtures/edt_spike` — канон layout для тестов.
+- Fixture `tests/fixtures/edt_spike` — канон layout для тестов; `yaxunit_spike` — nested accept (#164).
 - Закладка ADR-007 / ADR-012: EDT write/read реализуются по этому ADR.
 
 ## Связанные решения

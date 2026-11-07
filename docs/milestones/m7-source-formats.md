@@ -1,6 +1,6 @@
 # M7: Source formats (EDT)
 
-**Статус:** **In progress (wave 6)** — config EDT Done ([#159](https://github.com/pila86/1c-dev/issues/159)); nested extensions EDT — [#161](https://github.com/pila86/1c-dev/issues/161)–[#164](https://github.com/pila86/1c-dev/issues/164); write honesty — [#165](https://github.com/pila86/1c-dev/issues/165) (Subsystem content), [#167](https://github.com/pila86/1c-dev/issues/167) (`registerRecords` array). [GitHub milestone M7](https://github.com/pila86/1c-dev/milestone/7); [ADR-032](../adr/032-edt-source-adapter.md) Accepted (+ additive nested).  
+**Статус:** **Done (wave 6)** — config EDT Done ([#159](https://github.com/pila86/1c-dev/issues/159)); nested extensions EDT Done ([#161](https://github.com/pila86/1c-dev/issues/161)–[#164](https://github.com/pila86/1c-dev/issues/164)); write honesty — [#165](https://github.com/pila86/1c-dev/issues/165) (Subsystem content), [#167](https://github.com/pila86/1c-dev/issues/167) (`registerRecords` array). [GitHub milestone M7](https://github.com/pila86/1c-dev/milestone/7); [ADR-032](../adr/032-edt-source-adapter.md) Accepted (+ additive nested).  
 Бывший план «M4 EDT» / черновик `draft-source-formats`; M4 закрыт как [project model](m4-project-model.md).  
 Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bakeoff.md) (**Done** 2026-11 — XML=xml-gen, EDT=**D** md-sparrow `.mdo` + export).  
 Волна 0: spike [#149](https://github.com/pila86/1c-dev/issues/149) — **Done** ([spike](../spikes/149-edt-source-adapter.md), fixture `tests/fixtures/edt_spike`).
@@ -99,11 +99,11 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 - [x] MCP: `source.convert` без shell.exec
 - [x] Integration-тесты: skip с сообщением, если нет EDT CLI / md-sparrow JDK
 - [x] Contract tests Source Adapter: XML и EDT на общем наборе capabilities (PRD §50)
-- [ ] Nested `extensions[].source.format: edt`: `build` export → ibcmd (#161)
-- [ ] `source.convert --extension` CLI + MCP (#162)
-- [ ] `extension add` с `format=edt` (#163)
-- [ ] Acceptance: convert tests → build → test.run; YAXUNIT без изменений (#164)
-- [ ] EDT: hard-fail состава подсистемы + suggestion с обходом ([#165](https://github.com/pila86/1c-dev/issues/165); upstream [md-sparrow#78](https://github.com/yellow-hammer/md-sparrow/issues/78))
+- [x] Nested `extensions[].source.format: edt`: `build` export → ibcmd (#161)
+- [x] `source.convert --extension` CLI + MCP (#162)
+- [x] `extension add` с `format=edt` (#163)
+- [x] Acceptance: convert tests → build → test.run; YAXUNIT без изменений (#164) (`tests/test_m7_acceptance.py`)
+- [x] EDT: hard-fail состава подсистемы + suggestion с обходом ([#165](https://github.com/pila86/1c-dev/issues/165); upstream [md-sparrow#78](https://github.com/yellow-hammer/md-sparrow/issues/78))
 - [x] EDT: `registerRecords` через array (не string `Prop=value`); probe 0.6.7 — silent no-op → hard-fail `1CS010` + suggestion ([#167](https://github.com/pila86/1c-dev/issues/167))
 
 ## Out of scope
@@ -156,11 +156,11 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 | [#157](https://github.com/pila86/1c-dev/issues/157) | 4 | MCP `source.convert` | #156 | Done |
 | [#158](https://github.com/pila86/1c-dev/issues/158) | 5 | Contract tests Source Adapter (PRD §50) + skip без EDT | #156, #154 | Done |
 | [#159](https://github.com/pila86/1c-dev/issues/159) | 5 | Acceptance: M7 EDT E2E | #154–#158 | Done (`tests/test_m7_acceptance.py`) |
-| [#161](https://github.com/pila86/1c-dev/issues/161) | 6 | `build`: nested `extensions[].source.format: edt` | #155 | Open |
-| [#162](https://github.com/pila86/1c-dev/issues/162) | 6 | `source.convert --extension` XML ↔ EDT (CLI + MCP) | #156, #157 | Open |
-| [#163](https://github.com/pila86/1c-dev/issues/163) | 6 | `extension add` с `format=edt` | #161, #162 | Open |
-| [#164](https://github.com/pila86/1c-dev/issues/164) | 6 | Acceptance: nested extension EDT E2E (+ test.run) | #161–#163 | Open |
-| [#165](https://github.com/pila86/1c-dev/issues/165) | 6 | EDT: hard-fail состава подсистемы + обход в diagnostic | #154; [md-sparrow#78](https://github.com/yellow-hammer/md-sparrow/issues/78) | Open |
+| [#161](https://github.com/pila86/1c-dev/issues/161) | 6 | `build`: nested `extensions[].source.format: edt` | #155 | Done |
+| [#162](https://github.com/pila86/1c-dev/issues/162) | 6 | `source.convert --extension` XML ↔ EDT (CLI + MCP) | #156, #157 | Done |
+| [#163](https://github.com/pila86/1c-dev/issues/163) | 6 | `extension add` с `format=edt` | #161, #162 | Done |
+| [#164](https://github.com/pila86/1c-dev/issues/164) | 6 | Acceptance: nested extension EDT E2E (+ test.run) | #161–#163 | Done (`tests/test_m7_acceptance.py`) |
+| [#165](https://github.com/pila86/1c-dev/issues/165) | 6 | EDT: hard-fail состава подсистемы + обход в diagnostic | #154; [md-sparrow#78](https://github.com/yellow-hammer/md-sparrow/issues/78) | Done |
 | [#167](https://github.com/pila86/1c-dev/issues/167) | 6 | EDT: `registerRecords` — array wire (не string); probe + fix/fail | #154 | Done (worst: 1CS010) |
 
 ## Риски (коротко)

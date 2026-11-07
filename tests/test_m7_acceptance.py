@@ -1,14 +1,19 @@
-"""M7 acceptance: EDT E2E convert → metadata.* → build → check → convert (#159).
+"""M7 acceptance: EDT E2E (#159) + nested extension EDT → test.run (#164).
 
-Полный паритет (scope B / ADR-032): на fixture ``edt_spike`` —
-``source.convert`` XML↔EDT, ``metadata.list|get|create|update``, ``build``/``check``.
-Без ``1cedtcli`` / ibcmd / JDK 25 (md-sparrow) / md-reader — skip с явным сообщением.
+#159 (wave 5): fixture ``edt_spike`` — convert → metadata.* → build → check → convert.
+#164 (wave 6): fixture ``yaxunit_spike`` — convert ``--extension`` → build → test.run;
+``extension add`` format=edt smoke → build; mixed config edt + extension edt.
+
+Без ``1cedtcli`` / ibcmd / 1cv8 / yaxunit.cfe / JDK 25 (md-sparrow) / md-reader —
+skip с явным сообщением.
 """
 
 from __future__ import annotations
 
 import shutil
+import urllib.error
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -24,6 +29,8 @@ from adapters.source.edt.constants import CONFIGURATION_MDO_REL, PROJECT_FILE_NA
 from adapters.source.xmlgen.edit import EditOp
 from core.build import run_build
 from core.check import run_check
+from core.exit_codes import TEST_FAILURE
+from core.extension import add_extension
 from core.metadata import (
     catalog_from_parts,
     create_metadata,
@@ -33,9 +40,16 @@ from core.metadata import (
 )
 from core.project.constants import HOME_EXPORT_DIR_NAME
 from core.source import run_convert
+from core.test import run_tests
+from core.toolchain.cache import tools_cache_dir
+from core.toolchain.fetchers.yaxunit import fetch_yaxunit
+from core.toolchain.manifest import load_manifest
+from core.toolchain.resolve import resolve_yaxunit_cfe
+from tests.helpers_project import bootstrap_configuration_project
 from tests.helpers_source_contract import require_md_reader, require_mdsparrow
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "edt_spike"
+YAXUNIT_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "yaxunit_spike"
 
 
 def _read_format(root: Path) -> tuple[str, str]:
@@ -47,6 +61,16 @@ def _read_format(root: Path) -> tuple[str, str]:
     source = main.get("source") or {}
     assert isinstance(source, dict)
     return str(source.get("format")), str(source.get("path"))
+
+
+def _read_extension_format(root: Path, ext_id: str) -> tuple[str, str]:
+    data = yaml.safe_load((root / ".1c-dev" / "project.yaml").read_text(encoding="utf-8"))
+    for conf in data["configurations"]:
+        for ext in conf.get("extensions") or []:
+            if isinstance(ext, dict) and ext.get("id") == ext_id:
+                source = ext.get("source") or {}
+                return str(source.get("format")), str(source.get("path"))
+    raise AssertionError(f"extension {ext_id!r} not in manifest")
 
 
 def _require_platform() -> None:
@@ -61,6 +85,57 @@ def _require_edtcli() -> None:
     info = discover_edtcli()
     if not info.found or info.path is None:
         pytest.skip(EDTCLI_SKIP_MESSAGE)
+
+
+def _ensure_yaxunit_cfe() -> Path:
+    """Return YAxUnit.cfe: cache / ONEC_YAXUNIT_CFE, else soft fetch (tools sync path)."""
+    resolved = resolve_yaxunit_cfe()
+    if resolved.found and resolved.path is not None:
+        return resolved.path
+
+    env_name = resolved.env_name or "ONEC_YAXUNIT_CFE"
+    skip_msg = (
+        f"YAxUnit.cfe не найден — выполните 1c-dev tools sync "
+        f"или задайте {env_name}=/path/to/YAxUnit.cfe"
+    )
+    manifest = load_manifest()
+    spec = manifest.get("yaxunit")
+    if spec is None:
+        pytest.skip(skip_msg)
+
+    try:
+        path, _diags = fetch_yaxunit(spec, tools_cache_dir(), quiet=True)
+    except (OSError, urllib.error.URLError) as exc:
+        pytest.skip(f"{skip_msg} ({exc})")
+
+    if path is None or not path.is_file():
+        resolved = resolve_yaxunit_cfe()
+        if resolved.found and resolved.path is not None:
+            return resolved.path
+        pytest.skip(skip_msg)
+    return path
+
+
+def _copy_yaxunit_spike(tmp_path: Path) -> Path:
+    project = tmp_path / "yaxunit_spike"
+    shutil.copytree(YAXUNIT_FIXTURE, project, ignore=shutil.ignore_patterns("run_yaxunit.py"))
+    return project
+
+
+def _assert_test_run_with_ensure(project: Path) -> None:
+    """Same contract as M5: intentional failures + runner ensure ok (ADR-029)."""
+    run_result = run_tests(project)
+    payload = run_result.to_payload()
+    assert run_result.status == "failed", payload
+    assert run_result.exit_code == TEST_FAILURE, payload
+    assert (run_result.failed or 0) + (run_result.error or 0) > 0, payload
+    assert (run_result.passed or 0) > 0, payload
+
+    ensure = run_result.runner_ensure
+    assert isinstance(ensure, dict), payload
+    assert ensure.get("status") == "ok", payload
+    assert ensure.get("cfePath"), payload
+    assert ensure.get("loaded") is True, payload
 
 
 @pytest.mark.integration
@@ -188,3 +263,122 @@ def test_m7_acceptance_edt_e2e(
             "Designer /CheckModules недоступен в окружении (часто DISPLAY/Wayland); "
             "M7 EDT convert/metadata/build + ibcmd metadata check + convert обратно OK"
         )
+
+
+@pytest.mark.integration
+def test_m7_acceptance_nested_extension_edt_test_run(tmp_path: Path) -> None:
+    """#164: convert --extension → build → test.run; YAXUNIT через ensure."""
+    _require_edtcli()
+    _require_platform()
+    yaxunit_cfe = _ensure_yaxunit_cfe()
+    assert yaxunit_cfe.is_file()
+
+    project = _copy_yaxunit_spike(tmp_path)
+    assert _read_format(project) == ("xml", "src/main")
+    assert _read_extension_format(project, "test_ext1") == ("xml", "src/cfe/test_ext1")
+    assert _read_extension_format(project, "test_ext2") == ("xml", "src/cfe/test_ext2")
+
+    for ext_id in ("test_ext1", "test_ext2"):
+        converted = run_convert(project, to="edt", extension_id=ext_id)
+        assert converted.status == "ok", converted.to_payload()
+        assert converted.extension_id == ext_id
+        assert converted.to_format == "edt"
+        fmt, path = _read_extension_format(project, ext_id)
+        assert fmt == "edt"
+        assert path == f"src/cfe/{ext_id}"
+        ext_root = project / path
+        assert (ext_root / PROJECT_FILE_NAME).is_file()
+        assert (ext_root / CONFIGURATION_MDO_REL).is_file()
+        assert not (ext_root / "Configuration.xml").exists()
+
+    # Config stays XML (только --extension).
+    assert _read_format(project) == ("xml", "src/main")
+    assert (project / "src" / "main" / "Configuration.xml").is_file()
+
+    build = run_build(project)
+    assert build.status == "ok", build.to_payload()
+    assert "edt-export:Tests1" in build.steps
+    assert "edt-export:Tests2" in build.steps
+    assert "import:Tests1" in build.steps
+    assert "import:Tests2" in build.steps
+    assert (project / ".1c-dev" / "runtime" / "main" / IB_MARKER).is_file()
+    for ext_id in ("test_ext1", "test_ext2"):
+        ext_xml = (
+            project / HOME_EXPORT_DIR_NAME / "main" / "ext" / ext_id / "Configuration.xml"
+        )
+        assert ext_xml.is_file() and ext_xml.stat().st_size > 0
+
+    _assert_test_run_with_ensure(project)
+
+
+@pytest.mark.integration
+def test_m7_acceptance_mixed_config_and_extension_edt_test_run(tmp_path: Path) -> None:
+    """#164: config edt + extension edt не ломает test.run."""
+    _require_edtcli()
+    _require_platform()
+    yaxunit_cfe = _ensure_yaxunit_cfe()
+    assert yaxunit_cfe.is_file()
+
+    project = _copy_yaxunit_spike(tmp_path)
+
+    to_edt_cfg = run_convert(project, to="edt")
+    assert to_edt_cfg.status == "ok", to_edt_cfg.to_payload()
+    assert _read_format(project) == ("edt", "src/main")
+    assert (project / "src" / "main" / PROJECT_FILE_NAME).is_file()
+    assert not (project / "src" / "main" / "Configuration.xml").exists()
+
+    for ext_id in ("test_ext1", "test_ext2"):
+        converted = run_convert(project, to="edt", extension_id=ext_id)
+        assert converted.status == "ok", converted.to_payload()
+        assert _read_extension_format(project, ext_id)[0] == "edt"
+
+    build = run_build(project)
+    assert build.status == "ok", build.to_payload()
+    assert "edt-export" in build.steps
+    assert "edt-export:Tests1" in build.steps
+    assert "edt-export:Tests2" in build.steps
+    assert (project / ".1c-dev" / "runtime" / "main" / IB_MARKER).is_file()
+
+    _assert_test_run_with_ensure(project)
+
+
+@pytest.mark.integration
+def test_m7_acceptance_extension_add_format_edt_build(tmp_path: Path) -> None:
+    """#164 smoke: extension add format=edt → build (#163)."""
+    _require_edtcli()
+    _require_platform()
+
+    project = tmp_path / "shop"
+    project.mkdir()
+    boot = bootstrap_configuration_project(project, name="Shop")
+    assert boot.status == "ok", boot.diagnostics
+
+    added = add_extension(
+        project,
+        ext_id="custom",
+        name="CustomExt",
+        purpose="product",
+        format="edt",
+    )
+    assert added.status == "ok", added.diagnostics
+
+    ext = project / "src" / "cfe" / "custom"
+    assert (ext / PROJECT_FILE_NAME).is_file()
+    assert (ext / CONFIGURATION_MDO_REL).is_file()
+    assert not (ext / "Configuration.xml").exists()
+
+    data: dict[str, Any] = yaml.safe_load(
+        (project / ".1c-dev" / "project.yaml").read_text(encoding="utf-8")
+    )
+    exts = data["configurations"][0]["extensions"]
+    assert exts[0]["source"] == {"format": "edt", "path": "src/cfe/custom"}
+
+    build = run_build(project)
+    assert build.status == "ok", build.to_payload()
+    assert "edt-export:CustomExt" in build.steps
+    assert "import:CustomExt" in build.steps
+    assert "apply:CustomExt" in build.steps
+    ext_xml = (
+        project / HOME_EXPORT_DIR_NAME / "main" / "ext" / "custom" / "Configuration.xml"
+    )
+    assert ext_xml.is_file() and ext_xml.stat().st_size > 0
