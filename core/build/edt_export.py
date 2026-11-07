@@ -23,17 +23,29 @@ def export_dir_for_config(root: Path, config_id: str) -> Path:
     return (root / HOME_EXPORT_DIR_NAME / config_id).resolve()
 
 
+def export_dir_for_extension(root: Path, config_id: str, extension_id: str) -> Path:
+    """``.1c-dev/export/<config-id>/ext/<extension-id>/`` (nested EDT extension)."""
+    return (root / HOME_EXPORT_DIR_NAME / config_id / "ext" / extension_id).resolve()
+
+
 def export_edt_to_xml(
     *,
     root: Path,
     config_id: str,
     project_dir: Path,
+    extension_id: str | None = None,
+    step_name: str = "edt-export",
     edtcli_info: EdtCliInfo | None = None,
     run: RunFn | None = None,
     discover: Callable[[], EdtCliInfo] | None = None,
 ) -> tuple[Path, list[str], list[Diagnostic]]:
     """
-    Validate EDT root, export via 1cedtcli into ``.1c-dev/export/<config-id>/``.
+    Validate EDT root, export via 1cedtcli into staging under ``.1c-dev/export/``.
+
+    Default staging: ``.1c-dev/export/<config-id>/``.
+    With ``extension_id``: ``.1c-dev/export/<config-id>/ext/<extension-id>/``
+    (must run after main-config export so ``prepare_export_dir`` on the config
+    root does not wipe nested ``ext/``).
 
     Returns ``(export_dir, steps, diagnostics)``. On failure raises ``EdtCliError``.
     """
@@ -58,11 +70,15 @@ def export_edt_to_xml(
     info = require_edtcli(info=resolved)
     assert info.path is not None
 
-    export_dir = prepare_export_dir(export_dir_for_config(root, config_id))
+    if extension_id is not None:
+        target = export_dir_for_extension(root, config_id, extension_id)
+    else:
+        target = export_dir_for_config(root, config_id)
+    export_dir = prepare_export_dir(target)
     export_configuration(
         info.path,
         project=project_dir,
         configuration_files=export_dir,
         run=run,
     )
-    return export_dir, ["edt-export"], []
+    return export_dir, [step_name], []

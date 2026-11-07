@@ -36,18 +36,19 @@ def _nested_extensions(
     configuration: dict[str, object],
     *,
     root: Path,
-) -> tuple[list[tuple[str, Path, str]], list[Diagnostic]]:
+) -> tuple[list[tuple[str, Path, str, str]], list[Diagnostic]]:
     """
     Collect nested extensions[] for build.
 
-    Returns (extensions as (name, abs_path, kind), diagnostics on error).
-    kind is \"xml\" (directory) or \"cfe\" (file).
+    Returns (extensions as (name, abs_path, kind, staging_id), diagnostics on error).
+    kind is \"xml\" / \"edt\" (directory) or \"cfe\" (file).
+    staging_id is extensions[].id (fallback: name) for EDT export path.
     """
     raw = configuration.get("extensions")
     if not isinstance(raw, list) or not raw:
         return [], []
 
-    result: list[tuple[str, Path, str]] = []
+    result: list[tuple[str, Path, str, str]] = []
     for item in raw:
         if not isinstance(item, dict):
             continue
@@ -70,15 +71,16 @@ def _nested_extensions(
                 )
             ]
         fmt = source.get("format")
-        if fmt not in ("xml", "cfe"):
+        if fmt not in ("xml", "cfe", "edt"):
             return [], [
                 error(
                     f"extensions[{name!r}]: source.format={fmt!r}; "
-                    "build поддерживает xml и cfe",
+                    "build поддерживает xml, cfe и edt",
                     code=CODE_SOURCE_FORMAT,
                     source="runtime",
                     suggestion=(
-                        "Укажите format: xml (каталог) или format: cfe (файл .cfe); "
+                        "Укажите format: xml (каталог), format: cfe (файл .cfe) "
+                        "или format: edt (корень EDT-проекта); "
                         "либо добавьте расширение через extension add --from *.cfe"
                     ),
                 )
@@ -111,7 +113,9 @@ def _nested_extensions(
                     source="runtime",
                 )
             ]
-        result.append((name, ext_path, str(fmt)))
+        raw_id = item.get("id")
+        staging_id = raw_id if isinstance(raw_id, str) and raw_id else name
+        result.append((name, ext_path, str(fmt), staging_id))
     return result, []
 
 
@@ -150,6 +154,8 @@ def run_build(
 
     ``source.format: xml`` — load Designer XML from ``source.path``.
     ``source.format: edt`` — ``1cedtcli export`` → ``.1c-dev/export/<id>/`` → ibcmd.
+    Nested ``extensions[].source.format: edt`` — export to
+    ``.1c-dev/export/<config-id>/ext/<ext-id>/`` then ibcmd ``--extension`` (#161).
 
     artifact: None | \"cf\"
     config_id / runtime_id: selection from configurations[] / runtimes[] (#87).
@@ -264,7 +270,7 @@ def run_build(
         )
 
     primary_extension = _primary_extension_name(data, target.configuration)
-    extensions, ext_diags = _nested_extensions(target.configuration, root=root)
+    nested, ext_diags = _nested_extensions(target.configuration, root=root)
     if ext_diags:
         return BuildResult(
             status="failed",
@@ -303,6 +309,42 @@ def run_build(
                     )
                 ],
             )
+
+    # EDT nested extensions after main export so config prepare_export_dir
+    # does not wipe ``export/<id>/ext/``.
+    extensions: list[tuple[str, Path, str]] = []
+    for name, ext_path, kind, staging_id in nested:
+        if kind != "edt":
+            extensions.append((name, ext_path, kind))
+            continue
+        try:
+            exported, ext_steps, _ = export_edt_to_xml(
+                root=root,
+                config_id=target.config_id,
+                project_dir=ext_path,
+                extension_id=staging_id,
+                step_name=f"edt-export:{name}",
+                run=edt_run,
+                discover=edt_discover,
+            )
+        except EdtCliError as exc:
+            return BuildResult(
+                status="failed",
+                duration=time.perf_counter() - started,
+                root=root,
+                runtime_path=db_path,
+                steps=list(steps_prefix),
+                diagnostics=list(exc.diagnostics)
+                or [
+                    error(
+                        exc.message,
+                        code=exc.code,
+                        source="edt",
+                    )
+                ],
+            )
+        steps_prefix.extend(ext_steps)
+        extensions.append((name, exported, "xml"))
 
     discovery = (discover or discover_environment)()
     ibcmd_info = discovery.ibcmd
@@ -390,3 +432,4 @@ def run_build(
         artifact=artifact_rel,
         steps=[*steps_prefix, *steps],
     )
+
