@@ -20,6 +20,7 @@ class ConvertResult:
     duration: float | None = None
     root: Path | None = None
     config_id: str | None = None
+    extension_id: str | None = None
     source_path: Path | None = None
     from_format: str | None = None
     to_format: str | None = None
@@ -34,6 +35,8 @@ class ConvertResult:
             payload["root"] = str(self.root)
         if self.config_id is not None:
             payload["configId"] = self.config_id
+        if self.extension_id is not None:
+            payload["extensionId"] = self.extension_id
         if self.from_format is not None:
             payload["fromFormat"] = self.from_format
         if self.to_format is not None:

@@ -984,17 +984,21 @@ def register_tools(server: FastMCP) -> None:
     @server.tool(
         name="source.convert",
         description=(
-            "Convert configuration source between Designer XML and EDT "
-            "(1cedtcli import/export) and update configurations[].source.format "
-            "in the manifest. to: 'edt' or 'xml'. Optional force=true for "
-            "idempotent no-op when format already matches. Optional "
-            "platform_version for 1cedtcli import (default: platform.version "
-            "from the manifest). source.path is preserved; when path is '.' "
-            "preserves .1c-dev/.git while swapping format contents. After "
-            "convert use the same metadata.*/build/check tools (no rename). "
-            "Requires 1cedtcli ≥2025.1. Diagnostics codes match CLI "
-            "(1CS001/1CS002 env; 1CS009/layout project; 1CS005/6/7 runtime)."
+            "Convert configuration or nested extension source between Designer "
+            "XML and EDT (1cedtcli import/export) and update source.format in "
+            "the manifest. to: 'edt' or 'xml'. Without extension_id — only "
+            "configurations[].source. With extension_id (id or name) — only "
+            "that extensions[].source (main config untouched; no silent "
+            "all-extensions). Optional force=true for idempotent no-op when "
+            "format already matches. Optional platform_version for 1cedtcli "
+            "import (default: platform.version from the manifest). source.path "
+            "is preserved (extension EDT root is typically src/cfe/<id>/); "
+            "when path is '.' preserves .1c-dev/.git while swapping format "
+            "contents. After convert use the same metadata.*/build/check tools "
+            "(no rename). Requires 1cedtcli ≥2025.1. Diagnostics codes match "
+            "CLI (1CS001/1CS002 env; 1CS009/layout project; 1CS005/6/7 runtime)."
             + _CONFIG_RUNTIME
+            + _EXTENSION
             + _PATH_SCOPE
             + _NO_SHELL
         ),
@@ -1003,6 +1007,7 @@ def register_tools(server: FastMCP) -> None:
         to: str,
         path: str | None = None,
         config_id: str | None = None,
+        extension_id: str | None = None,
         force: bool = False,
         platform_version: str | None = None,
     ) -> dict[str, Any]:
@@ -1010,6 +1015,7 @@ def register_tools(server: FastMCP) -> None:
             resolve_path(path),
             to=cast(ConvertTarget, to),
             config_id=config_id,
+            extension_id=extension_id,
             force=force,
             platform_version=platform_version,
         )

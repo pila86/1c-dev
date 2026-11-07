@@ -151,6 +151,65 @@ def _read_format(root: Path) -> tuple[str, str]:
     return str(source["format"]), str(source["path"])
 
 
+def _read_extension_format(root: Path, ext_id: str = "tests") -> tuple[str, str]:
+    data = yaml.safe_load((root / ".1c-dev" / "project.yaml").read_text(encoding="utf-8"))
+    for ext in data["configurations"][0]["extensions"]:
+        if ext["id"] == ext_id:
+            source = ext["source"]
+            return str(source["format"]), str(source["path"])
+    raise AssertionError(f"extension {ext_id!r} not in manifest")
+
+
+def _write_xml_project_with_extension(tmp_path: Path) -> Path:
+    """XML config + nested XML extension under src/cfe/tests (#162)."""
+    root = _write_xml_project(tmp_path)
+    ext_source = root / "src" / "cfe" / "tests"
+    ext_source.mkdir(parents=True)
+    (ext_source / "Configuration.xml").write_text(
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" version="2.17">\n'
+        "  <Configuration>\n"
+        "    <ChildObjects>\n"
+        "      <Language>Русский</Language>\n"
+        "      <CommonModule>ОМ_Тесты</CommonModule>\n"
+        "    </ChildObjects>\n"
+        "  </Configuration>\n"
+        "</MetaDataObject>\n",
+        encoding="utf-8",
+    )
+    (ext_source / "CommonModules").mkdir()
+    (ext_source / "CommonModules" / "ОМ_Тесты.xml").write_text(
+        '<?xml version="1.0" encoding="UTF-8"?>\n<MetaDataObject/>\n',
+        encoding="utf-8",
+    )
+    (ext_source / "Languages").mkdir()
+    (ext_source / "Languages" / "Русский.xml").write_text(
+        '<?xml version="1.0" encoding="UTF-8"?>\n<MetaDataObject/>\n',
+        encoding="utf-8",
+    )
+    manifest = root / ".1c-dev" / "project.yaml"
+    data = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    data["configurations"][0]["extensions"] = [
+        {
+            "id": "tests",
+            "name": "Tests",
+            "purpose": "tests",
+            "source": {"format": "xml", "path": "src/cfe/tests"},
+        }
+    ]
+    manifest.write_text(
+        yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    return root
+
+
+def _edtcli_discover(tmp_path: Path):
+    edtcli = tmp_path / "1cedtcli"
+    edtcli.write_text("", encoding="utf-8")
+    return lambda: EdtCliInfo(found=True, path=edtcli, version="2026.2.2+21")
+
+
 def test_convert_xml_to_edt_mock(tmp_path: Path) -> None:
     root = _write_xml_project(tmp_path)
     edtcli = tmp_path / "1cedtcli"
@@ -393,6 +452,144 @@ def test_cli_convert_env_unavailable(
     assert result.exit_code == ENV_UNAVAILABLE
 
 
+def test_convert_extension_xml_to_edt_leaves_config(tmp_path: Path) -> None:
+    """#162: --extension converts only nested source; config stays xml."""
+    root = _write_xml_project_with_extension(tmp_path)
+    config_marker = (root / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8")
+
+    result = run_convert(
+        root,
+        to="edt",
+        extension_id="tests",
+        edt_run=_fake_edt_run,
+        edt_discover=_edtcli_discover(tmp_path),
+    )
+    assert result.status == "ok", result.diagnostics
+    assert result.extension_id == "tests"
+    assert result.from_format == "xml"
+    assert result.to_format == "edt"
+    assert result.source_rel == "src/cfe/tests"
+    assert "edt-import" in result.steps
+
+    assert _read_format(root) == ("xml", "src/cf")
+    assert _read_extension_format(root) == ("edt", "src/cfe/tests")
+    assert (root / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8") == config_marker
+    ext = root / "src" / "cfe" / "tests"
+    assert (ext / PROJECT_FILE_NAME).is_file()
+    assert (ext / CONFIGURATION_MDO_REL).is_file()
+    assert not (ext / "Configuration.xml").exists()
+
+
+def test_convert_extension_by_name_roundtrip(tmp_path: Path) -> None:
+    """#162: resolve by name; edt→xml restores Designer XML; config untouched."""
+    root = _write_xml_project_with_extension(tmp_path)
+    discover = _edtcli_discover(tmp_path)
+
+    to_edt = run_convert(
+        root,
+        to="edt",
+        extension_id="Tests",
+        edt_run=_fake_edt_run,
+        edt_discover=discover,
+    )
+    assert to_edt.status == "ok", to_edt.diagnostics
+    assert to_edt.extension_id == "tests"
+    assert _read_extension_format(root) == ("edt", "src/cfe/tests")
+    assert _read_format(root)[0] == "xml"
+
+    to_xml = run_convert(
+        root,
+        to="xml",
+        extension_id="tests",
+        edt_run=_fake_edt_run,
+        edt_discover=discover,
+    )
+    assert to_xml.status == "ok", to_xml.diagnostics
+    assert _read_extension_format(root) == ("xml", "src/cfe/tests")
+    assert _read_format(root) == ("xml", "src/cf")
+    ext = root / "src" / "cfe" / "tests"
+    assert (ext / "Configuration.xml").is_file()
+    assert not (ext / PROJECT_FILE_NAME).exists()
+
+
+def test_convert_config_leaves_extension(tmp_path: Path) -> None:
+    """#162: without --extension only config converts; extension stays xml."""
+    root = _write_xml_project_with_extension(tmp_path)
+    ext_marker = (root / "src" / "cfe" / "tests" / "Configuration.xml").read_text(
+        encoding="utf-8"
+    )
+
+    result = run_convert(
+        root,
+        to="edt",
+        edt_run=_fake_edt_run,
+        edt_discover=_edtcli_discover(tmp_path),
+    )
+    assert result.status == "ok", result.diagnostics
+    assert result.extension_id is None
+    assert _read_format(root) == ("edt", "src/cf")
+    assert _read_extension_format(root) == ("xml", "src/cfe/tests")
+    assert (
+        root / "src" / "cfe" / "tests" / "Configuration.xml"
+    ).read_text(encoding="utf-8") == ext_marker
+
+
+def test_convert_extension_unknown(tmp_path: Path) -> None:
+    root = _write_xml_project_with_extension(tmp_path)
+    result = run_convert(root, to="edt", extension_id="missing")
+    assert result.status == "failed"
+    assert any("не найдено" in str(d.get("message", "")) for d in result.diagnostics)
+
+
+def test_cli_source_convert_extension_mock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _write_xml_project_with_extension(tmp_path)
+    monkeypatch.chdir(root)
+    edtcli = tmp_path / "1cedtcli"
+    edtcli.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "core.source.convert.require_edtcli",
+        lambda info=None: EdtCliInfo(found=True, path=edtcli, version="2026.2.2+21"),
+    )
+
+    def _import_stub(
+        _edtcli: Path,
+        *,
+        configuration_files: Path,
+        project: Path,
+        platform_version: str = "8.5.1",
+        **_kwargs: object,
+    ) -> EdtCliRunResult:
+        del configuration_files, platform_version
+        return _fake_import(
+            [
+                str(edtcli),
+                "-command",
+                "import",
+                "--project",
+                str(project),
+            ]
+        )
+
+    monkeypatch.setattr("core.source.convert.import_configuration", _import_stub)
+
+    result = runner.invoke(
+        app,
+        ["source", "convert", "--to", "edt", "--extension", "tests", "--output", "json"],
+    )
+    assert result.exit_code == SUCCESS, result.output
+    payload = json.loads(result.output)
+    assert payload["status"] == "ok"
+    assert payload["extensionId"] == "tests"
+    assert payload["toFormat"] == "edt"
+    assert payload["sourcePath"] == "src/cfe/tests"
+    assert _read_extension_format(root) == ("edt", "src/cfe/tests")
+    assert _read_format(root)[0] == "xml"
+
+
 @pytest.mark.integration
 def test_convert_roundtrip_integration(tmp_path: Path) -> None:
     """Live 1cedtcli: edt_spike → xml → edt; format in manifest matches."""
@@ -415,3 +612,55 @@ def test_convert_roundtrip_integration(tmp_path: Path) -> None:
     assert (root / CONFIGURATION_MDO_REL).is_file()
     assert (root / "src" / "Catalogs" / "Products" / "Products.mdo").is_file()
     assert not (root / "Configuration.xml").exists()
+
+
+def _write_project_with_edt_extension(tmp_path: Path) -> Path:
+    """XML main config + nested extension seeded from edt_spike (live 1cedtcli)."""
+    root = _write_xml_project(tmp_path)
+    ext = root / "src" / "cfe" / "tests"
+    shutil.copytree(FIXTURE, ext)
+    manifest = root / ".1c-dev" / "project.yaml"
+    data = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    data["configurations"][0]["extensions"] = [
+        {
+            "id": "tests",
+            "name": "Tests",
+            "purpose": "tests",
+            "source": {"format": "edt", "path": "src/cfe/tests"},
+        }
+    ]
+    manifest.write_text(
+        yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    return root
+
+
+@pytest.mark.integration
+def test_convert_extension_roundtrip_integration(tmp_path: Path) -> None:
+    """Live 1cedtcli: nested extension edt → xml → edt; config untouched (#162)."""
+    info = discover_edtcli()
+    if not info.found or info.path is None:
+        pytest.skip(EDTCLI_SKIP_MESSAGE)
+
+    root = _write_project_with_edt_extension(tmp_path)
+    config_before = _read_format(root)
+    config_marker = (root / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8")
+    ext = root / "src" / "cfe" / "tests"
+
+    to_xml = run_convert(root, to="xml", extension_id="tests")
+    assert to_xml.status == "ok", to_xml.diagnostics
+    assert _read_extension_format(root) == ("xml", "src/cfe/tests")
+    assert _read_format(root) == config_before
+    assert (root / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8") == config_marker
+    assert (ext / "Configuration.xml").is_file()
+    assert not (ext / PROJECT_FILE_NAME).exists()
+
+    to_edt = run_convert(root, to="edt", extension_id="tests")
+    assert to_edt.status == "ok", to_edt.diagnostics
+    assert _read_extension_format(root) == ("edt", "src/cfe/tests")
+    assert _read_format(root) == config_before
+    assert (root / "src" / "cf" / "Configuration.xml").read_text(encoding="utf-8") == config_marker
+    assert (ext / PROJECT_FILE_NAME).is_file()
+    assert (ext / CONFIGURATION_MDO_REL).is_file()
+    assert not (ext / "Configuration.xml").exists()

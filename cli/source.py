@@ -18,7 +18,7 @@ from adapters.edtcli import (
     CODE_EDTCLI_VERSION,
 )
 from adapters.source.edt.constants import CODE_LAYOUT_NOT_EDT, CODE_PATH_NOT_EDT_ROOT
-from cli.options import ConfigOption
+from cli.options import ConfigOption, ExtensionOption
 from cli.output import OutputFormat, OutputOption, resolve_output
 from core.break_support import BreakSupportResult, run_break_support
 from core.break_support.constants import CODE_PROJECT as CODE_BREAK_PROJECT
@@ -143,6 +143,8 @@ def _convert_text(result: ConvertResult) -> list[str]:
         lines.append(f"source: {rel}")
     if result.config_id:
         lines.append(f"config: {result.config_id}")
+    if result.extension_id:
+        lines.append(f"extension: {result.extension_id}")
     if result.steps:
         lines.append("steps: " + ", ".join(result.steps))
     return lines
@@ -181,6 +183,7 @@ def source_convert(
         case_sensitive=False,
     ),
     config: ConfigOption = None,
+    extension: ExtensionOption = None,
     force: bool = typer.Option(
         False,
         "--force",
@@ -196,12 +199,16 @@ def source_convert(
     """
     Конвертировать source XML ↔ EDT и обновить source.format в манифесте.
 
+    Без --extension — только configurations[].source. С --extension — только
+    выбранный nested extensions[].source (конфигурация не трогается).
+
     XML→EDT: 1cedtcli import; EDT→XML: 1cedtcli export. Требует 1cedtcli ≥2025.1.
     """
     result = run_convert(
         Path.cwd(),
         to=to.value,
         config_id=config,
+        extension_id=extension,
         force=force,
         platform_version=platform_version,
     )

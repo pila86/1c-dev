@@ -559,7 +559,7 @@ def test_metadata_delete_mocked(tmp_path: Path, monkeypatch: Any) -> None:
 
 
 def test_source_convert_mocked(tmp_path: Path, monkeypatch: Any) -> None:
-    """#157: MCP source.convert thin-wraps core.source.run_convert (no shell.exec)."""
+    """#157/#162: MCP source.convert thin-wraps core.source.run_convert (no shell.exec)."""
     target = tmp_path / "shop"
     target.mkdir()
 
@@ -568,6 +568,7 @@ def test_source_convert_mocked(tmp_path: Path, monkeypatch: Any) -> None:
         *,
         to: str,
         config_id: str | None = None,
+        extension_id: str | None = None,
         force: bool = False,
         platform_version: str | None = None,
         **kwargs: Any,
@@ -575,6 +576,7 @@ def test_source_convert_mocked(tmp_path: Path, monkeypatch: Any) -> None:
         assert start == target.resolve()
         assert to == "edt"
         assert config_id == "main"
+        assert extension_id is None
         assert force is True
         assert platform_version == "8.3.27"
         assert "edt_run" not in kwargs
@@ -612,6 +614,55 @@ def test_source_convert_mocked(tmp_path: Path, monkeypatch: Any) -> None:
     desc = tools["source.convert"].description or ""
     assert "Do not use shell" in desc
     assert "edt" in desc.lower() and "xml" in desc.lower()
+    assert "extension_id" in desc
+
+
+def test_source_convert_extension_mocked(tmp_path: Path, monkeypatch: Any) -> None:
+    """#162: MCP source.convert passes extension_id to run_convert."""
+    target = tmp_path / "shop"
+    target.mkdir()
+
+    def fake_convert(
+        start: Path | None = None,
+        *,
+        to: str,
+        config_id: str | None = None,
+        extension_id: str | None = None,
+        force: bool = False,
+        platform_version: str | None = None,
+        **kwargs: Any,
+    ) -> ConvertResult:
+        del force, platform_version, kwargs
+        assert start == target.resolve()
+        assert to == "edt"
+        assert config_id == "main"
+        assert extension_id == "tests"
+        return ConvertResult(
+            status="ok",
+            root=start,
+            config_id=config_id,
+            extension_id=extension_id,
+            source_rel="src/cfe/tests",
+            from_format="xml",
+            to_format="edt",
+            steps=["edt-import", "replace-source", "update-manifest"],
+        )
+
+    monkeypatch.setattr("mcp_server.tools.run_convert", fake_convert)
+
+    payload = _call(
+        "source.convert",
+        {
+            "path": str(target),
+            "to": "edt",
+            "config_id": "main",
+            "extension_id": "tests",
+        },
+    )
+    assert payload["status"] == "ok"
+    assert payload["extensionId"] == "tests"
+    assert payload["sourcePath"] == "src/cfe/tests"
+    assert payload["toFormat"] == "edt"
 
 
 def test_build_and_check_mocked(tmp_path: Path, monkeypatch: Any) -> None:
