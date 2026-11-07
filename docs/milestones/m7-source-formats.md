@@ -1,11 +1,11 @@
 # M7: Source formats (EDT)
 
-**Статус:** **Done** — acceptance E2E [#159](https://github.com/pila86/1c-dev/issues/159) (`tests/test_m7_acceptance.py`); [GitHub milestone M7](https://github.com/pila86/1c-dev/milestone/7); [ADR-032](../adr/032-edt-source-adapter.md) Accepted.  
+**Статус:** **In progress (wave 6)** — config EDT Done ([#159](https://github.com/pila86/1c-dev/issues/159)); nested extensions EDT — [#161](https://github.com/pila86/1c-dev/issues/161)–[#164](https://github.com/pila86/1c-dev/issues/164). [GitHub milestone M7](https://github.com/pila86/1c-dev/milestone/7); [ADR-032](../adr/032-edt-source-adapter.md) Accepted (+ additive nested).  
 Бывший план «M4 EDT» / черновик `draft-source-formats`; M4 закрыт как [project model](m4-project-model.md).  
 Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bakeoff.md) (**Done** 2026-11 — XML=xml-gen, EDT=**D** md-sparrow `.mdo` + export).  
 Волна 0: spike [#149](https://github.com/pila86/1c-dev/issues/149) — **Done** ([spike](../spikes/149-edt-source-adapter.md), fixture `tests/fixtures/edt_spike`).
 
-**Scope must:** полный паритет с XML (**вариант B**) — read + semantic write + `build`/`check` + `source.convert` при `source.format: edt`.
+**Scope must:** полный паритет с XML (**вариант B**) — read + semantic write + `build`/`check` + `source.convert` при `source.format: edt` (config **и** nested `extensions[]`; YAXUNIT runner — без изменений, ADR-029).
 
 ## Goal
 
@@ -28,6 +28,8 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 | Agent API | Те же tool names на `xml` и `edt` | PRD §49 / §50; без `shell.exec` |
 | Schema | `source.format: edt` уже в ADR-004; additive при необходимости | Major bump не нужен без breaking |
 | EDT adapter / write D | [ADR-032](../adr/032-edt-source-adapter.md) (**Accepted**) | После waves 2–5 / #159 |
+| Nested extensions EDT | convert `--extension` + build export + `extension add` format=edt | Wave 6 / #161–#164; mixed xml\|edt ок |
+| YAXUNIT и EDT | Не трогать: `.cfe` + `ensure` | ADR-029 §7a; не `src/` / не convert |
 | Публичный `source.write` | Out of scope | Не замена `metadata.create` |
 
 ## Scope
@@ -47,6 +49,14 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 1c-dev configuration import --from configuration.cf   # XML (M3 / ADR-028)
 1c-dev source convert --to=edt
 ```
+
+### 3. Nested extensions (wave 6)
+
+- `source.convert --extension <id|name>` — xml↔edt только для выбранного extension (без тихого all)
+- `build`: `extensions[].source.format: edt` → `1cedtcli export` → staging → ibcmd `--extension`
+- `extension add` с `format=edt` (XML scaffold → convert)
+- Смешанный режим: config и extensions независимо xml|edt|cfe
+- YAXUNIT не конвертится и не живёт в `src/` (cache `.cfe` + `ensure`)
 
 ## Agent workflows
 
@@ -70,6 +80,16 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 3. check
 ```
 
+### Test-extension на EDT
+
+> Переведи tests в EDT и прогони юнит-тесты.
+
+```
+1. source.convert(to=edt, extension=tests)
+2. build
+3. test.run            # YAXUNIT через ensure (.cfe), не из src/
+```
+
 ## Acceptance criteria
 
 - [x] EDT Source Adapter: detect / read path совместим с Metadata API (M2)
@@ -79,6 +99,10 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 - [x] MCP: `source.convert` без shell.exec
 - [x] Integration-тесты: skip с сообщением, если нет EDT CLI / md-sparrow JDK
 - [x] Contract tests Source Adapter: XML и EDT на общем наборе capabilities (PRD §50)
+- [ ] Nested `extensions[].source.format: edt`: `build` export → ibcmd (#161)
+- [ ] `source.convert --extension` CLI + MCP (#162)
+- [ ] `extension add` с `format=edt` (#163)
+- [ ] Acceptance: convert tests → build → test.run; YAXUNIT без изменений (#164)
 
 ## Out of scope
 
@@ -89,6 +113,8 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 - semantic diff, verify; Remote / Docker / lockfile
 - `.cf` как постоянный source format в манифесте (`source.format: cf`)
 - Публичный `source.write` как замена `metadata.create`
+- YAXUNIT как EDT/XML в `project.yaml` / `src/` (остаётся cache `.cfe` + ensure)
+- Автоконверт всех nested без `--extension`; EDT write-gaps (Subsystem content, Number, …) — follow-up
 
 ## Manual verification
 
@@ -101,6 +127,11 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 1c-dev check --output json
 
 1c-dev source convert --to=xml --output json
+
+# Wave 6 — nested extension
+1c-dev source convert --to=edt --extension tests --output json
+1c-dev build --output json
+1c-dev test run --output json
 ```
 
 ## Issues
@@ -120,6 +151,10 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 | [#157](https://github.com/pila86/1c-dev/issues/157) | 4 | MCP `source.convert` | #156 | Done |
 | [#158](https://github.com/pila86/1c-dev/issues/158) | 5 | Contract tests Source Adapter (PRD §50) + skip без EDT | #156, #154 | Done |
 | [#159](https://github.com/pila86/1c-dev/issues/159) | 5 | Acceptance: M7 EDT E2E | #154–#158 | Done (`tests/test_m7_acceptance.py`) |
+| [#161](https://github.com/pila86/1c-dev/issues/161) | 6 | `build`: nested `extensions[].source.format: edt` | #155 | Open |
+| [#162](https://github.com/pila86/1c-dev/issues/162) | 6 | `source.convert --extension` XML ↔ EDT (CLI + MCP) | #156, #157 | Open |
+| [#163](https://github.com/pila86/1c-dev/issues/163) | 6 | `extension add` с `format=edt` | #161, #162 | Open |
+| [#164](https://github.com/pila86/1c-dev/issues/164) | 6 | Acceptance: nested extension EDT E2E (+ test.run) | #161–#163 | Open |
 
 ## Риски (коротко)
 
@@ -129,6 +164,8 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 | `1cedtcli` / workspace collision | Fresh `-data` workspace; документировать в doctor/spike |
 | Wayland / GTK для `/CheckModules` | Уже известен workaround (X11); не специфичен EDT |
 | Scope creep (Remote, `.cf` format, Vanessa) | Out of scope жёстко |
+| `1cedtcli` import/export для ConfigurationExtension | Smoke на `larek`/`tests` до большого diff; staging per-ext |
+| Путаница tests vs YAXUNIT | YAXUNIT только ensure; не convert / не `extension add` в src |
 
 ## Links
 

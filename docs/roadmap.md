@@ -6,7 +6,9 @@
 - [#143](https://github.com/pila86/1c-dev/issues/143) — `ide configure` DAP `launch.json` hint
 - [#128](https://github.com/pila86/1c-dev/issues/128) — Vanessa adapter (M5)
 
-**Закрыто недавно:** M7 Source formats (EDT) — Done ([m7-source-formats](milestones/m7-source-formats.md), acceptance [#159](https://github.com/pila86/1c-dev/issues/159), [ADR-032](adr/032-edt-source-adapter.md) Accepted); M6 Debug — Done ([m6-debug](milestones/m6-debug.md), PR [#146](https://github.com/pila86/1c-dev/pull/146)); write-backend bake-off — Done ([write-backend-bakeoff](spikes/write-backend-bakeoff.md), 2026-11-05).
+**Сейчас:** M7 wave 6 — nested extensions EDT ([#161](https://github.com/pila86/1c-dev/issues/161)–[#164](https://github.com/pila86/1c-dev/issues/164); config EDT waves 0–5 Done / [#159](https://github.com/pila86/1c-dev/issues/159)).
+
+**Закрыто недавно:** M6 Debug — Done ([m6-debug](milestones/m6-debug.md), PR [#146](https://github.com/pila86/1c-dev/pull/146)); write-backend bake-off — Done ([write-backend-bakeoff](spikes/write-backend-bakeoff.md), 2026-11-05).
 
 → [M7 Source formats](milestones/m7-source-formats.md)  
 → [GitHub milestone M7](https://github.com/pila86/1c-dev/milestone/7)  
@@ -22,7 +24,7 @@
 | **M4** | Project home `.1c-dev/`, multi-config + extensions, platform templates, publish (ibsrv / webinst), `runtimes[]` | Done |
 | **M5** | Test API: YAxUnit adapter, CLI/MCP `test.*`, `configurations[].tests`; Vanessa — follow-up | Done |
 | **M6** | Debug API: HTTP Debug Protocol (`dbgs`), CLI/MCP `debug.*` + `test.* --debug`; DAP для IDE — reuse | Done |
-| **M7** | Source formats: EDT adapter + `source.convert` + metadata/build/check parity (write=D) | Done |
+| **M7** | Source formats: EDT adapter + `source.convert` + metadata/build/check parity (write=D); wave 6 — nested extensions EDT | In progress (wave 6) |
 
 Документы этапов: [M1](milestones/m1-catalog-via-agent.md) · [M2](milestones/m2-metadata-api.md) · [M3](milestones/m3-product-adopt.md) · [M4](milestones/m4-project-model.md) · [M5](milestones/m5-tests.md) · [M6](milestones/m6-debug.md) · [M7](milestones/m7-source-formats.md)
 
