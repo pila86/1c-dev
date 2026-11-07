@@ -1,4 +1,4 @@
-"""Orchestration: project.clean — wipe source + runtime (ADR-021/022 / #87)."""
+"""Orchestration: project.clean — wipe source + runtime + EDT export (ADR-021/022 / #87 / #155)."""
 
 from __future__ import annotations
 
@@ -15,9 +15,11 @@ from core.project.constants import (
     CODE_CLEAN_FAILED,
     CODE_CLIENT_RUNNING,
     CODE_CONFIRM_REQUIRED,
+    CODE_EXPORT_CLEARED,
     CODE_MANIFEST_MISSING,
     CODE_RUNTIME_CLEARED,
     CODE_SOURCE_CLEARED,
+    HOME_EXPORT_DIR_NAME,
     HOME_MANIFEST_REL,
     HOME_RUNTIME_DIR_NAME,
 )
@@ -96,13 +98,16 @@ def run_clean(
     terminate_fn: TerminateFn | None = None,
 ) -> CleanResult:
     """
-    Wipe project source (opt) and runtime (ADR-021/022 / #87).
+    Wipe project source (opt), runtime, and EDT export cache (ADR-021/022 / #87 / #155).
 
-    Without ``--config``/``--runtime``: wipe default configuration source and the
-    entire ``.1c-dev/runtime/``.
+    Without ``--config``/``--runtime``: wipe default configuration source, the
+    entire ``.1c-dev/runtime/``, and ``.1c-dev/export/``.
 
-    With ``--config`` and/or ``--runtime``: wipe resolved source and only the
-    selected runtime path.
+    With ``--config`` and/or ``--runtime``: wipe resolved source, the selected
+    runtime path, and ``.1c-dev/export/<config-id>/``.
+
+    When ``source.path`` is the project root (typical EDT), source wipe is
+    skipped; runtime + export are still cleared.
 
     Requires yes=True. Does not touch manifest, AGENTS.md, IDE configs, git.
     Stops a live runtime client first; refuses if stop fails.
@@ -231,21 +236,8 @@ def run_clean(
                 )
             ],
         )
-    if source_dir == root:
-        return CleanResult(
-            status="failed",
-            duration=time.perf_counter() - started,
-            root=root,
-            source_path=source_dir,
-            runtime_dir=runtime_dir,
-            diagnostics=[
-                error(
-                    "source.path совпадает с корнем проекта — отказ от wipe",
-                    code=CODE_CLEAN_FAILED,
-                    source="project",
-                )
-            ],
-        )
+    # EDT path: . — wiping root would delete .1c-dev and the project itself.
+    skip_source_wipe = source_dir == root
 
     alive = is_alive or is_running
     stop_result = run_stop(
@@ -276,8 +268,9 @@ def run_clean(
 
     source_cleared = False
     runtime_cleared = False
+    export_cleared = False
 
-    if wipe_source:
+    if wipe_source and not skip_source_wipe:
         try:
             source_removed = _clear_directory_contents(source_dir, root=root)
         except OSError as exc:
@@ -329,6 +322,32 @@ def run_clean(
         if cleared:
             runtime_cleared = True
             removed.extend(cleared_paths)
+        export_target = (root / HOME_EXPORT_DIR_NAME / target.config_id).resolve()
+        cleared_e, cleared_e_paths, clear_e_diags = _remove_tree_if_exists(
+            export_target,
+            root=root,
+            label=_rel(root, export_target),
+        )
+        # Re-label export clear diagnostics with CODE_EXPORT_CLEARED.
+        for diag in clear_e_diags:
+            if diag.get("code") == CODE_RUNTIME_CLEARED:
+                diag["code"] = CODE_EXPORT_CLEARED
+                diag["message"] = f"Удалён каталог {_rel(root, export_target)}"
+        diagnostics.extend(clear_e_diags)
+        if any(d.get("severity") == "error" for d in clear_e_diags):
+            return CleanResult(
+                status="failed",
+                duration=time.perf_counter() - started,
+                root=root,
+                source_path=source_dir,
+                runtime_dir=runtime_dir,
+                source_cleared=source_cleared,
+                removed=removed,
+                diagnostics=diagnostics,
+            )
+        if cleared_e:
+            export_cleared = True
+            removed.extend(cleared_e_paths)
     else:
         cleared, cleared_paths, clear_diags = _remove_tree_if_exists(
             home_runtime, root=root, label=f"{HOME_RUNTIME_DIR_NAME}/"
@@ -348,17 +367,40 @@ def run_clean(
         if cleared:
             runtime_cleared = True
             removed.extend(cleared_paths)
+        home_export = (root / HOME_EXPORT_DIR_NAME).resolve()
+        cleared_e, cleared_e_paths, clear_e_diags = _remove_tree_if_exists(
+            home_export, root=root, label=f"{HOME_EXPORT_DIR_NAME}/"
+        )
+        for diag in clear_e_diags:
+            if diag.get("code") == CODE_RUNTIME_CLEARED:
+                diag["code"] = CODE_EXPORT_CLEARED
+                diag["message"] = f"Удалён каталог {HOME_EXPORT_DIR_NAME}/"
+        diagnostics.extend(clear_e_diags)
+        if any(d.get("severity") == "error" for d in clear_e_diags):
+            return CleanResult(
+                status="failed",
+                duration=time.perf_counter() - started,
+                root=root,
+                source_path=source_dir,
+                runtime_dir=runtime_dir,
+                source_cleared=source_cleared,
+                removed=removed,
+                diagnostics=diagnostics,
+            )
+        if cleared_e:
+            export_cleared = True
+            removed.extend(cleared_e_paths)
 
-    if not source_cleared and not runtime_cleared:
+    if not source_cleared and not runtime_cleared and not export_cleared:
         if explicit_target:
             msg = (
                 "Нечего удалять: source пуст (или wipe_source=false), "
-                f"runtime {_rel(root, report_runtime)} отсутствует"
+                f"runtime {_rel(root, report_runtime)} и export отсутствуют"
             )
         else:
             msg = (
                 "Нечего удалять: source пуст (или wipe_source=false), "
-                f"{HOME_RUNTIME_DIR_NAME}/ отсутствует"
+                f"{HOME_RUNTIME_DIR_NAME}/ и {HOME_EXPORT_DIR_NAME}/ отсутствуют"
             )
         diagnostics.append(
             info(

@@ -21,8 +21,10 @@ _TOOL_ORDER = (
     "java",
     "xml-gen",
     "md-reader",
+    "md-sparrow",
     "bsl-language-server",
     "docs-facade",
+    "1cedtcli",
 )
 
 

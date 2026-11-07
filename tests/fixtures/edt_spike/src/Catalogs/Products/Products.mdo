@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mdclass:Catalog xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass" uuid="eab75d8c-b7e4-359b-9aef-124e90adba09">
+  <producedTypes>
+    <objectType typeId="950a6596-b35a-3391-8168-4505c9553e7e" valueTypeId="67df61f2-caa9-3ba0-b338-cb20bd8bd0e3"/>
+    <refType typeId="6e8f2890-2bc6-3033-925b-2d98ba47a974" valueTypeId="e0e386bb-32c5-34f1-8a2d-b828ffe33a93"/>
+    <selectionType typeId="b6a006b8-7017-31e6-b0e9-14ddce1d3216" valueTypeId="5e366741-7d61-3072-bea5-aa4a35ad3ad4"/>
+    <listType typeId="80e0d4ce-04e9-3d33-ac98-7f99a48d3a32" valueTypeId="680baac8-3a64-3c62-a504-1c2a30792c4b"/>
+    <managerType typeId="b9b815f4-1628-3d3d-a51a-17c019c2b7f7" valueTypeId="6adf5e7f-a164-304a-81ea-d82b95e9b058"/>
+  </producedTypes>
+  <name>Products</name>
+  <synonym>
+    <key>ru</key>
+    <value>Товары</value>
+  </synonym>
+  <useStandardCommands>true</useStandardCommands>
+  <inputByString>Catalog.Products.StandardAttribute.Description</inputByString>
+  <inputByString>Catalog.Products.StandardAttribute.Code</inputByString>
+  <fullTextSearchOnInputByString>DontUse</fullTextSearchOnInputByString>
+  <createOnInput>Use</createOnInput>
+  <dataLockControlMode>Managed</dataLockControlMode>
+  <fullTextSearch>Use</fullTextSearch>
+  <objectPresentation>
+    <key>ru</key>
+    <value>Products</value>
+  </objectPresentation>
+  <extendedObjectPresentation>
+    <key>ru</key>
+    <value>Products</value>
+  </extendedObjectPresentation>
+  <listPresentation>
+    <key>ru</key>
+    <value>Products</value>
+  </listPresentation>
+  <extendedListPresentation>
+    <key>ru</key>
+    <value>Products</value>
+  </extendedListPresentation>
+  <explanation>
+    <key>ru</key>
+    <value>Products</value>
+  </explanation>
+  <levelCount>2</levelCount>
+  <foldersOnTop>true</foldersOnTop>
+  <codeLength>9</codeLength>
+  <descriptionLength>25</descriptionLength>
+  <codeType>String</codeType>
+  <codeAllowedLength>Variable</codeAllowedLength>
+  <checkUnique>true</checkUnique>
+  <autonumbering>true</autonumbering>
+  <defaultPresentation>AsDescription</defaultPresentation>
+  <editType>InDialog</editType>
+  <choiceMode>BothWays</choiceMode>
+</mdclass:Catalog>

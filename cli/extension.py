@@ -8,6 +8,7 @@ from typing import Any
 
 import typer
 
+from adapters.edtcli import CODE_EDTCLI_MISSING, CODE_EDTCLI_VERSION
 from adapters.platform_ibcmd.constants import CODE_IBCMD_FAILED, CODE_IBCMD_MISSING
 from cli.options import ConfigOption, RuntimeOption
 from cli.output import OutputFormat, OutputOption, resolve_output
@@ -15,6 +16,7 @@ from core.exit_codes import ENV_UNAVAILABLE, PROJECT_ERROR, RUNTIME_FAILURE, SUC
 from core.extension import ExtensionListResult, add_extension, run_extension_list
 from core.extension.list import CODE_IB_MISSING
 from core.project.result import ProjectResult
+from core.source.constants import SOURCE_FORMAT_XML
 
 app = typer.Typer(
     name="extension",
@@ -107,12 +109,18 @@ def extension_add_command(
         "--from",
         help=(
             "Путь к .cfe: выгрузить XML в src/cfe/<id>/ "
-            "(load → apply → export) и зарегистрировать format=xml."
+            "(load → apply → export). При --format=edt затем convert в EDT."
         ),
         exists=False,
         dir_okay=False,
         file_okay=True,
         resolve_path=False,
+    ),
+    source_format: str = typer.Option(
+        SOURCE_FORMAT_XML,
+        "--format",
+        help="Исходный формат расширения: xml (по умолчанию) или edt (scaffold/XML → convert).",
+        case_sensitive=False,
     ),
     config: ConfigOption = None,
     force: bool = typer.Option(
@@ -122,7 +130,7 @@ def extension_add_command(
     ),
     output: OutputOption = None,
 ) -> None:
-    """Добавить расширение в configuration-проект (XML scaffold или --from .cfe → XML)."""
+    """Добавить расширение: XML scaffold / --from .cfe; опционально --format=edt."""
     result = add_extension(
         Path.cwd(),
         ext_id=ext_id,
@@ -131,10 +139,16 @@ def extension_add_command(
         config_id=config,
         force=force,
         from_cfe=from_cfe,
+        format=source_format,
     )
     payload = result.to_payload(include_manifest=False)
     _emit(payload, resolve_output(ctx, output), text_lines=_add_text(result))
-    raise typer.Exit(code=SUCCESS if result.status == "ok" else PROJECT_ERROR)
+    if result.status == "ok":
+        raise typer.Exit(code=SUCCESS)
+    codes = {d.get("code") for d in result.diagnostics}
+    if codes & {CODE_EDTCLI_MISSING, CODE_EDTCLI_VERSION}:
+        raise typer.Exit(code=ENV_UNAVAILABLE)
+    raise typer.Exit(code=PROJECT_ERROR)
 
 
 @app.command("list")

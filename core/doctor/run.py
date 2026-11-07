@@ -1,4 +1,4 @@
-"""Run environment doctor (ADR-005, ADR-007, ADR-012, ADR-013 / #49; debug.http — #142)."""
+"""Run environment doctor (ADR-005/007/012/013; debug.http #142; edt #151)."""
 
 from __future__ import annotations
 
@@ -8,9 +8,17 @@ from pathlib import Path
 from typing import Any
 
 from adapters.debug_http import DebugHttpClient, DebugHttpError
+from adapters.edtcli import (
+    EDTCLI_MISSING_HINT,
+    MD_SPARROW_JDK_HINT,
+    MD_SPARROW_MIN_JAVA_MAJOR,
+    discover_edtcli,
+)
 from adapters.platform.discovery import DiscoveryResult, discover_environment
 from adapters.platform.templates import discover_template_roots
 from adapters.source.mdclasses.resolve import resolve_jar as resolve_mdreader_jar
+from adapters.source.mdsparrow.constants import MDSPARROW_JAR_ENV
+from adapters.source.mdsparrow.resolve import resolve_jar as resolve_mdsparrow_jar
 from adapters.source.xmlgen.resolve import resolve_jar as resolve_xmlgen_jar
 from adapters.source.xmlgen.resolve import resolve_java
 from core.debug.state import resolve_debugger_url
@@ -80,6 +88,7 @@ _DBGS_LISTENING_HINT = (
 )
 _XMLGEN_ENV = "ONEC_XMLGEN_JAR"
 _MDREADER_ENV = "ONEC_MDREADER_JAR"
+_MDSPARROW_ENV = MDSPARROW_JAR_ENV
 _DBGS_PROBE_TIMEOUT_SEC = 1.0
 
 
@@ -195,6 +204,7 @@ def run_doctor(
     java = resolve_java(env=env)
     xmlgen = resolve_xmlgen_jar(env=env)
     mdreader = resolve_mdreader_jar(env=env)
+    mdsparrow = resolve_mdsparrow_jar(env=env)
     cli = _resolve_cli()
     tmplts = discover_template_roots(
         cfg_paths=template_cfg_paths,
@@ -219,6 +229,7 @@ def run_doctor(
     apache = resolve_apache_home(env=env)
     yaxunit = resolve_yaxunit_cfe(env=env, manifest=manifest)
     dbgs_listening, dbgs_url = _probe_dbgs_listening()
+    edtcli = discover_edtcli(env=env)
 
     tools = {
         "cli": cli,
@@ -240,9 +251,13 @@ def run_doctor(
         "md-reader": _adapter_jar_payload(
             mdreader.found, mdreader.path, env_name=_MDREADER_ENV, env=env
         ),
+        "md-sparrow": _adapter_jar_payload(
+            mdsparrow.found, mdsparrow.path, env_name=_MDSPARROW_ENV, env=env
+        ),
         "bsl-language-server": _jar_payload(bsl),
         "docs-facade": _jar_payload(docs),
         "yaxunit": _yaxunit_payload(yaxunit),
+        "1cedtcli": _tool_payload(edtcli.found, edtcli.path, version=edtcli.version),
     }
     tools_found = {
         "ibcmd": discovery.ibcmd.found,
@@ -256,10 +271,12 @@ def run_doctor(
         "java": java.found,
         "xml-gen": xmlgen.found,
         "md-reader": mdreader.found,
+        "md-sparrow": mdsparrow.found,
         "bsl-language-server": bsl.found,
         "docs-facade": docs.found,
         "yaxunit": yaxunit.found,
         "cli": bool(cli.get("found")),
+        "1cedtcli": edtcli.found,
     }
     capabilities, gaps = resolve_capabilities(tools_found)
 
@@ -328,6 +345,12 @@ def run_doctor(
                 suggestion=_ONECV8_HINT,
             )
         )
+    java_major: int | None = None
+    if java.found and java.version is not None:
+        try:
+            java_major = int(java.version)
+        except ValueError:
+            java_major = None
     if not java.found:
         diagnostics.append(
             warning(
@@ -337,20 +360,29 @@ def run_doctor(
                 suggestion=_JAVA_HINT,
             )
         )
-    elif java.version is not None:
-        try:
-            major = int(java.version)
-        except ValueError:
-            major = 0
-        if major < 21:
-            diagnostics.append(
-                warning(
-                    f"Java {major} найдена; для md-reader и BSL Language Server нужен JDK 21+",
-                    code="1CD010",
-                    source="doctor",
-                    suggestion=_JAVA21_HINT,
-                )
+    elif java_major is not None and java_major < 21:
+        diagnostics.append(
+            warning(
+                f"Java {java_major} найдена; для md-reader и BSL Language Server нужен JDK 21+",
+                code="1CD010",
+                source="doctor",
+                suggestion=_JAVA21_HINT,
             )
+        )
+    if java_major is None or java_major < MD_SPARROW_MIN_JAVA_MAJOR:
+        version_note = (
+            f"Java {java_major} найдена; "
+            if java_major is not None
+            else "JDK не найден; "
+        )
+        diagnostics.append(
+            warning(
+                f"{version_note}для md-sparrow (EDT write) нужен JDK {MD_SPARROW_MIN_JAVA_MAJOR}+",
+                code="1CD020",
+                source="doctor",
+                suggestion=MD_SPARROW_JDK_HINT,
+            )
+        )
     if not xmlgen.found:
         diagnostics.append(
             warning(
@@ -367,6 +399,15 @@ def run_doctor(
                 code="1CD006",
                 source="doctor",
                 suggestion=f"{hint} (или задайте {_MDREADER_ENV}).",
+            )
+        )
+    if not mdsparrow.found:
+        diagnostics.append(
+            warning(
+                "md-sparrow jar не найден (нужен для metadata.* при source.format: edt)",
+                code="1CD021",
+                source="doctor",
+                suggestion=f"{hint} (или задайте {_MDSPARROW_ENV}).",
             )
         )
     if not bsl.found:
@@ -415,6 +456,15 @@ def run_doctor(
                 code="1CD018",
                 source="doctor",
                 suggestion=_DBGS_LISTENING_HINT,
+            )
+        )
+    if not edtcli.found:
+        diagnostics.append(
+            warning(
+                "1cedtcli не найден (нужен для capability edt / source.convert / EDT build)",
+                code="1CD019",
+                source="doctor",
+                suggestion=EDTCLI_MISSING_HINT,
             )
         )
     if not cli.get("found"):

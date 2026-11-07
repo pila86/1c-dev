@@ -42,9 +42,11 @@
         "java",
         "xml-gen",
         "md-reader",
+        "md-sparrow",
         "bsl-language-server",
         "docs-facade",
-        "yaxunit"
+        "yaxunit",
+        "1cedtcli"
       ],
       "additionalProperties": false,
       "properties": {
@@ -59,9 +61,11 @@
         "java": { "$ref": "#/$defs/tool" },
         "xml-gen": { "$ref": "#/$defs/tool" },
         "md-reader": { "$ref": "#/$defs/tool" },
+        "md-sparrow": { "$ref": "#/$defs/tool" },
         "bsl-language-server": { "$ref": "#/$defs/tool" },
         "docs-facade": { "$ref": "#/$defs/tool" },
-        "yaxunit": { "$ref": "#/$defs/tool" }
+        "yaxunit": { "$ref": "#/$defs/tool" },
+        "1cedtcli": { "$ref": "#/$defs/tool" }
       }
     },
     "capabilities": {
@@ -79,7 +83,8 @@
         "metadata.delete": { "$ref": "#/$defs/capability" },
         "metadata.read": { "$ref": "#/$defs/capability" },
         "test.yaxunit": { "$ref": "#/$defs/capability" },
-        "debug.http": { "$ref": "#/$defs/capability" }
+        "debug.http": { "$ref": "#/$defs/capability" },
+        "edt": { "$ref": "#/$defs/capability" }
       }
     },
     "gaps": {

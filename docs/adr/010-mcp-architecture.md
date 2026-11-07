@@ -70,6 +70,14 @@ Cursor обычно стартует MCP из workspace root.
 Только file IB + ENTERPRISE, detach; client thick (`1cv8`) / thin (`1cv8c`).  
 `debug.*` / HTTP Debug Protocol — [ADR-031](031-debug-api-http.md) / M6; DAP — только IDE (should).
 
+### M7 source formats (#157)
+
+| Tool | Core |
+|------|------|
+| `source.convert` | `run_convert` (`to` edt\|xml; optional `path` / `config_id` / `force` / `platform_version`) |
+
+Thin wrapper; payload `ConvertResult.to_payload()`. Без `shell.exec`. Diagnostics codes совпадают с CLI (`1CS001`/`1CS002` → env; `1CS009`/layout → project; `1CS005`/`6`/`7` → runtime). См. [ADR-032](032-edt-source-adapter.md).
+
 ### Вне M1–M2 / #6 / #26
 
 - `shell.exec`, `doctor`, `project.validate` как MCP tools
