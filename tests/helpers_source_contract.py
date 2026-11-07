@@ -18,11 +18,6 @@ from adapters.source.xmlgen.resolve import resolve_java as resolve_xmlgen_java
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 EDT_SPIKE = FIXTURES / "edt_spike"
 
-_VSCODE_MDSPARROW = Path.home() / (
-    ".config/Code/User/globalStorage/yellow-hammer.1c-platform-tools/"
-    "md-sparrow/v0.6.7/md-sparrow-0.6.7-all.jar"
-)
-
 XMLGEN_SKIP_MESSAGE = (
     "xml-gen jar / Java 17+ недоступны — XML write contract пропущен "
     "(scripts/fetch-xml-gen.sh / 1c-dev tools sync)"
@@ -168,8 +163,6 @@ def require_mdsparrow(
     if not java.found:
         pytest.skip(MD_SPARROW_JDK_SKIP_MESSAGE)
     jar = resolve_jar()
-    if not jar.found and _VSCODE_MDSPARROW.is_file():
-        jar = ToolResolve(found=True, path=_VSCODE_MDSPARROW.resolve())
     if not jar.found:
         pytest.skip(
             "md-sparrow jar не найден — выполните 1c-dev tools sync "

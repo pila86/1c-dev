@@ -36,10 +36,6 @@ from core.metadata import (
 
 runner = CliRunner()
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "edt_spike"
-_VSCODE_JAR = Path.home() / (
-    ".config/Code/User/globalStorage/yellow-hammer.1c-platform-tools/"
-    "md-sparrow/v0.6.7/md-sparrow-0.6.7-all.jar"
-)
 
 
 def _copy_edt_fixture(tmp_path: Path) -> Path:
@@ -53,8 +49,6 @@ def _require_mdsparrow_runtime() -> tuple[ToolResolve, ToolResolve]:
     if not java.found:
         pytest.skip(MD_SPARROW_JDK_SKIP_MESSAGE)
     jar = resolve_jar()
-    if not jar.found and _VSCODE_JAR.is_file():
-        jar = ToolResolve(found=True, path=_VSCODE_JAR.resolve())
     if not jar.found:
         pytest.skip(
             "md-sparrow jar не найден — выполните 1c-dev tools sync "
