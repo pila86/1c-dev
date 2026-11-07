@@ -5,11 +5,13 @@ from __future__ import annotations
 from adapters.source.mdsparrow.constants import (
     ENV_UNAVAILABLE_CODE,
     GAP_CODE,
+    MDSPARROW_CONTENT_REFS_ISSUE,
     MDSPARROW_JAR_ENV,
     MDSPARROW_PIN,
     MDSPARROW_URL,
     MIN_JAVA_MAJOR,
     MUTATION_FAILED_CODE,
+    SUBSYSTEM_CONTENT_GAP_SUGGESTION,
 )
 from adapters.source.mdsparrow.mutation import (
     ApplyMutationResult,
@@ -43,11 +45,13 @@ __all__ = [
     "DEFAULT_SCHEMA_VERSION",
     "ENV_UNAVAILABLE_CODE",
     "GAP_CODE",
+    "MDSPARROW_CONTENT_REFS_ISSUE",
     "MDSPARROW_JAR_ENV",
     "MDSPARROW_PIN",
     "MDSPARROW_URL",
     "MIN_JAVA_MAJOR",
     "MUTATION_FAILED_CODE",
+    "SUBSYSTEM_CONTENT_GAP_SUGGESTION",
     "ApplyMutationResult",
     "EdtWriteResult",
     "MdSparrowError",

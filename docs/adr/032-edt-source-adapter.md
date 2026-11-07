@@ -114,6 +114,7 @@ metadata.create|update|delete  (source.format: edt)
 | JDK md-sparrow | Temurin **25+** (bake-off); soft gap в doctor (#151) |
 | Pin jar | toolchain cache / `1c-dev tools sync` (#153); override env (эскиз `ONEC_MDSPARROW_JAR`) |
 | Synonym / TS gaps | Workaround #154: после `add-md-object` — `cf-md-object-set` (синоним объекта / String length); Number precision и синонимы ТЧ — warning `1CS010`; contract tests #158 |
+| Subsystem content | Hard refuse `1CS010` (#165): create с непустым `content` отклоняется целиком (до mutation); `add-content` / `remove-content` — тот же код + suggestion (convert→xml / ручной `<content>` в `.mdo`); upstream [md-sparrow#78](https://github.com/yellow-hammer/md-sparrow/issues/78) |
 
 XML write **не** мигрирует на md-sparrow (ADR-007 / bake-off подтверждён).
 

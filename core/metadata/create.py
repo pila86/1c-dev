@@ -159,7 +159,9 @@ def _create_edt(
             "code": exc.code,
             "source": "metadata" if exc.code.startswith("1CM") else "edt",
         }
-        if exc.code in {"1CS008", "1CM006"}:
+        if getattr(exc, "suggestion", None):
+            diag_kw["suggestion"] = exc.suggestion
+        elif exc.code in {"1CS008", "1CM006"}:
             diag_kw["suggestion"] = mdsparrow_fetch_suggestion()
         return MetadataResult(
             status="error",

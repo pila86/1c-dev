@@ -19,5 +19,17 @@ ENV_UNAVAILABLE_CODE = "1CS008"
 MUTATION_FAILED_CODE = "1CS011"
 # Known bake-off / spike gaps (ADR-032 §3 / #154) — warning or hard refuse
 GAP_CODE = "1CS010"
+# Upstream: yellow-hammer/md-sparrow#78 — contentRefs no-op on EDT write.
+MDSPARROW_CONTENT_REFS_ISSUE = (
+    "https://github.com/yellow-hammer/md-sparrow/issues/78"
+)
+SUBSYSTEM_CONTENT_GAP_SUGGESTION = (
+    "Состав подсистемы на EDT пока не пишется "
+    f"({MDSPARROW_CONTENT_REFS_ISSUE}). "
+    "Обход: 1c-dev source convert --to xml → metadata create/update "
+    "с content / add-content → при необходимости "
+    "1c-dev source convert --to edt; "
+    "альтернатива: вручную добавить <content>Catalog.X</content> в .mdo."
+)
 # Wall-clock budget for apply-mutation JVM (analog edtcli timeout+60).
 DEFAULT_MUTATION_TIMEOUT_SEC = 300

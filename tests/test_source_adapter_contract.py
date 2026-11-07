@@ -101,6 +101,7 @@ def test_adapter_capabilities_payload(
 def test_edt_write_known_gaps_documented() -> None:
     assert "number_precision_scale" in EDT_WRITE_KNOWN_GAPS
     assert "tabular_section_synonym" in EDT_WRITE_KNOWN_GAPS
+    assert "subsystem_content" in EDT_WRITE_KNOWN_GAPS
 
 
 # --- detect / inspect / validate (unit, без внешних инструментов) ---

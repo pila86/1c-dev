@@ -13,6 +13,7 @@ from adapters.source.mdsparrow.constants import (
     ENV_UNAVAILABLE_CODE,
     GAP_CODE,
     MUTATION_FAILED_CODE,
+    SUBSYSTEM_CONTENT_GAP_SUGGESTION,
 )
 from adapters.source.mdsparrow.dto import (
     attr_type_dto,
@@ -248,6 +249,9 @@ def create_edt_object(
 
     Object synonym and attribute types/synonyms are applied via
     ``cf-md-object-set`` (``synonymRu`` on add-md-object is a known no-op gap).
+
+    Subsystem with non-empty ``content`` is refused before mutation (#165):
+    md-sparrow does not persist contentRefs on EDT (upstream #78).
     """
     jar_r, java_r = _require_tools(jar=jar, java=java)
     edt_root = edt_root.resolve()
@@ -262,6 +266,14 @@ def create_edt_object(
         raise MdSparrowError(
             f"Объект уже существует: {catalog.qualified_name}",
             code="1CM003",
+        )
+    if catalog.type == "Subsystem" and catalog.content:
+        raise MdSparrowError(
+            "Состав подсистемы (content) недоступен на source.format: edt — "
+            "md-sparrow не пишет contentRefs; create с непустым content "
+            f"отклонён целиком (gap; code {GAP_CODE})",
+            code=GAP_CODE,
+            suggestion=SUBSYSTEM_CONTENT_GAP_SUGGESTION,
         )
 
     warnings: list[str] = []
@@ -926,6 +938,14 @@ def update_edt_object(
             _set_dto_property(d, prop, val)
             dto_dirty = True
             result.modified += 1
+        elif op.op in {"add-content", "remove-content"}:
+            raise MdSparrowError(
+                f"Операция {op.op!r} (состав подсистемы) недоступна на "
+                f"source.format: edt — md-sparrow не пишет contentRefs "
+                f"(gap; code {GAP_CODE})",
+                code=GAP_CODE,
+                suggestion=SUBSYSTEM_CONTENT_GAP_SUGGESTION,
+            )
         elif op.op == "add-exchange-content":
             raise MdSparrowError(
                 "add-exchange-content на EDT пока не поддержан "
