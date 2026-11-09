@@ -127,6 +127,21 @@ def test_parse_attach_and_stop_fixtures() -> None:
     assert "targetStarted" in types
 
 
+def test_parse_stop_live_call_stack_with_empty_module_id() -> None:
+    """Live dbgs: empty <moduleID/> must not shift leaf objectID/lineNo (#147)."""
+    stop = xml_parse.parse_stop_event(_load("ping_call_stack_live_empty_module.xml"))
+    assert stop is not None
+    assert len(stop.frames) == 3
+    assert stop.frames[1].object_id == ""
+    assert stop.frames[1].line_no == 1
+    leaf = stop.current_frame
+    assert leaf is not None
+    assert leaf.object_id == "442079ba-4b3b-4813-9a83-144a390ad784"
+    assert leaf.line_no == 18
+    assert leaf.extension_name == "Tests1"
+    assert stop.frames[0].extension_name == "YAXUNIT"
+
+
 def test_parse_eval_fixtures() -> None:
     locals_res = xml_parse.parse_eval_result(_load("eval_locals.xml"))
     assert locals_res.ok

@@ -128,15 +128,64 @@ def parse_ping_events(xml_body: str) -> list[DebugEvent]:
 
 
 def parse_stop_event(xml_body: str, *, target_id: str = "") -> StopEvent | None:
-    """Build ``StopEvent`` from a ping body containing ``callStackFormed``."""
+    """Build ``StopEvent`` from a ping body containing ``callStackFormed``.
+
+    Live dbgs (8.3.25+) sends one ``<callStack>`` element per frame with nested
+    ``moduleID`` / ``lineNo``. An empty ``<moduleID/>`` (unknown/fantom shim)
+    must stay paired with its own ``lineNo`` — a flat zip of all ``objectID`` /
+    ``lineNo`` texts shifts the leaf and yields a bogus empty frame (#147).
+
+    Older / fixture shape uses ``stackItemInfo`` under a single ``callStack``.
+    """
     if "callStackFormed" not in xml_body:
         return None
+    root = _parse_root(xml_body)
+    frames: list[StackFrame] = []
+    if root is not None:
+        frames = _frames_from_stack_item_info(root)
+        if not frames:
+            frames = _frames_from_call_stack_elements(root)
+    if not frames:
+        frames = _frames_from_flat_texts(xml_body)
+    if not frames:
+        return None
+    tid = target_id or _guess_target_id(xml_body)
+    return StopEvent(target_id=tid, frames=tuple(frames), raw_xml=xml_body)
+
+
+def _frames_from_stack_item_info(root: ET.Element) -> list[StackFrame]:
+    """Fixture / legacy: ``<stackItemInfo><objectID/><propertyID/><lineNo/>``."""
+    frames: list[StackFrame] = []
+    for el in root.iter():
+        if local_name(el.tag) != "stackItemInfo":
+            continue
+        frames.append(_stack_frame_from_container(el))
+    return frames
+
+
+def _frames_from_call_stack_elements(root: ET.Element) -> list[StackFrame]:
+    """Live ping: repeated ``<callStack>`` frame blocks (not a stackItemInfo list)."""
+    frames: list[StackFrame] = []
+    for el in root.iter():
+        if local_name(el.tag) != "callStack":
+            continue
+        child_names = {local_name(c.tag) for c in el}
+        if "stackItemInfo" in child_names:
+            continue  # container for legacy items; handled elsewhere
+        if "lineNo" not in child_names and "moduleID" not in child_names:
+            continue
+        frames.append(_stack_frame_from_container(el))
+    return frames
+
+
+def _frames_from_flat_texts(xml_body: str) -> list[StackFrame]:
+    """Last-resort zip of document-order texts (breaks on empty moduleID frames)."""
     lines = find_texts(xml_body, "lineNo")
     object_ids = find_texts(xml_body, "objectID")
     property_ids = find_texts(xml_body, "propertyID")
     n = max(len(lines), len(object_ids), len(property_ids))
     if n == 0:
-        return None
+        return []
     frames: list[StackFrame] = []
     for i in range(n):
         try:
@@ -150,8 +199,46 @@ def parse_stop_event(xml_body: str, *, target_id: str = "") -> StopEvent | None:
                 line_no=line_no,
             )
         )
-    tid = target_id or _guess_target_id(xml_body)
-    return StopEvent(target_id=tid, frames=tuple(frames), raw_xml=xml_body)
+    return frames
+
+
+def _stack_frame_from_container(el: ET.Element) -> StackFrame:
+    """Read objectID/propertyID/lineNo/extensionName from a frame element."""
+    object_id = ""
+    property_id = ""
+    extension_name = ""
+    line_no = 0
+    for child in el:
+        name = local_name(child.tag)
+        if name == "moduleID":
+            for gc in child:
+                gn = local_name(gc.tag)
+                text = (gc.text or "").strip()
+                if not text:
+                    continue
+                if gn == "objectID":
+                    object_id = text
+                elif gn == "propertyID":
+                    property_id = text
+                elif gn == "extensionName":
+                    extension_name = text
+        elif name == "objectID" and child.text and child.text.strip():
+            object_id = child.text.strip()
+        elif name == "propertyID" and child.text and child.text.strip():
+            property_id = child.text.strip()
+        elif name == "extensionName" and child.text and child.text.strip():
+            extension_name = child.text.strip()
+        elif name == "lineNo" and child.text and child.text.strip():
+            try:
+                line_no = int(child.text.strip())
+            except ValueError:
+                line_no = 0
+    return StackFrame(
+        object_id=object_id,
+        property_id=property_id,
+        line_no=line_no,
+        extension_name=extension_name,
+    )
 
 
 def decode_presentation(raw: str) -> str:

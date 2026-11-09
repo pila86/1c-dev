@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Live dbgs shape: one <callStack> per frame; empty <moduleID/> must not shift leaf. -->
+<response xmlns="http://v8.1c.ru/8.3/debugger/debugRDBGRequestResponse"
+          xmlns:cmd="http://v8.1c.ru/8.3/debugger/debugDBGUICommands">
+  <result>
+    <cmdID>callStackFormed</cmdID>
+    <targetID><id>f557301a-c846-448e-9714-7105605e1899</id></targetID>
+    <callStack>
+      <moduleIDStr>ignored</moduleIDStr>
+      <moduleID>
+        <type>ExtensionModule</type>
+        <extensionName>YAXUNIT</extensionName>
+        <objectID>b659407b-3123-4400-828c-c0f247b4dcd5</objectID>
+        <propertyID>d5963243-262e-4398-b4d7-fb16d06484f6</propertyID>
+      </moduleID>
+      <lineNo>228</lineNo>
+      <isFantom>false</isFantom>
+    </callStack>
+    <callStack>
+      <moduleIDStr>ignored</moduleIDStr>
+      <moduleID/>
+      <lineNo>1</lineNo>
+      <isFantom>false</isFantom>
+    </callStack>
+    <callStack>
+      <moduleIDStr>ignored</moduleIDStr>
+      <moduleID>
+        <type>ExtensionModule</type>
+        <extensionName>Tests1</extensionName>
+        <objectID>442079ba-4b3b-4813-9a83-144a390ad784</objectID>
+        <propertyID>d5963243-262e-4398-b4d7-fb16d06484f6</propertyID>
+      </moduleID>
+      <lineNo>18</lineNo>
+      <isFantom>false</isFantom>
+    </callStack>
+  </result>
+</response>
