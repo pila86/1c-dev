@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from mcp.server.fastmcp import FastMCP
 
@@ -81,6 +81,7 @@ from core.publish import (
     run_url as run_publish_url,
 )
 from core.runtime import run_start, run_status, run_stop
+from core.source import ConvertTarget, run_convert
 from core.templates import templates_get, templates_list, templates_roots
 from core.test import (
     discover_tests,
@@ -430,6 +431,9 @@ def register_tools(server: FastMCP) -> None:
             "With from_cfe: load .cfe into a scratch IB via ibcmd "
             "(config load --extension → apply → export) into src/cfe/<id>/ "
             "as source.format=xml (binary .cfe is not copied into src). "
+            "format: xml (default) or edt — edt runs source.convert after "
+            "XML scaffold/.cfe export (extensions[].source.format=edt, "
+            "path stays src/cfe/<id>/). "
             "purpose: product (default), tests, or other. "
             "Requires at least one configuration (use configuration.add first)."
             + _PATH_SCOPE
@@ -445,6 +449,7 @@ def register_tools(server: FastMCP) -> None:
         config_id: str | None = None,
         force: bool = False,
         from_cfe: str | None = None,
+        format: str = "xml",
     ) -> dict[str, Any]:
         result = add_extension(
             resolve_path(path),
@@ -454,6 +459,7 @@ def register_tools(server: FastMCP) -> None:
             config_id=config_id,
             force=force,
             from_cfe=from_cfe,
+            format=format,
         )
         return result.to_payload(include_manifest=False)
 
@@ -919,6 +925,9 @@ def register_tools(server: FastMCP) -> None:
             "Examples: {op:'add-attribute', value:'Price:Number(15,2)'}, "
             "{op:'modify-attribute', value:'Price: synonym=Цена'}, "
             "{op:'set-flag', value:'server=true'}, "
+            "{op:'modify-property', value:'registerRecords=AccumulationRegister.X'} "
+            "(EDT: value = one qname, comma-separated list, or JSON array; "
+            "scalar CommonModule flags unchanged), "
             "{op:'add-content', value:'Catalog.Products'}, "
             "{op:'add-exchange-content', value:'Catalog.Products'}. "
             "Does not create new objects — use metadata.create."
@@ -981,11 +990,52 @@ def register_tools(server: FastMCP) -> None:
         return result.to_payload()
 
     @server.tool(
+        name="source.convert",
+        description=(
+            "Convert configuration or nested extension source between Designer "
+            "XML and EDT (1cedtcli import/export) and update source.format in "
+            "the manifest. to: 'edt' or 'xml'. Without extension_id — only "
+            "configurations[].source. With extension_id (id or name) — only "
+            "that extensions[].source (main config untouched; no silent "
+            "all-extensions). Optional force=true for idempotent no-op when "
+            "format already matches. Optional platform_version for 1cedtcli "
+            "import (default: platform.version from the manifest). source.path "
+            "is preserved (extension EDT root is typically src/cfe/<id>/); "
+            "when path is '.' preserves .1c-dev/.git while swapping format "
+            "contents. After convert use the same metadata.*/build/check tools "
+            "(no rename). Requires 1cedtcli ≥2025.1. Diagnostics codes match "
+            "CLI (1CS001/1CS002 env; 1CS009/layout project; 1CS005/6/7 runtime)."
+            + _CONFIG_RUNTIME
+            + _EXTENSION
+            + _PATH_SCOPE
+            + _NO_SHELL
+        ),
+    )
+    def source_convert_tool(
+        to: str,
+        path: str | None = None,
+        config_id: str | None = None,
+        extension_id: str | None = None,
+        force: bool = False,
+        platform_version: str | None = None,
+    ) -> dict[str, Any]:
+        result = run_convert(
+            resolve_path(path),
+            to=cast(ConvertTarget, to),
+            config_id=config_id,
+            extension_id=extension_id,
+            force=force,
+            platform_version=platform_version,
+        )
+        return result.to_payload()
+
+    @server.tool(
         name="build",
         description=(
-            "Load XML configuration into a file infobase via ibcmd, then each "
+            "Load configuration into a file infobase via ibcmd, then each "
             "nested configurations[].extensions[] (XML import or .cfe load) "
-            "with --extension. "
+            "with --extension. For source.format=edt: 1cedtcli export to "
+            ".1c-dev/export/<config-id>/ then the same ibcmd path. "
             "Optional artifact='cf' exports a .cf file for the main configuration."
             + _CONFIG_RUNTIME
             + _NO_SHELL

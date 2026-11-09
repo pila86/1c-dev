@@ -56,6 +56,20 @@ components:
     env: ONEC_YAXUNIT_CFE
     sha256: "805a2277c997a3c24be0b0d080696479e91e4a15ed7e27aaf3991a7346522d70"
 
+  # Soft: md-sparrow fat jar for EDT write path D (ADR-032 / #153).
+  # JDK Temurin 25+; override ONEC_MDSPARROW_JAR. Bake-off / edt_spike pin 0.6.7.
+  - id: md-sparrow
+    artifact: md-sparrow.jar
+    pin: "0.6.7"
+    source:
+      type: github-release
+      repo: yellow-hammer/md-sparrow
+      asset: md-sparrow-0.6.7-all.jar
+      url: https://github.com/yellow-hammer/md-sparrow/releases/download/v0.6.7/md-sparrow-0.6.7-all.jar
+    min_java: 25
+    env: ONEC_MDSPARROW_JAR
+    sha256: "04552ac61df315d3314f95f5102deefd94319d629a97896215cb52b978af68d6"
+
   # Soft: user-owned httpd home for publish/webinst (#94).
   # Unix: tools sync собирает ASF httpd+apr+apr-util в ~/.cache/1c-dev/tools/apache/
   # (нужны gcc/make/libpcre2-dev). Fallback для разработчиков: ./scripts/fetch-apache.sh

@@ -1,0 +1,19 @@
+schema: '2'
+project:
+  name: EdtSpike
+  type: configuration
+platform:
+  version: 8.5.1
+configurations:
+- id: main
+  type: configuration
+  source:
+    format: edt
+    path: .
+  default: true
+runtimes:
+- id: main
+  configuration: main
+  type: file
+  path: .1c-dev/runtime/main
+  default: true

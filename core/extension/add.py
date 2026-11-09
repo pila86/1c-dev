@@ -1,4 +1,4 @@
-"""Add an extension to an existing configuration project (ADR-023 / #88 / #95)."""
+"""Add an extension to an existing configuration project (ADR-023 / #88 / #95 / #163)."""
 
 from __future__ import annotations
 
@@ -9,6 +9,8 @@ from typing import Any
 
 import yaml
 
+from adapters.edtcli import EdtCliInfo
+from adapters.edtcli import RunFn as EdtRunFn
 from adapters.platform import DiscoveryResult, discover_environment
 from adapters.platform_ibcmd import IbcmdError, RunFn, import_cfe_with_ibcmd
 from adapters.platform_ibcmd.constants import CODE_IBCMD_FAILED, IBCMD_DATA_REL
@@ -25,12 +27,16 @@ from core.project.paths import project_home, scope_root_from_manifest
 from core.project.resolve import resolve_config_runtime
 from core.project.result import ProjectResult
 from core.project.validate import validate_project
+from core.source import run_convert
+from core.source.constants import SOURCE_FORMAT_EDT, SOURCE_FORMAT_XML
 
 CODE_EXT_EXISTS = "1CE001"
 CODE_EXT_NOT_CONFIG = "1CE002"
 CODE_CFE_MISSING = "1CE003"
 CODE_IBCMD_MISSING = "1CE004"
+CODE_EXT_FORMAT = "1CE005"
 SUPPORTED_PURPOSES = frozenset({"product", "tests", "other"})
+SUPPORTED_SOURCE_FORMATS = frozenset({SOURCE_FORMAT_XML, SOURCE_FORMAT_EDT})
 
 # Scratch IB for .cfe → XML dump (not the project's default runtime).
 CFE_IMPORT_RUNTIME_REL = ".1c-dev/runtime/_cfe-import"
@@ -47,9 +53,12 @@ def add_extension(
     config_id: str | None = None,
     force: bool = False,
     from_cfe: Path | str | None = None,
+    format: str = SOURCE_FORMAT_XML,
     run: RunFn | None = None,
     import_cfe_fn: ImportCfeFn | None = None,
     discover: Callable[[], DiscoveryResult] | None = None,
+    edt_run: EdtRunFn | None = None,
+    edt_discover: Callable[[], EdtCliInfo] | None = None,
 ) -> ProjectResult:
     """
     Append to ``configurations[].extensions[]``.
@@ -57,6 +66,11 @@ def add_extension(
     Default: scaffold ``src/cfe/<id>/`` (XML).
     With ``from_cfe``: load .cfe into a scratch IB → export hierarchical XML into
     ``src/cfe/<id>/`` (``source.format=xml``). Does not copy the binary .cfe into src.
+
+    With ``format=edt`` (#163): after XML scaffold / .cfe export, run
+    ``source.convert --to=edt --extension <id>`` so the manifest gets
+    ``extensions[].source.format: edt`` and ``path`` stays the EDT project root
+    (typically ``src/cfe/<id>/``).
     """
     start_path = (start or Path.cwd()).resolve()
     manifest_path = detect_manifest(start_path)
@@ -133,6 +147,22 @@ def add_extension(
                     f"Неизвестный purpose: {purpose}",
                     code="1CP005",
                     suggestion="Используйте product, tests или other",
+                )
+            ],
+        )
+
+    resolved_format = str(format or SOURCE_FORMAT_XML).strip().lower()
+    if resolved_format not in SUPPORTED_SOURCE_FORMATS:
+        return ProjectResult(
+            status="error",
+            path=manifest_path,
+            root=root,
+            home=project_home(root),
+            diagnostics=[
+                error(
+                    f"Неизвестный format: {format}",
+                    code=CODE_EXT_FORMAT,
+                    suggestion="Используйте xml или edt",
                 )
             ],
         )
@@ -441,6 +471,34 @@ def add_extension(
                 error(f"Не удалось записать манифест: {exc}", code="1CP006")
             ],
         )
+
+    if resolved_format == SOURCE_FORMAT_EDT:
+        convert = run_convert(
+            root,
+            to="edt",
+            config_id=target.config_id,
+            extension_id=resolved_id,
+            force=force,
+            edt_run=edt_run,
+            edt_discover=edt_discover,
+        )
+        if convert.status != "ok":
+            return ProjectResult(
+                status="error",
+                path=manifest_path,
+                root=root,
+                home=project_home(root),
+                created=created,
+                updated=[str(manifest_path.relative_to(root))],
+                diagnostics=list(convert.diagnostics)
+                or [
+                    error(
+                        "Не удалось конвертировать расширение в EDT",
+                        code=CODE_EXT_FORMAT,
+                        suggestion="Проверьте 1cedtcli (doctor) или повторите source convert",
+                    )
+                ],
+            )
 
     result = validate_project(root)
     result.created = created

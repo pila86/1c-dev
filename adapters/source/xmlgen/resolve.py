@@ -79,11 +79,21 @@ def _java_candidates(*, env: dict[str, str] | None = None) -> list[Path]:
     which = shutil.which("java", path=environ.get("PATH"))
     if which:
         candidates.append(Path(which))
-    # When PATH still points at an older JDK, probe common Linux install roots.
+    # When PATH still points at an older JDK, probe system install roots
+    # (JAVA_HOME / PATH remain primary; IDE caches like ~/.jdks are not probed).
     if sys.platform != "win32":
         jvm_root = Path("/usr/lib/jvm")
         if jvm_root.is_dir():
-            for pattern in ("java-21*", "java-1.21*", "temurin-21*", "zulu-21*"):
+            for pattern in (
+                "java-25*",
+                "java-1.25*",
+                "temurin-25*",
+                "zulu-25*",
+                "java-21*",
+                "java-1.21*",
+                "temurin-21*",
+                "zulu-21*",
+            ):
                 for home in sorted(jvm_root.glob(pattern), reverse=True):
                     candidates.append(home / "bin" / "java")
     # Deduplicate while preserving order

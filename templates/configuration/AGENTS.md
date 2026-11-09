@@ -12,6 +12,7 @@
 - Если нужной операции нет в MCP/CLI или она не закрывает задачу — допустимо править исходники конфигурации/расширения напрямую (BSL, XML и т.п. в source.path). После этого — тот же цикл: diagnostics → build → check → test.
 - Greenfield: `project.init` → `configuration.add` → `project.get` → metadata.* / build.
 - `project.init` создаёт только home (пустые `configurations[]` / `runtimes[]`), не XML.
+- Переключение XML↔EDT: MCP `source.convert` (`to=edt|xml`) / CLI `1c-dev source convert` — не shell и не Конфигуратор. После convert те же `metadata.*` / `build` / `check` (имена tools не меняются).
 - После правок BSL: diagnostics (bsl-ls) → build → check → `test.*`. `check` — по file IB после `build`.
 - Тесты: MCP `test.discover` / `test.list` / `test.run` / `test.runOne` / `test.wait` / `test.report` или CLI `1c-dev test` (не сторонний MCP runner).
 - Перед завершением задачи — semantic diff.
@@ -25,7 +26,7 @@
 - HTTP-сервисы публиковать только через webinst (`backend=webinst` / профиль `local-webinst`). Не через ibsrv.
 
 ## Опасное
-- `project.clean` — только с `yes=true` после подтверждения. Стирает source и `.1c-dev/runtime/`. Не трогает манифест, AGENTS.md, IDE MCP, git.
+- `project.clean` — только с `yes=true` после подтверждения. Стирает source, `.1c-dev/runtime/` и `.1c-dev/export/` (EDT XML staging). При `source.path: .` (EDT) wipe source пропускается. Не трогает манифест, AGENTS.md, IDE MCP, git.
 
 ## MCP
 - `path` = корень scope (родитель `.1c-dev`).

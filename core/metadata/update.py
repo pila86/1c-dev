@@ -1,4 +1,4 @@
-"""metadata.update orchestration (ADR-011 / #22 / #35 / #39 / #40)."""
+"""metadata.update orchestration (ADR-011 / #22 / #35 / #39 / #40 / ADR-032 #154)."""
 
 from __future__ import annotations
 
@@ -6,6 +6,14 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from adapters.source.edt import SOURCE_FORMAT_EDT, SOURCE_FORMAT_XML
+from adapters.source.mdsparrow.constants import GAP_CODE
+from adapters.source.mdsparrow.mutation import MdSparrowError
+from adapters.source.mdsparrow.paths import object_mdo_path
+from adapters.source.mdsparrow.resolve import (
+    fetch_script_suggestion as mdsparrow_fetch_suggestion,
+)
+from adapters.source.mdsparrow.write import update_edt_object
 from adapters.source.xmlgen import (
     EditOp,
     EditResult,
@@ -26,11 +34,12 @@ from core.metadata.ir import (
     TabularSection,
     parse_qualified_name,
 )
-from core.metadata.read import _resolve_source, get_metadata
+from core.metadata.read import WRITE_SOURCE_FORMATS, _resolve_source, get_metadata
 from core.metadata.result import MetadataResult
 
 EditFn = Callable[[Path, list[EditOp]], EditResult]
 GetFn = Callable[..., MetadataResult]
+EdtEditFn = Callable[[Path, str, str, list[EditOp]], EditResult]
 
 # Public sugar op (not in xml-gen ALLOWED_OPS) → remapped to modify-property.
 _SET_FLAG_OP = "set-flag"
@@ -286,12 +295,14 @@ def update_metadata(
     extension_id: str | None = None,
     edit_fn: EditFn | None = None,
     get_fn: GetFn | None = None,
+    edt_edit_fn: EdtEditFn | None = None,
 ) -> MetadataResult:
     """
     Apply sequential edit ops to an existing metadata object.
 
-    Subsystem uses ``subsystem edit``; other types use ``meta edit``.
-    edit_fn / get_fn: injectable for unit tests.
+    Subsystem uses ``subsystem edit``; other types use ``meta edit`` (XML).
+    EDT uses md-sparrow ``apply-mutation`` (#154).
+    edit_fn / get_fn / edt_edit_fn: injectable for unit tests.
     extension_id: nested extensions[] id or name (#112).
     """
     if not operations:
@@ -350,6 +361,7 @@ def update_metadata(
         config_id=config_id,
         runtime_id=runtime_id,
         extension_id=extension_id,
+        allowed_formats=WRITE_SOURCE_FORMATS,
     )
     if isinstance(resolved, MetadataResult):
         return MetadataResult(
@@ -358,8 +370,176 @@ def update_metadata(
             root=resolved.root,
             diagnostics=list(resolved.diagnostics),
         )
-    root, source_dir, _manifest = resolved
+    root, source_dir, _manifest, fmt = resolved
 
+    if fmt == SOURCE_FORMAT_EDT:
+        return _update_edt(
+            start,
+            root,
+            source_dir,
+            obj_type,
+            name,
+            qname,
+            wire_ops,
+            config_id=config_id,
+            runtime_id=runtime_id,
+            extension_id=extension_id,
+            edt_edit_fn=edt_edit_fn,
+            get_fn=get_fn,
+        )
+    if fmt != SOURCE_FORMAT_XML:
+        return MetadataResult(
+            status="error",
+            object=qname,
+            root=root,
+            source_path=source_dir,
+            diagnostics=[
+                error(
+                    f"configuration: source.format={fmt!r}; поддерживается: "
+                    f"{', '.join(sorted(WRITE_SOURCE_FORMATS))}",
+                    code="1CM005",
+                    source="metadata",
+                )
+            ],
+        )
+
+    return _update_xml(
+        start,
+        root,
+        source_dir,
+        obj_type,
+        name,
+        qname,
+        wire_ops,
+        config_id=config_id,
+        runtime_id=runtime_id,
+        extension_id=extension_id,
+        edit_fn=edit_fn,
+        get_fn=get_fn,
+    )
+
+
+def _update_edt(
+    start: Path | None,
+    root: Path,
+    source_dir: Path,
+    obj_type: str,
+    name: str,
+    qname: str,
+    wire_ops: list[EditOp],
+    *,
+    config_id: str | None,
+    runtime_id: str | None,
+    extension_id: str | None,
+    edt_edit_fn: EdtEditFn | None,
+    get_fn: GetFn | None,
+) -> MetadataResult:
+    object_mdo = object_mdo_path(source_dir, obj_type, name)
+    if not object_mdo.is_file():
+        try:
+            file_rel = object_mdo.relative_to(root).as_posix()
+        except ValueError:
+            file_rel = str(object_mdo)
+        return MetadataResult(
+            status="error",
+            object=qname,
+            root=root,
+            source_path=source_dir,
+            diagnostics=[
+                error(
+                    f"Объект не найден: {qname}",
+                    code="1CM008",
+                    file=file_rel,
+                    source="metadata",
+                )
+            ],
+        )
+
+    runner: EdtEditFn = edt_edit_fn if edt_edit_fn is not None else update_edt_object
+    try:
+        edit_result = runner(source_dir, obj_type, name, wire_ops)
+    except MdSparrowError as exc:
+        diag_kw: dict[str, Any] = {
+            "code": exc.code,
+            "source": "metadata" if exc.code.startswith("1CM") else "edt",
+        }
+        if getattr(exc, "suggestion", None):
+            diag_kw["suggestion"] = exc.suggestion
+        elif exc.code in {"1CS008", "1CM006"}:
+            diag_kw["suggestion"] = mdsparrow_fetch_suggestion()
+        elif exc.code == GAP_CODE:
+            diag_kw["suggestion"] = (
+                "Известный gap EDT write path D (ADR-032); bridge C "
+                "(xml-gen → 1cedtcli import) пока не реализован — см. "
+                "contract tests #158"
+            )
+        return MetadataResult(
+            status="error",
+            object=qname,
+            root=root,
+            source_path=source_dir,
+            diagnostics=[error(exc.message, **diag_kw)],
+        )
+
+    updated: list[str] = []
+    for rel_src in edit_result.changed_paths:
+        abs_path = Path(rel_src)
+        if not abs_path.is_absolute():
+            abs_path = (source_dir / rel_src).resolve()
+        try:
+            updated.append(abs_path.relative_to(root).as_posix())
+        except ValueError:
+            updated.append(rel_src)
+
+    warn_codes = list(getattr(edit_result, "warning_codes", None) or [])
+    diagnostics = []
+    for i, msg in enumerate(edit_result.warnings):
+        code = warn_codes[i] if i < len(warn_codes) else None
+        if code is None and ("gap" in msg.lower() or GAP_CODE in msg):
+            code = GAP_CODE
+        diagnostics.append(warning(msg, code=code, source="edt"))
+
+    getter: GetFn = get_fn if get_fn is not None else get_metadata
+    if get_fn is None:
+        get_result = getter(
+            start,
+            qname,
+            config_id=config_id,
+            runtime_id=runtime_id,
+            extension_id=extension_id,
+        )
+    else:
+        get_result = getter(start, qname)
+    ir = get_result.ir if get_result.status == "ok" else None
+    if get_result.status != "ok":
+        diagnostics.extend(list(get_result.diagnostics))
+
+    return MetadataResult(
+        status="ok",
+        object=qname,
+        root=root,
+        source_path=source_dir,
+        updated=updated,
+        ir=ir,
+        diagnostics=diagnostics,
+    )
+
+
+def _update_xml(
+    start: Path | None,
+    root: Path,
+    source_dir: Path,
+    obj_type: str,
+    name: str,
+    qname: str,
+    wire_ops: list[EditOp],
+    *,
+    config_id: str | None,
+    runtime_id: str | None,
+    extension_id: str | None,
+    edit_fn: EditFn | None,
+    get_fn: GetFn | None,
+) -> MetadataResult:
     object_xml = object_xml_path(source_dir, obj_type, name)
     if not object_xml.is_file():
         try:

@@ -1,9 +1,10 @@
-"""Capability matrix for doctor (ADR-005/007/012/018/024/028/031, #25, #49, #60, #91, #142)."""
+"""Capability matrix for doctor (ADR-005/007/012/018/024/028/031; #25/#49/#142/#151)."""
 
 from __future__ import annotations
 
 from typing import NotRequired, TypedDict
 
+from adapters.edtcli import EDTCLI_MISSING_HINT
 from core.metadata.types import WRITE_OBJECT_TYPES_SORTED
 from core.toolchain.resolve import sync_suggestion
 
@@ -15,6 +16,9 @@ CAPABILITY_REQUIREMENTS: dict[str, list[str]] = {
     "ibsrv": ["ibsrv"],
     "webinst": ["webinst", "apache"],
     "templates": ["templates"],
+    # XML write path (ADR-007). EDT write (ADR-032 path D) depends on
+    # md-sparrow + JDK 25+ — soft doctor diagnostics 1CD020/1CD021, not
+    # hard requires here (format-aware matrix — follow-up; see ADR-032 §6).
     "metadata.create": ["java", "xml-gen"],
     "metadata.update": ["java", "xml-gen"],
     "metadata.delete": ["java", "xml-gen"],
@@ -23,6 +27,8 @@ CAPABILITY_REQUIREMENTS: dict[str, list[str]] = {
     "test.yaxunit": ["1cv8", "ibcmd", "yaxunit"],
     # ADR-031 / #142: HTTP Debug Protocol — dbgs + listening probe (soft).
     "debug.http": ["dbgs", "dbgs-listening"],
+    # M7 / #151: EDT CLI (1cedtcli); JDK 25+ для md-sparrow — soft diagnostic, не requires.
+    "edt": ["1cedtcli"],
 }
 
 # Write capabilities → ADR-018 coverage catalog (23 Meta DSL + Subsystem).
@@ -71,6 +77,7 @@ _TOOL_HINTS: dict[str, str] = {
         "Запустите debug-сервер: 1c-dev debug server start "
         "(или укажите debug.host/port в .1c-dev/project.yaml)."
     ),
+    "1cedtcli": EDTCLI_MISSING_HINT,
 }
 
 

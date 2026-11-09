@@ -8,6 +8,11 @@ from typing import Any
 
 import typer
 
+from adapters.edtcli import (
+    CODE_EDTCLI_COLLISION,
+    CODE_EDTCLI_MISSING,
+    CODE_EDTCLI_VERSION,
+)
 from adapters.platform_ibcmd.constants import (
     CODE_ARTIFACT,
     CODE_IBCMD_MISSING,
@@ -15,10 +20,17 @@ from adapters.platform_ibcmd.constants import (
     CODE_SOURCE_FORMAT,
     CODE_SOURCE_MISSING,
 )
+from adapters.source.edt.constants import CODE_LAYOUT_NOT_EDT, CODE_PATH_NOT_EDT_ROOT
 from cli.options import ConfigOption, RuntimeOption
 from cli.output import OutputFormat, OutputOption, resolve_output
 from core.build import BuildResult, run_build
-from core.exit_codes import BUILD_FAILURE, ENV_UNAVAILABLE, PROJECT_ERROR, SUCCESS
+from core.exit_codes import (
+    BUILD_FAILURE,
+    ENV_UNAVAILABLE,
+    PROJECT_ERROR,
+    RUNTIME_FAILURE,
+    SUCCESS,
+)
 from core.project.constants import (
     CODE_CONFIG_AMBIGUOUS,
     CODE_CONFIG_UNKNOWN,
@@ -68,7 +80,7 @@ def _exit_for(result: BuildResult) -> None:
     if result.status == "ok":
         raise typer.Exit(code=SUCCESS)
     codes = {d.get("code") for d in result.diagnostics}
-    if CODE_IBCMD_MISSING in codes:
+    if codes & {CODE_IBCMD_MISSING, CODE_EDTCLI_MISSING, CODE_EDTCLI_VERSION}:
         raise typer.Exit(code=ENV_UNAVAILABLE)
     if codes & {
         CODE_PROJECT,
@@ -80,8 +92,13 @@ def _exit_for(result: BuildResult) -> None:
         CODE_CONFIG_AMBIGUOUS,
         CODE_RUNTIME_AMBIGUOUS,
         CODE_RUNTIME_CONFIG_MISMATCH,
+        CODE_LAYOUT_NOT_EDT,
+        CODE_PATH_NOT_EDT_ROOT,
     }:
         raise typer.Exit(code=PROJECT_ERROR)
+    # ADR-032: rc 204 workspace collision → RUNTIME_FAILURE (4), не BUILD_FAILURE
+    if CODE_EDTCLI_COLLISION in codes:
+        raise typer.Exit(code=RUNTIME_FAILURE)
     raise typer.Exit(code=BUILD_FAILURE)
 
 
@@ -96,7 +113,7 @@ def build_command(
     runtime: RuntimeOption = None,
     output: OutputOption = None,
 ) -> None:
-    """Собрать конфигурацию: XML → file IB через ibcmd."""
+    """Собрать конфигурацию: XML или EDT (export) → file IB через ibcmd."""
     result = run_build(
         Path.cwd(),
         artifact=artifact,
