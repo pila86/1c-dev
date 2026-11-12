@@ -25,6 +25,7 @@ RULE_IDS = (
     "bsl-module-structure",
     "1c-service-addresses",
     "bsl-transactions",
+    "bsl-platform-docs-lookup",
 )
 
 

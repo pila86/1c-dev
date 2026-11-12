@@ -34,6 +34,7 @@ RULE_IDS = (
     "bsl-module-structure",
     "1c-service-addresses",
     "bsl-transactions",
+    "bsl-platform-docs-lookup",
 )
 
 
@@ -129,6 +130,26 @@ def test_configure_agents_includes_debug_workflow(tmp_path: Path) -> None:
     assert "debug.http" in agents
     assert "test.wait" in agents
     assert "не вместо" in agents or "не заменять" in agents or "не вместо `test" in agents
+
+
+def test_configure_agents_includes_platform_docs_lookup(tmp_path: Path) -> None:
+    """AGENTS: API + constructs/ops/query lookup (no invent, no TOC themes)."""
+    result = configure_ide(tmp_path, target="none")
+    assert result.status == "ok"
+    agents = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
+    assert "Документация платформы" in agents
+    assert "global_member_search" in agents
+    assert "global_member_info" in agents
+    assert "docs.search" in agents
+    assert "docs.get" in agents
+    assert "type_info" in agents
+    assert "fileType=BSL" in agents
+    assert "Не выдумывать" in agents
+    assert "только `docs.search` / `docs.get`" not in agents
+    assert "Оператор цикла" in agents
+    assert "язык запросов" in agents.lower() or "запрос" in agents
+    assert "TOC" in agents or "оглавление" in agents.lower()
+    assert "Не голое «Оператор»" in agents or "не голое" in agents.lower()
 
 
 def test_configure_mcp_excludes_metr(tmp_path: Path) -> None:

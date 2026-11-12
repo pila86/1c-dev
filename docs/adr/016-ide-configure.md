@@ -53,6 +53,7 @@ M4 / [ADR-022](022-project-home.md): в multi-tool monorepo IDE MCP может �
 - `bsl-module-structure`
 - `1c-service-addresses`
 - `bsl-transactions`
+- `bsl-platform-docs-lookup`
 
 Cursor: все правила с `alwaysApply: true` и `description` из manifest `title`.
 
