@@ -1,0 +1,122 @@
+version: 1
+default_purpose_filter: coding
+
+sources:
+  - id: unica-coding
+    url: https://github.com/IngvarConsulting/unica.git
+    ref: main
+    license: LGPL-3.0
+    trust: 0.9
+    include:
+      - "plugins/unica/skills/document-posting/**"
+      - "plugins/unica/skills/transactions-locks/**"
+      - "plugins/unica/skills/object-locks/**"
+      - "plugins/unica/skills/register-design/**"
+      - "plugins/unica/skills/query-optimize/**"
+      - "plugins/unica/skills/form-patterns/**"
+      - "plugins/unica/skills/form-events/**"
+      - "plugins/unica/skills/object-events/**"
+      - "plugins/unica/skills/bsp-patterns/**"
+      - "plugins/unica/skills/localization/**"
+      - "plugins/unica/skills/module-placement/**"
+      - "plugins/unica/skills/background-jobs/**"
+      - "plugins/unica/skills/data-exchange/**"
+      - "plugins/unica/skills/integration-implement/**"
+      - "plugins/unica/skills/api-design/**"
+      - "plugins/unica/skills/code-review/**"
+      - "plugins/unica/skills/security-auth-crypto/**"
+      - "plugins/unica/skills/metadata-modeling/**"
+      - "plugins/unica/skills/data-separation/**"
+      # Мясо рецептов часто в references, не в SKILL.md
+      - "plugins/unica/references/platform/document-posting.md"
+      - "plugins/unica/references/platform/transactions-locks.md"
+      - "plugins/unica/references/platform/object-locks.md"
+      - "plugins/unica/references/platform/register-design.md"
+      - "plugins/unica/references/platform/form-events.md"
+      - "plugins/unica/references/platform/object-events.md"
+      - "plugins/unica/references/platform/module-placement.md"
+      - "plugins/unica/references/platform/metadata-modeling.md"
+      - "plugins/unica/references/platform/integration-contracts.md"
+    subdomain_hints:
+      "**/document-posting/**": document_posting
+      "**/document-posting.md": document_posting
+      "**/transactions-locks/**": transactions_locks
+      "**/transactions-locks.md": transactions_locks
+      "**/object-locks/**": transactions_locks
+      "**/object-locks.md": transactions_locks
+      "**/register-design/**": accumulation_register
+      "**/register-design.md": accumulation_register
+      "**/query-optimize/**": queries
+      "**/form-patterns/**": forms_client_server
+      "**/form-events/**": forms_client_server
+      "**/form-events.md": forms_client_server
+      "**/object-events.md": document_posting
+      "**/bsp-patterns/**": bsp_ssl
+      "**/localization/**": strings_nstr
+      "**/module-placement/**": code_style
+      "**/module-placement.md": code_style
+      "**/metadata-modeling.md": other_coding
+      "**/integration-contracts.md": other_coding
+      "**/code-review/**": code_style
+
+  - id: desko77-rules
+    url: https://github.com/Desko77/claude-code-skills-1c.git
+    ref: main
+    license: MIT
+    trust: 0.8
+    include:
+      - "rules/**/*.md"
+      - "rules/**/*.mdc"
+    exclude:
+      - "rules/sdd-workflow.md"
+      - "rules/model-selection.md"
+      - "rules/agent-working-memory.md"
+      - "rules/agent-verification-patterns.md"
+      - "rules/git-safety-rules.md"
+      - "rules/mcp-tool-priority.md"
+      - "rules/skill-design.md"
+      - "rules/file-edit-efficiency.md"
+      - "rules/text-formatting.md"
+      - "rules/edt-*.md"
+      - "rules/designer-batch-verdict.md"
+      - "rules/1c-cyrillic-windows.md"
+      - "rules/v8unpack-source-structure.md"
+    subdomain_hints:
+      "**/1c-transactions-and-locks.md": transactions_locks
+      "**/anti_patterns.md": queries
+      "**/1c-coding-standards.md": code_style
+      "**/query-*.md": queries
+      "**/1c-query-*.md": queries
+      "**/form_module_rules.md": forms_client_server
+      "**/bsl-ssl.md": bsp_ssl
+      "**/async-methods-1c.md": code_style
+      "**/refactoring.md": code_style
+      "**/code-review-checklist.md": code_style
+
+  - id: desko77-coding-skills
+    url: https://github.com/Desko77/claude-code-skills-1c.git
+    ref: main
+    license: MIT
+    trust: 0.75
+    include:
+      - "skills/1c-form-patterns/**"
+      - "skills/1c-ssl-patterns/**"
+      - "skills/1c-query-optimization/**"
+      - "skills/1c-query-validate/**"
+      - "skills/1c-bsp-api/**"
+      - "skills/1c-bsp-command/**"
+      - "skills/1c-bsp-registration/**"
+      - "skills/1c-code-review/SKILL.md"
+      - "skills/1c-bsl-validate/**"
+    exclude:
+      # каталог дефектов раздувает индекс и топит SKILL.md Unica в TF-IDF
+      - "skills/**/references/catalog/**"
+      - "skills/**/evals/**"
+
+  - id: brake71-ssl
+    url: https://github.com/brake71/1c-ssl-skills.git
+    ref: main
+    license: MIT
+    trust: 0.7
+    include:
+      - "skills/**"

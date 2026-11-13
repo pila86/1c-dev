@@ -82,13 +82,14 @@ spikes/patterns_knowledge/          # или tools/patterns-knowledge/
 | `desko77-coding-skills` | тот же | MIT | `skills/1c-form-patterns/**`, `skills/1c-ssl-patterns/**`, `skills/1c-query-*/**`, `skills/1c-bsp-*/**`, `skills/1c-code-review/**`, `skills/1c-bsl-*/**` | Не весь `skills/` |
 | `brake71-ssl` | [brake71/1c-ssl-skills](https://github.com/brake71/1c-ssl-skills) | MIT | `skills/**` | Домен БСП |
 | `pauk` | [Mempemp/Pauk_1C](https://github.com/Mempemp/Pauk_1C) | MIT | `pauk-product/**/SKILL.md`, coding skills paths по факту дерева | Мало ★ — низкий trust, ручной QA |
-| `handwritten-larek` | локально в репо spike | свой MIT/CC0 текст | `spikes/patterns_knowledge/seed/*.md` | Страховка под «Ларёк», если gap после Unica |
+
+**Не писать** собственные «эталонные» рецепты под задачу эксперимента (confounding A/B). Индекс = только внешние allowlist-источники.
 
 ### 3.1.1 Unica — что брать / не брать
 
 Плагин Unica = **skills + MCP `unica`** (метаданные/runtime). Для knowledge-индекса `1c-dev` берём **только coding-скиллы** (рецепты BSL/прикладной модели), не ops и не внутренние `.agents/` / `arch/rules/` продукта Unica.
 
-**Include (coding) — `plugins/unica/skills/<name>/SKILL.md` (+ локальные `references/**` рядом со скиллом, если есть):**
+**Include (coding) — `plugins/unica/skills/<name>/SKILL.md` (+ локальные `references/**` рядом со скиллом) и platform-рецепты `plugins/unica/references/platform/{document-posting,transactions-locks,object-locks,register-design,form-events,object-events,module-placement,metadata-modeling,integration-contracts}.md`:**
 
 | skill | subdomain |
 |-------|-----------|
@@ -238,11 +239,6 @@ sources:
     trust: 0.7
     include: ["skills/**"]
 
-  - id: handwritten-larek
-    path: "spikes/patterns_knowledge/seed"   # локальный путь, без git clone
-    license: MIT
-    trust: 1.0
-    include: ["**/*.md"]
 ```
 
 `sources.lock.json` после ingest: `{ "desko77-rules": { "commit": "<sha>", "fetched_at": "…" }, … }`.
@@ -265,10 +261,9 @@ poetry run patterns-knowledge ingest [--source ID] [--force]
    - `git fetch` + `git checkout` на `ref`;
    - записать **фактический** `commit` в lock;
    - собрать список файлов по `include`/`exclude` (pathspec).
-3. Для `path:` (локальный seed) — просто обойти файлы, `commit=null`, `source=handwritten`.
-4. Для каждого файла → parse → classify → одна или несколько Card (большой rule можно резать на секции по `##` заголовкам, max размер тела ~2–4k токенов эквивалента).
-5. Записать `.patterns-ab/cards/<card_id>.json` (или `cards.jsonl`).
-6. Вызвать **reindex** (§6).
+3. Для каждого файла → parse → classify → одна или несколько Card (большой rule можно резать на секции по `##` заголовкам, max размер тела ~2–4k токенов эквивалента).
+4. Записать `.patterns-ab/cards/<card_id>.json` (или `cards.jsonl`).
+5. Вызвать **reindex** (§6).
 
 Идемпотентность: повторный ingest с тем же SHA не пересобирает embeddings, если content-hash карточки не изменился.
 
@@ -336,11 +331,20 @@ poetry run patterns-knowledge ingest [--source ID] [--force]
 
 ### 6.1 Что индексируется
 
-Текстовое поле для эмбеддинга (склейка):
+Разделение **поиска** и **выдачи**:
+
+| Поле | Назначение |
+|------|------------|
+| `_embed_text` (только индекс) | Шапка: `title + summary + subdomain + when_to_use + anti_patterns`. Без полного body и code. |
+| `summary` | Skills: YAML `description` (или `summary`). Rules: 2–4 абзаца после H1 до первого `##` / `---`. |
+| `body_markdown` | Урезанный рецепт для `patterns.get` (~4k): без секций `MCP routing` / tool-workflow / UTF-8 readme; с Core model, Design rules, примерами BSL. |
+| `code` | Фрагменты из trimmed body (если есть). |
 
 ```text
-title + summary + subdomain + when_to_use + anti_patterns + первые N символов body + captions code
+_embed_text = title + summary + subdomain + when_to_use + anti_patterns
 ```
+
+Unica: в allowlist также `plugins/unica/references/platform/{document-posting,transactions-locks,register-design,…}.md` — там основное «мясо» рецептов, а `SKILL.md` даёт сильную шапку для retrieval.
 
 Метаданные в sqlite (или рядом): `id`, `subdomain`, `purpose`, `trust`, `license`, `repo_id`, `content_hash`, пути к полному JSON.
 
@@ -455,15 +459,13 @@ poetry run patterns-knowledge search "проведение документа р
 poetry run patterns-knowledge search "транзакции блокировки" --task transactions_locks
 ```
 
-Ожидание smoke: в top-3 есть карточки про проведение/движения/транзакции — в первую очередь из **Unica** (`document-posting`, `register-design`, `transactions-locks`) и/или Desko77 rules / seed.
-
-Seed `handwritten-larek` — страховка, если после ingest Unica+MIT **нет** явной карточки под остатки/оприходование.
+Ожидание smoke: в top-3 есть карточки про проведение/движения/транзакции — в первую очередь из **Unica** (`document-posting`, `register-design`, `transactions-locks`) и/или Desko77 rules.
 
 ## 9. Этапы реализации прототипа (для исполнителя)
 
 | Этап | Deliverable | Критерий готовности |
 |------|-------------|---------------------|
-| P0 | Каркас пакета + `sources.yaml` + seed 3–4 md | файлы на месте |
+| P0 | Каркас пакета + `sources.yaml` (без самописных рецептов) | файлы на месте |
 | P1 | ingest clone + parse md → cards JSON (без vectors) | `cards/` заполнен, только coding |
 | P2 | embeddings + search CLI | smoke запросы §8 дают релевантный top-3 |
 | P3 | MCP `search`/`get`/`feedback` | агент tools/list видит patterns |
