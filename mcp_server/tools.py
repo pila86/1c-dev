@@ -1214,8 +1214,9 @@ def register_tools(server: FastMCP) -> None:
         name="publish.url",
         description=(
             "Return the HTTP publish URL for the profile "
-            "(ibsrv: http://{address}:{port}{base}; "
-            "webinst: http://127.0.0.1:{port}/{wsdir})."
+            "(ibsrv: http://{host}:{port}{base}; "
+            "webinst: http://{host}:{port}/{wsdir}; "
+            "host is 127.0.0.1 when profile.address is a wildcard bind)."
             + _PUBLISH_PROFILE
             + _PATH_SCOPE
             + _NO_SHELL

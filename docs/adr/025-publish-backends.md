@@ -66,7 +66,7 @@ Layout:
   httpd.pid
 ```
 
-Default port **8315** (не 80 — bind без root). URL: `http://127.0.0.1:{port}/{wsdir}`.
+Default port **8315** (не 80 — bind без root). Default bind **`0.0.0.0`** (`publish.profiles.*.address`; Listen / `--http-address`). URL при wildcard-bind: `http://127.0.0.1:{port}/{wsdir}` (иначе host = `address`).
 
 ```text
 # scaffold user-owned httpd.conf + default.vrd + Alias/Directory

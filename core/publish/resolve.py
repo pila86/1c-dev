@@ -11,7 +11,12 @@ from core.publish.constants import (
     CODE_PROFILE_UNKNOWN,
     CODE_PROJECT,
 )
-from core.publish.paths import DEFAULT_HTTP_PORT, DEFAULT_WEBINST_PORT
+from core.publish.paths import (
+    DEFAULT_HTTP_ADDRESS,
+    DEFAULT_HTTP_PORT,
+    DEFAULT_WEBINST_ADDRESS,
+    DEFAULT_WEBINST_PORT,
+)
 
 SUPPORTED_BACKENDS = frozenset({"ibsrv", "webinst"})
 DEFAULT_BACKEND = "webinst"
@@ -27,6 +32,7 @@ class ResolvedPublishProfile:
     port: int
     config_rel: str | None
     name: str
+    address: str = DEFAULT_WEBINST_ADDRESS
     server: str = "apache24"
     wsdir: str | None = None
     dir_rel: str | None = None
@@ -337,6 +343,16 @@ def resolve_publish_profile(
             )
         ]
 
+    default_address = (
+        DEFAULT_WEBINST_ADDRESS if backend == "webinst" else DEFAULT_HTTP_ADDRESS
+    )
+    address_raw = raw.get("address")
+    address = (
+        address_raw.strip()
+        if isinstance(address_raw, str) and address_raw.strip()
+        else default_address
+    )
+
     config_rel: str | None = None
     config_raw = raw.get("config")
     if isinstance(config_raw, str) and config_raw.strip():
@@ -381,6 +397,7 @@ def resolve_publish_profile(
             port=port,
             config_rel=config_rel,
             name=name,
+            address=address,
             server=server,
             wsdir=wsdir,
             dir_rel=dir_rel,
