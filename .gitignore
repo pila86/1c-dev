@@ -31,3 +31,6 @@ Thumbs.db
 
 # Write-backend bake-off harness (local fixtures)
 .bakeoff/
+
+# Coding knowledge A/B harness (LLM creds, runs, stub runtime)
+.patterns-ab/
