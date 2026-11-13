@@ -27,7 +27,7 @@
 ### In scope (v0)
 
 - Прототип инструмента знаний по [coding-patterns-knowledge-tool.md](coding-patterns-knowledge-tool.md): allowlist → clone → normalize Card → **семантический индекс** → MCP `patterns.search` / `get` / `feedback`.
-- Только `purpose=coding` (см. §6); приоритетный источник — **IngvarConsulting/unica** (LGPL-3.0, coding-скиллы вроде `document-posting` / `transactions-locks` / `register-design`) + MIT (Desko77, brake71) + локальный seed при gap.
+- Только `purpose=coding` (см. §6); приоритетный источник — **IngvarConsulting/unica** (LGPL-3.0, coding-скиллы вроде `document-posting` / `transactions-locks` / `register-design`) + MIT (Desko77, brake71). Без самописных рецептов под задачу.
 - Сквозной A/B на задаче «Ларёк» (§7) через headless CLI-агент + `1c-dev` MCP.
 - Локальная LLM и локальные/compatible embeddings; креды только через env / `.patterns-ab/env.local`.
 
@@ -270,7 +270,7 @@ export PATTERNS_AB_MODEL=…     # id модели у провайдера
 | `patterns.get` | `id` | полная Card (body, code, license, path) |
 | `patterns.feedback` | `id`, `vote` ±1 | локальный sqlite |
 
-Перед прогоном B обязателен pipeline: `ingest` → `reindex` → smoke search по проведению/транзакциям (см. §8 tool-спеки). Seed под «Ларёк» обязателен, если GitHub-корпус не покрывает движения регистра остатков.
+Перед прогоном B обязателен pipeline: `ingest` → `reindex` → smoke search по проведению/транзакциям (см. tool-спеку). Корпус — только allowlist GitHub, без рукописных подсказок под «Ларёк».
 
 ## 12. Runbook (пошагово)
 
@@ -287,7 +287,7 @@ export PATTERNS_AB_MODEL=…     # id модели у провайдера
 
 ### Фаза 1 — Прототип patterns (по tool-спеке)
 
-1. Реализовать P0–P4 из [coding-patterns-knowledge-tool.md](coding-patterns-knowledge-tool.md) §9: seed + ingest allowlist + semantic index + MCP.
+1. Реализовать P0–P4 из [coding-patterns-knowledge-tool.md](coding-patterns-knowledge-tool.md) §9: ingest allowlist + semantic index + MCP.
 2. Закрыть чеклист приёмки прототипа (tool-спека §11): smoke search проведение/транзакции.
 3. Зафиксировать команды `ingest` / `reindex` / `mcp` в protocol.
 
