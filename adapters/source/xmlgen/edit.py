@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from adapters.source.xmlgen.compile import XmlGenError
+from adapters.source.xmlgen.md_list import ops_touch_md_list, rewrite_md_list_properties
 from adapters.source.xmlgen.resolve import ToolResolve, resolve_jar, resolve_java
 
 _WARN_RE = re.compile(r"^\[WARN\]\s*(.+)$")
@@ -122,6 +123,17 @@ def edit_metadata(
         for path in partial.changed_paths:
             if path not in changed:
                 changed.append(path)
+
+    # Workaround SteelMorgan/1c-agent-based-dev-framework#27:
+    # modify-property writes RegisterRecords/BasedOn/Owners as text; platform
+    # needs MDListType with xr:Item. Rewrite surgically after successful edits.
+    if ops_touch_md_list([op.value for op in operations if op.op == "modify-property"]):
+        if rewrite_md_list_properties(object_xml):
+            rel = object_xml.name
+            if rel not in changed:
+                changed.append(rel)
+            if aggregate.modified == 0 and aggregate.added == 0:
+                aggregate.modified = 1
 
     aggregate.changed_paths = changed
     return aggregate

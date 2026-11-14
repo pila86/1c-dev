@@ -93,6 +93,8 @@ pwsh scripts/fetch-md-reader.ps1
 poetry run pytest -m integration
 ```
 
+- OpenCode + локальная LLM (`opencode`): `poetry run pytest -m opencode` — нужен `opencode` в PATH и `.patterns-ab/env.local` (см. `.patterns-ab/env.local.example`); артефакты в `.opencode-it/runs/`. Локальная LLM — **один поток** (helpers берут file-lock). Без кредов тесты skip.
+
 Перед коммитом: `poetry run ruff check .`, `poetry run mypy`, `poetry run pytest`.
 
 ## Issues vs документация

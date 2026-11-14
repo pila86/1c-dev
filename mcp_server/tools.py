@@ -926,6 +926,8 @@ def register_tools(server: FastMCP) -> None:
             "{op:'modify-attribute', value:'Price: synonym=Цена'}, "
             "{op:'set-flag', value:'server=true'}, "
             "{op:'modify-property', value:'registerRecords=AccumulationRegister.X'} "
+            "(XML: RegisterRecords; camelCase registerRecords нормализуется; "
+            "EDT: registerRecords — известный gap 1CS010). "
             "(EDT: value = one qname, comma-separated list, or JSON array; "
             "scalar CommonModule flags unchanged), "
             "{op:'add-content', value:'Catalog.Products'}, "
