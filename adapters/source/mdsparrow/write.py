@@ -252,8 +252,8 @@ def create_edt_object(
     Object synonym and attribute types/synonyms are applied via
     ``cf-md-object-set`` (``synonymRu`` on add-md-object is a known no-op gap).
 
-    Subsystem with non-empty ``content`` is refused before mutation (#165):
-    md-sparrow does not persist contentRefs on EDT (upstream #78).
+    Subsystem ``content`` is written as ``contentRefs`` via ``cf-md-object-set``
+    (md-sparrow ≥0.6.10 / upstream #78); persistence is verified after set.
     """
     jar_r, java_r = _require_tools(jar=jar, java=java)
     edt_root = edt_root.resolve()
@@ -268,14 +268,6 @@ def create_edt_object(
         raise MdSparrowError(
             f"Объект уже существует: {catalog.qualified_name}",
             code="1CM003",
-        )
-    if catalog.type == "Subsystem" and catalog.content:
-        raise MdSparrowError(
-            "Состав подсистемы (content) недоступен на source.format: edt — "
-            "md-sparrow не пишет contentRefs; create с непустым content "
-            f"отклонён целиком (gap; code {GAP_CODE})",
-            code=GAP_CODE,
-            suggestion=SUBSYSTEM_CONTENT_GAP_SUGGESTION,
         )
 
     warnings: list[str] = []
@@ -389,12 +381,22 @@ def create_edt_object(
     if flag_props:
         need_set = True
 
+    subsystem_content = (
+        [str(item).strip() for item in catalog.content if str(item).strip()]
+        if catalog.type == "Subsystem" and catalog.content
+        else []
+    )
+    if subsystem_content:
+        need_set = True
+
     if need_set:
         dto = read_object_dto(
             obj_path, jar=jar_r, java=java_r, schema_version=schema_version
         )
         if catalog.synonym:
             dto["synonym"] = catalog.synonym
+        if subsystem_content:
+            dto["contentRefs"] = list(subsystem_content)
         for attr in catalog.attributes:
             target = _find_attr(dto, attr.name)
             if target is None:
@@ -494,6 +496,17 @@ def create_edt_object(
             java=java_r,
             schema_version=schema_version,
         )
+        if subsystem_content:
+            after = read_object_dto(
+                obj_path, jar=jar_r, java=java_r, schema_version=schema_version
+            )
+            if not _content_refs_persisted(after, subsystem_content):
+                raise MdSparrowError(
+                    "contentRefs не сохранились в .mdo после "
+                    f"cf-md-object-set (gap; code {GAP_CODE})",
+                    code=GAP_CODE,
+                    suggestion=SUBSYSTEM_CONTENT_GAP_SUGGESTION,
+                )
 
     changed = [object_mdo_rel(catalog.type, catalog.name), CONFIGURATION_MDO_REL]
     # Deduplicate while preserving order.
@@ -534,6 +547,7 @@ def _common_module_flag_props(catalog: CatalogObject) -> dict[str, Any]:
 
 
 # DTO list[str] fields that must not be sent as a scalar string (#167).
+# contentRefs goes through add-content / remove-content (not modify-property).
 _LIST_STRING_PROPS = frozenset({"registerrecords"})
 
 
@@ -555,6 +569,10 @@ def _set_dto_property(dto: dict[str, Any], prop: str, value: Any) -> None:
         document = dto.get("document")
         if isinstance(document, dict):
             document["registerRecords"] = list(items)
+        return
+    # Subsystem content ↔ contentRefs (md-sparrow ≥0.6.10 / #78).
+    if lower in {"contentrefs", "content"}:
+        dto["contentRefs"] = coerce_list_str(value)
         return
     # CommonModule lives under nested block in some schemas; try flat first.
     camel_map = {
@@ -616,6 +634,52 @@ def _register_records_persisted(dto: dict[str, Any], expected: list[str]) -> boo
         return True
     have = set(_register_records_from_dto(dto))
     return all(item in have for item in expected)
+
+
+def _content_refs_from_dto(dto: dict[str, Any]) -> list[str]:
+    """Collect subsystem contentRefs from cf-md-object-get DTO."""
+    raw = dto.get("contentRefs")
+    if not isinstance(raw, list):
+        return []
+    found = [str(item).strip() for item in raw if str(item).strip()]
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for item in found:
+        if item not in seen:
+            seen.add(item)
+            ordered.append(item)
+    return ordered
+
+
+def _content_refs_persisted(dto: dict[str, Any], expected: list[str]) -> bool:
+    """True when every expected content qname is present after cf-md-object-set."""
+    if not expected:
+        return True
+    have = set(_content_refs_from_dto(dto))
+    return all(item in have for item in expected)
+
+
+def _apply_content_ref_op(
+    dto: dict[str, Any],
+    *,
+    add: bool,
+    qname: str,
+) -> bool:
+    """Mutate ``contentRefs`` in-place. Return True if the list changed."""
+    item = qname.strip()
+    if not item:
+        return False
+    current = _content_refs_from_dto(dto)
+    if add:
+        if item in current:
+            return False
+        current.append(item)
+    else:
+        if item not in current:
+            return False
+        current = [x for x in current if x != item]
+    dto["contentRefs"] = current
+    return True
 
 
 def delete_edt_object(
@@ -1010,13 +1074,51 @@ def update_edt_object(
                 dto_dirty = True
                 result.modified += 1
         elif op.op in {"add-content", "remove-content"}:
-            raise MdSparrowError(
-                f"Операция {op.op!r} (состав подсистемы) недоступна на "
-                f"source.format: edt — md-sparrow не пишет contentRefs "
-                f"(gap; code {GAP_CODE})",
-                code=GAP_CODE,
-                suggestion=SUBSYSTEM_CONTENT_GAP_SUGGESTION,
+            qname = op.value.strip()
+            d = ensure_dto()
+            before = list(_content_refs_from_dto(d))
+            changed = _apply_content_ref_op(
+                d, add=(op.op == "add-content"), qname=qname
             )
+            if not changed:
+                _append_warning(
+                    result.warnings,
+                    result.warning_codes,
+                    f"{op.op}: {qname!r} уже "
+                    f"{'в составе' if op.op == 'add-content' else 'отсутствует'}",
+                )
+            else:
+                expected = list(_content_refs_from_dto(d))
+                _set_object_dto(
+                    obj_path,
+                    d,
+                    jar=jar_r,
+                    java=java_r,
+                    schema_version=schema_version,
+                )
+                dto = None
+                dto_dirty = False
+                after = ensure_dto()
+                if not _content_refs_persisted(after, expected):
+                    raise MdSparrowError(
+                        "contentRefs не сохранились в .mdo после "
+                        f"cf-md-object-set (gap; code {GAP_CODE})",
+                        code=GAP_CODE,
+                        suggestion=SUBSYSTEM_CONTENT_GAP_SUGGESTION,
+                    )
+                # Exact membership for remove (expected may be empty).
+                if set(_content_refs_from_dto(after)) != set(expected):
+                    raise MdSparrowError(
+                        "contentRefs не совпали после cf-md-object-set "
+                        f"(было {before!r}, ожидали {expected!r}; "
+                        f"code {GAP_CODE})",
+                        code=GAP_CODE,
+                        suggestion=SUBSYSTEM_CONTENT_GAP_SUGGESTION,
+                    )
+                if op.op == "add-content":
+                    result.added += 1
+                else:
+                    result.removed += 1
         elif op.op == "add-exchange-content":
             raise MdSparrowError(
                 "add-exchange-content на EDT пока не поддержан "

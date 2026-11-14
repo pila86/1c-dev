@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from adapters.edtcli.constants import MD_SPARROW_MIN_JAVA_MAJOR
 
-# yellow-hammer/md-sparrow — bake-off / fixture edt_spike: 0.6.7
+# yellow-hammer/md-sparrow — pin ≥0.6.10 (contentRefs EDT / #78); fixture
+# edt_spike historically generated with 0.6.7.
 MDSPARROW_REPO = "https://github.com/yellow-hammer/md-sparrow"
-MDSPARROW_PIN = "0.6.7"
-MDSPARROW_ASSET = "md-sparrow-0.6.7-all.jar"
+MDSPARROW_PIN = "0.6.11"
+MDSPARROW_ASSET = "md-sparrow-0.6.11-all.jar"
 MDSPARROW_URL = (
     f"{MDSPARROW_REPO}/releases/download/v{MDSPARROW_PIN}/{MDSPARROW_ASSET}"
 )
@@ -19,13 +20,15 @@ ENV_UNAVAILABLE_CODE = "1CS008"
 MUTATION_FAILED_CODE = "1CS011"
 # Known bake-off / spike gaps (ADR-032 §3 / #154) — warning or hard refuse
 GAP_CODE = "1CS010"
-# Upstream: yellow-hammer/md-sparrow#78 — contentRefs no-op on EDT write.
+# Upstream: yellow-hammer/md-sparrow#78 — fixed in 0.6.10+; keep URL for
+# regression diagnostics if contentRefs still fail to persist.
 MDSPARROW_CONTENT_REFS_ISSUE = (
     "https://github.com/yellow-hammer/md-sparrow/issues/78"
 )
 SUBSYSTEM_CONTENT_GAP_SUGGESTION = (
-    "Состав подсистемы на EDT пока не пишется "
-    f"({MDSPARROW_CONTENT_REFS_ISSUE}). "
+    "contentRefs не сохранились в .mdo после cf-md-object-set "
+    f"(регрессия? {MDSPARROW_CONTENT_REFS_ISSUE}; нужен md-sparrow "
+    f">=0.6.10, pin {MDSPARROW_PIN}). "
     "Обход: 1c-dev source convert --to xml → metadata create/update "
     "с content / add-content → при необходимости "
     "1c-dev source convert --to edt; "
