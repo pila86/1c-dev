@@ -24,6 +24,7 @@ _LLM_ENV_KEYS: frozenset[str] = frozenset(
         "LLM_BASE_URL",
         "LLM_API_KEY",
         "LLM_MODEL",
+        "LLM_PROVIDER",
         "LLM_STEPS",
         "LLM_VERIFY_SSL",
         "OPENAI_BASE_URL",
@@ -35,6 +36,9 @@ _LLM_ENV_KEYS: frozenset[str] = frozenset(
         "NODE_TLS_REJECT_UNAUTHORIZED",
     }
 )
+
+# Default OpenCode provider id for openai-compatible custom endpoints.
+_DEFAULT_COMPAT_PROVIDER = "llm"
 
 
 def _parse_env_file(path: Path) -> dict[str, str]:
@@ -86,31 +90,52 @@ def load_llm_env(env_file: Path | None = None) -> dict[str, str]:
     return out
 
 
+def _compat_provider_id(env: dict[str, str]) -> str:
+    raw = (env.get("LLM_PROVIDER") or "").strip()
+    return raw or _DEFAULT_COMPAT_PROVIDER
+
+
 def resolve_llm_model_id(env: dict[str, str]) -> str:
-    """Runner model id: full ``provider/model`` or ``cognitum/{LLM_MODEL}``."""
+    """Runner model id: full ``provider/model`` or ``{LLM_PROVIDER}/{LLM_MODEL}``.
+
+    Default provider id for bare model names: ``llm`` (openai-compatible overlay).
+    """
     model = (env.get("LLM_MODEL") or "").strip()
     if not model:
         return ""
     if "/" in model:
         return model
-    return f"cognitum/{model}"
+    return f"{_compat_provider_id(env)}/{model}"
+
+
+def is_builtin_opencode_model(model_id: str) -> bool:
+    """True for built-in OpenCode models (``opencode/...``, ``opencode-go/...``)."""
+    prefix = (model_id or "").strip().split("/", 1)[0].lower()
+    return prefix in {"opencode", "opencode-go"}
 
 
 def llm_ready() -> tuple[bool, str]:
-    """Return (ok, reason). Requires opencode + LLM_* (env or tests/.env.integration)."""
+    """Return (ok, reason). Requires opencode + LLM_MODEL (env or tests/.env.integration).
+
+    Built-in ``opencode/*`` / ``opencode-go/*`` need no URL/key.
+    Custom openai-compatible still needs LLM_BASE_URL + LLM_API_KEY.
+    """
     if shutil.which("opencode") is None:
         return False, "opencode не найден в PATH"
     env = load_llm_env()
+    if not env.get("LLM_MODEL"):
+        return (
+            False,
+            f"нет LLM_MODEL (process env или {ENV_INTEGRATION})",
+        )
+    model_id = resolve_llm_model_id(env)
+    if is_builtin_opencode_model(model_id):
+        return True, "ok"
     if not env.get("LLM_BASE_URL") or not env.get("LLM_API_KEY"):
         return (
             False,
             "нет LLM_BASE_URL/LLM_API_KEY "
             f"(process env или {ENV_INTEGRATION})",
-        )
-    if not env.get("LLM_MODEL"):
-        return (
-            False,
-            f"нет LLM_MODEL (process env или {ENV_INTEGRATION})",
         )
     return True, "ok"
 
@@ -152,16 +177,18 @@ def llm_stream_lock(timeout_sec: float = 3600.0) -> Iterator[None]:
             pass
 
 
-def _cognitum_provider(env: dict[str, str]) -> dict[str, Any] | None:
+def _openai_compatible_provider(env: dict[str, str]) -> dict[str, Any] | None:
+    """OpenCode provider block for a custom openai-compatible endpoint."""
     base = env.get("LLM_BASE_URL") or env.get("OPENAI_BASE_URL")
     model_raw = (env.get("LLM_MODEL") or "").strip()
     if not base or not model_raw:
         return None
     # Provider models map key is bare model name (after provider/).
     bare = model_raw.split("/", 1)[-1]
+    provider_id = _compat_provider_id(env)
     return {
         "npm": "@ai-sdk/openai-compatible",
-        "name": "Cognitum",
+        "name": provider_id,
         "env": ["LLM_API_KEY", "OPENAI_API_KEY"],
         "options": {
             "baseURL": base.rstrip("/"),
@@ -178,7 +205,7 @@ def _cognitum_provider(env: dict[str, str]) -> dict[str, Any] | None:
 
 
 def write_opencode_config(workspace: Path, *, steps: int | None = None) -> str:
-    """Write opencode.json with 1c-dev MCP + cognitum provider. Return model id."""
+    """Write opencode.json with 1c-dev MCP (+ custom provider if needed). Return model id."""
     env = load_llm_env()
     poetry = shutil.which("poetry") or "poetry"
     steps_n = steps
@@ -199,17 +226,19 @@ def write_opencode_config(workspace: Path, *, steps: int | None = None) -> str:
         },
         "agent": {"build": {"steps": steps_n}},
     }
-    provider = _cognitum_provider(env)
     model_id = resolve_llm_model_id(env)
-    if provider and model_id:
-        cfg["provider"] = {"cognitum": provider}
-        cfg["model"] = model_id
+    if not model_id:
+        raise ValueError("LLM_MODEL не задан (process env или tests/.env.integration)")
+    cfg["model"] = model_id
+    # Built-in OpenCode models must not get a custom openai-compatible overlay.
+    if not is_builtin_opencode_model(model_id):
+        provider = _openai_compatible_provider(env)
+        if provider:
+            cfg["provider"] = {_compat_provider_id(env): provider}
     (workspace / "opencode.json").write_text(
         json.dumps(cfg, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    if not model_id:
-        raise ValueError("LLM_MODEL не задан (process env или tests/.env.integration)")
     return model_id
 
 
@@ -290,7 +319,7 @@ def _tee_jsonl(stdout: Any, jsonl_path: Path, transcript_path: Path) -> None:
 
 
 def _build_opencode_env(env_file: dict[str, str]) -> dict[str, str]:
-    """Minimal env for OpenCode + Cognitum (polluted poetry/nvm env breaks LLM)."""
+    """Minimal env for OpenCode (polluted poetry/nvm env breaks LLM providers)."""
     # Prefer system+nvm node path; avoid poetry venv shadowing node tooling.
     path_parts = [
         str(Path.home() / ".nvm/versions/node/v22.21.0/bin"),
@@ -314,17 +343,35 @@ def _build_opencode_env(env_file: dict[str, str]) -> dict[str, str]:
         "PATH": ":".join(path_parts),
         "TERM": os.environ.get("TERM") or "xterm-256color",
     }
-    proc_env.update(env_file)
-    if env_file.get("LLM_API_KEY"):
-        proc_env["OPENAI_API_KEY"] = env_file["LLM_API_KEY"]
-        proc_env["LLM_API_KEY"] = env_file["LLM_API_KEY"]
-    if env_file.get("LLM_BASE_URL"):
-        proc_env["OPENAI_BASE_URL"] = env_file["LLM_BASE_URL"]
-        proc_env["LLM_BASE_URL"] = env_file["LLM_BASE_URL"]
-    proc_env["NODE_USE_ENV_PROXY"] = env_file.get("NODE_USE_ENV_PROXY") or "1"
-    proc_env["NODE_TLS_REJECT_UNAUTHORIZED"] = (
-        env_file.get("NODE_TLS_REJECT_UNAUTHORIZED") or "0"
-    )
+    model_id = resolve_llm_model_id(env_file)
+    builtin = is_builtin_opencode_model(model_id)
+    # For built-in models drop openai-compat URL/key overrides that would hijack the provider.
+    skip_keys = set()
+    if builtin:
+        skip_keys = {
+            "LLM_BASE_URL",
+            "LLM_API_KEY",
+            "OPENAI_BASE_URL",
+            "OPENAI_API_KEY",
+            "LLM_VERIFY_SSL",
+        }
+    for key, val in env_file.items():
+        if key in skip_keys:
+            continue
+        proc_env[key] = val
+    if not builtin:
+        if env_file.get("LLM_API_KEY"):
+            proc_env["OPENAI_API_KEY"] = env_file["LLM_API_KEY"]
+            proc_env["LLM_API_KEY"] = env_file["LLM_API_KEY"]
+        if env_file.get("LLM_BASE_URL"):
+            proc_env["OPENAI_BASE_URL"] = env_file["LLM_BASE_URL"]
+            proc_env["LLM_BASE_URL"] = env_file["LLM_BASE_URL"]
+        proc_env["NODE_USE_ENV_PROXY"] = env_file.get("NODE_USE_ENV_PROXY") or "1"
+        proc_env["NODE_TLS_REJECT_UNAUTHORIZED"] = (
+            env_file.get("NODE_TLS_REJECT_UNAUTHORIZED") or "0"
+        )
+    elif "LLM_MODEL" in env_file:
+        proc_env["LLM_MODEL"] = env_file["LLM_MODEL"]
     return proc_env
 
 
@@ -415,7 +462,7 @@ def run_opencode(
             )
         if code == 0 or not _jsonl_has_unexpected_server_error(jsonl):
             break
-        # Cognitum transient: wait before single-stream retry
+        # Transient provider error: wait before single-stream retry
         time.sleep(3.0 * attempt)
 
     (run_dir / "finished.txt").write_text(f"exit={code}\n", encoding="utf-8")
