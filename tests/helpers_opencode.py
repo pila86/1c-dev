@@ -15,13 +15,30 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DATA_ROOT = REPO_ROOT / ".opencode-it"
-ENV_LOCAL = REPO_ROOT / ".patterns-ab" / "env.local"
+ENV_INTEGRATION = REPO_ROOT / "tests" / ".env.integration"
 LLM_LOCK = DATA_ROOT / "llm.lock"
 
+# Keys merged from file + process env (process wins).
+_LLM_ENV_KEYS: frozenset[str] = frozenset(
+    {
+        "LLM_BASE_URL",
+        "LLM_API_KEY",
+        "LLM_MODEL",
+        "LLM_STEPS",
+        "LLM_VERIFY_SSL",
+        "OPENAI_BASE_URL",
+        "OPENAI_API_KEY",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "NO_PROXY",
+        "NODE_USE_ENV_PROXY",
+        "NODE_TLS_REJECT_UNAUTHORIZED",
+    }
+)
 
-def load_llm_env(env_file: Path | None = None) -> dict[str, str]:
-    """Parse KEY=VALUE / export KEY=VALUE from env.local into a dict."""
-    path = env_file or ENV_LOCAL
+
+def _parse_env_file(path: Path) -> dict[str, str]:
+    """Parse KEY=VALUE / export KEY=VALUE from a dotenv-like file."""
     if not path.is_file():
         return {}
     out: dict[str, str] = {}
@@ -40,22 +57,61 @@ def load_llm_env(env_file: Path | None = None) -> dict[str, str]:
             val.startswith('"') and val.endswith('"')
         ):
             val = val[1:-1]
-        # Expand $VAR using already-parsed keys + os.environ
         for k, v in {**os.environ, **out}.items():
             val = val.replace(f"${{{k}}}", v).replace(f"${k}", v)
         out[key] = val
     return out
 
 
+def load_llm_env(env_file: Path | None = None) -> dict[str, str]:
+    """Load LLM settings: optional file, then process env overrides.
+
+    File default: ``tests/.env.integration``. Process env wins for known keys.
+    Falls back to OPENAI_* when LLM_BASE_URL / LLM_API_KEY are empty.
+    """
+    path = env_file if env_file is not None else ENV_INTEGRATION
+    out = _parse_env_file(path)
+    for key in _LLM_ENV_KEYS:
+        val = os.environ.get(key)
+        if val is not None and val != "":
+            out[key] = val
+    if not out.get("LLM_BASE_URL") and out.get("OPENAI_BASE_URL"):
+        out["LLM_BASE_URL"] = out["OPENAI_BASE_URL"]
+    if not out.get("LLM_API_KEY") and out.get("OPENAI_API_KEY"):
+        out["LLM_API_KEY"] = out["OPENAI_API_KEY"]
+    if out.get("LLM_BASE_URL") and not out.get("OPENAI_BASE_URL"):
+        out["OPENAI_BASE_URL"] = out["LLM_BASE_URL"]
+    if out.get("LLM_API_KEY") and not out.get("OPENAI_API_KEY"):
+        out["OPENAI_API_KEY"] = out["LLM_API_KEY"]
+    return out
+
+
+def resolve_llm_model_id(env: dict[str, str]) -> str:
+    """Runner model id: full ``provider/model`` or ``cognitum/{LLM_MODEL}``."""
+    model = (env.get("LLM_MODEL") or "").strip()
+    if not model:
+        return ""
+    if "/" in model:
+        return model
+    return f"cognitum/{model}"
+
+
 def llm_ready() -> tuple[bool, str]:
-    """Return (ok, reason). Requires env.local + opencode + LLM_*."""
+    """Return (ok, reason). Requires opencode + LLM_* (env or tests/.env.integration)."""
     if shutil.which("opencode") is None:
         return False, "opencode не найден в PATH"
     env = load_llm_env()
     if not env.get("LLM_BASE_URL") or not env.get("LLM_API_KEY"):
-        return False, f"нет LLM_BASE_URL/LLM_API_KEY в {ENV_LOCAL}"
+        return (
+            False,
+            "нет LLM_BASE_URL/LLM_API_KEY "
+            f"(process env или {ENV_INTEGRATION})",
+        )
     if not env.get("LLM_MODEL"):
-        return False, f"нет LLM_MODEL в {ENV_LOCAL}"
+        return (
+            False,
+            f"нет LLM_MODEL (process env или {ENV_INTEGRATION})",
+        )
     return True, "ok"
 
 
@@ -98,9 +154,11 @@ def llm_stream_lock(timeout_sec: float = 3600.0) -> Iterator[None]:
 
 def _cognitum_provider(env: dict[str, str]) -> dict[str, Any] | None:
     base = env.get("LLM_BASE_URL") or env.get("OPENAI_BASE_URL")
-    model = env.get("LLM_MODEL")
-    if not base or not model:
+    model_raw = (env.get("LLM_MODEL") or "").strip()
+    if not base or not model_raw:
         return None
+    # Provider models map key is bare model name (after provider/).
+    bare = model_raw.split("/", 1)[-1]
     return {
         "npm": "@ai-sdk/openai-compatible",
         "name": "Cognitum",
@@ -110,8 +168,8 @@ def _cognitum_provider(env: dict[str, str]) -> dict[str, Any] | None:
             "apiKey": "{env:LLM_API_KEY}",
         },
         "models": {
-            model: {
-                "name": model,
+            bare: {
+                "name": bare,
                 "tools": True,
                 "limit": {"context": 262144, "output": 16384},
             }
@@ -125,7 +183,7 @@ def write_opencode_config(workspace: Path, *, steps: int | None = None) -> str:
     poetry = shutil.which("poetry") or "poetry"
     steps_n = steps
     if steps_n is None:
-        raw = env.get("PATTERNS_AB_STEPS") or env.get("OPENCODE_STEPS") or "40"
+        raw = env.get("LLM_STEPS") or "40"
         try:
             steps_n = max(1, int(raw))
         except ValueError:
@@ -142,19 +200,16 @@ def write_opencode_config(workspace: Path, *, steps: int | None = None) -> str:
         "agent": {"build": {"steps": steps_n}},
     }
     provider = _cognitum_provider(env)
-    model_id = env.get("PATTERNS_AB_MODEL") or ""
-    if provider:
+    model_id = resolve_llm_model_id(env)
+    if provider and model_id:
         cfg["provider"] = {"cognitum": provider}
-        model = env.get("LLM_MODEL")
-        if model:
-            model_id = model_id or f"cognitum/{model}"
-            cfg["model"] = model_id
+        cfg["model"] = model_id
     (workspace / "opencode.json").write_text(
         json.dumps(cfg, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     if not model_id:
-        raise ValueError("PATTERNS_AB_MODEL / LLM_MODEL не заданы")
+        raise ValueError("LLM_MODEL не задан (process env или tests/.env.integration)")
     return model_id
 
 
@@ -297,7 +352,7 @@ def run_opencode(
     env_file = load_llm_env()
     model_id = (
         model
-        or env_file.get("PATTERNS_AB_MODEL")
+        or resolve_llm_model_id(env_file)
         or (run_dir / "model.txt").read_text(encoding="utf-8").strip()
     )
     prompt_text = prompt_path.read_text(encoding="utf-8")

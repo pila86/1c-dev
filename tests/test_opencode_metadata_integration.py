@@ -1,7 +1,8 @@
 """Integration: OpenCode agent + 1c-dev MCP создаёт метаданные (локальная LLM).
 
-Маркер ``opencode`` — нужен ``opencode``, ``.patterns-ab/env.local`` и один
-свободный LLM-поток (helpers_opencode.llm_stream_lock).
+Маркер ``opencode`` — нужен ``opencode``, креды ``LLM_*`` (process env или
+``tests/.env.integration``) и один свободный LLM-поток
+(helpers_opencode.llm_stream_lock).
 
 Сценарии (по возрастанию сложности):
 - Catalog, CommonModule, Enum, Constant, Document, InformationRegister,

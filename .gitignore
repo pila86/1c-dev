@@ -36,3 +36,6 @@ Thumbs.db
 .patterns-ab/env.local
 .patterns-ab/runs/
 .opencode-it/
+
+# LLM creds for integration / agent tests
+tests/.env.integration
