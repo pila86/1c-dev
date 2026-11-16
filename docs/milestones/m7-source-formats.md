@@ -117,7 +117,7 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 - Публичный `source.write` как замена `metadata.create`
 - YAXUNIT как EDT/XML в `project.yaml` / `src/` (остаётся cache `.cfe` + ensure)
 - Автоконверт всех nested без `--extension`
-- Состав подсистемы в `.mdo` — через md-sparrow ≥0.6.10 (`contentRefs`); прочие EDT write-gaps (Number, ts-attribute) — follow-up (#166)
+- Прочие EDT write-gaps (Number precision, ts-attribute synonym) — follow-up (#166)
 - String→array для `registerRecords` — **не** out of scope → [#167](https://github.com/pila86/1c-dev/issues/167)
 
 ## Manual verification
