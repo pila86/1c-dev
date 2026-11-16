@@ -15,6 +15,7 @@ from adapters.source.mdsparrow import (
     ENV_UNAVAILABLE_CODE,
     GAP_CODE,
     MDSPARROW_JAR_ENV,
+    MDSPARROW_PIN,
     MUTATION_FAILED_CODE,
     REGISTER_RECORDS_GAP_SUGGESTION,
     MdSparrowError,
@@ -50,7 +51,7 @@ def test_resolve_jar_cache_stable_and_pinned(
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg"))
     tools = tmp_path / "xdg" / "1c-dev" / "tools"
     tools.mkdir(parents=True)
-    pinned = tools / "md-sparrow-0.6.7.jar"
+    pinned = tools / f"md-sparrow-{MDSPARROW_PIN}.jar"
     pinned.write_bytes(b"pinned")
     resolved = resolve_jar()
     assert resolved.found is True

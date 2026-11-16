@@ -26,7 +26,7 @@ def _spec(*, sha256: str | None = PAYLOAD_SHA) -> ComponentSpec:
         pin=MDSPARROW_PIN,
         source={
             "type": "github-release",
-            "url": "https://example.invalid/md-sparrow-0.6.7-all.jar",
+            "url": f"https://example.invalid/md-sparrow-{MDSPARROW_PIN}-all.jar",
         },
         min_java=25,
         env=MDSPARROW_JAR_ENV,
@@ -44,14 +44,17 @@ def _fake_urlretrieve(payload: bytes = PAYLOAD) -> Any:
 
 
 def test_pin_artifact_name_md_sparrow() -> None:
-    assert pin_artifact_name("md-sparrow.jar", "0.6.7") == "md-sparrow-0.6.7.jar"
+    assert (
+        pin_artifact_name("md-sparrow.jar", MDSPARROW_PIN)
+        == f"md-sparrow-{MDSPARROW_PIN}.jar"
+    )
 
 
 def test_manifest_has_md_sparrow_soft_component() -> None:
     spec = load_manifest().get("md-sparrow")
     assert spec is not None
     assert spec.artifact == "md-sparrow.jar"
-    assert spec.pin == "0.6.7"
+    assert spec.pin == MDSPARROW_PIN
     assert spec.env == MDSPARROW_JAR_ENV
     assert spec.min_java == 25
     assert spec.sha256
@@ -64,14 +67,14 @@ def test_fetch_downloads_and_installs_pair(
     path, diags = fetch_md_sparrow(_spec(), tmp_path)
     assert diags == []
     assert path == (tmp_path / "md-sparrow.jar").resolve()
-    assert (tmp_path / "md-sparrow-0.6.7.jar").read_bytes() == PAYLOAD
+    assert (tmp_path / f"md-sparrow-{MDSPARROW_PIN}.jar").read_bytes() == PAYLOAD
     assert path.read_bytes() == PAYLOAD
 
 
 def test_fetch_cache_hit_does_not_download(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    (tmp_path / "md-sparrow-0.6.7.jar").write_bytes(PAYLOAD)
+    (tmp_path / f"md-sparrow-{MDSPARROW_PIN}.jar").write_bytes(PAYLOAD)
 
     def boom(*_a: Any, **_k: Any) -> None:
         raise AssertionError("must not download on cache hit")
