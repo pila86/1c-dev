@@ -44,6 +44,14 @@ EdtEditFn = Callable[[Path, str, str, list[EditOp]], EditResult]
 # Public sugar op (not in xml-gen ALLOWED_OPS) → remapped to modify-property.
 _SET_FLAG_OP = "set-flag"
 
+# MCP/EDT camelCase → Designer XML property names for modify-property (xml-gen).
+# Without this, xml-gen returns warning "Property 'registerRecords' not found"
+# and leaves RegisterRecords empty while status stays ok — agents then "succeed".
+_XML_MODIFY_PROPERTY_ALIASES: dict[str, str] = {
+    "registerrecords": "RegisterRecords",
+    "registertype": "RegisterType",
+}
+
 # IR / CLI flag name → Designer XML property name.
 _FLAG_TO_PROPERTY: dict[str, str] = {
     "server": "Server",
@@ -248,6 +256,35 @@ def normalize_edit_ops(operations: list[EditOp]) -> list[EditOp]:
         else:
             result.append(op)
     return result
+
+
+def normalize_xml_modify_property_ops(operations: list[EditOp]) -> list[EditOp]:
+    """Map MCP camelCase property keys to Designer names for xml-gen."""
+    out: list[EditOp] = []
+    for op in operations:
+        if op.op != "modify-property" or "=" not in op.value:
+            out.append(op)
+            continue
+        # Support batch ``A=1 ;; B=2`` like xml-gen.
+        chunks: list[str] = []
+        for part in op.value.split(";;"):
+            piece = part.strip()
+            if not piece or "=" not in piece:
+                chunks.append(piece)
+                continue
+            key, val = piece.split("=", 1)
+            canon = _XML_MODIFY_PROPERTY_ALIASES.get(key.strip().lower())
+            if canon is not None:
+                chunks.append(f"{canon}={val}")
+            else:
+                chunks.append(piece)
+        out.append(EditOp(op=op.op, value=" ;; ".join(chunks)))
+    return out
+
+
+def _property_not_found_warning(msg: str) -> bool:
+    lower = msg.lower()
+    return "property" in lower and "not found" in lower
 
 
 def _resolve_flag_property(name: str) -> str:
@@ -595,8 +632,9 @@ def _update_xml(
         runner = _default_subsystem_edit
     else:
         runner = _default_edit
+    xml_ops = normalize_xml_modify_property_ops(wire_ops)
     try:
-        edit_result = runner(object_xml, wire_ops)
+        edit_result = runner(object_xml, xml_ops)
     except XmlGenError as exc:
         diag_kw: dict[str, Any] = {
             "code": exc.code,
@@ -625,9 +663,25 @@ def _update_xml(
         except ValueError:
             updated.append(rel_src)
 
-    diagnostics = [
-        warning(msg, source="metadata") for msg in edit_result.warnings
-    ]
+    diagnostics = []
+    hard_fail = False
+    for msg in edit_result.warnings:
+        if _property_not_found_warning(msg):
+            hard_fail = True
+            diagnostics.append(
+                error(
+                    msg,
+                    code="1CM002",
+                    source="metadata",
+                    suggestion=(
+                        "Для XML используйте Designer-имена "
+                        "(RegisterRecords, RegisterType) или camelCase-алиасы "
+                        "из MCP (registerRecords → RegisterRecords)."
+                    ),
+                )
+            )
+        else:
+            diagnostics.append(warning(msg, source="metadata"))
 
     getter: GetFn = get_fn if get_fn is not None else get_metadata
     if get_fn is None:
@@ -645,7 +699,7 @@ def _update_xml(
         diagnostics.extend(list(get_result.diagnostics))
 
     return MetadataResult(
-        status="ok",
+        status="error" if hard_fail else "ok",
         object=qname,
         root=root,
         source_path=source_dir,

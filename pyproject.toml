@@ -51,6 +51,7 @@ build-backend = "poetry.core.masonry.api"
 testpaths = ["tests"]
 markers = [
     "integration: needs external tools (xml-gen jar / 1C platform)",
+    "opencode: needs opencode CLI + LLM_* (env or tests/.env.integration); single-stream",
 ]
 
 [tool.ruff]
