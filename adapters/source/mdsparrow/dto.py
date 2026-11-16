@@ -32,6 +32,23 @@ _NUMBER_RE = re.compile(
 _REF_RE = re.compile(
     r"^(?P<type>[A-Za-zА-Яа-яЁё]+)Ref\.(?P<name>.+)$",
 )
+# Only real Designer ref type prefixes (rejects CatalogReference.X etc.).
+_KNOWN_REF_TYPE_PREFIXES: frozenset[str] = frozenset(
+    {
+        "Catalog",
+        "Document",
+        "Enum",
+        "ChartOfCharacteristicTypes",
+        "ChartOfAccounts",
+        "ChartOfCalculationTypes",
+        "BusinessProcess",
+        "Task",
+        "ExchangePlan",
+    }
+)
+_BAD_REF_BODY_RE = re.compile(
+    r"(?i)Reference\.|Ссылка\.|(?:^|[^A-Za-zА-Яа-яЁё])Ref\.",
+)
 
 
 def attr_type_dto(attr: _AttrLike) -> dict[str, Any]:
@@ -146,10 +163,23 @@ def parse_attr_shorthand(value: str) -> ParsedAttr:
         return ParsedAttr(name=name, type="Number", precision=15, scale=2)
     rm = _REF_RE.match(body)
     if rm:
+        type_part = rm.group("type")
+        if type_part not in _KNOWN_REF_TYPE_PREFIXES:
+            raise ValueError(
+                f"Неподдерживаемый ссылочный тип {body!r}. "
+                f"Используйте Name:CatalogRef.X (или DocumentRef/EnumRef/…); "
+                f"не CatalogReference / *Ссылка"
+            )
         return ParsedAttr(
             name=name,
             type="Ref",
-            reference=f"{rm.group('type')}.{rm.group('name')}",
+            reference=f"{type_part}.{rm.group('name')}",
+        )
+    if _BAD_REF_BODY_RE.search(body):
+        raise ValueError(
+            f"Неподдерживаемый ссылочный тип {body!r}. "
+            f"Для update используйте Name:CatalogRef.X; "
+            f'для JSON create — {{"type":"Ref","reference":"Catalog.X"}}'
         )
     raise ValueError(f"Не удалось разобрать тип атрибута: {value!r}")
 

@@ -271,6 +271,21 @@ def test_parse_attr_shorthand_helpers() -> None:
     assert n.type == "Number"
     assert n.precision == 15
     assert n.scale == 2
+    ref = parse_attr_shorthand("Product:CatalogRef.Products")
+    assert ref.type == "Ref"
+    assert ref.reference == "Catalog.Products"
+
+
+def test_parse_attr_shorthand_rejects_catalog_reference() -> None:
+    """Fail-closed: CatalogReference / unknown *Ref must not parse as Ref."""
+    from adapters.source.mdsparrow.dto import parse_attr_shorthand
+
+    with pytest.raises(ValueError, match="CatalogRef"):
+        parse_attr_shorthand("ТестСсылка:CatalogReference.Товары")
+    with pytest.raises(ValueError, match="ссылочн"):
+        parse_attr_shorthand("ТестСсылка:СправочникСсылка.Товары")
+    with pytest.raises(ValueError, match="Неподдерживаемый ссылочный"):
+        parse_attr_shorthand("X:FooRef.Bar")
 
 
 def test_update_edt_register_records_gap_surfaces_1cs010(

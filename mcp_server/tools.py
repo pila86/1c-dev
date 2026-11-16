@@ -693,6 +693,13 @@ def register_tools(server: FastMCP) -> None:
             "BusinessProcess.Approval, Task.Todo, ExchangePlan.Main, "
             "DocumentJournal.Docs); "
             "optional synonym; "
+            "attribute/dimension/resource shape: "
+            "{name, type, length?/precision?/scale?/reference?, synonym?}; "
+            "type enum: String|Number|Boolean|Date|Ref "
+            "(Ref requires reference QName, e.g. Catalog.Products — "
+            "not CatalogRef.Products in type); "
+            'example Ref: {"name":"Product","type":"Ref",'
+            '"reference":"Catalog.Products"}; '
             "for Catalog/Document/Report/DataProcessor/Charts/BusinessProcess/"
             "Task/ExchangePlan: "
             "attributes and tabular_sections; "

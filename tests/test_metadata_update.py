@@ -53,6 +53,27 @@ def test_attr_to_xmlgen_shorthand() -> None:
     assert attr_to_xmlgen_shorthand(ref) == "Counterparty:CatalogRef.Counterparties"
 
 
+def test_edit_rejects_catalog_reference_shorthand() -> None:
+    """Fail-closed: CatalogReference must not reach xml-gen jar."""
+    from adapters.source.xmlgen.compile import XmlGenError
+    from adapters.source.xmlgen.edit import _validate_attr_shorthand
+
+    with pytest.raises(XmlGenError) as exc:
+        _validate_attr_shorthand(
+            EditOp("add-dimension", "ТестСсылка:CatalogReference.Товары")
+        )
+    assert exc.value.code == "1CM004"
+    assert "CatalogRef" in exc.value.message
+
+    with pytest.raises(XmlGenError) as exc_ts:
+        from adapters.source.xmlgen.edit import _validate_ts_attr_shorthand
+
+        _validate_ts_attr_shorthand(
+            EditOp("add-ts-attribute", "Goods.Item:CatalogReference.Товары")
+        )
+    assert exc_ts.value.code == "1CM004"
+
+
 def test_ops_from_ts_and_ts_attr() -> None:
     section = parse_ts_spec("Products:Товары")
     assert ops_from_ts(section) == [

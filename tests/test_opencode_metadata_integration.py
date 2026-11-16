@@ -7,7 +7,8 @@ openai-compatible — ``LLM_BASE_URL`` + ``LLM_API_KEY``. Без настрое�
 
 Сценарии (по возрастанию сложности):
 - Catalog, CommonModule, Enum, Constant, Document, InformationRegister,
-  Subsystem(+content), AccumulationRegister+регистратор.
+  ref-dimension (CatalogRef измерение), Subsystem(+content),
+  AccumulationRegister+регистратор.
 """
 
 from __future__ import annotations
@@ -153,6 +154,21 @@ PROMPT_INFO_REGISTER = """\
 4. Кратко перечисли созданные объекты.
 
 Только MCP 1c-dev. Без документов.
+"""
+
+PROMPT_REF_DIMENSION = """\
+Ты работаешь в этом workspace через MCP-инструменты 1c-dev.
+
+Задача (только ссылочное измерение):
+1. Создай справочник Catalog.Товары.
+2. Создай регистр сведений InformationRegister.ОстаткиПоТовару:
+   - измерение Товар → ссылка на Catalog.Товары;
+   - ресурс Количество → Number 15.2.
+3. Проверь metadata.get по регистру.
+4. Кратко перечисли созданные объекты.
+
+Используй только MCP 1c-dev (metadata.create / metadata.update).
+Не импортируй .cf и не правь XML вручную.
 """
 
 PROMPT_SUBSYSTEM = """\
@@ -302,6 +318,33 @@ def test_opencode_create_information_register() -> None:
         ],
     )
     assert has_dim and has_res, f"РС без измерения/ресурса; см. {run_dir}"
+
+
+def test_opencode_create_ref_dimension() -> None:
+    """DX: агент создаёт ссылочное измерение через MCP (не String / не ручной XML)."""
+    _require_llm()
+    run_dir = new_run_dir("ref-dimension")
+    prepare_workspace(run_dir, prompt=PROMPT_REF_DIMENSION, steps=40)
+    code = run_opencode(run_dir, timeout_sec=1200)
+    ws = run_dir / "workspace"
+    cat = assert_object_exists(ws, "Catalogs", "Товары")
+    reg = assert_object_exists(ws, "InformationRegisters", "ОстаткиПоТовару")
+    text = reg.read_text(encoding="utf-8-sig")
+    has_ref_dim = "Товар" in text and "CatalogRef.Товары" in text
+    has_res = "Количество" in text
+    _write_report(
+        run_dir,
+        code,
+        [
+            f"- catalog: {cat}",
+            f"- register: {reg}",
+            f"- has_catalog_ref_dimension: {has_ref_dim}",
+            f"- has_resource_qty: {has_res}",
+        ],
+    )
+    assert has_ref_dim and has_res, (
+        f"нет ссылочного измерения CatalogRef.Товары; см. {run_dir}"
+    )
 
 
 def test_opencode_create_subsystem_with_content() -> None:
