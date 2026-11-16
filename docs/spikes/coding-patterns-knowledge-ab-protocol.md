@@ -1,6 +1,6 @@
 # Coding knowledge A/B — protocol
 
-**Статус:** прототип + Cognitum A/B прогоны; успешный treatment B на 100 шагах.  
+**Статус:** прототип + Cognitum A/B; treatment B усилен `bsl-search` + `bsl-ls` (2026-11-16).  
 **Спека эксперимента:** [coding-patterns-knowledge-ab.md](coding-patterns-knowledge-ab.md)  
 **Фикстуры:** `.patterns-ab/` (gitignore)
 
@@ -22,6 +22,7 @@
 | Steps limit | `PATTERNS_AB_STEPS` (default 40; успешный B = 100) → `opencode.json` `agent.build.steps` |
 | Cognitum A | `A-…150421Z` **killed** (путаница регистратор/EDT/`find /`); ранее `A-…144254Z` steps=50 — неверный API проведения |
 | Cognitum B | **`B-20261113T152016Z` steps=100, ~6.5 мин, exit 0**: patterns search+get `document-posting`; `ОбработкаПроведения` + `ДобавитьПриход`; build/check ok. Оговорка: нет `Записывать=Истина` при `WriteSelected`. Ранее `B-…150423Z` steps=50 — лимит, пустой модуль; `B-…144910Z` steps=50 — тоже зелёный build/check |
+| Cognitum B + code search (2026-11-16) | См. § «Фаза 4b» ниже: `bsl-search` + `bsl-ls` в harness; без слова «проведение» в промпте — patterns+bsl-search до кода, `ДобавитьПриход`, без `&НаСервере` |
 
 ```bash
 # Пример (подставить свои пути; секреты — только из env.local)
@@ -76,6 +77,7 @@ poetry run python -m patterns_knowledge.harness B
 |-----|--------|---------|
 | Шаблон A: только 1c-dev MCP | ✅ | `A-20261113T141022Z` |
 | Шаблон B: 1c-dev + patterns + строка AGENTS | ✅ | `B-20261113T141023Z` |
+| Шаблон B+: + remote `bsl-search` + local `bsl-language-server` | ✅ | с 2026-11-16; `BSL_SEARCH_MCP_URL` (default `:18005/mcp`) |
 
 ## Фаза 3 — Run A (control)
 
@@ -175,6 +177,66 @@ artifacts: agent.jsonl, build.json, check.json
 | Дата вердикта | 2026-11-13 (предварительный, free DeepSeek) |
 
 Краткое summary также внести в §16 файла [coding-patterns-knowledge-ab.md](coding-patterns-knowledge-ab.md).
+
+## Фаза 4b — Cognitum B + bsl-search / bsl-ls (2026-11-16)
+
+Harness (treatment B): MCP `1c-dev` + `patterns` + remote `bsl-search` + local `bsl-language-server`; AGENTS — жёсткий порядок patterns → bsl-search → bsl-ls → 1c-dev; запрет `&НаСервере` в модуле объекта. `run_agent` пробрасывает `HTTP(S)_PROXY` (Cognitum через proxy). Артефакты — `.patterns-ab/runs/` (gitignore).
+
+```text
+run: B (patterns only, soft hint)
+timestamp: 2026-11-16T19:05 → 19:… (B-20261116T160552Z)
+model: cognitum/qwen3.8:27b
+patterns_mcp: yes
+bsl_search: no (не вызывался)
+bsl_ls: no
+steps: ~24
+agent_exit: 0
+M5: FAIL placement — `&НаСервере` + ОбработкаПроведения + ДобавитьПриход (EN-имена объектов)
+patterns_calls: search+get
+notes: без обязательного code-search агент игнорирует placement
+```
+
+```text
+run: B (patterns + bsl-search + bsl-ls; промпт со словом «проведение»)
+timestamp: 2026-11-16T19:15:09+03 → 19:16:46+03 (~97s)
+model: cognitum/qwen3.8:27b
+workspace: .patterns-ab/runs/B-20261116T161508Z
+steps: 20
+agent_exit: 0
+M1–M4: PASS (Товары / ОстаткиТоваров / ОприходованиеТоваров)
+M5: PASS — ОбработкаПроведения без &НаСервере; Добавить + ВидДвиженияНакопления.Приход + Период + Записывать
+M6/M7: PASS (agent build/check)
+patterns_calls: search+get
+bsl_search: search_bsl + search_bsl_by_signature×2 + get_bsl_method
+bsl_ls: folders + type_info + global_member_info + analyze_file
+notes: оба источника до write; API выбран через docs/ls (Добавить, не ДобавитьПриход)
+```
+
+```text
+run: B (то же; промпт БЕЗ слова «проведение»; явно patterns → bsl-search → код)
+timestamp: 2026-11-16T19:19:08+03 → 19:20:50+03 (~105s)
+model: cognitum/qwen3.8:27b
+workspace: .patterns-ab/runs/B-20261116T161907Z
+steps: 17
+agent_exit: 0
+M1–M4: PASS
+M5: PASS — ОбработкаПроведения + ДобавитьПриход + Записывать + Период; без &НаСервере; #Область
+M6/M7: PASS
+patterns_calls: search → get (до кода, #3–4)
+bsl_search: search_bsl_by_signature ОбработкаПроведения (#6; get_bsl_method не обязателен)
+bsl_ls: folders + analyze_file×2 (после write)
+notes: слово «проведение» в user-prompt не нужно при жёстком контракте MCP + сигнатуре в AGENTS
+```
+
+### Вердикт 4b
+
+| Поле | Значение |
+|------|----------|
+| Вердикт | **patterns alone недостаточно**; **patterns + bsl-search (+ bsl-ls) улучшают** размещение модуля и API движений |
+| Ключевой эффект | без bsl-search — `&НаСервере`; с bsl-search — корректный модуль объекта |
+| Промпт | можно формулировать через «приход/движения/остатки»; обязательны оба MCP-шага до кода |
+| Решение дальше | оставить bsl-search в treatment B; при необходимости ceiling на другой модели; сырые runs остаются в `.patterns-ab/` |
+| Дата | 2026-11-16 |
 
 ## Опционально — Run C (ceiling)
 

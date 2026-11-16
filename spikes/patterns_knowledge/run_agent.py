@@ -85,8 +85,18 @@ def execute_agent_run(
     ]
     typer.echo(f"running: {' '.join(cmd[:8])} … → {jsonl.name} + {transcript.name}")
     env = os.environ.copy()
-    # Cognitum via corporate proxy often needs these; keep explicit for poetry children.
+    # Cognitum / Node undici: honor HTTP(S)_PROXY from the environment (both cases).
     env.setdefault("NODE_USE_ENV_PROXY", "1")
+    for upper, lower in (
+        ("HTTP_PROXY", "http_proxy"),
+        ("HTTPS_PROXY", "https_proxy"),
+        ("NO_PROXY", "no_proxy"),
+        ("ALL_PROXY", "all_proxy"),
+    ):
+        val = env.get(upper) or env.get(lower)
+        if val:
+            env[upper] = val
+            env[lower] = val
     with stderr_path.open("w", encoding="utf-8") as errf:
         proc = subprocess.Popen(
             cmd,

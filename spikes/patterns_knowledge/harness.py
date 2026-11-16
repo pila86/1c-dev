@@ -20,23 +20,33 @@ PROMPT = """Ты разрабатываешь конфигурацию 1С:Пр�
 Задача: конфигурация «Ларёк».
 1) Справочник «Товары».
 2) Регистр накопления остатков товаров (вид Остатки): измерение — товар (ссылка на Товары), ресурс — количество.
-3) Документ «Оприходование товаров» с табличной частью (товар, количество) и проведением, которое делает приход по регистру остатков.
+3) Документ «Оприходование товаров» с табличной частью (товар, количество); при записи документа в учёт он должен увеличивать остатки (приход по регистру).
 
 Требования:
 - Используй MCP 1c-dev для проекта и метаданных (project/configuration/metadata/build/check), не Конфигуратор и не выдуманные CLI платформы.
-- Не выдумывай API платформы: уточняй через docs.* / language server, если доступны.
-- После создания объектов реализуй модуль проведения документа.
+- Не выдумывай API платформы: уточняй через docs.* / bsl-language-server.
+- Перед кодом движений по регистру обязательно:
+  1) найди и прочитай релевантный паттерн через MCP `patterns` (`search` → `get`);
+  2) найди и открой пример кода через MCP `bsl-search` (signature/search → `get_bsl_method`);
+  только после обоих шагов пиши модуль.
 - Добийся успешного build и check.
-- Кратко в конце перечисли созданные объекты метаданных и где лежит код проведения.
+- Кратко в конце перечисли созданные объекты метаданных и где лежит код движений; упомяни, какие паттерн и пример кода использовал.
 
-Не реализуй склады, цены, расход и тесты, если это не нужно для проведения.
+Не реализуй склады, цены, расход и тесты, если это не нужно для прихода по остаткам.
 """
 
 AGENTS_PATTERNS = """
-## Patterns knowledge (treatment B only)
-- Прикладной паттерн BSL (проведение, регистры, транзакции, строки) → MCP `patterns.search` / `patterns.get`, не выдумывать.
-- Сборка, ИБ, метаданные объектов → MCP `1c-dev`.
-- Имя платформенного API → `docs.*` / bsl-ls.
+## Patterns + BSL examples (treatment B)
+Перед написанием модуля проведения / движений регистра — строго по шагам:
+1. `patterns.search` → `patterns.get` (правила паттерна).
+2. Обязательно примеры кода через MCP `bsl-search` (не пропускать):
+   - `search_bsl_by_signature` с именем `ОбработкаПроведения` и/или
+   - `search_bsl` с узким запросом (`ДобавитьПриход`, `Движения.Записывать`) — не «проведение документа»;
+   - затем `get_bsl_method` на 1–2 подходящих id.
+   Модуль проведения писать только после просмотра примера.
+3. Имя API / директива / diagnostics → MCP `bsl-language-server` (+ `docs.*` при необходимости).
+4. Метаданные / build / check → MCP `1c-dev`.
+В модуле объекта документа: `Процедура ОбработкаПроведения(Отказ, РежимПроведения)` без `&НаСервере`.
 """
 
 
@@ -79,6 +89,22 @@ def _agent_steps() -> int:
     return max(1, n)
 
 
+def _bsl_ls_server() -> dict | None:
+    """OpenCode local MCP for bsl-language-server, if jar is available."""
+    try:
+        from core.project.ide import _java_command, _resolve_bsl_jar
+    except ImportError:
+        return None
+    jar_path, found = _resolve_bsl_jar()
+    if not found:
+        return None
+    return {
+        "type": "local",
+        "command": [_java_command(), "-jar", str(jar_path), "mcp"],
+        "enabled": True,
+    }
+
+
 def _write_opencode_mcp(workspace: Path, *, with_patterns: bool) -> None:
     poetry = shutil.which("poetry") or "poetry"
     servers = {
@@ -88,6 +114,9 @@ def _write_opencode_mcp(workspace: Path, *, with_patterns: bool) -> None:
             "enabled": True,
         }
     }
+    bsl_ls = _bsl_ls_server()
+    if bsl_ls:
+        servers["bsl-language-server"] = bsl_ls
     if with_patterns:
         servers["patterns"] = {
             "type": "local",
@@ -101,6 +130,23 @@ def _write_opencode_mcp(workspace: Path, *, with_patterns: bool) -> None:
             ],
             "enabled": True,
         }
+        # Local mcp-bsl-search (Streamable HTTP); override via BSL_SEARCH_MCP_URL.
+        bsl_url = (
+            os.environ.get("BSL_SEARCH_MCP_URL") or "http://127.0.0.1:18005/mcp"
+        ).rstrip("/")
+        if not bsl_url.endswith("/mcp"):
+            bsl_url = bsl_url + "/mcp"
+        bsl_cfg: dict = {
+            "type": "remote",
+            "url": bsl_url,
+            "enabled": True,
+        }
+        token = os.environ.get("BSL_SEARCH_MCP_TOKEN") or os.environ.get(
+            "MCP_AUTH_TOKEN"
+        )
+        if token:
+            bsl_cfg["headers"] = {"Authorization": f"Bearer {token}"}
+        servers["bsl-search"] = bsl_cfg
     steps = _agent_steps()
     cfg: dict = {
         "$schema": "https://opencode.ai/config.json",
