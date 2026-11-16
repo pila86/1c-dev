@@ -1,6 +1,6 @@
 # Spike: A/B — coding knowledge MCP + агент «Ларёк»
 
-**Статус:** Draft (документация эксперимента; реализация прототипа и прогоны — позже)  
+**Статус:** Прототип + прогоны (Cognitum B + bsl-search, 2026-11-16); сырые runs в `.patterns-ab/` (gitignore)  
 **Ветка:** `spike/coding-patterns-knowledge-ab`  
 **Прототип инструмента знаний:** [coding-patterns-knowledge-tool.md](coding-patterns-knowledge-tool.md) (источники, ingest, семантика, MCP)  
 **Протокол прогонов:** [coding-patterns-knowledge-ab-protocol.md](coding-patterns-knowledge-ab-protocol.md)  
@@ -355,9 +355,13 @@ artifacts: agent.log, …
 
 ## 16. Result (заполняется после прогонов)
 
-**Вердикт:** _TBD_  
-**Дата:** _TBD_  
-**Кратко:** _TBD_
+**Вердикт:** patterns MCP полезен **только вместе** с поиском примеров кода (`bsl-search`); иначе агент может взять API из паттерна, но сломать placement (`&НаСервере`).  
+**Дата:** 2026-11-16 (Cognitum `qwen3.8:27b`; детали — [protocol § Фаза 4b](coding-patterns-knowledge-ab-protocol.md))  
+**Кратко:**
+- DeepSeek free (2026-11-13): B быстрее A, но проведение хуже → предварительный вердикт «слабо / не влияет».
+- Cognitum B + patterns only (`B-…160552Z`): `ДобавитьПриход`, но `&НаСервере` — FAIL placement.
+- Cognitum B + patterns + bsl-search + bsl-ls (`B-…161508Z`, `B-…161907Z`): build/check ok, модуль объекта без `&НаСервере`; без слова «проведение» в промпте оба MCP всё равно вызываются до кода; лучший вариант — `ДобавитьПриход` + `Записывать`.
+- Harness: remote `bsl-search`, local `bsl-language-server`, жёсткий AGENTS-workflow; proxy в `run_agent`.
 
 ## 17. Чеклист готовности к прогону A
 
