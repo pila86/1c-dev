@@ -32,6 +32,7 @@
 
 | Тема | Статус | Документ |
 |------|--------|----------|
+| External Tools Manager (локальные MCP/сервисы) | **Proposed** 2026-11-19 | [external-tools-manager](spikes/external-tools-manager.md) |
 | Write-backend bake-off | **Done** 2026-11-05 (XML=A, EDT=D) | [write-backend-bakeoff](spikes/write-backend-bakeoff.md) · [protocol](spikes/write-backend-bakeoff-protocol.md) |
 | EDT fixture + `1cedtcli` smoke | **Done** 2026-11-06 | [149-edt-source-adapter](spikes/149-edt-source-adapter.md) · fixture `tests/fixtures/edt_spike` |
 
