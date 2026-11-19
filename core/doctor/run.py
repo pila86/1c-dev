@@ -192,6 +192,83 @@ def _probe_dbgs_listening(
     return True, url
 
 
+def _external_tools_doctor() -> tuple[dict[str, Any], dict[str, Any], list[Diagnostic]]:
+    """Docker availability + installed external tools health (ADR-033)."""
+    from core.services.compose import docker_available
+    from core.services.health import check_http
+    from core.tools.install import (
+        expand_template,
+        list_installed,
+        load_installed_recipe,
+        resolve_env_vars,
+    )
+
+    docker_found = docker_available()
+    docker_path = shutil.which("docker")
+    docker_payload = _tool_payload(
+        docker_found,
+        Path(docker_path) if docker_path else None,
+    )
+
+    installed_ids = list_installed()
+    tools_map: dict[str, Any] = {}
+    diags: list[Diagnostic] = []
+
+    if installed_ids and not docker_found:
+        diags.append(
+            warning(
+                "docker не найден (нужен для services up внешних tools)",
+                code="1CX003",
+                source="doctor",
+                suggestion="Установите Docker / Docker Compose",
+            )
+        )
+
+    for tool_id in installed_ids:
+        entry: dict[str, Any] = {
+            "installed": True,
+            "healthy": None,
+            "healthUrl": None,
+            "mcpUrl": None,
+        }
+        try:
+            recipe = load_installed_recipe(tool_id)
+            env_vars = resolve_env_vars(recipe.recipe_dir)
+            if recipe.health_url_template:
+                health_url = expand_template(recipe.health_url_template, env_vars)
+                entry["healthUrl"] = health_url
+                probe = check_http(health_url, timeout_sec=2.0)
+                entry["healthy"] = probe.reachable
+                if not probe.reachable:
+                    diags.append(
+                        warning(
+                            f"external tool «{tool_id}» health unreachable: {health_url}",
+                            code="1CX005",
+                            source="doctor",
+                            suggestion=f"1c-dev services up {tool_id}",
+                        )
+                    )
+            if recipe.mcp_url_template:
+                entry["mcpUrl"] = expand_template(recipe.mcp_url_template, env_vars)
+        except (OSError, ValueError, FileNotFoundError) as exc:
+            entry["error"] = str(exc)
+            diags.append(
+                warning(
+                    f"external tool «{tool_id}»: {exc}",
+                    code="1CX007",
+                    source="doctor",
+                )
+            )
+        tools_map[tool_id] = entry
+
+    external_payload: dict[str, Any] = {
+        "found": bool(installed_ids),
+        "installed": installed_ids,
+        "tools": tools_map,
+    }
+    return docker_payload, external_payload, diags
+
+
 def run_doctor(
     *,
     search_roots: list[Path] | None = None,
@@ -230,6 +307,7 @@ def run_doctor(
     yaxunit = resolve_yaxunit_cfe(env=env, manifest=manifest)
     dbgs_listening, dbgs_url = _probe_dbgs_listening()
     edtcli = discover_edtcli(env=env)
+    docker_payload, external_tools_payload, external_diags = _external_tools_doctor()
 
     tools = {
         "cli": cli,
@@ -258,6 +336,8 @@ def run_doctor(
         "docs-facade": _jar_payload(docs),
         "yaxunit": _yaxunit_payload(yaxunit),
         "1cedtcli": _tool_payload(edtcli.found, edtcli.path, version=edtcli.version),
+        "docker": docker_payload,
+        "external-tools": external_tools_payload,
     }
     tools_found = {
         "ibcmd": discovery.ibcmd.found,
@@ -476,6 +556,7 @@ def run_doctor(
                 suggestion=_CLI_HINT,
             )
         )
+    diagnostics.extend(external_diags)
 
     ok = discovery.platform.found and discovery.ibcmd.found
     return DoctorResult(

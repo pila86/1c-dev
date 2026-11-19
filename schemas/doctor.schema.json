@@ -46,7 +46,9 @@
         "bsl-language-server",
         "docs-facade",
         "yaxunit",
-        "1cedtcli"
+        "1cedtcli",
+        "docker",
+        "external-tools"
       ],
       "additionalProperties": false,
       "properties": {
@@ -65,7 +67,9 @@
         "bsl-language-server": { "$ref": "#/$defs/tool" },
         "docs-facade": { "$ref": "#/$defs/tool" },
         "yaxunit": { "$ref": "#/$defs/tool" },
-        "1cedtcli": { "$ref": "#/$defs/tool" }
+        "1cedtcli": { "$ref": "#/$defs/tool" },
+        "docker": { "$ref": "#/$defs/tool" },
+        "external-tools": { "$ref": "#/$defs/externalTools" }
       }
     },
     "capabilities": {
@@ -108,6 +112,32 @@
         "source": {
           "type": "string",
           "enum": ["env", "cache"]
+        }
+      }
+    },
+    "externalTools": {
+      "type": "object",
+      "required": ["found", "installed", "tools"],
+      "additionalProperties": false,
+      "properties": {
+        "found": { "type": "boolean" },
+        "installed": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "tools": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "installed": { "type": "boolean" },
+              "healthy": { "type": ["boolean", "null"] },
+              "healthUrl": { "type": ["string", "null"] },
+              "mcpUrl": { "type": ["string", "null"] },
+              "error": { "type": "string" }
+            }
+          }
         }
       }
     },

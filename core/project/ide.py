@@ -253,9 +253,10 @@ def build_mcp_servers_payload(
     *,
     jar_path: Path,
     java_command: str,
+    extra_servers: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Template mcpServers block (no cwd)."""
-    return {
+    """Template mcpServers block (no cwd). Optional HTTP MCP via extra_servers."""
+    servers: dict[str, Any] = {
         "1c-dev": {
             "command": "1c-dev",
             "args": ["mcp"],
@@ -265,6 +266,193 @@ def build_mcp_servers_payload(
             "args": ["-jar", str(jar_path), "mcp"],
         },
     }
+    if extra_servers:
+        servers.update(extra_servers)
+    return servers
+
+
+def _installed_http_mcp_servers() -> dict[str, Any]:
+    """Build mcpServers entries for installed managed HTTP tools (ADR-033)."""
+    from core.tools.install import (
+        expand_template,
+        list_installed,
+        load_installed_recipe,
+        resolve_env_vars,
+    )
+
+    servers: dict[str, Any] = {}
+    for tool_id in list_installed():
+        try:
+            recipe = load_installed_recipe(tool_id)
+        except (OSError, ValueError, FileNotFoundError):
+            continue
+        if recipe.lifecycle != "managed":
+            continue
+        transport = str(recipe.interface.get("transport") or "")
+        if transport != "streamable-http" or not recipe.mcp_url_template:
+            continue
+        env_vars = resolve_env_vars(recipe.recipe_dir)
+        url = expand_template(recipe.mcp_url_template, env_vars)
+        servers[recipe.mcp_name] = {"url": url}
+    return servers
+
+
+def _ext_tool_agents_begin(tool_id: str) -> str:
+    return f"<!-- BEGIN 1c-dev:{tool_id} -->"
+
+
+def _ext_tool_agents_end(tool_id: str) -> str:
+    return f"<!-- END 1c-dev:{tool_id} -->"
+
+
+def _upsert_named_agents_block(existing: str, begin: str, end: str, body: str) -> str:
+    """Insert or replace a named managed block; preserve surrounding text."""
+    begin_idx = existing.find(begin)
+    end_idx = existing.find(end)
+    block_body = body.rstrip("\n") + "\n"
+    if not block_body.startswith(begin):
+        block_body = f"{begin}\n{block_body}"
+    if end not in block_body:
+        block_body = block_body.rstrip("\n") + f"\n{end}\n"
+
+    if begin_idx == -1 or end_idx == -1 or end_idx < begin_idx:
+        base = existing
+        if base and not base.endswith("\n"):
+            base += "\n"
+        if base and not base.endswith("\n\n"):
+            base += "\n"
+        return base + block_body
+
+    end_pos = end_idx + len(end)
+    if end_pos < len(existing) and existing[end_pos] == "\n":
+        end_pos += 1
+    return existing[:begin_idx] + block_body + existing[end_pos:]
+
+
+def _remove_named_agents_block(existing: str, begin: str, end: str) -> str:
+    begin_idx = existing.find(begin)
+    end_idx = existing.find(end)
+    if begin_idx == -1 or end_idx == -1 or end_idx < begin_idx:
+        return existing
+    end_pos = end_idx + len(end)
+    if end_pos < len(existing) and existing[end_pos] == "\n":
+        end_pos += 1
+    # Drop extra blank line left behind when possible.
+    out = existing[:begin_idx] + existing[end_pos:]
+    return re.sub(r"\n{3,}", "\n\n", out)
+
+
+def _configure_external_tool_guidance(
+    project: Path,
+    ide_root: Path,
+    ides: list[IdeName],
+    *,
+    write_agents: bool,
+) -> tuple[list[str], list[str], list[str], list[Diagnostic]]:
+    """Upsert/remove optional MCP guidance for installed tools (ADR-033 should)."""
+    from core.tools.install import list_installed, load_installed_recipe
+
+    created: list[str] = []
+    updated: list[str] = []
+    skipped: list[str] = []
+    diagnostics: list[Diagnostic] = []
+
+    installed = set(list_installed())
+    # Stage 1: only v8std guidance; remove stale blocks for known ext tools.
+    known_ext = {"v8std"}
+    desired: dict[str, str] = {}
+    for tool_id in sorted(installed & known_ext):
+        try:
+            recipe = load_installed_recipe(tool_id)
+        except (OSError, ValueError, FileNotFoundError):
+            continue
+        rel = recipe.guidance_rel
+        if not rel:
+            continue
+        guidance_path = recipe.recipe_dir / rel
+        if not guidance_path.is_file():
+            continue
+        desired[tool_id] = _normalize_rule_body(guidance_path.read_text(encoding="utf-8"))
+
+    if write_agents:
+        agents_path = project / "AGENTS.md"
+        if agents_path.is_file() or desired:
+            existing = (
+                agents_path.read_text(encoding="utf-8") if agents_path.is_file() else ""
+            )
+            merged = existing
+            for tool_id, body in desired.items():
+                begin = _ext_tool_agents_begin(tool_id)
+                end = _ext_tool_agents_end(tool_id)
+                block = f"{begin}\n{body.rstrip()}\n{end}\n"
+                merged = _upsert_named_agents_block(merged, begin, end, block)
+            for tool_id in known_ext - set(desired):
+                merged = _remove_named_agents_block(
+                    merged,
+                    _ext_tool_agents_begin(tool_id),
+                    _ext_tool_agents_end(tool_id),
+                )
+            if merged != existing:
+                _write_text(agents_path, merged)
+                if existing:
+                    updated.append("AGENTS.md")
+                else:
+                    created.append("AGENTS.md")
+            else:
+                skipped.append("AGENTS.md")
+
+    for ide in ides:
+        for tool_id in known_ext:
+            rule_id = f"ext-{tool_id}-when-to-use"
+            rel = rule_file_rel(ide, rule_id)
+            dest = ide_root / rel
+            if tool_id not in desired:
+                if dest.is_file():
+                    text = dest.read_text(encoding="utf-8")
+                    is_managed = (
+                        _is_managed_cursor_rule(text)
+                        if ide == "cursor"
+                        else _is_managed_kilocode_rule(text)
+                    )
+                    if is_managed:
+                        dest.unlink()
+                        updated.append(rel)
+                continue
+            spec = RuleSpec(
+                id=rule_id,
+                title=f"When to use optional MCP {tool_id}",
+                body=desired[tool_id],
+            )
+            desired_text = (
+                render_cursor_rule(spec) if ide == "cursor" else render_kilocode_rule(spec)
+            )
+            if not dest.is_file():
+                _write_text(dest, desired_text)
+                created.append(rel)
+                continue
+            existing = dest.read_text(encoding="utf-8")
+            is_managed = (
+                _is_managed_cursor_rule(existing)
+                if ide == "cursor"
+                else _is_managed_kilocode_rule(existing)
+            )
+            if not is_managed:
+                skipped.append(rel)
+                diagnostics.append(
+                    warning(
+                        f"Пропущен чужой IDE rule (нет managed-маркера): {rel}",
+                        code="1CP011",
+                        file=rel,
+                    )
+                )
+                continue
+            if existing == desired_text:
+                skipped.append(rel)
+                continue
+            _write_text(dest, desired_text)
+            updated.append(rel)
+
+    return created, updated, skipped, diagnostics
 
 
 def _resolve_bsl_jar() -> tuple[Path, bool]:
@@ -313,10 +501,15 @@ def _configure_ide_mcp(
             )
         )
 
+    http_servers = _installed_http_mcp_servers()
     servers = build_mcp_servers_payload(
         jar_path=jar_path,
         java_command=_java_command(),
+        extra_servers=http_servers or None,
     )
+    # Keys managed by 1c-dev that should be removed when tool is uninstalled.
+    managed_http_names = {"v8std"}
+    desired_http = set(http_servers)
 
     for ide in ides:
         rel = mcp_rel_path(ide)
@@ -355,6 +548,11 @@ def _configure_ide_mcp(
         for name, server in servers.items():
             if name not in existing:
                 existing[name] = server
+                changed = True
+
+        for name in list(existing):
+            if name in managed_http_names and name not in desired_http:
+                del existing[name]
                 changed = True
 
         if not changed:
@@ -600,6 +798,17 @@ def configure_ide(
         updated.extend(r_u)
         skipped.extend(r_s)
         diagnostics.extend(r_d)
+
+        g_ext_c, g_ext_u, g_ext_s, g_ext_d = _configure_external_tool_guidance(
+            project,
+            resolved_ide_root,
+            ides,
+            write_agents=_should_write_agents(agents, project, resolved_ide_root),
+        )
+        created.extend(g_ext_c)
+        updated.extend(g_ext_u)
+        skipped.extend(g_ext_s)
+        diagnostics.extend(g_ext_d)
     except (OSError, FileNotFoundError, KeyError, ValueError) as exc:
         return ProjectResult(
             status="error",

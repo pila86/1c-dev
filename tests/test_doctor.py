@@ -205,6 +205,8 @@ def test_run_doctor_reports_all_toolchain_tools(
         "docs-facade",
         "yaxunit",
         "1cedtcli",
+        "docker",
+        "external-tools",
     ):
         assert key in result.tools
         assert "found" in result.tools[key]
