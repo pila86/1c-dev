@@ -166,3 +166,44 @@ def test_cli_toolchain_sync_help() -> None:
     assert result.exit_code == 0
     assert "sync" in result.stdout
     assert "clean" in result.stdout
+
+
+@pytest.mark.integration
+def test_v8std_install_up_health_down(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Live Docker path: install → up → healthy → down. Skip without docker."""
+    import shutil
+
+    if shutil.which("docker") is None:
+        pytest.skip("docker не найден")
+    # Probe daemon
+    import subprocess
+
+    probe = subprocess.run(
+        ["docker", "info"],
+        capture_output=True,
+        check=False,
+    )
+    if probe.returncode != 0:
+        pytest.skip("docker daemon недоступен")
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    install = runner.invoke(app, ["tools", "install", "v8std", "--output", "json"])
+    if install.exit_code != SUCCESS:
+        payload = json.loads(install.stdout or "{}")
+        codes = {d.get("code") for d in payload.get("diagnostics", [])}
+        if "1CX006" in codes:
+            pytest.skip(f"image pull failed: {install.stdout}")
+        assert install.exit_code == SUCCESS, install.stdout
+
+    try:
+        up = runner.invoke(app, ["services", "up", "v8std", "--output", "json"])
+        assert up.exit_code == SUCCESS, up.stdout
+        up_payload = json.loads(up.stdout)
+        assert up_payload.get("healthy") is True
+        status = runner.invoke(app, ["services", "status", "v8std", "--output", "json"])
+        assert status.exit_code == SUCCESS, status.stdout
+        assert json.loads(status.stdout).get("healthy") is True
+    finally:
+        runner.invoke(app, ["services", "down", "v8std", "--output", "json"])
