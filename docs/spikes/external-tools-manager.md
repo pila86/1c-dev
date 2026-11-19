@@ -1,11 +1,11 @@
 # Spike: External Tools Manager (локальные MCP/сервисы)
 
-**Статус:** Proposed  
+**Статус:** Accepted (ADR-033); Этап 1 — [#172](https://github.com/pila86/1c-dev/issues/172)  
 **Дата:** 2026-11-19  
 **Контекст:** переосмысление CLI вокруг сторонних инструментов разработки;
 локальный запуск `v8std` и `mcp-bsl-search` как user-scoped сервисов.
-**Связано:** ADR-013 (toolchain cache), ADR-016 (ide configure merge),
-ADR-010 (MCP stdio), ADR-025 (publish — не смешивать).
+**Связано:** [ADR-033](../adr/033-external-tools-manager.md), ADR-013 (toolchain cache),
+ADR-016 (ide configure merge), ADR-010 (MCP stdio), ADR-025 (publish — не смешивать).
 
 ## TL;DR
 
