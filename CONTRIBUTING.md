@@ -33,19 +33,33 @@ refs #2
 
 ## Toolchain jars
 
-Рекомендуемый путь (ADR-013 / #48) — без ручных скриптов:
+Рекомендуемый путь (ADR-013 / #48, ADR-033) — без ручных скриптов:
 
 ```bash
-1c-dev tools sync
+1c-dev toolchain sync
+# alias (переходный период): 1c-dev tools sync
 ```
 
 Кэш: Linux/macOS `~/.cache/1c-dev/tools/`, Windows `%LOCALAPPDATA%\1c-dev\tools\`.
+`toolchain clean` **не** удаляет installed external tools (`~/.local/share/1c-dev/tools/`).
 
 Снятие cache / пакета:
 
 ```bash
-1c-dev tools clean --yes
+1c-dev toolchain clean --yes
 1c-dev uninstall --yes                # cache + uv tool uninstall
+```
+
+## External tools (ADR-033 / #172)
+
+Recipes: `catalog/<id>/`. Установка ≠ запуск:
+
+```bash
+1c-dev tools install v8std
+1c-dev services up v8std
+1c-dev ide configure
+1c-dev services status v8std
+1c-dev doctor
 ```
 
 Fallback для разработчиков (те же pin’ы):
