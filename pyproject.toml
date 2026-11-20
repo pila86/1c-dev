@@ -29,7 +29,8 @@ exclude = [
 
 [tool.poetry.dependencies]
 python = "^3.11"
-typer = "^0.16.0"
+# >=0.18: required Argument/Option корректно с Click 8.3+ (UNSET sentinel)
+typer = "^0.20.0"
 pyyaml = "^6.0.3"
 jsonschema = "^4.26.0"
 mcp = ">=1.9.0,<2"

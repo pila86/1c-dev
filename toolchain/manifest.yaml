@@ -9,7 +9,8 @@ components:
       type: git
       repo: https://github.com/SteelMorgan/1c-agent-based-dev-framework.git
       sparse_path: tools/xml-gen
-    min_java: 17
+    # Host+bytecode JDK 25 (Gradle 9.1 patch in fetch_xml_gen); единый с md-sparrow.
+    min_java: 25
     env: ONEC_XMLGEN_JAR
 
   - id: md-reader
@@ -76,13 +77,13 @@ components:
   # Windows: prebuilt zip (Apache Lounge). Override: ONEC_APACHE_HOME.
   - id: apache
     artifact: apache
-    pin: "2.4.68"
+    pin: "2.4.71"
     source:
       type: apache-home
       build:
-        httpd: https://downloads.apache.org/httpd/httpd-2.4.68.tar.gz
+        httpd: https://downloads.apache.org/httpd/httpd-2.4.71.tar.gz
         apr: https://downloads.apache.org/apr/apr-1.7.6.tar.gz
-        apr_util: https://downloads.apache.org/apr/apr-util-1.6.5.tar.gz
+        apr_util: https://downloads.apache.org/apr/apr-util-1.6.6.tar.gz
       urls:
         windows_amd64: https://www.apachelounge.com/download/VS17/binaries/httpd-2.4.66-251206-Win64-VS17.zip
     env: ONEC_APACHE_HOME

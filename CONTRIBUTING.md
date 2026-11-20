@@ -74,9 +74,9 @@ pwsh scripts/fetch-xml-gen.ps1
 pwsh scripts/fetch-md-reader.ps1
 ```
 
-- xml-gen: JDK 17+, override `ONEC_XMLGEN_JAR`
-- md-reader: JDK 21+ (MDClasses 0.20.0), override `ONEC_MDREADER_JAR`
-- md-sparrow (M7 / #153, ADR-032 write D): `1c-dev tools sync` кладёт `md-sparrow.jar` в `tools/` (soft, pin 0.6.11); JDK **Temurin 25+**; override `ONEC_MDSPARROW_JAR`. Без jar/JDK → diagnostic `1CS008` / `ENV_UNAVAILABLE` на `apply-mutation`
+- Единый JDK для полного toolchain: **JDK 25+** (xml-gen собирается с локальным патчем Gradle 9.1; md-sparrow требует 25+). Override jars: `ONEC_XMLGEN_JAR`, `ONEC_MDREADER_JAR`, `ONEC_MDSPARROW_JAR`
+- md-reader: pin MDClasses 0.20.0 (сборка при sync на том же JDK 25)
+- md-sparrow (M7 / #153, ADR-032 write D): `1c-dev tools sync` кладёт `md-sparrow.jar` в `tools/` (soft, pin 0.6.11); без jar/JDK → diagnostic `1CS008` / `ENV_UNAVAILABLE` на `apply-mutation`
 - yaxunit (M5, ADR-029 §7a): `1c-dev tools sync` кладёт `YAxUnit-<pin>.cfe` в `tools/` (soft); override `ONEC_YAXUNIT_CFE=/path/to/YAxUnit.cfe`. В `project.yaml` не объявляется — runner подключается `1c-dev yaxunit ensure` / `test run`
 - apache (publish/webinst, #94): Unix — `./scripts/fetch-apache.sh` или `1c-dev tools sync` (gcc, make, `libpcre2-dev`); Windows — prebuilt zip из манифеста; override `ONEC_APACHE_HOME`
 

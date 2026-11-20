@@ -67,7 +67,7 @@ _ONECV8_HINT = (
     "Опционально для M1: добавьте 1cv8 в PATH, если нужен конфигуратор/толстый клиент."
 )
 _JAVA_HINT = (
-    "Установите JDK 17+ (xml-gen) / JDK 21+ (md-reader, BSL LS) "
+    "Установите JDK 25+ (единый для xml-gen / md-reader / BSL LS / md-sparrow) "
     "и добавьте java в PATH (или задайте JAVA_HOME)."
 )
 _JAVA21_HINT = (
@@ -434,7 +434,7 @@ def run_doctor(
     if not java.found:
         diagnostics.append(
             warning(
-                "Java 17+ не найдена (metadata.create); для metadata.read / BSL LS нужен JDK 21+",
+                "Java 25+ не найдена (нужна для xml-gen / md-reader / BSL LS / md-sparrow)",
                 code="1CD004",
                 source="doctor",
                 suggestion=_JAVA_HINT,

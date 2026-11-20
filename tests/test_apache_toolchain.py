@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from core.toolchain.fetchers.apache import (
+    asf_url_candidates,
     fetch_apache,
     httpd_binary,
     is_bundled_apache_home,
@@ -21,7 +22,7 @@ def _spec(**source: object) -> ComponentSpec:
     return ComponentSpec(
         id="apache",
         artifact="apache",
-        pin="2.4.68",
+        pin="2.4.71",
         source=base_source,
         env="ONEC_APACHE_HOME",
     )
@@ -37,6 +38,16 @@ def _make_bundled_home(home: Path) -> Path:
     httpd.chmod(0o755)
     (modules / "mod_mpm_event.so").write_bytes(b"")
     return home
+
+
+def test_asf_url_candidates_adds_archive_mirror() -> None:
+    url = "https://downloads.apache.org/httpd/httpd-2.4.68.tar.gz"
+    assert asf_url_candidates(url) == [
+        url,
+        "https://archive.apache.org/dist/httpd/httpd-2.4.68.tar.gz",
+    ]
+    other = "https://example.com/httpd.tar.gz"
+    assert asf_url_candidates(other) == [other]
 
 
 def test_is_bundled_apache_home_requires_modules(tmp_path: Path) -> None:
