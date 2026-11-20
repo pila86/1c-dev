@@ -3,13 +3,28 @@
 # Official ASF sources: httpd + apr + apr-util → user-owned prefix (no sudo).
 set -euo pipefail
 
-HTTPD_VER="${ONEC_HTTPD_VER:-2.4.68}"
+HTTPD_VER="${ONEC_HTTPD_VER:-2.4.71}"
 APR_VER="${ONEC_APR_VER:-1.7.6}"
-APU_VER="${ONEC_APU_VER:-1.6.5}"
+APU_VER="${ONEC_APU_VER:-1.6.6}"
 
 HTTPD_URL="${ONEC_HTTPD_URL:-https://downloads.apache.org/httpd/httpd-${HTTPD_VER}.tar.gz}"
 APR_URL="${ONEC_APR_URL:-https://downloads.apache.org/apr/apr-${APR_VER}.tar.gz}"
 APU_URL="${ONEC_APU_URL:-https://downloads.apache.org/apr/apr-util-${APU_VER}.tar.gz}"
+
+# Stale pins may 404 on downloads.apache.org — try archive mirror.
+asf_curl() {
+  local url="$1"
+  local dest="$2"
+  if curl -fsSL -o "${dest}" "${url}"; then
+    return 0
+  fi
+  local archive="${url/https:\/\/downloads.apache.org\//https:\/\/archive.apache.org\/dist\/}"
+  if [[ "${archive}" != "${url}" ]]; then
+    curl -fsSL -o "${dest}" "${archive}"
+    return $?
+  fi
+  return 1
+}
 
 if [[ -n "${XDG_CACHE_HOME:-}" ]]; then
   CACHE_DIR="${XDG_CACHE_HOME}/1c-dev/tools"
@@ -47,9 +62,9 @@ cleanup() {
 trap cleanup EXIT
 
 echo "→ download httpd ${HTTPD_VER} / apr ${APR_VER} / apr-util ${APU_VER}"
-curl -fsSL -o "${BUILD}/httpd.tar.gz" "${HTTPD_URL}"
-curl -fsSL -o "${BUILD}/apr.tar.gz" "${APR_URL}"
-curl -fsSL -o "${BUILD}/apu.tar.gz" "${APU_URL}"
+asf_curl "${HTTPD_URL}" "${BUILD}/httpd.tar.gz"
+asf_curl "${APR_URL}" "${BUILD}/apr.tar.gz"
+asf_curl "${APU_URL}" "${BUILD}/apu.tar.gz"
 
 echo "→ unpack"
 tar xzf "${BUILD}/httpd.tar.gz" -C "${BUILD}"

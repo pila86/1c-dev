@@ -21,13 +21,49 @@ from core.toolchain.progress import ProgressFn, noop_progress
 
 META_NAME = ".1c-dev-apache.json"
 STABLE_NAME = "apache"
-DEFAULT_PIN = "2.4.68"
+DEFAULT_PIN = "2.4.71"
 
 DEFAULT_BUILD = {
-    "httpd": "https://downloads.apache.org/httpd/httpd-2.4.68.tar.gz",
+    "httpd": "https://downloads.apache.org/httpd/httpd-2.4.71.tar.gz",
     "apr": "https://downloads.apache.org/apr/apr-1.7.6.tar.gz",
-    "apr_util": "https://downloads.apache.org/apr/apr-util-1.6.5.tar.gz",
+    "apr_util": "https://downloads.apache.org/apr/apr-util-1.6.6.tar.gz",
 }
+
+_DOWNLOADS_ASF = "https://downloads.apache.org/"
+_ARCHIVE_ASF = "https://archive.apache.org/dist/"
+
+
+def asf_url_candidates(url: str) -> list[str]:
+    """Prefer downloads.apache.org; fall back to archive.apache.org on stale pins."""
+    out: list[str] = [url]
+    if url.startswith(_DOWNLOADS_ASF):
+        mirror = _ARCHIVE_ASF + url[len(_DOWNLOADS_ASF) :]
+        if mirror not in out:
+            out.append(mirror)
+    return out
+
+
+def _urlretrieve_with_archive_fallback(url: str, dest: Path) -> str:
+    """Download ``url``; on HTTP 404 from downloads.apache.org try archive mirror.
+
+    Returns the URL that succeeded.
+    """
+    last_exc: Exception | None = None
+    for candidate in asf_url_candidates(url):
+        try:
+            urllib.request.urlretrieve(candidate, dest)  # noqa: S310 — pinned ASF URL
+            return candidate
+        except urllib.error.HTTPError as exc:
+            last_exc = exc
+            if exc.code == 404:
+                continue
+            raise
+        except urllib.error.URLError as exc:
+            last_exc = exc
+            continue
+    if last_exc is not None:
+        raise last_exc
+    raise OSError(f"не удалось скачать {url}")
 
 
 def apache_meta_path(home: Path) -> Path:
@@ -226,7 +262,7 @@ def _download_and_install(
         tmp_path = Path(tmp.name)
     extract_root = tools_dir / f".apache-extract-{os.getpid()}"
     try:
-        urllib.request.urlretrieve(url, tmp_path)  # noqa: S310 — pinned manifest URL
+        _urlretrieve_with_archive_fallback(url, tmp_path)
         if extract_root.exists():
             shutil.rmtree(extract_root)
         unpacked = _unpack_archive(tmp_path, extract_root)
@@ -292,7 +328,7 @@ def _build_from_source(
         archives: dict[str, Path] = {}
         for key, url in urls.items():
             dest = build_root / f"{key}.tar.gz"
-            urllib.request.urlretrieve(url, dest)  # noqa: S310 — pinned manifest URL
+            _urlretrieve_with_archive_fallback(url, dest)
             archives[key] = dest
 
         report("→ apache: unpack…")
