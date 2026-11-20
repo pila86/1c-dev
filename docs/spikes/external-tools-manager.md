@@ -1,6 +1,7 @@
 # Spike: External Tools Manager (локальные MCP/сервисы)
 
-**Статус:** Accepted (ADR-033); Этап 1 — [#172](https://github.com/pila86/1c-dev/issues/172)  
+**Статус:** Accepted (ADR-033); Этап 0–1 — done ([#172](https://github.com/pila86/1c-dev/issues/172)); Этапы 2–6 — open  
+
 **Дата:** 2026-11-19  
 **Контекст:** переосмысление CLI вокруг сторонних инструментов разработки;
 локальный запуск `v8std` и `mcp-bsl-search` как user-scoped сервисов.
@@ -232,14 +233,14 @@ catalog/             shipped recipes (не путать с top-level tools/ — 
 
 Acceptance (черновик checklist — зафиксировать в issue):
 
-- [ ] `catalog/` попадает в wheel / editable install
-- [ ] `1c-dev tools install v8std` материализует recipe в share + pull images
-- [ ] `1c-dev services up v8std` идемпотентен; health ok
-- [ ] `1c-dev ide configure` добавляет mcpServers.v8std с url (чужие ключи не трогает)
-- [ ] (should) `ide configure` ставит managed guidance v8std; без tool — секции нет
-- [ ] `1c-dev doctor` / `services status` показывают reachable/unreachable
-- [ ] JSON output + diagnostics codes для fail-путей
-- [ ] Linux must; Windows — should (Docker Desktop) или явный skip + diagnostic
+- [x] `catalog/` попадает в wheel / editable install
+- [x] `1c-dev tools install v8std` материализует recipe в share + pull images
+- [x] `1c-dev services up v8std` идемпотентен; health ok
+- [x] `1c-dev ide configure` добавляет mcpServers.v8std с url (чужие ключи не трогает)
+- [x] (should) `ide configure` ставит managed guidance v8std; без tool — секции нет
+- [x] `1c-dev doctor` / `services status` показывают reachable/unreachable
+- [x] JSON output + diagnostics codes для fail-путей
+- [x] Linux must; Windows — should (Docker Desktop) или явный skip + diagnostic
 
 ### Этап 2 — Обобщение Service Manager
 
