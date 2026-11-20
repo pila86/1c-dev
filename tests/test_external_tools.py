@@ -98,6 +98,16 @@ def test_cli_tools_list_json(
     assert "v8std" in ids
 
 
+def test_cli_tools_info_requires_tool_id() -> None:
+    """Typer<0.18 + Click 8.3+ silently passed None; must fail with usage error."""
+    result = runner.invoke(app, ["tools", "info"])
+    assert result.exit_code != SUCCESS
+    combined = (result.stdout or "") + (result.stderr or "")
+    assert "Missing argument" in combined or "TOOL_ID" in combined
+    assert "TypeError" not in combined
+    assert "NoneType" not in combined
+
+
 def test_cli_tools_install_no_pull(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
