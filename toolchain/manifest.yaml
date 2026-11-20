@@ -9,7 +9,8 @@ components:
       type: git
       repo: https://github.com/SteelMorgan/1c-agent-based-dev-framework.git
       sparse_path: tools/xml-gen
-    min_java: 17
+    # Host+bytecode JDK 25 (Gradle 9.1 patch in fetch_xml_gen); единый с md-sparrow.
+    min_java: 25
     env: ONEC_XMLGEN_JAR
 
   - id: md-reader

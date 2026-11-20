@@ -238,7 +238,7 @@ def _create_xml(
         if not java.found or not jar.found:
             missing: list[str] = []
             if not java.found:
-                missing.append("Java 17+")
+                missing.append("Java 25+")
             if not jar.found:
                 missing.append("xml-gen")
             return MetadataResult(
@@ -253,7 +253,7 @@ def _create_xml(
                         source="metadata",
                         suggestion=(
                             f"Соберите xml-gen: {fetch_script_suggestion()} "
-                            "(нужен JDK 17+; или задайте ONEC_XMLGEN_JAR)."
+                            "(нужен JDK 25+; или задайте ONEC_XMLGEN_JAR)."
                         ),
                     )
                 ],

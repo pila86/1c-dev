@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Build pinned xml-gen jar into the local 1c-dev tools cache (ADR-007 / ADR-018).
 # Pin covers Meta DSL 23 + subsystem compile/edit.
+# Requires JDK 25+ (единый с md-sparrow); Gradle wrapper патчится до 9.1 локально.
 set -euo pipefail
 
 REPO_URL="https://github.com/SteelMorgan/1c-agent-based-dev-framework.git"
 COMMIT="19f67bfed6d15f051f9568678bab1701b7735f95"
 SHORT="${COMMIT:0:12}"
+GRADLE_VER="9.1.0"
 
 if [[ -n "${XDG_CACHE_HOME:-}" ]]; then
   CACHE_DIR="${XDG_CACHE_HOME}/1c-dev/tools"
@@ -21,7 +23,7 @@ else
   JAVA_BIN="$(command -v java || true)"
 fi
 if [[ -z "${JAVA_BIN}" || ! -x "${JAVA_BIN}" ]]; then
-  echo "ERROR: Java 17+ required (set JAVA_HOME or add java to PATH)" >&2
+  echo "ERROR: Java 25+ required (set JAVA_HOME or add java to PATH)" >&2
   exit 1
 fi
 
@@ -30,8 +32,8 @@ if [[ -z "${MAJOR}" ]]; then
   echo "ERROR: cannot parse java -version" >&2
   exit 1
 fi
-if [[ "${MAJOR}" -lt 17 ]]; then
-  echo "ERROR: Java 17+ required (found major ${MAJOR})" >&2
+if [[ "${MAJOR}" -lt 25 ]]; then
+  echo "ERROR: Java 25+ required (found major ${MAJOR})" >&2
   exit 1
 fi
 
@@ -51,14 +53,29 @@ git clone --filter=blob:none --sparse "${REPO_URL}" "${WORK}/src"
 git -C "${WORK}/src" sparse-checkout set tools/xml-gen
 git -C "${WORK}/src" checkout "${COMMIT}"
 
-echo "Building xml-gen..."
+PROJ="${WORK}/src/tools/xml-gen"
+# Align with core.toolchain.fetchers.xmlgen.patch_xmlgen_for_jdk25
+PROPS="${PROJ}/gradle/wrapper/gradle-wrapper.properties"
+if [[ -f "${PROPS}" ]]; then
+  sed -i "s|gradle-[0-9.][0-9.]*-bin\\.zip|gradle-${GRADLE_VER}-bin.zip|" "${PROPS}"
+fi
+BUILD_KTS="${PROJ}/build.gradle.kts"
+if [[ -f "${BUILD_KTS}" ]]; then
+  sed -i \
+    -e 's|id("com.github.johnrengelman.shadow") version "[^"]*"|id("com.gradleup.shadow") version "9.0.2"|' \
+    -e 's|id("com.gradleup.shadow") version "[^"]*"|id("com.gradleup.shadow") version "9.0.2"|' \
+    -e 's|JavaLanguageVersion.of([0-9]*)|JavaLanguageVersion.of(25)|' \
+    "${BUILD_KTS}"
+fi
+
+echo "Building xml-gen (Gradle ${GRADLE_VER}, JDK ${MAJOR})..."
 (
-  cd "${WORK}/src/tools/xml-gen"
+  cd "${PROJ}"
   chmod +x ./gradlew
   ./gradlew build -x test --no-daemon -q
 )
 
-BUILT="$(ls "${WORK}/src/tools/xml-gen/build/libs"/xml-gen-*.jar | head -1)"
+BUILT="$(ls "${PROJ}/build/libs"/xml-gen-*.jar | head -1)"
 if [[ -z "${BUILT}" || ! -f "${BUILT}" ]]; then
   echo "ERROR: built jar not found" >&2
   exit 1

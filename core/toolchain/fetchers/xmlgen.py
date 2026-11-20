@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import tempfile
 from pathlib import Path
 
-from adapters.source.xmlgen.constants import XMLGEN_COMMIT, XMLGEN_REPO, XMLGEN_SPARSE_PATH
+from adapters.source.xmlgen.constants import (
+    MIN_JAVA_MAJOR,
+    XMLGEN_COMMIT,
+    XMLGEN_REPO,
+    XMLGEN_SPARSE_PATH,
+)
 from adapters.source.xmlgen.resolve import resolve_java
 from core.diagnostics import Diagnostic, error
 from core.toolchain.fetchers import (
@@ -19,6 +25,54 @@ from core.toolchain.fetchers import (
 )
 from core.toolchain.manifest import ComponentSpec
 from core.toolchain.progress import ProgressFn, noop_progress
+
+# Upstream pin ships Gradle 8.5 + johnrengelman shadow 8.1.1, which cannot
+# run on JDK 25. Local patches keep a single-JDK toolchain (ADR-013 / sync).
+XMLGEN_GRADLE_VERSION = "9.1.0"
+XMLGEN_SHADOW_PLUGIN = 'id("com.gradleup.shadow") version "9.0.2"'
+_SHADOW_PLUGIN_RE = re.compile(
+    r'id\(\s*"(?:com\.github\.johnrengelman\.shadow|com\.gradleup\.shadow)"\s*\)'
+    r'\s+version\s+"[^"]+"'
+)
+_TOOLCHAIN_RE = re.compile(r"JavaLanguageVersion\.of\(\s*\d+\s*\)")
+_DIST_URL_RE = re.compile(
+    r"(distributionUrl\s*=\s*https\\?://services\.gradle\.org/distributions/)"
+    r"gradle-[^\s]+-bin\.zip"
+)
+
+
+def patch_xmlgen_for_jdk25(project: Path) -> None:
+    """Rewrite upstream Gradle wrapper + build for host/compile JDK 25."""
+    props = project / "gradle" / "wrapper" / "gradle-wrapper.properties"
+    if props.is_file():
+        text = props.read_text(encoding="utf-8")
+        patched = _DIST_URL_RE.sub(
+            rf"\1gradle-{XMLGEN_GRADLE_VERSION}-bin.zip",
+            text,
+            count=1,
+        )
+        if patched == text and f"gradle-{XMLGEN_GRADLE_VERSION}-bin.zip" not in text:
+            # Fallback: replace any distributionUrl line value.
+            lines: list[str] = []
+            for line in text.splitlines(keepends=True):
+                if line.startswith("distributionUrl="):
+                    lines.append(
+                        "distributionUrl=https\\://services.gradle.org/distributions/"
+                        f"gradle-{XMLGEN_GRADLE_VERSION}-bin.zip\n"
+                    )
+                else:
+                    lines.append(line)
+            patched = "".join(lines)
+        props.write_text(patched, encoding="utf-8")
+
+    build = project / "build.gradle.kts"
+    if not build.is_file():
+        return
+    text = build.read_text(encoding="utf-8")
+    if _SHADOW_PLUGIN_RE.search(text):
+        text = _SHADOW_PLUGIN_RE.sub(XMLGEN_SHADOW_PLUGIN, text, count=1)
+    text = _TOOLCHAIN_RE.sub("JavaLanguageVersion.of(25)", text)
+    build.write_text(text, encoding="utf-8")
 
 
 def fetch_xml_gen(
@@ -44,7 +98,7 @@ def fetch_xml_gen(
         report(f"→ {spec.id}: cache hit")
         return stable.resolve(), diagnostics
 
-    min_java = spec.min_java or 17
+    min_java = spec.min_java or MIN_JAVA_MAJOR
     java = resolve_java(env=env, min_major=min_java)
     if not java.found or java.path is None:
         diagnostics.append(
@@ -52,7 +106,10 @@ def fetch_xml_gen(
                 f"Java {min_java}+ не найдена (нужна для xml-gen)",
                 code="1CT001",
                 source="toolchain",
-                suggestion="Установите JDK и задайте JAVA_HOME или добавьте java в PATH.",
+                suggestion=(
+                    "Установите JDK 25+ и задайте JAVA_HOME или добавьте java в PATH "
+                    "(единый JDK для всего toolchain)."
+                ),
             )
         )
         return None, diagnostics
@@ -134,6 +191,8 @@ def fetch_xml_gen(
             )
             return None, diagnostics
 
+        patch_xmlgen_for_jdk25(project)
+
         run_env = dict(os.environ if env is None else env)
         run_env["JAVA_HOME"] = str(java.path.parent.parent)
 
@@ -154,7 +213,7 @@ def fetch_xml_gen(
                     code="1CT004",
                     source="toolchain",
                     suggestion=(build.stderr or build.stdout or "").strip()[:500]
-                    or "См. вывод Gradle выше.",
+                    or "См. вывод Gradle выше. Нужен JDK 25+.",
                 )
             )
             return None, diagnostics

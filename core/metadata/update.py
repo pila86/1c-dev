@@ -604,7 +604,7 @@ def _update_xml(
         if not java.found or not jar.found:
             missing: list[str] = []
             if not java.found:
-                missing.append("Java 17+")
+                missing.append("Java 25+")
             if not jar.found:
                 missing.append("xml-gen")
             return MetadataResult(
@@ -619,7 +619,7 @@ def _update_xml(
                         source="metadata",
                         suggestion=(
                             f"Соберите xml-gen: {fetch_script_suggestion()} "
-                            "(нужен JDK 17+; или задайте ONEC_XMLGEN_JAR)."
+                            "(нужен JDK 25+; или задайте ONEC_XMLGEN_JAR)."
                         ),
                     )
                 ],
@@ -643,7 +643,7 @@ def _update_xml(
         if exc.code == "1CM006":
             diag_kw["suggestion"] = (
                 f"Соберите xml-gen: {fetch_script_suggestion()} "
-                "(нужен JDK 17+; или задайте ONEC_XMLGEN_JAR)."
+                "(нужен JDK 25+; или задайте ONEC_XMLGEN_JAR)."
             )
         return MetadataResult(
             status="error",
