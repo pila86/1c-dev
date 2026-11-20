@@ -26,8 +26,11 @@ from tests.helpers_project import bootstrap_configuration_project
 
 
 @pytest.mark.integration
-def test_m3_acceptance_import_ide_docs(tmp_path: Path) -> None:
+def test_m3_acceptance_import_ide_docs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Full M3 product-adopt flow; skip if platform / xml-gen / md-reader unavailable."""
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "_xdg_data"))
     if not resolve_xmlgen().found or not resolve_java_xml().found:
         pytest.skip(
             "xml-gen jar / Java 17+ недоступны (запустите scripts/fetch-xml-gen.sh "

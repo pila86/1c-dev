@@ -29,6 +29,15 @@ from mcp_server import create_server
 
 runner = CliRunner()
 
+
+@pytest.fixture(autouse=True)
+def _isolate_external_tools_share(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Host-installed tools (e.g. v8std) must not leak into mcp.json assertions."""
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "_xdg_data"))
+
+
 RULE_IDS = (
     "bsl-string-literals",
     "bsl-module-structure",
