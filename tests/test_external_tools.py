@@ -275,6 +275,79 @@ def test_ide_configure_removes_guidance_after_remove(
     assert not (project / ".cursor" / "rules" / "ext-v8std-when-to-use.mdc").is_file()
 
 
+def test_ide_configure_warns_unreachable_http_mcp(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    install_tool("v8std", pull=False)
+    project = tmp_path / "proj"
+    project.mkdir()
+    with patch(
+        "core.services.health.check_http",
+        return_value=HealthResult(
+            url="http://127.0.0.1:18766/healthz",
+            reachable=False,
+            error="connection refused",
+        ),
+    ):
+        result = configure_ide(project, target="cursor")
+    assert result.status == "ok", result.diagnostics
+    codes = {d.get("code") for d in result.diagnostics}
+    assert "1CX005" in codes
+    assert any(
+        d.get("code") == "1CX005" and "services up v8std" in (d.get("suggestion") or "")
+        for d in result.diagnostics
+    )
+
+
+def test_ide_configure_external_lifecycle_mcp(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """lifecycle=external: MCP url без services / compose."""
+    import yaml
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    tool_dir = tools_share_dir() / "ext-demo"
+    tool_dir.mkdir(parents=True)
+    (tool_dir / "tool.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "id": "ext-demo",
+                "name": "External demo",
+                "version": "0.0.1",
+                "mcp_name": "ext-demo",
+                "scope": "user",
+                "lifecycle": "external",
+                "interface": {
+                    "type": "mcp",
+                    "transport": "streamable-http",
+                    "url": "http://127.0.0.1:19999/mcp",
+                },
+                "agent": {"guidance": "agent/guidance.md"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    agent_dir = tool_dir / "agent"
+    agent_dir.mkdir()
+    (agent_dir / "guidance.md").write_text(
+        "## Optional MCP: ext-demo\n\nWhen: demo.\n",
+        encoding="utf-8",
+    )
+    project = tmp_path / "proj"
+    project.mkdir()
+    with patch(
+        "core.services.health.check_http",
+        return_value=HealthResult(url="x", reachable=True, status_code=200),
+    ):
+        result = configure_ide(project, target="cursor")
+    assert result.status == "ok", result.diagnostics
+    mcp = json.loads((project / ".cursor" / "mcp.json").read_text(encoding="utf-8"))
+    assert mcp["mcpServers"]["ext-demo"] == {"url": "http://127.0.0.1:19999/mcp"}
+    agents = (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert "<!-- BEGIN 1c-dev:ext-demo -->" in agents
+
+
 def test_cli_toolchain_sync_help() -> None:
     result = runner.invoke(app, ["toolchain", "--help"])
     assert result.exit_code == 0
