@@ -25,6 +25,7 @@ from core.project.ide import (
     render_kilocode_rule,
     rule_file_rel,
 )
+from core.tools.install import install_tool
 from mcp_server import create_server
 
 runner = CliRunner()
@@ -99,13 +100,10 @@ def test_configure_default_all(tmp_path: Path) -> None:
 
     cursor = json.loads((tmp_path / ".cursor" / "mcp.json").read_text(encoding="utf-8"))
     servers = cursor["mcpServers"]
-    assert set(servers) == {"1c-dev", "bsl-language-server"}
+    assert set(servers) == {"1c-dev"}
     assert servers["1c-dev"] == {"command": "1c-dev", "args": ["mcp"]}
     assert "cwd" not in servers["1c-dev"]
-    bsl_args = servers["bsl-language-server"]["args"]
-    assert bsl_args[0] == "-jar"
-    assert bsl_args[2] == "mcp"
-    assert Path(bsl_args[1]).is_absolute()
+    assert any(d.get("code") == "1CP009" for d in result.diagnostics)
 
 
 def test_configure_agents_includes_build_test_cycle(tmp_path: Path) -> None:
@@ -169,7 +167,7 @@ def test_configure_mcp_excludes_metr(tmp_path: Path) -> None:
         jar_path=Path("/tmp/bsl-language-server.jar"),
         java_command="java",
     )
-    assert set(payload) == {"1c-dev", "bsl-language-server"}
+    assert set(payload) == {"1c-dev"}
     assert "mcp-onec-test-runner" not in payload
     payload_text = json.dumps(payload).lower()
     assert "mcp-onec-test-runner" not in payload_text
@@ -179,7 +177,7 @@ def test_configure_mcp_excludes_metr(tmp_path: Path) -> None:
         text = (tmp_path / rel).read_text(encoding="utf-8")
         data = json.loads(text)
         servers = data["mcpServers"]
-        assert set(servers) == {"1c-dev", "bsl-language-server"}
+        assert set(servers) == {"1c-dev"}
         assert "mcp-onec-test-runner" not in servers
         lowered = text.lower()
         assert "mcp-onec-test-runner" not in lowered
@@ -226,7 +224,11 @@ def test_configure_unknown_agents(tmp_path: Path) -> None:
     assert any(d.get("code") == "1CP010" for d in result.diagnostics)
 
 
-def test_configure_repeat_merges_agents_and_mcp(tmp_path: Path) -> None:
+def test_configure_repeat_merges_agents_and_mcp(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "_xdg_data"))
+    install_tool("bsl-ls", pull=False)
     first = configure_ide(tmp_path, target="cursor")
     assert first.status == "ok"
     agents_text = (tmp_path / "AGENTS.md").read_text(encoding="utf-8")
@@ -322,7 +324,7 @@ def test_configure_force_overwrites_agents_and_mcp(tmp_path: Path) -> None:
     assert "AGENTS.md" in result.updated
 
     data = json.loads(mcp_path.read_text(encoding="utf-8"))
-    assert set(data["mcpServers"]) == {"1c-dev", "bsl-language-server"}
+    assert set(data["mcpServers"]) == {"1c-dev"}
     assert data["mcpServers"]["1c-dev"]["command"] == "1c-dev"
 
 
@@ -416,12 +418,8 @@ def test_build_mcp_servers_payload_no_cwd() -> None:
         jar_path=Path("/tmp/bsl-language-server.jar"),
         java_command="java",
     )
+    assert set(payload) == {"1c-dev"}
     assert "cwd" not in payload["1c-dev"]
-    assert payload["bsl-language-server"]["args"] == [
-        "-jar",
-        "/tmp/bsl-language-server.jar",
-        "mcp",
-    ]
 
 
 def test_cli_ide_configure_json(

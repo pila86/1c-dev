@@ -111,8 +111,9 @@
         "version": { "type": ["string", "null"] },
         "source": {
           "type": "string",
-          "enum": ["env", "cache"]
-        }
+          "enum": ["env", "cache", "external-tools"]
+        },
+        "healthy": { "type": ["boolean", "null"] }
       }
     },
     "externalTools": {

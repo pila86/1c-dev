@@ -11,7 +11,6 @@ from typing import Any, Literal
 import yaml
 
 from adapters.platform import discover_environment
-from adapters.source.xmlgen.resolve import resolve_java
 from core.diagnostics import Diagnostic, error, warning
 from core.project.constants import (
     DEFAULT_CONFIG_ID,
@@ -27,9 +26,6 @@ from core.project.init import (
 from core.project.paths import home_manifest_path, project_home
 from core.project.result import ProjectResult
 from core.project.validate import validate_project
-from core.toolchain.cache import tools_cache_dir
-from core.toolchain.manifest import load_manifest
-from core.toolchain.resolve import resolve_component_jar
 
 IdeName = Literal["cursor", "kilocode"]
 AgentsMode = Literal["auto", "scope", "none"]
@@ -251,19 +247,21 @@ def _merge_agents(
 
 def build_mcp_servers_payload(
     *,
-    jar_path: Path,
-    java_command: str,
+    jar_path: Path | None = None,
+    java_command: str | None = None,
     extra_servers: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Template mcpServers block (no cwd). Optional HTTP MCP via extra_servers."""
+    """Template mcpServers block (no cwd).
+
+    Must: ``1c-dev`` stdio. Optional HTTP MCP (v8std / bsl-search / bsl-ls) via
+    ``extra_servers``. BSL LS больше не пишется как per-project stdio
+    (ADR-033 Этап 7 — shared Streamable HTTP).
+    """
+    del jar_path, java_command  # legacy kwargs kept for call-site compatibility
     servers: dict[str, Any] = {
         "1c-dev": {
             "command": "1c-dev",
             "args": ["mcp"],
-        },
-        "bsl-language-server": {
-            "command": java_command,
-            "args": ["-jar", str(jar_path), "mcp"],
         },
     }
     if extra_servers:
@@ -330,14 +328,20 @@ def _probe_http_mcp_reachability(
     from core.tools.install import list_installed, load_installed_recipe
 
     diags: list[Diagnostic] = []
-    # Map mcp_name → tool_id for suggestion text.
-    name_to_tool: dict[str, str] = {}
+    # Map mcp_name → (tool_id, health_url_or_None).
+    name_to_meta: dict[str, tuple[str, str | None]] = {}
     for tool_id in list_installed():
         try:
             recipe = load_installed_recipe(tool_id)
         except (OSError, ValueError, FileNotFoundError):
             continue
-        name_to_tool[recipe.mcp_name] = tool_id
+        health: str | None = None
+        if recipe.health_url_template:
+            from core.tools.install import expand_template, resolve_env_vars
+
+            env_vars = resolve_env_vars(recipe.recipe_dir)
+            health = expand_template(recipe.health_url_template, env_vars)
+        name_to_meta[recipe.mcp_name] = (tool_id, health)
 
     for name, server in servers.items():
         if not isinstance(server, dict):
@@ -345,14 +349,14 @@ def _probe_http_mcp_reachability(
         url = server.get("url")
         if not isinstance(url, str) or not url:
             continue
-        # Prefer /healthz sibling when URL ends with /mcp.
-        probe_url = url
-        if url.rstrip("/").endswith("/mcp"):
+        tool_id, health_url = name_to_meta.get(name, (name, None))
+        # Prefer explicit recipe healthcheck; else /healthz sibling of /mcp.
+        probe_url = health_url or url
+        if health_url is None and url.rstrip("/").endswith("/mcp"):
             probe_url = url.rstrip("/")[: -len("/mcp")] + "/healthz"
         reachable = check_http(probe_url, timeout_sec=1.5).reachable
         if reachable:
             continue
-        tool_id = name_to_tool.get(name, name)
         try:
             recipe = load_installed_recipe(tool_id)
             lifecycle = recipe.lifecycle
@@ -426,9 +430,10 @@ def _configure_external_tool_guidance(
     *,
     write_agents: bool,
 ) -> tuple[list[str], list[str], list[str], list[Diagnostic]]:
-    """Upsert/remove optional MCP guidance for installed tools (ADR-033 Этап 4)."""
-    from core.tools.catalog import list_catalog
-    from core.tools.install import list_installed, load_installed_recipe
+    """Upsert/remove optional MCP guidance (installed ∪ desire-list, ADR-033 Этап 5)."""
+    from core.tools.catalog import list_catalog, load_recipe
+    from core.tools.desire import guidance_tool_ids, load_guidance_body
+    from core.tools.install import list_installed
 
     created: list[str] = []
     updated: list[str] = []
@@ -436,23 +441,27 @@ def _configure_external_tool_guidance(
     diagnostics: list[Diagnostic] = []
 
     installed = set(list_installed())
+    guidance_ids = guidance_tool_ids(project)
     # Remove stale managed blocks for any catalog (or still-installed) ext tool.
-    known_ext = set(list_catalog()) | installed
+    known_ext = set(list_catalog()) | installed | guidance_ids
     desired: dict[str, str] = {}
-    for tool_id in sorted(installed):
+    from core.tools.install import load_installed_recipe
+
+    for tool_id in sorted(guidance_ids):
         try:
-            recipe = load_installed_recipe(tool_id)
+            recipe = (
+                load_installed_recipe(tool_id)
+                if tool_id in installed
+                else load_recipe(tool_id)
+            )
         except (OSError, ValueError, FileNotFoundError):
             continue
         if recipe.lifecycle not in ("managed", "external"):
             continue
-        rel = recipe.guidance_rel
-        if not rel:
+        body = load_guidance_body(tool_id)
+        if not body:
             continue
-        guidance_path = recipe.recipe_dir / rel
-        if not guidance_path.is_file():
-            continue
-        desired[tool_id] = _normalize_rule_body(guidance_path.read_text(encoding="utf-8"))
+        desired[tool_id] = _normalize_rule_body(body)
 
     if write_agents:
         agents_path = project / "AGENTS.md"
@@ -535,28 +544,6 @@ def _configure_external_tool_guidance(
     return created, updated, skipped, diagnostics
 
 
-def _resolve_bsl_jar() -> tuple[Path, bool]:
-    """Return (absolute jar path, found). Missing → expected stable cache path."""
-    manifest = load_manifest()
-    spec = manifest.get("bsl-language-server")
-    if spec is None:
-        return (tools_cache_dir() / "bsl-language-server.jar").resolve(), False
-    resolved = resolve_component_jar(spec)
-    if resolved.path is not None:
-        path = resolved.path.expanduser()
-        if resolved.found:
-            return path.resolve(), True
-        return path if path.is_absolute() else path.resolve(), False
-    return (tools_cache_dir() / spec.artifact).resolve(), False
-
-
-def _java_command() -> str:
-    java = resolve_java()
-    if java.found and java.path is not None:
-        return str(java.path)
-    return "java"
-
-
 def _configure_ide_mcp(
     root: Path,
     ides: list[IdeName],
@@ -571,34 +558,27 @@ def _configure_ide_mcp(
     if not ides:
         return created, updated, skipped, diagnostics
 
-    jar_path, jar_found = _resolve_bsl_jar()
-    if not jar_found:
-        diagnostics.append(
-            warning(
-                "bsl-language-server jar не найден — в MCP прописан ожидаемый путь cache",
-                code="1CP009",
-                suggestion="Выполните 1c-dev tools sync или задайте ONEC_BSLLS_JAR",
-            )
-        )
-
     # Keys managed by 1c-dev that should be removed when tool is uninstalled.
-    managed_http_names = _catalog_http_mcp_names()
-    java_command = _java_command()
+    # Include legacy stdio key so old mcp.json entries are cleaned after Этап 7.
+    managed_http_names = _catalog_http_mcp_names() | {"bsl-language-server"}
     # Probe once (Cursor shape is enough — same urls as kilocode).
     probe_servers = _installed_http_mcp_servers(ide="cursor") if ides else {}
     managed_http_names |= set(probe_servers)
     diagnostics.extend(_probe_http_mcp_reachability(probe_servers))
+    if "bsl-language-server" not in probe_servers:
+        diagnostics.append(
+            warning(
+                "bsl-ls не установлен — MCP bsl-language-server не подключён",
+                code="1CP009",
+                suggestion="1c-dev tools install bsl-ls && 1c-dev services up bsl-ls",
+            )
+        )
 
     for ide in ides:
         http_servers = _installed_http_mcp_servers(ide=ide)
         managed_http_names |= set(http_servers)
-        servers = build_mcp_servers_payload(
-            jar_path=jar_path,
-            java_command=java_command,
-            extra_servers=http_servers or None,
-        )
+        servers = build_mcp_servers_payload(extra_servers=http_servers or None)
         desired_http = set(http_servers)
-
         rel = mcp_rel_path(ide)
         dest = root / rel
         existed = dest.is_file()

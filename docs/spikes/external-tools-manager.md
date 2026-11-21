@@ -1,10 +1,10 @@
 # Spike: External Tools Manager (локальные MCP/сервисы)
 
-**Статус:** Accepted (ADR-033); Этап 0–1 — done ([#172](https://github.com/pila86/1c-dev/issues/172)); Этапы 2–4 — [#175](https://github.com/pila86/1c-dev/issues/175); Этапы 5–6 — open  
+**Статус:** Accepted (ADR-033); Этап 0–1 — done ([#172](https://github.com/pila86/1c-dev/issues/172)); Этапы 2–4 — done ([#175](https://github.com/pila86/1c-dev/issues/175)); Этапы 5+7 — done ([#177](https://github.com/pila86/1c-dev/issues/177)); Этап 6 — deferred  
 
 **Дата:** 2026-11-19  
 **Контекст:** переосмысление CLI вокруг сторонних инструментов разработки;
-локальный запуск `v8std` и `mcp-bsl-search` как user-scoped сервисов.
+локальный запуск `v8std`, `mcp-bsl-search` и (позже) `bsl-ls` как user-scoped сервисов.
 **Связано:** [ADR-033](../adr/033-external-tools-manager.md), ADR-013 (toolchain cache),
 ADR-016 (ide configure merge), ADR-010 (MCP stdio), ADR-025 (publish — не смешивать).
 
@@ -45,7 +45,8 @@ lifecycle сервисов → проводка в IDE MCP.
 
 ### Не делать в этом поручении
 
-- Этапы 2–6 «заодно» (универсальный Service Manager, bsl-search, desire-list, full stack).
+- Этапы 2–7 «заодно» (универсальный Service Manager, bsl-search, desire-list,
+  full stack, миграция bsl-ls).
 - Marketplace / systemd / remote management.
 - Ломать `publish` / `runtime` / семантику `init`.
 - Класть recipes в top-level `tools/` (это Java toolchain).
@@ -133,6 +134,12 @@ catalog/                      # SoT shipped recipes (в wheel / git)
       guidance.md
     scripts/                  # preflight / restore-index (если нужно)
     # compose.full.yaml       # later: + ES (+ inference)
+  bsl-ls/                     # Этап 7: shared MCP (streamable HTTP)
+    tool.yaml
+    env.default               # pin jar / port / java
+    agent/
+      guidance.md
+    # runtime: process (jar) предпочтительнее compose
 ```
 
 Контракт: **Tool Recipe**. Адаптация = содержимое каталога, не форк upstream.
@@ -183,6 +190,34 @@ Upstream compose поднимает только app; ES / embedding / reranker 
 | `full` (later) | app + ES (+ optional inference) | диск/RAM; restore dump |
 
 Не обещать «одной кнопкой полный RAG» в первом релизе.
+
+### bsl-ls / bsl-language-server (миграция с toolchain)
+
+Сейчас: jar в toolchain cache + **stdio MCP на каждый проект**
+(`java -jar … mcp` в `.cursor`/`.kilo` mcp.json, ADR-016). Тяжёлый JVM
+процесс размножается по открытым workspace.
+
+Цель: **один user-scoped инстанс** на машину → `tools install` /
+`services up` → `ide configure` пишет общий Streamable HTTP endpoint;
+проекты регистрируют корни через `register_workspace_folder` (уже в AGENTS).
+
+Upstream уже умеет (док [McpMode](https://1c-syntax.github.io/bsl-language-server/features/McpMode/)):
+
+```text
+java -jar bsl-language-server.jar mcp --protocol streamable --server.port=<port>
+```
+
+Версия (на 2026-11-21):
+
+| Кандидат | Статус | Заметки |
+|---|---|---|
+| `1.0.7` | последний **stable** | без MCP tools `register_workspace_folder` (нужны Cursor) |
+| `1.1.0-rc.4` | **текущий pin** toolchain | [#4462](https://github.com/1c-syntax/bsl-language-server/pull/4462): MCP workspace folders вместо roots |
+| `1.1.0-rc.9` | последний RC | линия 1.1.0; stable `1.1.0` ещё нет |
+
+«Взять последний stable» = откат на `1.0.7` и потеря must-фичи для Cursor.
+Политика для этапа: **остаться на линии 1.1.0-rc**, bump до свежего RC
+(или до `1.1.0`, когда выйдет); откат на 1.0.x — только с явным решением.
 
 ## CLI (целевой)
 
@@ -273,19 +308,67 @@ Acceptance (черновик checklist — зафиксировать в issue):
 
 ### Этап 5 — Project desire-list
 
-- `.1c-dev/tools.yaml`, sync/check установленных tools.
-- Не смешивать с `init`.
+Решения (#177): список required tool id в `.1c-dev/tools.yaml`;
+`tools check` (installed/healthy); `ide configure` учитывает desire для
+guidance; **не** трогать `init`; **не** авто-`install`/`up`.
+
+- [x] Schema `.1c-dev/tools.yaml` + loader
+- [x] `1c-dev tools check` (+ JSON / diagnostics)
+- [x] `ide configure`: guidance = installed ∪ desire; MCP url — только installed
+- [x] Тесты; docs
 
 ### Этап 6 (optional) — bsl-search `full`
 
 - ES volume, restore dump, optional inference.
 - Только после стабильного `app` профиля.
 
+### Этап 7 — bsl-ls как shared External Tool
+
+Перевести `bsl-language-server` с per-project stdio (toolchain + ADR-016)
+на каталог External Tools / Services: **один инстанс на машину**, к которому
+ходят несколько проектов.
+
+Must:
+
+- [x] Recipe `catalog/bsl-ls/` (`tool.yaml`, runtime process, `env.default`,
+      `agent/guidance.md` — when/when-not vs `docs.*`).
+- [x] `lifecycle: managed` + Streamable HTTP
+      (`mcp --protocol streamable --server.port=…` на loopback).
+- [x] `tools install bsl-ls` — jar (github-release) в share;
+      `services up/down/status/logs` + health.
+- [x] `ide configure`: mcpServers.url (как v8std/bsl-search), **не** stdio
+      `java -jar` на каждый проект; чужие ключи не трогать (ADR-016).
+- [x] Multi-project: агент регистрирует корень через `register_workspace_folder`
+      (уже в templates AGENTS); один процесс держит несколько workspace folders.
+- [x] Pin **`1.1.0-rc.9`** (+ sha256) в recipe — решение #177 (не `1.0.7`).
+- [x] Миграция с toolchain: jar **убран** из `toolchain sync` / stdio ADR-016;
+      без stdio fallback при down (только warning `services up`).
+- [x] `doctor`: installed bsl-ls / health; diagnostics codes.
+
+Should:
+
+- [x] Default port `18767` + конфликт → error + suggestion (как v8std).
+- [x] Process adapter: jar + JVM без Docker.
+- [x] Override `ONEC_BSLLS_JAR` сохраняется.
+- [x] Guidance: shared instance ≠ «свой LS на проект»; не unregister чужие folders.
+
+Acceptance (черновик):
+
+- [x] `tools install bsl-ls` → `services up bsl-ls` → health ok на loopback
+- [x] Два разных ide-root после `ide configure` указывают на **один** URL
+- [ ] В каждом проекте `register_workspace_folder` + lookup/`analyze_file` работают
+      (manual / live)
+- [x] Без `services up` — warning unreachable + suggestion (Этап 4)
+- [x] Pin версии задокументирован в recipe/`env.default` (+ sha256)
+
+Не в этом этапе: LSP-режим редактора (только MCP-агентский путь);
+marketplace; systemd user unit (можно later как runtime adapter).
+
 ## Главные решения (зафиксировать в ADR)
 
 1. Toolchain ≠ external tools.
 2. Install ≠ run.
-3. Local managed HTTP — основной путь для v8std / bsl-search.
+3. Local managed HTTP — основной путь для v8std / bsl-search / (Этап 7) bsl-ls.
 4. Docker/compose — один runtime adapter, не центр вселенной.
 5. Services управляют только external tools.
 6. `init` остаётся project-only.
@@ -306,6 +389,10 @@ Acceptance (черновик checklist — зафиксировать в issue):
 | Dump индекса bsl-search | Вне Этапа 1; решить к Этапу 3/6 | Нет (пока) |
 | Windows | Should: Docker Desktop; иначе diagnostic `ENV_UNAVAILABLE` | Желательно |
 | Приоритет v8std vs локальные IDE rules | v8std — SoT по стандартам; local rules дополняют / не дублируют; уточнить в ADR | Желательно (should guidance) |
+| Версия bsl-ls | **Закрыто (#177):** pin `1.1.0-rc.9` | — |
+| Shared bsl-ls: process vs compose | **Закрыто (#177):** process + jar (без Docker) | — |
+| Dual-path stdio при down | **Закрыто (#177):** HTTP + warning `services up`; без stdio fallback | — |
+| Jar: toolchain vs catalog only | **Закрыто (#177):** SoT в recipe; убрать из toolchain в том же PR; `ONEC_BSLLS_JAR` override | — |
 
 ## Пример recipe: `catalog/v8std/tool.yaml`
 
@@ -461,8 +548,9 @@ catalog/<id>/
 
 ### Не передавать как ТЗ на код
 
-- «Реализуйте весь spike / этапы 1–6» (игнорировать Brief).
+- «Реализуйте весь spike / этапы 1–7» (игнорировать Brief).
 - «Сделайте bsl-search full stack» до стабильного `app` и отдельного issue.
+- «Мигрируйте bsl-ls на shared HTTP» без отдельного issue Этапа 7 и решения по версии.
 
 ## Следующий шаг
 

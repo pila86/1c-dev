@@ -1,0 +1,48 @@
+id: bsl-ls
+name: BSL Language Server (shared MCP)
+version: "0.1.0"
+mcp_name: bsl-language-server
+
+scope: user
+lifecycle: managed
+
+source:
+  type: github-release
+  repo: 1c-syntax/bsl-language-server
+  pin: "1.1.0-rc.9"
+  asset: bsl-language-server-1.1.0-rc.9-exec.jar
+  url: https://github.com/1c-syntax/bsl-language-server/releases/download/v1.1.0-rc.9/bsl-language-server-1.1.0-rc.9-exec.jar
+  sha256: "9d93da9964cc2e17eb1c790512666e1684ba12a396f1aac6b7fc3ec7ec25f227"
+  # Jar materializes as lib/bsl-language-server.jar under installed recipe.
+  dest: lib/bsl-language-server.jar
+  # No docker *_IMAGE pins for process runtime.
+  pins: []
+
+runtime:
+  type: process
+  project_name: 1c-dev-bsl-ls
+  argv:
+    - "${JAVA:-java}"
+    - "-jar"
+    - "${BSLLS_JAR}"
+    - "mcp"
+    - "--protocol"
+    - "streamable"
+    - "--server.port=${BSLLS_MCP_PORT:-18767}"
+
+interface:
+  type: mcp
+  transport: streamable-http
+  url: "http://127.0.0.1:${BSLLS_MCP_PORT:-18767}/mcp"
+
+healthcheck:
+  type: http
+  # Streamable MCP answers on /mcp (any HTTP response = reachable).
+  url: "http://127.0.0.1:${BSLLS_MCP_PORT:-18767}/mcp"
+  timeout_sec: 2
+
+service:
+  enabled: true
+
+agent:
+  guidance: agent/guidance.md
