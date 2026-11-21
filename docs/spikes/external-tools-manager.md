@@ -1,6 +1,6 @@
 # Spike: External Tools Manager (локальные MCP/сервисы)
 
-**Статус:** Accepted (ADR-033); Этап 0–1 — done ([#172](https://github.com/pila86/1c-dev/issues/172)); Этапы 2–6 — open  
+**Статус:** Accepted (ADR-033); Этап 0–1 — done ([#172](https://github.com/pila86/1c-dev/issues/172)); Этапы 2–4 — [#175](https://github.com/pila86/1c-dev/issues/175); Этапы 5–6 — open  
 
 **Дата:** 2026-11-19  
 **Контекст:** переосмысление CLI вокруг сторонних инструментов разработки;
@@ -246,23 +246,30 @@ Acceptance (черновик checklist — зафиксировать в issue):
 
 Вынести из v8std-специфики:
 
-- Stack-level API (project name, env file, health, idempotent up).
-- State в `~/.local/share/1c-dev/services/`.
-- Labels `managed-by=1c-dev`.
-- Готовность принять второй recipe (`bsl-search`) без копипасты.
+- [x] Stack-level API (project name, env file, health, idempotent up).
+- [x] State в `~/.local/share/1c-dev/services/`.
+- [x] Labels `managed-by=1c-dev`.
+- [x] Готовность принять второй recipe (`bsl-search`) без копипасты.
 
-### Этап 3 — bsl-search (`app`)
+### Этап 3 — bsl-search (local BM25 stack)
 
-- Recipe + env template + `agent/guidance.md`.
-- Preflight: ES reachable / index present (diagnostics, не silent fail).
-- Документация restore индекса; без авто-embed pipeline.
+Решения (#175): build app из git; ES в том же compose; при install скачать
+`units_curated.jsonl` с HF; BM25 сейчас; `EMBEDDING_URL`/`RERANKER_URL` — later.
+
+- [x] Recipe `catalog/bsl-search/` (compose ES+app build, env, guidance, README).
+- [x] `tools install`: git clone upstream + HF download + normalize JSONL.
+- [x] `services up`: compose `--build`, bulk-load в ES (idempotent; `BSL_SEARCH_REINDEX=1`).
+- [x] Optional inference via `.env` (пустые по умолчанию).
+- [ ] Knowledge ITS/Habr auto-index (later).
+- [ ] Precomputed embeddings / kNN dump (later / Этап 6).
 
 ### Этап 4 — MCP/IDE polish
 
-- Проверка unreachable endpoint → warning + suggestion `services up`.
-- Сохранение чужих mcpServers (ADR-016).
-- Общий upsert/remove agent guidance по installed / desire-list.
-- Опционально `external` URL.
+- [x] Проверка unreachable endpoint → warning + suggestion `services up`.
+- [x] Сохранение чужих mcpServers (ADR-016).
+- [x] Общий upsert/remove agent guidance по installed tools.
+- [x] Опционально `external` URL.
+- [ ] Desire-list sync guidance (Этап 5).
 
 ### Этап 5 — Project desire-list
 

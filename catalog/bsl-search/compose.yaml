@@ -1,0 +1,104 @@
+# Managed stack: Elasticsearch + mcp-bsl-search app (build from cloned upstream/).
+# Labels: managed-by=1c-dev (Service Manager).
+# Inference (EMBEDDING_URL / RERANKER_URL) optional — leave empty for BM25-only.
+name: ${COMPOSE_PROJECT_NAME:-1c-dev-bsl-search}
+services:
+  elasticsearch:
+    image: ${BSL_SEARCH_ES_IMAGE:-docker.elastic.co/elasticsearch/elasticsearch:8.15.3}
+    labels:
+      - managed-by=1c-dev
+      - com.1c-dev.tool=bsl-search
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - ES_JAVA_OPTS=${BSL_SEARCH_ES_JAVA_OPTS:--Xms2g -Xmx2g}
+      - cluster.routing.allocation.disk.threshold_enabled=false
+    ports:
+      - "127.0.0.1:${BSL_SEARCH_ES_PORT:-19200}:9200"
+    volumes:
+      - bsl-es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:9200 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    mem_limit: ${BSL_SEARCH_ES_MEM_LIMIT:-3g}
+
+  search-api:
+    build:
+      context: ./upstream
+      dockerfile: search_api/Dockerfile
+    labels:
+      - managed-by=1c-dev
+      - com.1c-dev.tool=bsl-search
+    ports:
+      - "127.0.0.1:${BSL_SEARCH_API_PORT:-18080}:8080"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200/
+      ELASTICSEARCH_HOST: elasticsearch
+      ELASTICSEARCH_PORT: "9200"
+      ELASTICSEARCH_INDEX: ${ELASTICSEARCH_INDEX:-bsl-methods}
+      ELASTICSEARCH_KNOWLEDGE_INDEX: ${ELASTICSEARCH_KNOWLEDGE_INDEX:-bsl-knowledge}
+      ELASTICSEARCH_API_KEY: ${ELASTICSEARCH_API_KEY:-}
+      EMBEDDING_URL: ${EMBEDDING_URL:-}
+      RERANKER_URL: ${RERANKER_URL:-}
+      EMBEDDING_KEY: ${EMBEDDING_KEY:-}
+      RERANKER_KEY: ${RERANKER_KEY:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
+      RERANKER_MODEL: ${RERANKER_MODEL:-}
+      LOG_LEVEL: ${LOG_LEVEL:-ERROR}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=5)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  mcp-server:
+    build:
+      context: ./upstream
+      dockerfile: mcp_server/Dockerfile
+    labels:
+      - managed-by=1c-dev
+      - com.1c-dev.tool=bsl-search
+    ports:
+      - "127.0.0.1:${BSL_SEARCH_MCP_PORT:-18005}:8000"
+    depends_on:
+      search-api:
+        condition: service_healthy
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200/
+      ELASTICSEARCH_HOST: elasticsearch
+      ELASTICSEARCH_PORT: "9200"
+      ELASTICSEARCH_INDEX: ${ELASTICSEARCH_INDEX:-bsl-methods}
+      SEARCH_API_URL: http://search-api:8080
+      LOG_LEVEL: ${LOG_LEVEL:-ERROR}
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import socket; s=socket.create_connection(('127.0.0.1', 8000), 5); s.close()",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+volumes:
+  bsl-es-data:

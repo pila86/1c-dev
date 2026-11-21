@@ -1,0 +1,54 @@
+# bsl-search — Этап 3 ADR-033 / #175
+# Stack: Elasticsearch + search-api + mcp-server (build из git upstream).
+# Индекс: HuggingFace units_curated.jsonl → ES (BM25). Embedding/reranker — optional via .env.
+id: bsl-search
+name: BSL Search MCP (mcp-bsl-search)
+version: "0.1.0"
+mcp_name: bsl-search
+
+scope: user
+lifecycle: managed
+
+source:
+  type: git
+  url: https://github.com/axel-avb/mcp-bsl-search.git
+  # Pin upstream revision (reproduce builds); bump intentionally.
+  ref: 2d0ffe75e1aefa985cff1760071ba46652e6acf0
+  dest: upstream
+  pins:
+    - BSL_SEARCH_ES_IMAGE
+
+runtime:
+  type: compose
+  file: compose.yaml
+  project_name: 1c-dev-bsl-search
+  profiles: []
+  build: true
+
+interface:
+  type: mcp
+  transport: streamable-http
+  url: "http://127.0.0.1:${BSL_SEARCH_MCP_PORT:-18005}/mcp"
+
+healthcheck:
+  type: http
+  url: "http://127.0.0.1:${BSL_SEARCH_API_PORT:-18080}/health"
+  timeout_sec: 2
+
+service:
+  enabled: true
+
+index:
+  provider: huggingface
+  repo_id: pupkaZALUPKA/1c-bsl-dataset
+  repo_type: dataset
+  filename: units_curated.jsonl
+  normalize: bsl-methods
+  es_index: bsl-methods
+  # Host URL used by 1c-dev to bulk-load after ES is up.
+  es_url: "http://127.0.0.1:${BSL_SEARCH_ES_PORT:-19200}"
+  load_on: services_up
+
+agent:
+  guidance: agent/guidance.md
+  mode: both

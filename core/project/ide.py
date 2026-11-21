@@ -271,9 +271,28 @@ def build_mcp_servers_payload(
     return servers
 
 
-def _installed_http_mcp_servers(*, ide: IdeName) -> dict[str, Any]:
-    """Build mcpServers entries for installed managed HTTP tools (ADR-033).
+def _catalog_http_mcp_names() -> set[str]:
+    """mcpServers keys owned by 1c-dev catalog recipes (managed + external)."""
+    from core.tools.catalog import list_catalog, load_recipe
 
+    names: set[str] = set()
+    for tool_id in list_catalog():
+        try:
+            recipe = load_recipe(tool_id)
+        except (OSError, ValueError, FileNotFoundError):
+            continue
+        if recipe.lifecycle not in ("managed", "external"):
+            continue
+        transport = str(recipe.interface.get("transport") or "")
+        if transport == "streamable-http" and recipe.mcp_url_template:
+            names.add(recipe.mcp_name)
+    return names
+
+
+def _installed_http_mcp_servers(*, ide: IdeName) -> dict[str, Any]:
+    """Build mcpServers entries for installed HTTP tools (ADR-033 Этап 4).
+
+    Includes ``lifecycle: managed`` and ``external`` (escape hatch URL).
     Kilocode requires explicit ``type: streamable-http``; Cursor uses url-only.
     """
     from core.tools.install import (
@@ -289,7 +308,7 @@ def _installed_http_mcp_servers(*, ide: IdeName) -> dict[str, Any]:
             recipe = load_installed_recipe(tool_id)
         except (OSError, ValueError, FileNotFoundError):
             continue
-        if recipe.lifecycle != "managed":
+        if recipe.lifecycle not in ("managed", "external"):
             continue
         transport = str(recipe.interface.get("transport") or "")
         if transport != "streamable-http" or not recipe.mcp_url_template:
@@ -301,6 +320,58 @@ def _installed_http_mcp_servers(*, ide: IdeName) -> dict[str, Any]:
         else:
             servers[recipe.mcp_name] = {"url": url}
     return servers
+
+
+def _probe_http_mcp_reachability(
+    servers: dict[str, Any],
+) -> list[Diagnostic]:
+    """Warn when installed HTTP MCP endpoint is unreachable (Этап 4)."""
+    from core.services.health import check_http
+    from core.tools.install import list_installed, load_installed_recipe
+
+    diags: list[Diagnostic] = []
+    # Map mcp_name → tool_id for suggestion text.
+    name_to_tool: dict[str, str] = {}
+    for tool_id in list_installed():
+        try:
+            recipe = load_installed_recipe(tool_id)
+        except (OSError, ValueError, FileNotFoundError):
+            continue
+        name_to_tool[recipe.mcp_name] = tool_id
+
+    for name, server in servers.items():
+        if not isinstance(server, dict):
+            continue
+        url = server.get("url")
+        if not isinstance(url, str) or not url:
+            continue
+        # Prefer /healthz sibling when URL ends with /mcp.
+        probe_url = url
+        if url.rstrip("/").endswith("/mcp"):
+            probe_url = url.rstrip("/")[: -len("/mcp")] + "/healthz"
+        reachable = check_http(probe_url, timeout_sec=1.5).reachable
+        if reachable:
+            continue
+        tool_id = name_to_tool.get(name, name)
+        try:
+            recipe = load_installed_recipe(tool_id)
+            lifecycle = recipe.lifecycle
+        except (OSError, ValueError, FileNotFoundError):
+            lifecycle = "managed"
+        suggestion = (
+            f"1c-dev services up {tool_id}"
+            if lifecycle == "managed"
+            else f"Проверьте доступность endpoint {url}"
+        )
+        diags.append(
+            warning(
+                f"MCP «{name}» unreachable: {probe_url}",
+                code="1CX005",
+                source="ide",
+                suggestion=suggestion,
+            )
+        )
+    return diags
 
 
 def _ext_tool_agents_begin(tool_id: str) -> str:
@@ -355,7 +426,8 @@ def _configure_external_tool_guidance(
     *,
     write_agents: bool,
 ) -> tuple[list[str], list[str], list[str], list[Diagnostic]]:
-    """Upsert/remove optional MCP guidance for installed tools (ADR-033 should)."""
+    """Upsert/remove optional MCP guidance for installed tools (ADR-033 Этап 4)."""
+    from core.tools.catalog import list_catalog
     from core.tools.install import list_installed, load_installed_recipe
 
     created: list[str] = []
@@ -364,13 +436,15 @@ def _configure_external_tool_guidance(
     diagnostics: list[Diagnostic] = []
 
     installed = set(list_installed())
-    # Stage 1: only v8std guidance; remove stale blocks for known ext tools.
-    known_ext = {"v8std"}
+    # Remove stale managed blocks for any catalog (or still-installed) ext tool.
+    known_ext = set(list_catalog()) | installed
     desired: dict[str, str] = {}
-    for tool_id in sorted(installed & known_ext):
+    for tool_id in sorted(installed):
         try:
             recipe = load_installed_recipe(tool_id)
         except (OSError, ValueError, FileNotFoundError):
+            continue
+        if recipe.lifecycle not in ("managed", "external"):
             continue
         rel = recipe.guidance_rel
         if not rel:
@@ -508,11 +582,16 @@ def _configure_ide_mcp(
         )
 
     # Keys managed by 1c-dev that should be removed when tool is uninstalled.
-    managed_http_names = {"v8std"}
+    managed_http_names = _catalog_http_mcp_names()
     java_command = _java_command()
+    # Probe once (Cursor shape is enough — same urls as kilocode).
+    probe_servers = _installed_http_mcp_servers(ide="cursor") if ides else {}
+    managed_http_names |= set(probe_servers)
+    diagnostics.extend(_probe_http_mcp_reachability(probe_servers))
 
     for ide in ides:
         http_servers = _installed_http_mcp_servers(ide=ide)
+        managed_http_names |= set(http_servers)
         servers = build_mcp_servers_payload(
             jar_path=jar_path,
             java_command=java_command,

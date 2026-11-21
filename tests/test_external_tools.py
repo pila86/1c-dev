@@ -1,9 +1,10 @@
-"""Unit tests for External Tools Manager Stage 1 (ADR-033 / #172)."""
+"""Unit tests for External Tools Manager (ADR-033 / #172 / #175)."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
@@ -11,6 +12,9 @@ from typer.testing import CliRunner
 from cli.main import app
 from core.exit_codes import RUNTIME_FAILURE, SUCCESS
 from core.project.ide import configure_ide
+from core.services.compose import ComposeCommandResult
+from core.services.health import HealthResult
+from core.services.state import load_state, state_path
 from core.tools.catalog import catalog_root, list_catalog, load_recipe
 from core.tools.install import (
     expand_template,
@@ -18,9 +22,10 @@ from core.tools.install import (
     is_installed,
     list_installed,
     remove_tool,
+    resolve_env_vars,
     tool_info,
 )
-from core.tools.paths import share_root, tools_share_dir
+from core.tools.paths import services_share_dir, share_root, tools_share_dir
 
 runner = CliRunner()
 
@@ -36,6 +41,83 @@ def test_catalog_contains_v8std() -> None:
     assert recipe.guidance_rel == "agent/guidance.md"
     assert (recipe.recipe_dir / "env.default").is_file()
     assert (recipe.recipe_dir / "compose.yaml").is_file()
+
+
+def test_catalog_bsl_search_stage3() -> None:
+    root = catalog_root()
+    assert (root / "bsl-search" / "tool.yaml").is_file()
+    assert "bsl-search" in list_catalog()
+    recipe = load_recipe("bsl-search")
+    assert recipe.is_scaffold is False
+    assert recipe.mcp_name == "bsl-search"
+    assert recipe.compose_file == "compose.yaml"
+    assert recipe.compose_build is True
+    assert recipe.source_type == "git"
+    assert recipe.index_config.get("provider") == "huggingface"
+    assert recipe.project_name == "1c-dev-bsl-search"
+    assert (recipe.recipe_dir / "env.default").is_file()
+    assert (recipe.recipe_dir / "compose.yaml").is_file()
+    assert "REPLACE_ME" not in (recipe.recipe_dir / "env.default").read_text(
+        encoding="utf-8"
+    )
+    assert (recipe.recipe_dir / "agent" / "guidance.md").is_file()
+
+
+def test_install_bsl_search_no_pull_materializes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    result = install_tool("bsl-search", pull=False)
+    assert result.status == "ok", result.diagnostics
+    assert is_installed("bsl-search")
+    dest = Path(result.path or "")
+    assert (dest / "compose.yaml").is_file()
+    assert (dest / ".env").is_file()
+    assert any("no-pull" in (d.get("message") or "") for d in result.diagnostics)
+
+
+def test_normalize_bsl_row() -> None:
+    from core.tools.bsl_search_index import normalize_row
+
+    row = normalize_row(
+        {
+            "repo": "demo",
+            "file": "a.bsl",
+            "name": "Тест",
+            "body": "Процедура Тест()\nКонецПроцедуры\n",
+            "params": "",
+            "doc": "",
+        }
+    )
+    assert row is not None
+    assert row["id"]
+    assert row["exact_hash"]
+    assert "Имя: Тест" in row["search_text"]
+    assert normalize_row({"name": "x", "body": ""}) is None
+
+
+def test_bulk_load_skips_nonempty_index(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from core.tools import bsl_search_index as idx
+
+    jsonl = tmp_path / "c.jsonl"
+    jsonl.write_text(
+        json.dumps({"id": "a", "name": "A", "body": "x"}, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(idx, "_es_request", lambda *a, **k: {"version": {"number": "8.15.3"}})
+    monkeypatch.setattr(idx, "es_doc_count", lambda *a, **k: 42)
+    ok, count, diags = idx.bulk_load_corpus(
+        jsonl,
+        base_url="http://127.0.0.1:19200",
+        index="bsl-methods",
+        force=False,
+    )
+    assert ok is True
+    assert count == 42
+    assert any("skip bulk" in (d.get("message") or "") for d in diags)
 
 
 def test_expand_template_defaults() -> None:
@@ -55,6 +137,65 @@ def test_share_paths_xdg(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Non
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
     assert share_root() == tmp_path / "data" / "1c-dev"
     assert tools_share_dir() == tmp_path / "data" / "1c-dev" / "tools"
+    assert services_share_dir() == tmp_path / "data" / "1c-dev" / "services"
+
+
+def test_resolve_env_vars_overlays_known_keys(tmp_path: Path) -> None:
+    tool_dir = tmp_path / "tool"
+    tool_dir.mkdir()
+    (tool_dir / "env.default").write_text(
+        "FOO_PORT=1\nFOO_IMAGE=img:tag\n",
+        encoding="utf-8",
+    )
+    (tool_dir / ".env").write_text("FOO_PORT=2\n", encoding="utf-8")
+    merged = resolve_env_vars(
+        tool_dir,
+        environ={"FOO_PORT": "9", "FOO_IMAGE": "from-env", "UNRELATED": "x"},
+    )
+    assert merged["FOO_PORT"] == "9"
+    assert merged["FOO_IMAGE"] == "from-env"
+    assert "UNRELATED" not in merged
+
+
+def test_service_up_persists_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    install_tool("v8std", pull=False)
+
+    compose_ok = ComposeCommandResult(
+        ok=True, returncode=0, stdout="", stderr="", diagnostics=[]
+    )
+    with (
+        patch("core.services.manager.docker_available", return_value=True),
+        patch("core.services.manager.port_in_use", return_value=False),
+        patch("core.services.manager.run_compose", return_value=compose_ok),
+        patch(
+            "core.services.manager.check_http",
+            return_value=HealthResult(
+                url="http://127.0.0.1:18766/healthz",
+                reachable=True,
+                status_code=200,
+            ),
+        ),
+    ):
+        from core.services.manager import service_up
+
+        result = service_up("v8std", wait_health_sec=1.0)
+    assert result.status == "ok"
+    assert result.project_name == "1c-dev-v8std"
+    assert state_path().is_file()
+    stacks = load_state()
+    assert "v8std" in stacks
+    assert stacks["v8std"].last_action == "up"
+    assert stacks["v8std"].healthy is True
+    assert stacks["v8std"].labels.get("managed-by") == "1c-dev"
+
+
+def test_cli_services_restart_help() -> None:
+    result = runner.invoke(app, ["services", "--help"])
+    assert result.exit_code == 0
+    assert "restart" in result.stdout
 
 
 def test_install_no_pull_materializes(
@@ -209,6 +350,79 @@ def test_ide_configure_removes_guidance_after_remove(
     agents = (project / "AGENTS.md").read_text(encoding="utf-8")
     assert "<!-- BEGIN 1c-dev:v8std -->" not in agents
     assert not (project / ".cursor" / "rules" / "ext-v8std-when-to-use.mdc").is_file()
+
+
+def test_ide_configure_warns_unreachable_http_mcp(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    install_tool("v8std", pull=False)
+    project = tmp_path / "proj"
+    project.mkdir()
+    with patch(
+        "core.services.health.check_http",
+        return_value=HealthResult(
+            url="http://127.0.0.1:18766/healthz",
+            reachable=False,
+            error="connection refused",
+        ),
+    ):
+        result = configure_ide(project, target="cursor")
+    assert result.status == "ok", result.diagnostics
+    codes = {d.get("code") for d in result.diagnostics}
+    assert "1CX005" in codes
+    assert any(
+        d.get("code") == "1CX005" and "services up v8std" in (d.get("suggestion") or "")
+        for d in result.diagnostics
+    )
+
+
+def test_ide_configure_external_lifecycle_mcp(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """lifecycle=external: MCP url без services / compose."""
+    import yaml
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    tool_dir = tools_share_dir() / "ext-demo"
+    tool_dir.mkdir(parents=True)
+    (tool_dir / "tool.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "id": "ext-demo",
+                "name": "External demo",
+                "version": "0.0.1",
+                "mcp_name": "ext-demo",
+                "scope": "user",
+                "lifecycle": "external",
+                "interface": {
+                    "type": "mcp",
+                    "transport": "streamable-http",
+                    "url": "http://127.0.0.1:19999/mcp",
+                },
+                "agent": {"guidance": "agent/guidance.md"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    agent_dir = tool_dir / "agent"
+    agent_dir.mkdir()
+    (agent_dir / "guidance.md").write_text(
+        "## Optional MCP: ext-demo\n\nWhen: demo.\n",
+        encoding="utf-8",
+    )
+    project = tmp_path / "proj"
+    project.mkdir()
+    with patch(
+        "core.services.health.check_http",
+        return_value=HealthResult(url="x", reachable=True, status_code=200),
+    ):
+        result = configure_ide(project, target="cursor")
+    assert result.status == "ok", result.diagnostics
+    mcp = json.loads((project / ".cursor" / "mcp.json").read_text(encoding="utf-8"))
+    assert mcp["mcpServers"]["ext-demo"] == {"url": "http://127.0.0.1:19999/mcp"}
+    agents = (project / "AGENTS.md").read_text(encoding="utf-8")
+    assert "<!-- BEGIN 1c-dev:ext-demo -->" in agents
 
 
 def test_cli_toolchain_sync_help() -> None:

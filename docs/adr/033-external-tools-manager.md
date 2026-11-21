@@ -204,7 +204,9 @@ catalog/             shipped recipes
 - Реализовать Этап 1 (#172): catalog v8std, tools/services CLI, ide + doctor.
 - Обновить CONTRIBUTING: `toolchain sync` + alias.
 - Расширить ADR-013 note: share layout; `toolchain clean` границы.
-- Этапы 2–6 — отдельные issues после стабильного v8std slice.
+- Этапы 2–4: [#175](https://github.com/pila86/1c-dev/issues/175)
+  (Service Manager, IDE polish, bsl-search BM25 local stack: ES+git build+HF index).
+- Этапы 5 (desire-list) / 6 (full embeddings) — отдельные issues.
 
 ## Связанные решения
 

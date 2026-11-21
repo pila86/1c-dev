@@ -50,17 +50,26 @@ refs #2
 1c-dev uninstall --yes                # cache + uv tool uninstall
 ```
 
-## External tools (ADR-033 / #172)
+## External tools (ADR-033 / #172 / #175)
 
-Recipes: `catalog/<id>/`. Установка ≠ запуск:
+Recipes: `catalog/<id>/` (`v8std`, `bsl-search`). Установка ≠ запуск:
 
 ```bash
 1c-dev tools install v8std
 1c-dev services up v8std
-1c-dev ide configure
+1c-dev services restart v8std   # down + up
+1c-dev ide configure            # MCP + guidance; unreachable → warning
 1c-dev services status v8std
 1c-dev doctor
+
+# bsl-search (ES + BM25; HF corpus при install; ~RAM/disk):
+1c-dev tools install bsl-search
+1c-dev services up bsl-search
+# optional later: EMBEDDING_URL / RERANKER_URL в ~/.local/share/1c-dev/tools/bsl-search/.env
 ```
+
+State сервисов: `~/.local/share/1c-dev/services/state.json` (labels `managed-by=1c-dev`).
+Данные индекса: `~/.local/share/1c-dev/data/bsl-search/`.
 
 Fallback для разработчиков (те же pin’ы):
 

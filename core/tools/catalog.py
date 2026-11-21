@@ -70,6 +70,57 @@ class ToolRecipe:
         path = self.agent.get("guidance")
         return str(path) if path else None
 
+    @property
+    def service_enabled(self) -> bool:
+        service = self.raw.get("service")
+        if isinstance(service, dict):
+            return bool(service.get("enabled", True))
+        return self.lifecycle == "managed"
+
+    @property
+    def is_scaffold(self) -> bool:
+        """True when recipe is a stub (Этап 3 scaffold) — install may soft-fail pins."""
+        return bool(self.raw.get("scaffold"))
+
+    @property
+    def pin_keys(self) -> list[str]:
+        """Env keys that must be pinned (tag/digest) before install.
+
+        Declared via ``source.pins`` / ``source.images`` keys, else inferred as
+        ``*_IMAGE`` entries in env.default at validation time.
+        """
+        source = self.raw.get("source")
+        if not isinstance(source, dict):
+            return []
+        pins = source.get("pins")
+        if isinstance(pins, list):
+            return [str(p) for p in pins]
+        images = source.get("images")
+        if isinstance(images, dict):
+            return [str(k) for k in images]
+        if isinstance(images, list):
+            return [str(p) for p in images]
+        return []
+
+    @property
+    def source_type(self) -> str:
+        source = self.raw.get("source")
+        if isinstance(source, dict):
+            return str(source.get("type") or "")
+        return ""
+
+    @property
+    def compose_build(self) -> bool:
+        """True when compose images are built from source (not pulled)."""
+        if self.runtime.get("build") is True:
+            return True
+        return self.source_type == "git"
+
+    @property
+    def index_config(self) -> dict[str, Any]:
+        value = self.raw.get("index")
+        return value if isinstance(value, dict) else {}
+
 
 def _package_roots() -> list[Path]:
     """Candidate roots that may contain catalog/ (repo or wheel layout)."""

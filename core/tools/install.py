@@ -127,13 +127,19 @@ def resolve_env_vars(
     *,
     environ: dict[str, str] | None = None,
 ) -> dict[str, str]:
-    """Merge env.default + .env + process env for compose/url expansion."""
+    """Merge env.default + .env + process env for compose/url expansion.
+
+    Process env overlays keys already present in recipe env files, plus
+    ``COMPOSE_*``. Tool-specific prefixes (e.g. ``V8STD_``) are covered when
+    those keys exist in env.default / .env.
+    """
     merged: dict[str, str] = {}
     merged.update(_read_env_file(tool_dir / "env.default"))
     merged.update(_read_env_file(tool_dir / ".env"))
+    known = set(merged.keys())
     base = environ if environ is not None else os.environ
     for key, value in base.items():
-        if key.startswith("V8STD_") or key.startswith("COMPOSE_"):
+        if key in known or key.startswith("COMPOSE_"):
             merged[key] = value
     return merged
 
@@ -211,29 +217,57 @@ def tool_info(
     )
 
 
-def _validate_pins(recipe_dir: Path) -> list[Diagnostic]:
+def _pin_keys_for(recipe: ToolRecipe, values: dict[str, str]) -> list[str]:
+    declared = recipe.pin_keys
+    if declared:
+        return declared
+    # Infer image pins from env.default (*_IMAGE).
+    return sorted(k for k in values if k.endswith("_IMAGE"))
+
+
+def _validate_pins(recipe: ToolRecipe) -> list[Diagnostic]:
     diags: list[Diagnostic] = []
+    recipe_dir = recipe.recipe_dir
     env_default = recipe_dir / "env.default"
-    if not env_default.is_file():
-        diags.append(
-            error(
-                "env.default отсутствует в recipe",
-                code="1CX007",
-                source="tools",
-                suggestion="Добавьте pin образов в catalog/<id>/env.default",
-            )
-        )
+    if recipe.lifecycle == "external":
+        # Escape hatch: no local images to pin.
         return diags
-    values = _read_env_file(env_default)
-    for key in ("V8STD_SITE_IMAGE", "V8STD_MCP_IMAGE"):
-        value = values.get(key, "")
-        if not value or "REPLACE_ME" in value:
+    if not env_default.is_file():
+        if recipe.runtime.get("type") == "compose" or recipe.lifecycle == "managed":
             diags.append(
                 error(
+                    "env.default отсутствует в recipe",
+                    code="1CX007",
+                    source="tools",
+                    suggestion="Добавьте pin образов в catalog/<id>/env.default",
+                )
+            )
+        return diags
+    values = _read_env_file(env_default)
+    keys = _pin_keys_for(recipe, values)
+    if not keys and recipe.lifecycle == "managed" and not recipe.is_scaffold:
+        diags.append(
+            warning(
+                "в env.default нет *_IMAGE pin-ключей",
+                code="1CX007",
+                source="tools",
+                suggestion="Объявите source.pins в tool.yaml или *_IMAGE в env.default",
+            )
+        )
+    for key in keys:
+        value = values.get(key, "")
+        if not value or "REPLACE_ME" in value:
+            severity = warning if recipe.is_scaffold else error
+            diags.append(
+                severity(
                     f"pin образа не задан: {key}",
                     code="1CX007",
                     source="tools",
-                    suggestion="Зафиксируйте tag или digest в env.default",
+                    suggestion=(
+                        "Scaffold recipe — pin будет зафиксирован в Этапе 3"
+                        if recipe.is_scaffold
+                        else "Зафиксируйте tag или digest в env.default"
+                    ),
                 )
             )
     return diags
@@ -278,6 +312,10 @@ def _compose_pull(
         "-p",
         recipe.project_name,
     ]
+    user_env = tool_dir / ".env"
+    env_file = user_env if user_env.is_file() else tool_dir / "env.default"
+    if env_file.is_file():
+        cmd.extend(["--env-file", str(env_file)])
     for profile in recipe.profiles:
         cmd.extend(["--profile", profile])
     cmd.append("pull")
@@ -319,6 +357,76 @@ def _compose_pull(
     ]
 
 
+def _compose_build(
+    tool_dir: Path,
+    recipe: ToolRecipe,
+    *,
+    progress: ProgressCb,
+) -> tuple[bool, list[Diagnostic]]:
+    compose = tool_dir / recipe.compose_file
+    if not compose.is_file():
+        return False, [
+            error(
+                f"compose file не найден: {recipe.compose_file}",
+                code="1CX007",
+                source="tools",
+            )
+        ]
+    cmd = [
+        "docker",
+        "compose",
+        "--project-directory",
+        str(tool_dir),
+        "-f",
+        str(compose),
+        "-p",
+        recipe.project_name,
+    ]
+    user_env = tool_dir / ".env"
+    env_file = user_env if user_env.is_file() else tool_dir / "env.default"
+    if env_file.is_file():
+        cmd.extend(["--env-file", str(env_file)])
+    for profile in recipe.profiles:
+        cmd.extend(["--profile", profile])
+    cmd.extend(["build", "--pull"])
+    if progress:
+        progress(f"docker compose build ({recipe.id})…")
+    try:
+        completed = subprocess.run(
+            cmd,
+            cwd=str(tool_dir),
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, "COMPOSE_PROJECT_NAME": recipe.project_name},
+        )
+    except FileNotFoundError:
+        return False, [
+            error(
+                "docker не найден в PATH",
+                code="1CX003",
+                source="tools",
+                suggestion="Установите Docker / Docker Compose",
+            )
+        ]
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "").strip()
+        msg = f"docker compose build failed (exit {completed.returncode})"
+        if detail:
+            msg = f"{msg}: {detail[:500]}"
+        return False, [
+            error(
+                msg,
+                code="1CX006",
+                source="tools",
+                suggestion="Проверьте Dockerfile upstream и сеть",
+            )
+        ]
+    return True, [
+        info("образы собраны", code="1CX000", source="tools"),
+    ]
+
+
 def install_tool(
     tool_id: str,
     *,
@@ -327,7 +435,10 @@ def install_tool(
     platform: str | None = None,
     progress: ProgressCb = None,
 ) -> InstallResult:
-    """Materialize recipe into share; optionally pull images. Does not start service."""
+    """Materialize recipe into share; optionally pull/build images + download index."""
+    from core.tools.bsl_search_index import download_huggingface_corpus
+    from core.tools.git_source import clone_recipe_source
+
     try:
         recipe = load_recipe(tool_id)
     except FileNotFoundError:
@@ -353,7 +464,7 @@ def install_tool(
             ],
         )
 
-    pin_diags = _validate_pins(recipe.recipe_dir)
+    pin_diags = _validate_pins(recipe)
     if any(d.get("severity") == "error" for d in pin_diags):
         return InstallResult(tool_id=tool_id, status="error", diagnostics=pin_diags)
 
@@ -376,17 +487,80 @@ def install_tool(
             ],
         )
 
+    # Re-load recipe from installed copy so paths point at share.
+    installed = load_installed_recipe(tool_id, env=env, platform=platform)
+
     diags: list[Diagnostic] = list(pin_diags)
+    up_hint = (
+        f"1c-dev services up {tool_id}"
+        if recipe.lifecycle == "managed" and recipe.service_enabled
+        else "1c-dev ide configure"
+    )
     diags.append(
         info(
             f"recipe установлен в {dest}",
             code="1CX000",
             source="tools",
-            suggestion="1c-dev services up v8std",
+            suggestion=up_hint,
         )
     )
-    pulled = False
+
     if pull:
+        ok_git, git_diags = clone_recipe_source(installed, dest, progress=progress)
+        diags.extend(git_diags)
+        if not ok_git:
+            return InstallResult(
+                tool_id=tool_id,
+                status="error",
+                path=str(dest),
+                diagnostics=diags,
+            )
+
+        if installed.index_config.get("provider") == "huggingface":
+            ok_hf, _path, hf_diags = download_huggingface_corpus(
+                installed,
+                env=env,
+                platform=platform,
+                progress=progress,
+            )
+            diags.extend(hf_diags)
+            if not ok_hf:
+                return InstallResult(
+                    tool_id=tool_id,
+                    status="error",
+                    path=str(dest),
+                    diagnostics=diags,
+                )
+    elif recipe.source_type == "git" or installed.index_config.get("provider"):
+        diags.append(
+            warning(
+                "skip git clone / index download (--no-pull); "
+                "повторный install без --no-pull перед services up",
+                code="1CX000",
+                source="tools",
+            )
+        )
+
+    pulled = False
+    needs_images = (
+        pull
+        and recipe.lifecycle == "managed"
+        and recipe.runtime.get("type") == "compose"
+        and not recipe.is_scaffold
+    )
+    if needs_images and recipe.compose_build:
+        ok, build_diags = _compose_build(dest, recipe, progress=progress)
+        diags.extend(build_diags)
+        if not ok:
+            return InstallResult(
+                tool_id=tool_id,
+                status="error",
+                path=str(dest),
+                pulled=False,
+                diagnostics=diags,
+            )
+        pulled = True
+    elif needs_images:
         ok, pull_diags = _compose_pull(dest, recipe, progress=progress)
         diags.extend(pull_diags)
         if not ok:
@@ -398,6 +572,14 @@ def install_tool(
                 diagnostics=diags,
             )
         pulled = True
+    elif pull and recipe.is_scaffold:
+        diags.append(
+            warning(
+                "scaffold recipe: docker pull пропущен (pins/образы не готовы)",
+                code="1CX007",
+                source="tools",
+            )
+        )
 
     return InstallResult(
         tool_id=tool_id,
