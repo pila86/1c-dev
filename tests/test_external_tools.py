@@ -139,18 +139,58 @@ def test_ide_configure_adds_v8std_mcp_and_guidance(
     install_tool("v8std", pull=False)
     project = tmp_path / "proj"
     project.mkdir()
-    result = configure_ide(project, target="cursor")
+    result = configure_ide(project, target="all")
     assert result.status == "ok", result.diagnostics
-    mcp = json.loads((project / ".cursor" / "mcp.json").read_text(encoding="utf-8"))
-    assert "v8std" in mcp["mcpServers"]
-    assert mcp["mcpServers"]["v8std"]["url"] == "http://127.0.0.1:18766/mcp"
-    assert "1c-dev" in mcp["mcpServers"]
+    cursor = json.loads((project / ".cursor" / "mcp.json").read_text(encoding="utf-8"))
+    assert "v8std" in cursor["mcpServers"]
+    assert cursor["mcpServers"]["v8std"] == {
+        "url": "http://127.0.0.1:18766/mcp",
+    }
+    assert "1c-dev" in cursor["mcpServers"]
+    kilo = json.loads((project / ".kilo" / "mcp.json").read_text(encoding="utf-8"))
+    assert kilo["mcpServers"]["v8std"] == {
+        "type": "streamable-http",
+        "url": "http://127.0.0.1:18766/mcp",
+    }
     agents = (project / "AGENTS.md").read_text(encoding="utf-8")
     assert "<!-- BEGIN 1c-dev:v8std -->" in agents
     assert "<!-- END 1c-dev:v8std -->" in agents
     rule = project / ".cursor" / "rules" / "ext-v8std-when-to-use.mdc"
     assert rule.is_file()
     assert "managedBy: 1c-dev" in rule.read_text(encoding="utf-8")
+
+
+def test_ide_configure_upserts_kilocode_streamable_http_type(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Re-running configure adds type for managed HTTP servers in .kilo/mcp.json."""
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    install_tool("v8std", pull=False)
+    project = tmp_path / "proj"
+    project.mkdir()
+    kilo_mcp = project / ".kilo" / "mcp.json"
+    kilo_mcp.parent.mkdir(parents=True)
+    kilo_mcp.write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "1c-dev": {"command": "1c-dev", "args": ["mcp"]},
+                    "v8std": {"url": "http://127.0.0.1:18766/mcp"},
+                }
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    result = configure_ide(project, target="kilocode")
+    assert result.status == "ok", result.diagnostics
+    kilo = json.loads(kilo_mcp.read_text(encoding="utf-8"))
+    assert kilo["mcpServers"]["v8std"] == {
+        "type": "streamable-http",
+        "url": "http://127.0.0.1:18766/mcp",
+    }
 
 
 def test_ide_configure_removes_guidance_after_remove(

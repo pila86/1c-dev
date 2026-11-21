@@ -271,8 +271,11 @@ def build_mcp_servers_payload(
     return servers
 
 
-def _installed_http_mcp_servers() -> dict[str, Any]:
-    """Build mcpServers entries for installed managed HTTP tools (ADR-033)."""
+def _installed_http_mcp_servers(*, ide: IdeName) -> dict[str, Any]:
+    """Build mcpServers entries for installed managed HTTP tools (ADR-033).
+
+    Kilocode requires explicit ``type: streamable-http``; Cursor uses url-only.
+    """
     from core.tools.install import (
         expand_template,
         list_installed,
@@ -293,7 +296,10 @@ def _installed_http_mcp_servers() -> dict[str, Any]:
             continue
         env_vars = resolve_env_vars(recipe.recipe_dir)
         url = expand_template(recipe.mcp_url_template, env_vars)
-        servers[recipe.mcp_name] = {"url": url}
+        if ide == "kilocode":
+            servers[recipe.mcp_name] = {"type": "streamable-http", "url": url}
+        else:
+            servers[recipe.mcp_name] = {"url": url}
     return servers
 
 
@@ -501,17 +507,19 @@ def _configure_ide_mcp(
             )
         )
 
-    http_servers = _installed_http_mcp_servers()
-    servers = build_mcp_servers_payload(
-        jar_path=jar_path,
-        java_command=_java_command(),
-        extra_servers=http_servers or None,
-    )
     # Keys managed by 1c-dev that should be removed when tool is uninstalled.
     managed_http_names = {"v8std"}
-    desired_http = set(http_servers)
+    java_command = _java_command()
 
     for ide in ides:
+        http_servers = _installed_http_mcp_servers(ide=ide)
+        servers = build_mcp_servers_payload(
+            jar_path=jar_path,
+            java_command=java_command,
+            extra_servers=http_servers or None,
+        )
+        desired_http = set(http_servers)
+
         rel = mcp_rel_path(ide)
         dest = root / rel
         existed = dest.is_file()
@@ -547,6 +555,10 @@ def _configure_ide_mcp(
         changed = False
         for name, server in servers.items():
             if name not in existing:
+                existing[name] = server
+                changed = True
+            elif name in desired_http and existing.get(name) != server:
+                # Managed HTTP tools: upsert url/type (e.g. kilocode streamable-http).
                 existing[name] = server
                 changed = True
 
