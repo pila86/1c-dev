@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from adapters.source.xmlgen.compile import XmlGenError
+from adapters.source.xmlgen.md_list import ops_touch_md_list, rewrite_md_list_properties
 from adapters.source.xmlgen.resolve import ToolResolve, resolve_jar, resolve_java
 
 _WARN_RE = re.compile(r"^\[WARN\]\s*(.+)$")
@@ -42,6 +43,15 @@ ALLOWED_OPS: frozenset[str] = frozenset(
     }
 )
 
+# Ops whose ``value`` is attr shorthand Name:Type… (validate before jar).
+_ATTR_SHORTHAND_OPS: frozenset[str] = frozenset(
+    {
+        "add-attribute",
+        "add-dimension",
+        "add-resource",
+    }
+)
+
 
 @dataclass(frozen=True)
 class EditOp:
@@ -63,6 +73,38 @@ class EditResult:
     # Parallel to ``warnings`` (same length when used); structured diagnostic
     # codes such as ``1CS010`` for EDT path D soft gaps (ADR-032).
     warning_codes: list[str | None] = field(default_factory=list)
+
+
+def _validate_attr_shorthand(op: EditOp) -> None:
+    """Fail-closed: reject CatalogReference / unknown *Ref before xml-gen jar."""
+    from adapters.source.mdsparrow.dto import parse_attr_shorthand
+
+    try:
+        parse_attr_shorthand(op.value)
+    except ValueError as exc:
+        raise XmlGenError(str(exc), code="1CM004") from exc
+
+
+def _validate_ts_attr_shorthand(op: EditOp) -> None:
+    """Validate add-ts-attribute value ``TS.Name:Type…``."""
+    from adapters.source.mdsparrow.dto import parse_attr_shorthand
+
+    raw = op.value.strip()
+    if "." not in raw:
+        raise XmlGenError(
+            f"add-ts-attribute ожидает TS.Name:Type…, получено: {op.value!r}",
+            code="1CM004",
+        )
+    _ts, rest = raw.split(".", 1)
+    if not rest.strip():
+        raise XmlGenError(
+            f"add-ts-attribute ожидает TS.Name:Type…, получено: {op.value!r}",
+            code="1CM004",
+        )
+    try:
+        parse_attr_shorthand(rest)
+    except ValueError as exc:
+        raise XmlGenError(str(exc), code="1CM004") from exc
 
 
 def edit_metadata(
@@ -109,6 +151,10 @@ def edit_metadata(
                 f"Неподдерживаемая операция meta edit: {op.op!r}",
                 code="1CM002",
             )
+        if op.op in _ATTR_SHORTHAND_OPS:
+            _validate_attr_shorthand(op)
+        elif op.op == "add-ts-attribute":
+            _validate_ts_attr_shorthand(op)
         partial = _run_one_edit(
             object_xml,
             op,
@@ -122,6 +168,17 @@ def edit_metadata(
         for path in partial.changed_paths:
             if path not in changed:
                 changed.append(path)
+
+    # Workaround SteelMorgan/1c-agent-based-dev-framework#27:
+    # modify-property writes RegisterRecords/BasedOn/Owners as text; platform
+    # needs MDListType with xr:Item. Rewrite surgically after successful edits.
+    if ops_touch_md_list([op.value for op in operations if op.op == "modify-property"]):
+        if rewrite_md_list_properties(object_xml):
+            rel = object_xml.name
+            if rel not in changed:
+                changed.append(rel)
+            if aggregate.modified == 0 and aggregate.added == 0:
+                aggregate.modified = 1
 
     aggregate.changed_paths = changed
     return aggregate

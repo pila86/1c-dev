@@ -47,6 +47,21 @@ _ATTR_SPEC_RE = re.compile(
     r"^(?P<name>[^:]+):(?P<type>[^:]+)(?::(?P<qual>[^:]+))?(?::(?P<synonym>.*))?$"
 )
 
+# Platform / mistaken ref literals agents put into JSON ``type`` (not IR ``Ref``).
+_PLATFORM_REF_RE = re.compile(
+    r"^(?P<head>CatalogReference|DocumentReference|"
+    r"CatalogRef|DocumentRef|EnumRef|"
+    r"ChartOfCharacteristicTypesRef|ChartOfAccountsRef|"
+    r"ChartOfCalculationTypesRef|BusinessProcessRef|TaskRef|ExchangePlanRef|"
+    r"СправочникСсылка|ДокументСсылка|ПеречислениеСсылка)\.(?P<name>.+)$",
+    re.IGNORECASE,
+)
+_RU_REF_HEAD_TO_TYPE: dict[str, str] = {
+    "справочникссылка": "Catalog",
+    "документссылка": "Document",
+    "перечислениессылка": "Enum",
+}
+
 
 class IrError(ValueError):
     """Invalid IR / CLI input."""
@@ -55,6 +70,45 @@ class IrError(ValueError):
         super().__init__(message)
         self.code = code
         self.message = message
+
+
+def _guess_reference_qname(atype_raw: str) -> str | None:
+    """If ``atype_raw`` looks like a platform ref literal, return IR reference QName."""
+    m = _PLATFORM_REF_RE.match(atype_raw.strip())
+    if not m:
+        return None
+    head = m.group("head")
+    name = m.group("name").strip()
+    if not name:
+        return None
+    lower = head.lower()
+    if lower in _RU_REF_HEAD_TO_TYPE:
+        return f"{_RU_REF_HEAD_TO_TYPE[lower]}.{name}"
+    # CatalogRef / CatalogReference → Catalog; DocumentRef → Document; …
+    for suffix in ("reference", "ref"):
+        if lower.endswith(suffix) and len(lower) > len(suffix):
+            type_part = head[: -len(suffix)]
+            if type_part:
+                return f"{type_part}.{name}"
+    return None
+
+
+def _unsupported_attr_type_message(atype_raw: str) -> str:
+    """1CM004 message; hint when agent used CatalogRef / Ссылка instead of Ref."""
+    base = f"Неподдерживаемый тип атрибута: {atype_raw!r}"
+    guessed = _guess_reference_qname(atype_raw)
+    if guessed is None and not re.search(
+        r"(?i)Ref\.|Reference\.|Ссылка\.", atype_raw
+    ):
+        return base
+    target = guessed or "Catalog.X"
+    type_part = target.split(".", 1)[0]
+    return (
+        f"{base}. Для ссылки в JSON create используйте "
+        f'{{"type":"Ref","reference":"{target}"}}; '
+        f"для update: Name:{type_part}Ref.{target.split('.', 1)[-1]} "
+        f"или Name:Ref:{target}"
+    )
 
 
 @dataclass
@@ -429,7 +483,7 @@ def parse_attr_spec(spec: str) -> Attribute:
     name = _check_name(m.group("name"), what="реквизита")
     type_raw = m.group("type").strip()
     if type_raw not in ("String", "Number", "Boolean", "Date", "Ref"):
-        raise IrError(f"Неподдерживаемый тип атрибута: {type_raw!r}")
+        raise IrError(_unsupported_attr_type_message(type_raw))
     atype: AttrType = type_raw  # type: ignore[assignment]
     qual = (m.group("qual") or "").strip()
     synonym = (m.group("synonym") or "").strip() or None
@@ -2148,7 +2202,7 @@ def _attribute_from_dict(item: dict[str, Any]) -> Attribute:
             precision = int(item.get("precision") or 15)
             scale = int(item.get("scale") or 2)
     else:
-        raise IrError(f"Неподдерживаемый тип атрибута: {atype_raw!r}")
+        raise IrError(_unsupported_attr_type_message(atype_raw))
     asyn = item.get("synonym")
     return Attribute(
         name=aname,

@@ -693,6 +693,13 @@ def register_tools(server: FastMCP) -> None:
             "BusinessProcess.Approval, Task.Todo, ExchangePlan.Main, "
             "DocumentJournal.Docs); "
             "optional synonym; "
+            "attribute/dimension/resource shape: "
+            "{name, type, length?/precision?/scale?/reference?, synonym?}; "
+            "type enum: String|Number|Boolean|Date|Ref "
+            "(Ref requires reference QName, e.g. Catalog.Products — "
+            "not CatalogRef.Products in type); "
+            'example Ref: {"name":"Product","type":"Ref",'
+            '"reference":"Catalog.Products"}; '
             "for Catalog/Document/Report/DataProcessor/Charts/BusinessProcess/"
             "Task/ExchangePlan: "
             "attributes and tabular_sections; "
@@ -926,6 +933,8 @@ def register_tools(server: FastMCP) -> None:
             "{op:'modify-attribute', value:'Price: synonym=Цена'}, "
             "{op:'set-flag', value:'server=true'}, "
             "{op:'modify-property', value:'registerRecords=AccumulationRegister.X'} "
+            "(XML: RegisterRecords; camelCase registerRecords нормализуется; "
+            "EDT: registerRecords — известный gap 1CS010). "
             "(EDT: value = one qname, comma-separated list, or JSON array; "
             "scalar CommonModule flags unchanged), "
             "{op:'add-content', value:'Catalog.Products'}, "
@@ -1214,8 +1223,9 @@ def register_tools(server: FastMCP) -> None:
         name="publish.url",
         description=(
             "Return the HTTP publish URL for the profile "
-            "(ibsrv: http://{address}:{port}{base}; "
-            "webinst: http://127.0.0.1:{port}/{wsdir})."
+            "(ibsrv: http://{host}:{port}{base}; "
+            "webinst: http://{host}:{port}/{wsdir}; "
+            "host is 127.0.0.1 when profile.address is a wildcard bind)."
             + _PUBLISH_PROFILE
             + _PATH_SCOPE
             + _NO_SHELL

@@ -61,7 +61,7 @@ _TOOL_HINTS: dict[str, str] = {
         "или задайте ConfigurationTemplatesLocation в 1cestart.cfg "
         "(нужно для templates.list / import --from-template)."
     ),
-    "java": "Установите JDK 17+ и добавьте java в PATH (или задайте JAVA_HOME).",
+    "java": "Установите JDK 25+ и добавьте java в PATH (или задайте JAVA_HOME).",
     "xml-gen": "{suggest} (или задайте ONEC_XMLGEN_JAR).",
     "md-reader": "{suggest} (или задайте ONEC_MDREADER_JAR).",
     "1cv8": (

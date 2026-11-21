@@ -14,6 +14,7 @@ include = [
     { path = "templates", format = ["sdist", "wheel"] },
     { path = "schemas", format = ["sdist", "wheel"] },
     { path = "toolchain", format = ["sdist", "wheel"] },
+    { path = "catalog", format = ["sdist", "wheel"] },
     { path = "tools/md-reader", format = ["sdist", "wheel"] },
     { path = "tools/docs-facade", format = ["sdist", "wheel"] },
 ]
@@ -28,7 +29,8 @@ exclude = [
 
 [tool.poetry.dependencies]
 python = "^3.11"
-typer = "^0.16.0"
+# >=0.18: required Argument/Option корректно с Click 8.3+ (UNSET sentinel)
+typer = "^0.20.0"
 pyyaml = "^6.0.3"
 jsonschema = "^4.26.0"
 mcp = ">=1.9.0,<2"
@@ -51,6 +53,7 @@ build-backend = "poetry.core.masonry.api"
 testpaths = ["tests"]
 markers = [
     "integration: needs external tools (xml-gen jar / 1C platform)",
+    "opencode: needs opencode CLI + LLM_* (env or tests/.env.integration); single-stream",
 ]
 
 [tool.ruff]

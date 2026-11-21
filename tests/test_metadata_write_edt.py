@@ -271,6 +271,21 @@ def test_parse_attr_shorthand_helpers() -> None:
     assert n.type == "Number"
     assert n.precision == 15
     assert n.scale == 2
+    ref = parse_attr_shorthand("Product:CatalogRef.Products")
+    assert ref.type == "Ref"
+    assert ref.reference == "Catalog.Products"
+
+
+def test_parse_attr_shorthand_rejects_catalog_reference() -> None:
+    """Fail-closed: CatalogReference / unknown *Ref must not parse as Ref."""
+    from adapters.source.mdsparrow.dto import parse_attr_shorthand
+
+    with pytest.raises(ValueError, match="CatalogRef"):
+        parse_attr_shorthand("ТестСсылка:CatalogReference.Товары")
+    with pytest.raises(ValueError, match="ссылочн"):
+        parse_attr_shorthand("ТестСсылка:СправочникСсылка.Товары")
+    with pytest.raises(ValueError, match="Неподдерживаемый ссылочный"):
+        parse_attr_shorthand("X:FooRef.Bar")
 
 
 def test_update_edt_register_records_gap_surfaces_1cs010(
@@ -404,21 +419,36 @@ def _stub_mdsparrow_tools(
     )
 
 
-def test_create_subsystem_with_content_hard_fail_edt(
+def test_create_subsystem_with_content_sets_content_refs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """#165: create Subsystem + content on EDT refuses before mutation."""
+    """md-sparrow ≥0.6.10: create Subsystem + content → contentRefs via object-set."""
     target = _copy_edt_fixture(tmp_path)
     mutations: list[dict[str, Any]] = []
+    dto_state: dict[str, Any] = {"name": "Sales", "contentRefs": []}
 
     def fake_apply(params: dict[str, Any] | Path, **_k: Any) -> Any:
         assert isinstance(params, dict)
         mutations.append(params)
+        op = params.get("op")
+        if op == "add-md-object":
+            name = params["name"]
+            mdo = target / "src" / "Subsystems" / name / f"{name}.mdo"
+            mdo.parent.mkdir(parents=True, exist_ok=True)
+            mdo.write_text("<Subsystem/>", encoding="utf-8")
+        elif op == "cf-md-object-set":
+            payload = json.loads(params["payloadJson"])
+            dto_state.clear()
+            dto_state.update(payload)
         return MagicMock(stdout="OK", stderr="")
 
     monkeypatch.setattr(
         "adapters.source.mdsparrow.write.apply_mutation",
         fake_apply,
+    )
+    monkeypatch.setattr(
+        "adapters.source.mdsparrow.write.read_object_dto",
+        lambda *_a, **_k: dict(dto_state),
     )
     _stub_mdsparrow_tools(monkeypatch, tmp_path)
 
@@ -426,30 +456,20 @@ def test_create_subsystem_with_content_hard_fail_edt(
         qualified_name="Subsystem.Sales",
         content=["Catalog.Products"],
     )
-    with pytest.raises(MdSparrowError) as exc_info:
-        create_edt_object(target, catalog)
-    assert exc_info.value.code == GAP_CODE
-    assert exc_info.value.suggestion == SUBSYSTEM_CONTENT_GAP_SUGGESTION
-    assert MDSPARROW_CONTENT_REFS_ISSUE in (exc_info.value.suggestion or "")
-    assert mutations == []
-
-    result = create_metadata(target, catalog, edt_create_fn=create_edt_object)
-    assert result.status == "error"
-    gap = next(d for d in result.diagnostics if d.get("code") == GAP_CODE)
-    assert gap.get("severity") == "error"
-    assert gap.get("suggestion") == SUBSYSTEM_CONTENT_GAP_SUGGESTION
-    assert MDSPARROW_CONTENT_REFS_ISSUE in (gap.get("suggestion") or "")
-    assert not (
-        target / "src" / "Subsystems" / "Sales" / "Sales.mdo"
-    ).exists()
+    result = create_edt_object(target, catalog)
+    assert any(m.get("op") == "add-md-object" for m in mutations)
+    set_ops = [m for m in mutations if m.get("op") == "cf-md-object-set"]
+    assert len(set_ops) == 1
+    payload = json.loads(set_ops[0]["payloadJson"])
+    assert payload.get("contentRefs") == ["Catalog.Products"]
+    assert "src/Subsystems/Sales/Sales.mdo" in result.changed_paths
 
 
-def test_add_content_hard_fail_edt(
+def test_add_remove_content_edt_updates_content_refs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """#165: add-content / remove-content on EDT → 1CS010 + workaround suggestion."""
+    """add-content / remove-content on EDT write contentRefs (upstream #78 fix)."""
     target = _copy_edt_fixture(tmp_path)
-    # Minimal Subsystem .mdo so update_edt_object finds the object.
     sub_dir = target / "src" / "Subsystems" / "Sales"
     sub_dir.mkdir(parents=True)
     (sub_dir / "Sales.mdo").write_text(
@@ -458,51 +478,79 @@ def test_add_content_hard_fail_edt(
         "<name>Sales</name></mdclass:Subsystem>",
         encoding="utf-8",
     )
+    dto_state: dict[str, Any] = {"name": "Sales", "contentRefs": []}
     mutations: list[Any] = []
 
     def fake_apply(params: dict[str, Any] | Path, **_k: Any) -> Any:
         mutations.append(params)
+        if isinstance(params, dict) and params.get("op") == "cf-md-object-set":
+            payload = json.loads(params["payloadJson"])
+            dto_state.clear()
+            dto_state.update(payload)
         return MagicMock(stdout="OK", stderr="")
 
     monkeypatch.setattr(
         "adapters.source.mdsparrow.write.apply_mutation",
         fake_apply,
     )
+    monkeypatch.setattr(
+        "adapters.source.mdsparrow.write.read_object_dto",
+        lambda *_a, **_k: dict(dto_state),
+    )
     _stub_mdsparrow_tools(monkeypatch, tmp_path)
 
-    with pytest.raises(MdSparrowError) as add_exc:
+    added = update_edt_object(
+        target,
+        "Subsystem",
+        "Sales",
+        [EditOp("add-content", "Catalog.Products")],
+    )
+    assert added.added == 1
+    assert dto_state.get("contentRefs") == ["Catalog.Products"]
+
+    removed = update_edt_object(
+        target,
+        "Subsystem",
+        "Sales",
+        [EditOp("remove-content", "Catalog.Products")],
+    )
+    assert removed.removed == 1
+    assert dto_state.get("contentRefs") == []
+    assert any(
+        isinstance(m, dict) and m.get("op") == "cf-md-object-set" for m in mutations
+    )
+
+
+def test_content_refs_regression_gap_still_surfaces(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If contentRefs still no-op after set → 1CS010 + suggestion (#78 regression)."""
+    target = _copy_edt_fixture(tmp_path)
+    sub_dir = target / "src" / "Subsystems" / "Sales"
+    sub_dir.mkdir(parents=True)
+    (sub_dir / "Sales.mdo").write_text("<Subsystem/>", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "adapters.source.mdsparrow.write.apply_mutation",
+        lambda *_a, **_k: MagicMock(stdout="OK", stderr=""),
+    )
+    # Always empty — simulates silent no-op write.
+    monkeypatch.setattr(
+        "adapters.source.mdsparrow.write.read_object_dto",
+        lambda *_a, **_k: {"name": "Sales", "contentRefs": []},
+    )
+    _stub_mdsparrow_tools(monkeypatch, tmp_path)
+
+    with pytest.raises(MdSparrowError) as exc_info:
         update_edt_object(
             target,
             "Subsystem",
             "Sales",
             [EditOp("add-content", "Catalog.Products")],
         )
-    assert add_exc.value.code == GAP_CODE
-    assert add_exc.value.suggestion == SUBSYSTEM_CONTENT_GAP_SUGGESTION
-
-    with pytest.raises(MdSparrowError) as rem_exc:
-        update_edt_object(
-            target,
-            "Subsystem",
-            "Sales",
-            [EditOp("remove-content", "Catalog.Products")],
-        )
-    assert rem_exc.value.code == GAP_CODE
-    assert rem_exc.value.suggestion == SUBSYSTEM_CONTENT_GAP_SUGGESTION
-    assert mutations == []
-
-    result = update_metadata(
-        target,
-        "Subsystem.Sales",
-        [EditOp("add-content", "Catalog.Products")],
-        edt_edit_fn=update_edt_object,
-        get_fn=lambda *_a, **_k: MagicMock(status="ok", ir={"type": "Subsystem"}),
-    )
-    assert result.status == "error"
-    gap = next(d for d in result.diagnostics if d.get("code") == GAP_CODE)
-    assert gap.get("suggestion") == SUBSYSTEM_CONTENT_GAP_SUGGESTION
-    assert "source convert --to xml" in (gap.get("suggestion") or "")
-    assert MDSPARROW_CONTENT_REFS_ISSUE in (gap.get("suggestion") or "")
+    assert exc_info.value.code == GAP_CODE
+    assert MDSPARROW_CONTENT_REFS_ISSUE in (exc_info.value.suggestion or "")
+    assert exc_info.value.suggestion == SUBSYSTEM_CONTENT_GAP_SUGGESTION
 
 
 def test_create_edt_object_unit_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

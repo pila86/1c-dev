@@ -95,12 +95,14 @@ def _force_ibsrv_default(root: Path) -> None:
     manifest.write_text(yaml.safe_dump(data, allow_unicode=True), encoding="utf-8")
 
 
-def _write_yaml(path: Path, *, db_path: Path, port: int = 8314) -> None:
+def _write_yaml(
+    path: Path, *, db_path: Path, port: int = 8314, address: str = "0.0.0.0"
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         yaml.safe_dump(
             {
-                "server": {"address": "localhost", "port": port},
+                "server": {"address": address, "port": port},
                 "database": {"path": str(db_path)},
                 "http": {"base": "/"},
             }
@@ -139,7 +141,7 @@ def test_publish_up_idempotent(tmp_path: Path) -> None:
     assert result.status == "ok"
     assert result.running is True
     assert result.pid == 9991
-    assert result.url == "http://localhost:8314/"
+    assert result.url == "http://127.0.0.1:8314/"
     assert starts == []
 
 
@@ -157,7 +159,17 @@ def test_publish_up_starts_daemon(tmp_path: Path) -> None:
     def ibcmd_run(argv: list[str]) -> IbcmdRunResult:
         captured_ibcmd.append(argv)
         out = next(a.split("=", 1)[1] for a in argv if a.startswith("--out="))
-        _write_yaml(Path(out), db_path=db)
+        addr = next(
+            (a.split("=", 1)[1] for a in argv if a.startswith("--http-address=")),
+            "0.0.0.0",
+        )
+        port = int(
+            next(
+                (a.split("=", 1)[1] for a in argv if a.startswith("--http-port=")),
+                "8314",
+            )
+        )
+        _write_yaml(Path(out), db_path=db, port=port, address=addr)
         return IbcmdRunResult(returncode=0, stdout="", stderr="", argv=argv)
 
     def ibsrv_run(argv: list[str]) -> IbsrvRunResult:
@@ -179,9 +191,10 @@ def test_publish_up_starts_daemon(tmp_path: Path) -> None:
     assert result.status == "ok"
     assert result.running is True
     assert result.pid == 4242
-    assert result.url == "http://localhost:8314/"
+    assert result.url == "http://127.0.0.1:8314/"
     assert captured_ibcmd
     assert "server" in captured_ibcmd[0]
+    assert "--http-address=0.0.0.0" in captured_ibcmd[0]
     assert captured_ibsrv
     assert "--disable-direct-gate" in captured_ibsrv[0]
 
@@ -274,11 +287,67 @@ def test_publish_webinst_up(tmp_path: Path) -> None:
     conf = (root / ".1c-dev" / "publish" / "apache" / "httpd.conf").read_text(
         encoding="utf-8"
     )
+    assert "Listen 0.0.0.0:8315" in conf
     assert 'Alias "/shop"' in conf
     assert "SetHandler 1c-application" in conf
     vrd = root / ".1c-dev" / "publish" / "apache" / "www" / "default.vrd"
     assert vrd.is_file()
     assert str(db.resolve()) in vrd.read_text(encoding="utf-8").replace("&quot;", '"')
+
+
+def test_publish_webinst_custom_address(tmp_path: Path) -> None:
+    root = _init_with_ib(tmp_path)
+    manifest = root / ".1c-dev" / "project.yaml"
+    data = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    runtime_id = data["runtimes"][0]["id"]
+    data["publish"] = {
+        "default": "apache",
+        "profiles": {
+            "apache": {
+                "backend": "webinst",
+                "runtime": runtime_id,
+                "port": 8315,
+                "address": "192.168.1.10",
+                "wsdir": "shop",
+            }
+        },
+    }
+    manifest.write_text(yaml.safe_dump(data, allow_unicode=True), encoding="utf-8")
+
+    ibcmd = _platform_bin_with_ws(tmp_path)
+    apache_home = tmp_path / "apache-home"
+    (apache_home / "bin").mkdir(parents=True)
+    (apache_home / "bin" / "httpd").write_text("#!/bin/sh\n", encoding="utf-8")
+    (apache_home / "modules").mkdir()
+    for name in ("mod_mpm_event.so", "mod_authz_core.so", "mod_alias.so"):
+        (apache_home / "modules" / name).write_bytes(b"")
+
+    def ap_run(argv: list[str]) -> ApacheRunResult:
+        profile = root / ".1c-dev" / "publish" / "apache"
+        (profile / "httpd.pid").write_text("5556\n", encoding="utf-8")
+        return ApacheRunResult(0, "", "", argv)
+
+    result = run_up(
+        root,
+        discover=lambda: _fake_discovery(ibcmd=ibcmd, ibsrv=None, webinst=None),
+        apache_run=ap_run,
+        apache_home=ApacheResolve(
+            found=True,
+            home=apache_home,
+            httpd=apache_home / "bin" / "httpd",
+            modules_dir=apache_home / "modules",
+            source="cache",
+        ),
+        is_alive=lambda pid: pid == 5556,
+        settle_seconds=0,
+        wait_lock_seconds=1.0,
+    )
+    assert result.status == "ok"
+    assert result.url == "http://192.168.1.10:8315/shop"
+    conf = (root / ".1c-dev" / "publish" / "apache" / "httpd.conf").read_text(
+        encoding="utf-8"
+    )
+    assert "Listen 192.168.1.10:8315" in conf
 
 
 def test_publish_webinst_missing_ws_module(tmp_path: Path) -> None:

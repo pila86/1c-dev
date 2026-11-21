@@ -72,7 +72,7 @@ Windows:      %LOCALAPPDATA%\1c-dev\
 | `pin` | Версия / commit / tag |
 | `source` | Откуда брать (git commit, GitHub release, local-build) |
 | `sha256` | Опционально; при mismatch — diagnostic + re-fetch |
-| `min_java` | Минимальный major JDK |
+| `min_java` | Минимальный major JDK (для полного toolchain — **25**: xml-gen патчится на Gradle 9.1 + bytecode 25 при sync; md-sparrow тоже 25+) |
 | `env` | Имя env-override (`ONEC_XMLGEN_JAR`, …) |
 | `status` | Опционально `deferred` (компонент ещё не собирается) |
 

@@ -33,19 +33,33 @@ refs #2
 
 ## Toolchain jars
 
-Рекомендуемый путь (ADR-013 / #48) — без ручных скриптов:
+Рекомендуемый путь (ADR-013 / #48, ADR-033) — без ручных скриптов:
 
 ```bash
-1c-dev tools sync
+1c-dev toolchain sync
+# alias (переходный период): 1c-dev tools sync
 ```
 
 Кэш: Linux/macOS `~/.cache/1c-dev/tools/`, Windows `%LOCALAPPDATA%\1c-dev\tools\`.
+`toolchain clean` **не** удаляет installed external tools (`~/.local/share/1c-dev/tools/`).
 
 Снятие cache / пакета:
 
 ```bash
-1c-dev tools clean --yes
+1c-dev toolchain clean --yes
 1c-dev uninstall --yes                # cache + uv tool uninstall
+```
+
+## External tools (ADR-033 / #172)
+
+Recipes: `catalog/<id>/`. Установка ≠ запуск:
+
+```bash
+1c-dev tools install v8std
+1c-dev services up v8std
+1c-dev ide configure
+1c-dev services status v8std
+1c-dev doctor
 ```
 
 Fallback для разработчиков (те же pin’ы):
@@ -60,9 +74,9 @@ pwsh scripts/fetch-xml-gen.ps1
 pwsh scripts/fetch-md-reader.ps1
 ```
 
-- xml-gen: JDK 17+, override `ONEC_XMLGEN_JAR`
-- md-reader: JDK 21+ (MDClasses 0.20.0), override `ONEC_MDREADER_JAR`
-- md-sparrow (M7 / #153, ADR-032 write D): `1c-dev tools sync` кладёт `md-sparrow.jar` в `tools/` (soft, pin 0.6.7); JDK **Temurin 25+**; override `ONEC_MDSPARROW_JAR`. Без jar/JDK → diagnostic `1CS008` / `ENV_UNAVAILABLE` на `apply-mutation`
+- Единый JDK для полного toolchain: **JDK 25+** (xml-gen собирается с локальным патчем Gradle 9.1; md-sparrow требует 25+). Override jars: `ONEC_XMLGEN_JAR`, `ONEC_MDREADER_JAR`, `ONEC_MDSPARROW_JAR`
+- md-reader: pin MDClasses 0.20.0 (сборка при sync на том же JDK 25)
+- md-sparrow (M7 / #153, ADR-032 write D): `1c-dev tools sync` кладёт `md-sparrow.jar` в `tools/` (soft, pin 0.6.11); без jar/JDK → diagnostic `1CS008` / `ENV_UNAVAILABLE` на `apply-mutation`
 - yaxunit (M5, ADR-029 §7a): `1c-dev tools sync` кладёт `YAxUnit-<pin>.cfe` в `tools/` (soft); override `ONEC_YAXUNIT_CFE=/path/to/YAxUnit.cfe`. В `project.yaml` не объявляется — runner подключается `1c-dev yaxunit ensure` / `test run`
 - apache (publish/webinst, #94): Unix — `./scripts/fetch-apache.sh` или `1c-dev tools sync` (gcc, make, `libpcre2-dev`); Windows — prebuilt zip из манифеста; override `ONEC_APACHE_HOME`
 
@@ -92,6 +106,8 @@ pwsh scripts/fetch-md-reader.ps1
 ```bash
 poetry run pytest -m integration
 ```
+
+- OpenCode + LLM (`opencode`): `poetry run pytest -m opencode` — нужен `opencode` в PATH и `LLM_MODEL` (process env или `tests/.env.integration`, шаблон `tests/.env.integration.example`). Для `opencode/*` достаточно модели; для своего openai-compatible endpoint — ещё `LLM_BASE_URL` / `LLM_API_KEY`. Артефакты в `.opencode-it/runs/`. Локальная LLM — **один поток** (helpers берут file-lock). Без настроек тесты skip.
 
 Перед коммитом: `poetry run ruff check .`, `poetry run mypy`, `poetry run pytest`.
 

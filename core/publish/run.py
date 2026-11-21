@@ -57,14 +57,13 @@ from core.publish.constants import (
     CODE_WEBINST_MISSING,
 )
 from core.publish.paths import (
-    DEFAULT_HTTP_ADDRESS,
     DEFAULT_HTTP_BASE,
-    DEFAULT_WEBINST_ADDRESS,
     data_dir,
     profile_dir,
     resolve_config_path,
     resolve_httpd_conf_path,
     resolve_www_dir,
+    url_host_for_bind,
 )
 from core.publish.resolve import ResolvedPublishProfile, resolve_or_ensure_publish_profile
 from core.publish.result import PublishResult
@@ -230,19 +229,30 @@ def _alive_httpd_pid(profile_root: Path, *, is_alive: IsRunningFn) -> int | None
 
 
 def _url_from_config(config_path: Path) -> str | None:
-    return build_url(parse_server_config(config_path))
+    cfg = parse_server_config(config_path)
+    server = cfg.get("server")
+    if isinstance(server, dict):
+        raw_addr = server.get("address")
+        if isinstance(raw_addr, str) and raw_addr:
+            cfg = {
+                **cfg,
+                "server": {**server, "address": url_host_for_bind(raw_addr)},
+            }
+    return build_url(cfg)
 
 
 def _webinst_url(profile: ResolvedPublishProfile) -> str:
     wsdir = profile.wsdir or profile.profile_id
     return webinst_build_url(
-        address=DEFAULT_WEBINST_ADDRESS,
+        address=url_host_for_bind(profile.address),
         port=profile.port,
         wsdir=wsdir,
     )
 
 
-def _yaml_needs_init(config_path: Path, *, db_path: Path, port: int) -> bool:
+def _yaml_needs_init(
+    config_path: Path, *, db_path: Path, port: int, address: str
+) -> bool:
     if not config_path.is_file():
         return True
     cfg = parse_server_config(config_path)
@@ -254,6 +264,7 @@ def _yaml_needs_init(config_path: Path, *, db_path: Path, port: int) -> bool:
             path_val = raw
     server = cfg.get("server")
     port_val: int | None = None
+    address_val: str | None = None
     if isinstance(server, dict):
         raw_port = server.get("port")
         if isinstance(raw_port, int):
@@ -263,9 +274,14 @@ def _yaml_needs_init(config_path: Path, *, db_path: Path, port: int) -> bool:
                 port_val = int(raw_port)  # type: ignore[arg-type]
             except (TypeError, ValueError):
                 port_val = None
+        raw_addr = server.get("address")
+        if isinstance(raw_addr, str) and raw_addr.strip():
+            address_val = raw_addr.strip()
     if path_val is None or Path(path_val).resolve() != db_path.resolve():
         return True
     if port_val != port:
+        return True
+    if address_val != address:
         return True
     return False
 
@@ -703,7 +719,7 @@ def _run_up_webinst(
         port=profile.port,
         modules_dir=resolved.modules_dir,
         ws_module=ws_module,
-        address=DEFAULT_WEBINST_ADDRESS,
+        address=profile.address,
     )
     materialize_publication(
         conf_path=conf_path,
@@ -874,7 +890,9 @@ def _run_up_ibsrv(
             ],
         )
 
-    if _yaml_needs_init(cfg_path, db_path=db_path, port=profile.port):
+    if _yaml_needs_init(
+        cfg_path, db_path=db_path, port=profile.port, address=profile.address
+    ):
         try:
             server_config_init(
                 discovery.ibcmd.path,
@@ -882,7 +900,7 @@ def _run_up_ibsrv(
                 db_path=db_path,
                 http_port=profile.port,
                 name=profile.name,
-                http_address=DEFAULT_HTTP_ADDRESS,
+                http_address=profile.address,
                 http_base=DEFAULT_HTTP_BASE,
                 run=ibcmd_run,
             )

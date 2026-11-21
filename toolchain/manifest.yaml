@@ -9,7 +9,8 @@ components:
       type: git
       repo: https://github.com/SteelMorgan/1c-agent-based-dev-framework.git
       sparse_path: tools/xml-gen
-    min_java: 17
+    # Host+bytecode JDK 25 (Gradle 9.1 patch in fetch_xml_gen); единый с md-sparrow.
+    min_java: 25
     env: ONEC_XMLGEN_JAR
 
   - id: md-reader
@@ -57,18 +58,18 @@ components:
     sha256: "805a2277c997a3c24be0b0d080696479e91e4a15ed7e27aaf3991a7346522d70"
 
   # Soft: md-sparrow fat jar for EDT write path D (ADR-032 / #153).
-  # JDK Temurin 25+; override ONEC_MDSPARROW_JAR. Bake-off / edt_spike pin 0.6.7.
+  # JDK Temurin 25+; override ONEC_MDSPARROW_JAR. Pin ≥0.6.10 (contentRefs EDT).
   - id: md-sparrow
     artifact: md-sparrow.jar
-    pin: "0.6.7"
+    pin: "0.6.11"
     source:
       type: github-release
       repo: yellow-hammer/md-sparrow
-      asset: md-sparrow-0.6.7-all.jar
-      url: https://github.com/yellow-hammer/md-sparrow/releases/download/v0.6.7/md-sparrow-0.6.7-all.jar
+      asset: md-sparrow-0.6.11-all.jar
+      url: https://github.com/yellow-hammer/md-sparrow/releases/download/v0.6.11/md-sparrow-0.6.11-all.jar
     min_java: 25
     env: ONEC_MDSPARROW_JAR
-    sha256: "04552ac61df315d3314f95f5102deefd94319d629a97896215cb52b978af68d6"
+    sha256: "4b89f976282e741762d75403887b3a6f9d12a3901eb34af4551aac2fa8fbc549"
 
   # Soft: user-owned httpd home for publish/webinst (#94).
   # Unix: tools sync собирает ASF httpd+apr+apr-util в ~/.cache/1c-dev/tools/apache/
@@ -76,13 +77,13 @@ components:
   # Windows: prebuilt zip (Apache Lounge). Override: ONEC_APACHE_HOME.
   - id: apache
     artifact: apache
-    pin: "2.4.68"
+    pin: "2.4.71"
     source:
       type: apache-home
       build:
-        httpd: https://downloads.apache.org/httpd/httpd-2.4.68.tar.gz
+        httpd: https://downloads.apache.org/httpd/httpd-2.4.71.tar.gz
         apr: https://downloads.apache.org/apr/apr-1.7.6.tar.gz
-        apr_util: https://downloads.apache.org/apr/apr-util-1.6.5.tar.gz
+        apr_util: https://downloads.apache.org/apr/apr-util-1.6.6.tar.gz
       urls:
         windows_amd64: https://www.apachelounge.com/download/VS17/binaries/httpd-2.4.66-251206-Win64-VS17.zip
     env: ONEC_APACHE_HOME

@@ -342,7 +342,7 @@ def test_cli_tools_sync_json(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
             diagnostics=[],
         )
 
-    monkeypatch.setattr("cli.tools.sync_tools", fake_sync)
+    monkeypatch.setattr("cli.toolchain.sync_tools", fake_sync)
     runner = CliRunner()
     result = runner.invoke(app, ["tools", "sync", "--output", "json"])
     assert result.exit_code == 0
@@ -369,7 +369,7 @@ def test_cli_tools_sync_text_progress(monkeypatch: pytest.MonkeyPatch, tmp_path:
             diagnostics=[],
         )
 
-    monkeypatch.setattr("cli.tools.sync_tools", fake_sync)
+    monkeypatch.setattr("cli.toolchain.sync_tools", fake_sync)
     runner = CliRunner()
     result = runner.invoke(app, ["tools", "sync"])
     assert result.exit_code == 0

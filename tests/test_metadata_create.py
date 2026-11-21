@@ -197,6 +197,7 @@ def test_register_from_parts_and_json() -> None:
     assert accum.qualified_name == "AccumulationRegister.Stock"
     accum_dsl = ir_to_xmlgen_dsl(accum.to_dict())
     assert accum_dsl["resources"][0]["type"] == "Number(15,3)"
+    assert accum_dsl["dimensions"][0]["type"] == "CatalogRef.Products"
 
     with pytest.raises(IrError) as exc:
         catalog_from_parts(
@@ -204,6 +205,33 @@ def test_register_from_parts_and_json() -> None:
             value_specs=["X"],
         )
     assert exc.value.code == "1CM004"
+
+
+def test_ref_type_platform_literal_hint() -> None:
+    """DX: CatalogRef / Ссылка in type → 1CM004 with Ref+reference hint."""
+    for bad_type in (
+        "CatalogRef.Товары",
+        "CatalogReference.Товары",
+        "СправочникСсылка.Товары",
+    ):
+        with pytest.raises(IrError) as exc:
+            catalog_from_json(
+                {
+                    "type": "InformationRegister",
+                    "name": "Prices",
+                    "dimensions": [{"name": "Товар", "type": bad_type}],
+                }
+            )
+        assert exc.value.code == "1CM004"
+        msg = exc.value.message
+        assert '{"type":"Ref","reference":"Catalog.Товары"}' in msg
+        assert "CatalogRef.Товары" in msg or "Ref:Catalog.Товары" in msg
+
+    with pytest.raises(IrError) as exc_cli:
+        parse_attr_spec("Товар:CatalogRef.Товары")
+    assert exc_cli.value.code == "1CM004"
+    assert "Ref" in exc_cli.value.message
+    assert "Catalog.Товары" in exc_cli.value.message
 
 
 def test_common_module_from_parts_and_json() -> None:

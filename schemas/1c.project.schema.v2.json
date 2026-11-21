@@ -221,6 +221,11 @@
                 "type": "integer",
                 "minimum": 1
               },
+              "address": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Bind address (Listen / ibsrv --http-address). Default: 0.0.0.0. Wildcard bind uses 127.0.0.1 in published URLs."
+              },
               "config": {
                 "type": "string",
                 "description": "Путь к yaml ibsrv / иным артефактам публикации."

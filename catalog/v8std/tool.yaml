@@ -1,0 +1,33 @@
+id: v8std
+name: 1C Development Standards (v8std)
+version: "0.1.0"
+mcp_name: v8std
+
+scope: user
+lifecycle: managed
+
+source:
+  type: docker
+
+runtime:
+  type: compose
+  file: compose.yaml
+  project_name: 1c-dev-v8std
+  profiles: [mcp]
+
+interface:
+  type: mcp
+  transport: streamable-http
+  url: "http://127.0.0.1:${V8STD_MCP_PORT:-18766}/mcp"
+
+healthcheck:
+  type: http
+  url: "http://127.0.0.1:${V8STD_MCP_PORT:-18766}/healthz"
+  timeout_sec: 2
+
+service:
+  enabled: true
+
+agent:
+  guidance: agent/guidance.md
+  mode: both

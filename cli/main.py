@@ -21,9 +21,11 @@ from cli.output import OutputFormat
 from cli.project import app as project_app
 from cli.publish import app as publish_app
 from cli.runtime import app as runtime_app
+from cli.services import app as services_app
 from cli.source import app as source_app
 from cli.templates import app as templates_app
 from cli.test import app as test_app
+from cli.toolchain import app as toolchain_app
 from cli.tools import app as tools_app
 from cli.uninstall import uninstall_command
 from cli.yaxunit import app as yaxunit_app
@@ -44,7 +46,9 @@ app.add_typer(configuration_app, name="configuration")
 app.add_typer(extension_app, name="extension")
 app.add_typer(templates_app, name="templates")
 app.add_typer(source_app, name="source")
+app.add_typer(toolchain_app, name="toolchain")
 app.add_typer(tools_app, name="tools")
+app.add_typer(services_app, name="services")
 app.add_typer(ide_app, name="ide")
 app.add_typer(docs_app, name="docs")
 app.add_typer(test_app, name="test")

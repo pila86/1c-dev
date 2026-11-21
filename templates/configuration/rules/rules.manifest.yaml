@@ -8,3 +8,5 @@ rules:
     title: "Адреса опубликованных сервисов 1С"
   - id: bsl-transactions
     title: "Транзакции 1С"
+  - id: bsl-platform-docs-lookup
+    title: "BSL: документация встроенного языка"

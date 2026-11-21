@@ -8,13 +8,23 @@ from core.project.constants import HOME_PUBLISH_DIR_NAME
 
 DEFAULT_HTTP_PORT = 8314
 DEFAULT_WEBINST_PORT = 8315
-DEFAULT_HTTP_ADDRESS = "localhost"
+DEFAULT_HTTP_ADDRESS = "0.0.0.0"
 DEFAULT_HTTP_BASE = "/"
-DEFAULT_WEBINST_ADDRESS = "127.0.0.1"
+DEFAULT_WEBINST_ADDRESS = "0.0.0.0"
+DEFAULT_URL_HOST = "127.0.0.1"
+_WILDCARD_BIND_ADDRESSES = frozenset({"0.0.0.0", "::"})
 YAML_NAME = "ibsrv.yaml"
 DATA_DIR_NAME = "data"
 HTTPD_CONF_NAME = "httpd.conf"
 WWW_DIR_NAME = "www"
+
+
+def url_host_for_bind(address: str) -> str:
+    """Host for client URLs: wildcard bind → loopback, else ``address`` as-is."""
+    trimmed = address.strip()
+    if trimmed in _WILDCARD_BIND_ADDRESSES:
+        return DEFAULT_URL_HOST
+    return trimmed or DEFAULT_URL_HOST
 
 
 def publish_root(project_root: Path) -> Path:

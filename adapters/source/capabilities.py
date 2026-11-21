@@ -47,11 +47,11 @@ SOURCE_ADAPTER_CAPABILITIES: dict[SourceFormat, dict[CapabilityName, CapabilityV
 }
 
 # Известные gaps EDT write path D (bake-off S2 / ADR-032) — warning/hard 1CS010.
+# subsystem_content снят: md-sparrow ≥0.6.10 пишет contentRefs (upstream #78).
 EDT_WRITE_KNOWN_GAPS: frozenset[str] = frozenset(
     {
         "number_precision_scale",
         "tabular_section_synonym",
-        "subsystem_content",  # hard refuse; md-sparrow#78 / #165
     }
 )
 

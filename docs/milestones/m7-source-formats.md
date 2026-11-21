@@ -103,7 +103,7 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 - [x] `source.convert --extension` CLI + MCP (#162)
 - [x] `extension add` с `format=edt` (#163)
 - [x] Acceptance: convert tests → build → test.run; YAXUNIT без изменений (#164) (`tests/test_m7_acceptance.py`)
-- [x] EDT: hard-fail состава подсистемы + suggestion с обходом ([#165](https://github.com/pila86/1c-dev/issues/165); upstream [md-sparrow#78](https://github.com/yellow-hammer/md-sparrow/issues/78))
+- [x] EDT: состав подсистемы через `contentRefs` (md-sparrow ≥0.6.10; [#165](https://github.com/pila86/1c-dev/issues/165); upstream [md-sparrow#78](https://github.com/yellow-hammer/md-sparrow/issues/78) fixed)
 - [x] EDT: `registerRecords` через array (не string `Prop=value`); probe 0.6.7 — silent no-op → hard-fail `1CS010` + suggestion ([#167](https://github.com/pila86/1c-dev/issues/167))
 
 ## Out of scope
@@ -117,8 +117,7 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 - Публичный `source.write` как замена `metadata.create`
 - YAXUNIT как EDT/XML в `project.yaml` / `src/` (остаётся cache `.cfe` + ensure)
 - Автоконверт всех nested без `--extension`
-- Запись состава подсистемы в `.mdo` у себя (ждём md-sparrow#78); прочие EDT write-gaps (Number, ts-attribute) — follow-up (#166)
-- Тихий no-op content на EDT — **не** out of scope: честный fail → [#165](https://github.com/pila86/1c-dev/issues/165)
+- Прочие EDT write-gaps (Number precision, ts-attribute synonym) — follow-up (#166)
 - String→array для `registerRecords` — **не** out of scope → [#167](https://github.com/pila86/1c-dev/issues/167)
 
 ## Manual verification
@@ -168,7 +167,7 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 | Риск | Митигация |
 |------|-----------|
 | md-sparrow дыры на TS/синонимах (bake-off S2) | Contract tests; fallback bridge только для известных gaps; фиксировать в spike |
-| md-sparrow EDT: `contentRefs` не пишется (тихий no-op) | Upstream [md-sparrow#78](https://github.com/yellow-hammer/md-sparrow/issues/78); у нас hard-fail + suggestion [#165](https://github.com/pila86/1c-dev/issues/165) |
+| md-sparrow EDT: `contentRefs` (состав подсистемы) | Fixed upstream [md-sparrow#78](https://github.com/yellow-hammer/md-sparrow/issues/78) в ≥0.6.10; pin 0.6.11; у нас write + verify, при регрессии — `1CS010` [#165](https://github.com/pila86/1c-dev/issues/165) |
 | `registerRecords` как string в DTO (наш wire) | [#167](https://github.com/pila86/1c-dev/issues/167): coerce → array; probe md-sparrow 0.6.7 EDT — array OK, `.mdo` no-op → hard-fail `1CS010` + suggestion (ручной `.mdo` / convert XML) |
 | `1cedtcli` / workspace collision | Fresh `-data` workspace; документировать в doctor/spike |
 | Wayland / GTK для `/CheckModules` | Уже известен workaround (X11); не специфичен EDT |
