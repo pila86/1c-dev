@@ -8,7 +8,13 @@ import typer
 
 from cli.output import OutputFormat, OutputOption, resolve_output
 from core.exit_codes import ENV_UNAVAILABLE, RUNTIME_FAILURE, SUCCESS
-from core.services.manager import service_down, service_logs, service_status, service_up
+from core.services.manager import (
+    service_down,
+    service_logs,
+    service_restart,
+    service_status,
+    service_up,
+)
 
 app = typer.Typer(
     name="services",
@@ -89,6 +95,27 @@ def services_down_command(
         typer.echo(message, err=True)
 
     result = service_down(tool_id, progress=progress if live else None)
+    if fmt is OutputFormat.json:
+        typer.echo(json.dumps(result.to_payload(), ensure_ascii=False, indent=2))
+    else:
+        _emit_text(result)
+    _exit_for(result)
+
+
+@app.command("restart")
+def services_restart_command(
+    ctx: typer.Context,
+    tool_id: str = typer.Argument(..., help="Id установленного tool."),
+    output: OutputOption = None,
+) -> None:
+    """Перезапустить managed stack (down + up)."""
+    fmt = resolve_output(ctx, output)
+    live = fmt is not OutputFormat.json
+
+    def progress(message: str) -> None:
+        typer.echo(message, err=True)
+
+    result = service_restart(tool_id, progress=progress if live else None)
     if fmt is OutputFormat.json:
         typer.echo(json.dumps(result.to_payload(), ensure_ascii=False, indent=2))
     else:

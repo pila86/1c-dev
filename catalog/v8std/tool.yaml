@@ -8,6 +8,9 @@ lifecycle: managed
 
 source:
   type: docker
+  pins:
+    - V8STD_SITE_IMAGE
+    - V8STD_MCP_IMAGE
 
 runtime:
   type: compose

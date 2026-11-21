@@ -1,9 +1,10 @@
-"""Unit tests for External Tools Manager Stage 1 (ADR-033 / #172)."""
+"""Unit tests for External Tools Manager (ADR-033 / #172 / #175)."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
@@ -11,6 +12,9 @@ from typer.testing import CliRunner
 from cli.main import app
 from core.exit_codes import RUNTIME_FAILURE, SUCCESS
 from core.project.ide import configure_ide
+from core.services.compose import ComposeCommandResult
+from core.services.health import HealthResult
+from core.services.state import load_state, state_path
 from core.tools.catalog import catalog_root, list_catalog, load_recipe
 from core.tools.install import (
     expand_template,
@@ -18,9 +22,10 @@ from core.tools.install import (
     is_installed,
     list_installed,
     remove_tool,
+    resolve_env_vars,
     tool_info,
 )
-from core.tools.paths import share_root, tools_share_dir
+from core.tools.paths import services_share_dir, share_root, tools_share_dir
 
 runner = CliRunner()
 
@@ -55,6 +60,65 @@ def test_share_paths_xdg(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Non
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
     assert share_root() == tmp_path / "data" / "1c-dev"
     assert tools_share_dir() == tmp_path / "data" / "1c-dev" / "tools"
+    assert services_share_dir() == tmp_path / "data" / "1c-dev" / "services"
+
+
+def test_resolve_env_vars_overlays_known_keys(tmp_path: Path) -> None:
+    tool_dir = tmp_path / "tool"
+    tool_dir.mkdir()
+    (tool_dir / "env.default").write_text(
+        "FOO_PORT=1\nFOO_IMAGE=img:tag\n",
+        encoding="utf-8",
+    )
+    (tool_dir / ".env").write_text("FOO_PORT=2\n", encoding="utf-8")
+    merged = resolve_env_vars(
+        tool_dir,
+        environ={"FOO_PORT": "9", "FOO_IMAGE": "from-env", "UNRELATED": "x"},
+    )
+    assert merged["FOO_PORT"] == "9"
+    assert merged["FOO_IMAGE"] == "from-env"
+    assert "UNRELATED" not in merged
+
+
+def test_service_up_persists_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    install_tool("v8std", pull=False)
+
+    compose_ok = ComposeCommandResult(
+        ok=True, returncode=0, stdout="", stderr="", diagnostics=[]
+    )
+    with (
+        patch("core.services.manager.docker_available", return_value=True),
+        patch("core.services.manager.port_in_use", return_value=False),
+        patch("core.services.manager.run_compose", return_value=compose_ok),
+        patch(
+            "core.services.manager.check_http",
+            return_value=HealthResult(
+                url="http://127.0.0.1:18766/healthz",
+                reachable=True,
+                status_code=200,
+            ),
+        ),
+    ):
+        from core.services.manager import service_up
+
+        result = service_up("v8std", wait_health_sec=1.0)
+    assert result.status == "ok"
+    assert result.project_name == "1c-dev-v8std"
+    assert state_path().is_file()
+    stacks = load_state()
+    assert "v8std" in stacks
+    assert stacks["v8std"].last_action == "up"
+    assert stacks["v8std"].healthy is True
+    assert stacks["v8std"].labels.get("managed-by") == "1c-dev"
+
+
+def test_cli_services_restart_help() -> None:
+    result = runner.invoke(app, ["services", "--help"])
+    assert result.exit_code == 0
+    assert "restart" in result.stdout
 
 
 def test_install_no_pull_materializes(

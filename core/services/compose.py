@@ -1,4 +1,4 @@
-"""Thin docker compose adapter for a single installed tool (Этап 1)."""
+"""Docker compose adapter for managed external tool stacks (ADR-033 Этап 2)."""
 
 from __future__ import annotations
 
@@ -35,6 +35,17 @@ def port_in_use(host: str, port: int) -> bool:
         return sock.connect_ex((host, port)) == 0
 
 
+def compose_env_file(tool_dir: Path) -> Path | None:
+    """Prefer user .env; fall back to env.default shipped with recipe."""
+    user_env = tool_dir / ".env"
+    if user_env.is_file():
+        return user_env
+    default_env = tool_dir / "env.default"
+    if default_env.is_file():
+        return default_env
+    return None
+
+
 def _compose_base(tool_dir: Path, recipe: ToolRecipe) -> list[str]:
     compose = tool_dir / recipe.compose_file
     cmd = [
@@ -47,6 +58,9 @@ def _compose_base(tool_dir: Path, recipe: ToolRecipe) -> list[str]:
         "-p",
         recipe.project_name,
     ]
+    env_file = compose_env_file(tool_dir)
+    if env_file is not None:
+        cmd.extend(["--env-file", str(env_file)])
     for profile in recipe.profiles:
         cmd.extend(["--profile", profile])
     return cmd
@@ -59,6 +73,7 @@ def run_compose(
     *,
     progress: ProgressCb = None,
 ) -> ComposeCommandResult:
+    """Run ``docker compose`` for an installed recipe (stack-level API)."""
     if not docker_available():
         return ComposeCommandResult(
             ok=False,

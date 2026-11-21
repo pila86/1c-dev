@@ -27,6 +27,18 @@ def tools_share_dir(*, env: dict[str, str] | None = None, platform: str | None =
     return share_root(env=env, platform=platform) / "tools"
 
 
+def services_share_dir(
+    *, env: dict[str, str] | None = None, platform: str | None = None
+) -> Path:
+    """Directory for managed service state (state.json)."""
+    return share_root(env=env, platform=platform) / "services"
+
+
+def data_share_dir(*, env: dict[str, str] | None = None, platform: str | None = None) -> Path:
+    """Directory for tool data volumes / dumps (not cache)."""
+    return share_root(env=env, platform=platform) / "data"
+
+
 def installed_tool_dir(
     tool_id: str,
     *,
