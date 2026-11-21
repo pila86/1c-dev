@@ -102,6 +102,25 @@ class ToolRecipe:
             return [str(p) for p in images]
         return []
 
+    @property
+    def source_type(self) -> str:
+        source = self.raw.get("source")
+        if isinstance(source, dict):
+            return str(source.get("type") or "")
+        return ""
+
+    @property
+    def compose_build(self) -> bool:
+        """True when compose images are built from source (not pulled)."""
+        if self.runtime.get("build") is True:
+            return True
+        return self.source_type == "git"
+
+    @property
+    def index_config(self) -> dict[str, Any]:
+        value = self.raw.get("index")
+        return value if isinstance(value, dict) else {}
+
 
 def _package_roots() -> list[Path]:
     """Candidate roots that may contain catalog/ (repo or wheel layout)."""

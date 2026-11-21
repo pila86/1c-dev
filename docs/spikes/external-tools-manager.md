@@ -1,6 +1,6 @@
 # Spike: External Tools Manager (локальные MCP/сервисы)
 
-**Статус:** Accepted (ADR-033); Этап 0–1 — done ([#172](https://github.com/pila86/1c-dev/issues/172)); Этапы 2+4 + scaffold 3 — [#175](https://github.com/pila86/1c-dev/issues/175); Этапы 3 (полная реализация), 5–6 — open  
+**Статус:** Accepted (ADR-033); Этап 0–1 — done ([#172](https://github.com/pila86/1c-dev/issues/172)); Этапы 2–4 — [#175](https://github.com/pila86/1c-dev/issues/175); Этапы 5–6 — open  
 
 **Дата:** 2026-11-19  
 **Контекст:** переосмысление CLI вокруг сторонних инструментов разработки;
@@ -251,12 +251,17 @@ Acceptance (черновик checklist — зафиксировать в issue):
 - [x] Labels `managed-by=1c-dev`.
 - [x] Готовность принять второй recipe (`bsl-search`) без копипасты.
 
-### Этап 3 — bsl-search (`app`)
+### Этап 3 — bsl-search (local BM25 stack)
 
-- [x] Scaffold: recipe + env template + `agent/guidance.md` + README restore hints (`catalog/bsl-search/`, #175).
-- [ ] Preflight: ES reachable / index present (diagnostics, не silent fail).
-- [ ] Pin опубликованных образов (сейчас `REPLACE_ME`).
-- [ ] Документация restore индекса end-to-end; без авто-embed pipeline.
+Решения (#175): build app из git; ES в том же compose; при install скачать
+`units_curated.jsonl` с HF; BM25 сейчас; `EMBEDDING_URL`/`RERANKER_URL` — later.
+
+- [x] Recipe `catalog/bsl-search/` (compose ES+app build, env, guidance, README).
+- [x] `tools install`: git clone upstream + HF download + normalize JSONL.
+- [x] `services up`: compose `--build`, bulk-load в ES (idempotent; `BSL_SEARCH_REINDEX=1`).
+- [x] Optional inference via `.env` (пустые по умолчанию).
+- [ ] Knowledge ITS/Habr auto-index (later).
+- [ ] Precomputed embeddings / kNN dump (later / Этап 6).
 
 ### Этап 4 — MCP/IDE polish
 

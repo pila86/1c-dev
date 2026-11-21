@@ -43,31 +43,81 @@ def test_catalog_contains_v8std() -> None:
     assert (recipe.recipe_dir / "compose.yaml").is_file()
 
 
-def test_catalog_bsl_search_scaffold() -> None:
+def test_catalog_bsl_search_stage3() -> None:
     root = catalog_root()
     assert (root / "bsl-search" / "tool.yaml").is_file()
     assert "bsl-search" in list_catalog()
     recipe = load_recipe("bsl-search")
-    assert recipe.is_scaffold is True
+    assert recipe.is_scaffold is False
     assert recipe.mcp_name == "bsl-search"
-    assert recipe.compose_file == "compose.app.yaml"
+    assert recipe.compose_file == "compose.yaml"
+    assert recipe.compose_build is True
+    assert recipe.source_type == "git"
+    assert recipe.index_config.get("provider") == "huggingface"
     assert recipe.project_name == "1c-dev-bsl-search"
     assert (recipe.recipe_dir / "env.default").is_file()
-    assert (recipe.recipe_dir / "compose.app.yaml").is_file()
+    assert (recipe.recipe_dir / "compose.yaml").is_file()
+    assert "REPLACE_ME" not in (recipe.recipe_dir / "env.default").read_text(
+        encoding="utf-8"
+    )
     assert (recipe.recipe_dir / "agent" / "guidance.md").is_file()
-    assert (recipe.recipe_dir / "README.md").is_file()
 
 
-def test_install_bsl_search_scaffold_warns_pins(
+def test_install_bsl_search_no_pull_materializes(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
     result = install_tool("bsl-search", pull=False)
     assert result.status == "ok", result.diagnostics
     assert is_installed("bsl-search")
-    assert any(d.get("code") == "1CX007" for d in result.diagnostics)
-    assert any("REPLACE_ME" in (d.get("message") or "") or "pin" in (d.get("message") or "").lower()
-               for d in result.diagnostics)
+    dest = Path(result.path or "")
+    assert (dest / "compose.yaml").is_file()
+    assert (dest / ".env").is_file()
+    assert any("no-pull" in (d.get("message") or "") for d in result.diagnostics)
+
+
+def test_normalize_bsl_row() -> None:
+    from core.tools.bsl_search_index import normalize_row
+
+    row = normalize_row(
+        {
+            "repo": "demo",
+            "file": "a.bsl",
+            "name": "Тест",
+            "body": "Процедура Тест()\nКонецПроцедуры\n",
+            "params": "",
+            "doc": "",
+        }
+    )
+    assert row is not None
+    assert row["id"]
+    assert row["exact_hash"]
+    assert "Имя: Тест" in row["search_text"]
+    assert normalize_row({"name": "x", "body": ""}) is None
+
+
+def test_bulk_load_skips_nonempty_index(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from core.tools import bsl_search_index as idx
+
+    jsonl = tmp_path / "c.jsonl"
+    jsonl.write_text(
+        json.dumps({"id": "a", "name": "A", "body": "x"}, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(idx, "_es_request", lambda *a, **k: {"version": {"number": "8.15.3"}})
+    monkeypatch.setattr(idx, "es_doc_count", lambda *a, **k: 42)
+    ok, count, diags = idx.bulk_load_corpus(
+        jsonl,
+        base_url="http://127.0.0.1:19200",
+        index="bsl-methods",
+        force=False,
+    )
+    assert ok is True
+    assert count == 42
+    assert any("skip bulk" in (d.get("message") or "") for d in diags)
 
 
 def test_expand_template_defaults() -> None:

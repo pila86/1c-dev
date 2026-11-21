@@ -248,10 +248,13 @@ def service_up(
                 diagnostics=diags,
             )
 
+    up_args = ["up", "-d", "--remove-orphans"]
+    if recipe.compose_build:
+        up_args.insert(1, "--build")
     compose_result = run_compose(
         tool_dir,
         recipe,
-        ["up", "-d", "--remove-orphans"],
+        up_args,
         progress=progress,
     )
     diags.extend(compose_result.diagnostics)
@@ -266,6 +269,7 @@ def service_up(
             diagnostics=diags,
         )
 
+    # Wait ES/API health before optional index load.
     healthy = None
     if health_url and wait_health_sec > 0:
         if progress:
@@ -287,6 +291,35 @@ def service_up(
                     suggestion=f"1c-dev services logs {tool_id}",
                 )
             )
+            out = ServiceResult(
+                tool_id=tool_id,
+                status="error",
+                action="up",
+                running=True,
+                healthy=False,
+                health_url=health_url,
+                mcp_url=mcp_url,
+                project_name=recipe.project_name,
+                diagnostics=diags,
+            )
+            _persist(
+                tool_id,
+                project_name=recipe.project_name,
+                action="up",
+                status="error",
+                healthy=False,
+                running=True,
+                health_url=health_url,
+                mcp_url=mcp_url,
+            )
+            return out
+
+    if recipe.index_config.get("load_on") == "services_up":
+        from core.tools.bsl_search_index import ensure_index_loaded
+
+        ok_idx, idx_diags = ensure_index_loaded(recipe, tool_dir, progress=progress)
+        diags.extend(idx_diags)
+        if not ok_idx:
             out = ServiceResult(
                 tool_id=tool_id,
                 status="error",

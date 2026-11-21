@@ -1,54 +1,53 @@
-# bsl-search (scaffold)
+# bsl-search
 
-Recipe для [axel-avb/mcp-bsl-search](https://github.com/axel-avb/mcp-bsl-search).
+Recipe для [axel-avb/mcp-bsl-search](https://github.com/axel-avb/mcp-bsl-search)
+(ADR-033 Этап 3 / #175).
 
-**Статус:** scaffold Этапа 3 (ADR-033 / #175). Не production-ready:
-образы `REPLACE_ME`, preflight ES ещё не вшит в `services up`.
+## Что поднимает 1c-dev
 
-## Профиль `app` (MVP)
+| Сервис | Host port (default) | Назначение |
+|--------|---------------------|------------|
+| Elasticsearch 8.15 | `19200` | индекс `bsl-methods` (BM25) |
+| search-api | `18080` | HTTP search API |
+| mcp-server | `18005` | MCP Streamable HTTP `/mcp` |
 
-1c-dev поднимает только:
+App-образы **собираются из git** upstream (pin `source.ref` в `tool.yaml`).
 
-- `mcp-server` (MCP Streamable HTTP, default host port `18005`)
-- `search-api` (localhost `18080`)
-
-Пользователь даёт:
-
-| Переменная | Назначение |
-|---|---|
-| `ELASTICSEARCH_URL` | ES с индексами методов / knowledge |
-| `EMBEDDING_URL` | сервис эмбеддингов |
-| `RERANKER_URL` | reranker |
-
-См. upstream `.env.example` и `DEPLOY.md`.
-
-## Restore индекса
-
-Полный offline dump / embed pipeline **не** входит в scaffold и Этап 3 MVP.
-Ожидается:
-
-1. Поднять Elasticsearch (внешне или позже профиль `full` — Этап 6).
-2. Восстановить индексы `bsl-methods-full` / `bsl-knowledge` по документации upstream
-   (`indexer/`, `DEPLOY.md`) — без авто-embed со стороны 1c-dev.
-3. Прописать URL в установленном `.env`:
-   `~/.local/share/1c-dev/tools/bsl-search/.env`
-
-Диагностика «ES unreachable / index missing» — в полной реализации Этапа 3
-(не silent fail).
-
-## UX (когда будет готово)
+## UX
 
 ```bash
-1c-dev tools install bsl-search   # после pin образов
-# отредактировать .env: ELASTICSEARCH_URL, EMBEDDING_URL, RERANKER_URL
-1c-dev services up bsl-search
+1c-dev tools install bsl-search   # clone upstream + download HF corpus
+1c-dev services up bsl-search     # build/up + bulk-load JSONL → ES
 1c-dev ide configure
 ```
 
-Сейчас `tools install` материализует scaffold с warning по pin’ам;
-`services up` без валидных образов завершится ошибкой compose.
+При install скачивается `units_curated.jsonl` из
+[`pupkaZALUPKA/1c-bsl-dataset`](https://huggingface.co/datasets/pupkaZALUPKA/1c-bsl-dataset)
+(~1.4 GB). `HF_TOKEN` не обязателен для публичного датасета.
 
-## Labels
+Данные: `~/.local/share/1c-dev/data/bsl-search/`.
 
-Compose-сервисы помечены `managed-by=1c-dev` / `com.1c-dev.tool=bsl-search`
-(контракт Service Manager Этапа 2).
+## BM25 сейчас; inference позже
+
+По умолчанию `EMBEDDING_URL` / `RERANKER_URL` пустые — поиск BM25.
+
+Подключить локальный или внешний сервис:
+
+1. Прописать URL (и ключи) в `~/.local/share/1c-dev/tools/bsl-search/.env`
+2. `1c-dev services restart bsl-search`
+
+**Reranker** улучшает выдачу сразу (по тексту топ-кандидатов).  
+**kNN / embedding** требуют векторов в ES — отдельный `embed_index` или dump с embeddings
+(не входит в Этап 3).
+
+## Preflight / diagnostics
+
+- Нет Docker / git → `1CX003` / `1CX007`
+- HF download fail → `1CX006`
+- ES unhealthy / пустой индекс после up → `1CX005` + suggestion
+- Принудительный reindex: `BSL_SEARCH_REINDEX=1` в `.env`, затем `services up`
+
+## Knowledge (ITS/Habr)
+
+Индекс `bsl-knowledge` в Этапе 3 не заполняется автоматически.
+Код-поиск по `bsl-methods` достаточен для MVP.

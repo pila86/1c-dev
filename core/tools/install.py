@@ -357,6 +357,76 @@ def _compose_pull(
     ]
 
 
+def _compose_build(
+    tool_dir: Path,
+    recipe: ToolRecipe,
+    *,
+    progress: ProgressCb,
+) -> tuple[bool, list[Diagnostic]]:
+    compose = tool_dir / recipe.compose_file
+    if not compose.is_file():
+        return False, [
+            error(
+                f"compose file не найден: {recipe.compose_file}",
+                code="1CX007",
+                source="tools",
+            )
+        ]
+    cmd = [
+        "docker",
+        "compose",
+        "--project-directory",
+        str(tool_dir),
+        "-f",
+        str(compose),
+        "-p",
+        recipe.project_name,
+    ]
+    user_env = tool_dir / ".env"
+    env_file = user_env if user_env.is_file() else tool_dir / "env.default"
+    if env_file.is_file():
+        cmd.extend(["--env-file", str(env_file)])
+    for profile in recipe.profiles:
+        cmd.extend(["--profile", profile])
+    cmd.extend(["build", "--pull"])
+    if progress:
+        progress(f"docker compose build ({recipe.id})…")
+    try:
+        completed = subprocess.run(
+            cmd,
+            cwd=str(tool_dir),
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, "COMPOSE_PROJECT_NAME": recipe.project_name},
+        )
+    except FileNotFoundError:
+        return False, [
+            error(
+                "docker не найден в PATH",
+                code="1CX003",
+                source="tools",
+                suggestion="Установите Docker / Docker Compose",
+            )
+        ]
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "").strip()
+        msg = f"docker compose build failed (exit {completed.returncode})"
+        if detail:
+            msg = f"{msg}: {detail[:500]}"
+        return False, [
+            error(
+                msg,
+                code="1CX006",
+                source="tools",
+                suggestion="Проверьте Dockerfile upstream и сеть",
+            )
+        ]
+    return True, [
+        info("образы собраны", code="1CX000", source="tools"),
+    ]
+
+
 def install_tool(
     tool_id: str,
     *,
@@ -365,7 +435,10 @@ def install_tool(
     platform: str | None = None,
     progress: ProgressCb = None,
 ) -> InstallResult:
-    """Materialize recipe into share; optionally pull images. Does not start service."""
+    """Materialize recipe into share; optionally pull/build images + download index."""
+    from core.tools.bsl_search_index import download_huggingface_corpus
+    from core.tools.git_source import clone_recipe_source
+
     try:
         recipe = load_recipe(tool_id)
     except FileNotFoundError:
@@ -414,6 +487,9 @@ def install_tool(
             ],
         )
 
+    # Re-load recipe from installed copy so paths point at share.
+    installed = load_installed_recipe(tool_id, env=env, platform=platform)
+
     diags: list[Diagnostic] = list(pin_diags)
     up_hint = (
         f"1c-dev services up {tool_id}"
@@ -428,14 +504,63 @@ def install_tool(
             suggestion=up_hint,
         )
     )
+
+    if pull:
+        ok_git, git_diags = clone_recipe_source(installed, dest, progress=progress)
+        diags.extend(git_diags)
+        if not ok_git:
+            return InstallResult(
+                tool_id=tool_id,
+                status="error",
+                path=str(dest),
+                diagnostics=diags,
+            )
+
+        if installed.index_config.get("provider") == "huggingface":
+            ok_hf, _path, hf_diags = download_huggingface_corpus(
+                installed,
+                env=env,
+                platform=platform,
+                progress=progress,
+            )
+            diags.extend(hf_diags)
+            if not ok_hf:
+                return InstallResult(
+                    tool_id=tool_id,
+                    status="error",
+                    path=str(dest),
+                    diagnostics=diags,
+                )
+    elif recipe.source_type == "git" or installed.index_config.get("provider"):
+        diags.append(
+            warning(
+                "skip git clone / index download (--no-pull); "
+                "повторный install без --no-pull перед services up",
+                code="1CX000",
+                source="tools",
+            )
+        )
+
     pulled = False
-    needs_pull = (
+    needs_images = (
         pull
         and recipe.lifecycle == "managed"
         and recipe.runtime.get("type") == "compose"
         and not recipe.is_scaffold
     )
-    if needs_pull:
+    if needs_images and recipe.compose_build:
+        ok, build_diags = _compose_build(dest, recipe, progress=progress)
+        diags.extend(build_diags)
+        if not ok:
+            return InstallResult(
+                tool_id=tool_id,
+                status="error",
+                path=str(dest),
+                pulled=False,
+                diagnostics=diags,
+            )
+        pulled = True
+    elif needs_images:
         ok, pull_diags = _compose_pull(dest, recipe, progress=progress)
         diags.extend(pull_diags)
         if not ok:

@@ -32,7 +32,7 @@
 
 | Тема | Статус | Документ |
 |------|--------|----------|
-| External Tools Manager (локальные MCP/сервисы) | **Accepted** ADR-033; Этап 1 [#172](https://github.com/pila86/1c-dev/issues/172); Этапы 2+4 + scaffold 3 [#175](https://github.com/pila86/1c-dev/issues/175) | [external-tools-manager](spikes/external-tools-manager.md) · [ADR-033](adr/033-external-tools-manager.md) |
+| External Tools Manager (локальные MCP/сервисы) | **Accepted** ADR-033; Этапы 1–4 [#172](https://github.com/pila86/1c-dev/issues/172) / [#175](https://github.com/pila86/1c-dev/issues/175); 5–6 open | [external-tools-manager](spikes/external-tools-manager.md) · [ADR-033](adr/033-external-tools-manager.md) |
 | Write-backend bake-off | **Done** 2026-11-05 (XML=A, EDT=D) | [write-backend-bakeoff](spikes/write-backend-bakeoff.md) · [protocol](spikes/write-backend-bakeoff-protocol.md) |
 | EDT fixture + `1cedtcli` smoke | **Done** 2026-11-06 | [149-edt-source-adapter](spikes/149-edt-source-adapter.md) · fixture `tests/fixtures/edt_spike` |
 
