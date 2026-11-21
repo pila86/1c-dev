@@ -7,7 +7,6 @@ from pathlib import Path
 from core.diagnostics import Diagnostic, info
 from core.toolchain.cache import tools_cache_dir
 from core.toolchain.fetchers.apache import fetch_apache
-from core.toolchain.fetchers.bslls import fetch_bsl_language_server
 from core.toolchain.fetchers.docsfacade import fetch_docs_facade
 from core.toolchain.fetchers.mdreader import fetch_md_reader
 from core.toolchain.fetchers.mdsparrow import fetch_md_sparrow
@@ -18,9 +17,7 @@ from core.toolchain.progress import ProgressFn, noop_progress
 from core.toolchain.result import ComponentResult, OverallStatus, SyncResult
 
 MUST_IDS = frozenset({"xml-gen", "md-reader"})
-SOFT_IDS = frozenset(
-    {"bsl-language-server", "docs-facade", "apache", "yaxunit", "md-sparrow"}
-)
+SOFT_IDS = frozenset({"docs-facade", "apache", "yaxunit", "md-sparrow"})
 
 
 def _sync_component(
@@ -57,10 +54,6 @@ def _sync_component(
         pin_short = (spec.pin or "")[:12]
     elif spec.id == "md-reader":
         path, diags = fetch_md_reader(
-            spec, tools_dir, env=env, progress=progress, quiet=quiet
-        )
-    elif spec.id == "bsl-language-server":
-        path, diags = fetch_bsl_language_server(
             spec, tools_dir, env=env, progress=progress, quiet=quiet
         )
     elif spec.id == "docs-facade":

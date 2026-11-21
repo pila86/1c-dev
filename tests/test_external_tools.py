@@ -43,6 +43,19 @@ def test_catalog_contains_v8std() -> None:
     assert (recipe.recipe_dir / "compose.yaml").is_file()
 
 
+def test_catalog_bsl_ls_stage7() -> None:
+    root = catalog_root()
+    assert (root / "bsl-ls" / "tool.yaml").is_file()
+    assert "bsl-ls" in list_catalog()
+    recipe = load_recipe("bsl-ls")
+    assert recipe.mcp_name == "bsl-language-server"
+    assert recipe.runtime.get("type") == "process"
+    assert recipe.source_type == "github-release"
+    assert recipe.project_name == "1c-dev-bsl-ls"
+    assert (recipe.recipe_dir / "env.default").is_file()
+    assert (recipe.recipe_dir / "agent" / "guidance.md").is_file()
+
+
 def test_catalog_bsl_search_stage3() -> None:
     root = catalog_root()
     assert (root / "bsl-search" / "tool.yaml").is_file()
@@ -61,6 +74,69 @@ def test_catalog_bsl_search_stage3() -> None:
         encoding="utf-8"
     )
     assert (recipe.recipe_dir / "agent" / "guidance.md").is_file()
+
+
+def test_install_bsl_ls_no_pull_materializes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    result = install_tool("bsl-ls", pull=False)
+    assert result.status == "ok", result.diagnostics
+    assert is_installed("bsl-ls")
+    dest = Path(result.path or "")
+    assert (dest / "tool.yaml").is_file()
+    assert (dest / ".env").is_file()
+    assert not any(
+        d.get("code") == "1CX006"
+        for d in result.diagnostics
+        if d.get("severity") == "error"
+    )
+    assert any("no-pull" in (d.get("message") or "") for d in result.diagnostics)
+
+
+def test_services_up_bsl_ls_process_mock(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from core.services.manager import service_up
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    install_tool("bsl-ls", pull=False)
+    jar = tools_share_dir() / "bsl-ls" / "lib" / "bsl-language-server.jar"
+    jar.parent.mkdir(parents=True, exist_ok=True)
+    jar.write_bytes(b"pk\x03\x04")
+
+    with (
+        patch("core.services.process.start_process", return_value=(True, [])),
+        patch(
+            "core.services.health.check_http",
+            return_value=HealthResult(url="http://127.0.0.1:18767/mcp", reachable=True),
+        ),
+        patch("core.services.manager._wait_health", return_value=True),
+    ):
+        up = service_up("bsl-ls")
+    assert up.status == "ok", up.diagnostics
+    assert up.healthy is True
+    assert up.mcp_url == "http://127.0.0.1:18767/mcp"
+
+
+def test_ide_configure_bsl_ls_http_when_installed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    install_tool("bsl-ls", pull=False)
+    project = tmp_path / "proj"
+    project.mkdir()
+    with patch(
+        "core.services.health.check_http",
+        return_value=HealthResult(url="http://127.0.0.1:18767/mcp", reachable=True),
+    ):
+        result = configure_ide(project, target="cursor")
+    assert result.status == "ok", result.diagnostics
+    mcp = json.loads((project / ".cursor" / "mcp.json").read_text(encoding="utf-8"))
+    assert mcp["mcpServers"]["bsl-language-server"] == {
+        "url": "http://127.0.0.1:18767/mcp",
+    }
+    assert not any(d.get("code") == "1CP009" for d in result.diagnostics)
 
 
 def test_install_bsl_search_no_pull_materializes(

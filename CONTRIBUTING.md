@@ -50,9 +50,9 @@ refs #2
 1c-dev uninstall --yes                # cache + uv tool uninstall
 ```
 
-## External tools (ADR-033 / #172 / #175)
+## External tools (ADR-033 / #172 / #175 / #177)
 
-Recipes: `catalog/<id>/` (`v8std`, `bsl-search`). Установка ≠ запуск:
+Recipes: `catalog/<id>/` (`v8std`, `bsl-search`, `bsl-ls`). Установка ≠ запуск:
 
 ```bash
 1c-dev tools install v8std
@@ -62,14 +62,24 @@ Recipes: `catalog/<id>/` (`v8std`, `bsl-search`). Установка ≠ зап�
 1c-dev services status v8std
 1c-dev doctor
 
+# bsl-ls (shared Streamable HTTP MCP, process+jar, pin 1.1.0-rc.9):
+1c-dev tools install bsl-ls
+1c-dev services up bsl-ls
+# override jar: ONEC_BSLLS_JAR=/path/to.jar
+
 # bsl-search (ES + BM25; HF corpus при install; ~RAM/disk):
 1c-dev tools install bsl-search
 1c-dev services up bsl-search
 # optional later: EMBEDDING_URL / RERANKER_URL в ~/.local/share/1c-dev/tools/bsl-search/.env
+
+# desire-list проекта (не init):
+# .1c-dev/tools.yaml → tools: [v8std, bsl-ls, …]
+1c-dev tools check
 ```
 
 State сервисов: `~/.local/share/1c-dev/services/state.json` (labels `managed-by=1c-dev`).
 Данные индекса: `~/.local/share/1c-dev/data/bsl-search/`.
+PID/лог process tools: `~/.local/share/1c-dev/data/<id>/runtime/`.
 
 Fallback для разработчиков (те же pin’ы):
 

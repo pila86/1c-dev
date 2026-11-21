@@ -487,20 +487,24 @@ def test_run_doctor_env_override_source(
     assert xmlgen["path"] == str(jar.resolve())
 
 
-def test_run_doctor_bsl_env_override(
+def test_run_doctor_bsl_ls_installed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from core.tools.install import install_tool
+
     _clear_path(monkeypatch)
     _make_install(tmp_path, "8.3.27.1549")
-    jar = tmp_path / "bsl-language-server.jar"
-    jar.write_bytes(b"pk\x03\x04")
-    monkeypatch.setenv("ONEC_BSLLS_JAR", str(jar))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "empty-cache"))
+    install_tool("bsl-ls", pull=False)
     result = run_doctor(search_roots=[tmp_path])
     bsl = result.tools["bsl-language-server"]
     assert bsl["found"] is True
-    assert bsl["source"] == "env"
-    assert bsl["path"] == str(jar.resolve())
+    assert bsl["source"] == "external-tools"
+    assert bsl["path"] == "http://127.0.0.1:18767/mcp"
+    ext = result.tools["external-tools"]["tools"]["bsl-ls"]
+    assert ext["installed"] is True
+    assert ext["runtime"] == "process"
     assert not any(d.get("code") == "1CD007" for d in result.diagnostics)
 
 

@@ -38,7 +38,7 @@ def test_load_manifest_from_repo() -> None:
     ids = {c.id for c in manifest.components}
     assert "xml-gen" in ids
     assert "md-reader" in ids
-    assert "bsl-language-server" in ids
+    assert "bsl-language-server" not in ids
     docs = manifest.get("docs-facade")
     assert docs is not None
     assert docs.deferred is False
@@ -126,14 +126,6 @@ def _fake_manifest() -> ToolchainManifest:
                 env="ONEC_MDREADER_JAR",
             ),
             ComponentSpec(
-                id="bsl-language-server",
-                artifact="bsl-language-server.jar",
-                pin="1.1.0-rc.4",
-                source={"type": "github-release"},
-                min_java=21,
-                env="ONEC_BSLLS_JAR",
-            ),
-            ComponentSpec(
                 id="docs-facade",
                 artifact="docs-facade.jar",
                 pin="bsl-context-0.10.0",
@@ -179,19 +171,6 @@ def test_sync_tools_with_mocked_fetchers(
         path.write_bytes(b"md")
         return path, []
 
-    def fake_bsl(
-        spec: ComponentSpec,
-        tools_dir: Path,
-        *,
-        env: dict[str, str] | None = None,
-        **kwargs: Any,
-    ) -> tuple[Path, list]:
-        del env, kwargs
-        path = tools_dir / spec.artifact
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(b"bsl")
-        return path, []
-
     def fake_docs(
         spec: ComponentSpec,
         tools_dir: Path,
@@ -207,7 +186,6 @@ def test_sync_tools_with_mocked_fetchers(
 
     monkeypatch.setattr("core.toolchain.sync.fetch_xml_gen", fake_xml)
     monkeypatch.setattr("core.toolchain.sync.fetch_md_reader", fake_md)
-    monkeypatch.setattr("core.toolchain.sync.fetch_bsl_language_server", fake_bsl)
     monkeypatch.setattr("core.toolchain.sync.fetch_docs_facade", fake_docs)
 
     result = sync_tools(manifest=_fake_manifest(), progress=seen.append, quiet=False)
@@ -215,7 +193,6 @@ def test_sync_tools_with_mocked_fetchers(
     by_id = {c.id: c for c in result.components}
     assert by_id["xml-gen"].status == "ok"
     assert by_id["md-reader"].status == "ok"
-    assert by_id["bsl-language-server"].status == "ok"
     assert by_id["docs-facade"].status == "ok"
     assert not any(d.get("code") == "1CT030" for d in result.diagnostics)
     assert seen[0] == "Toolchain sync…"
@@ -227,7 +204,7 @@ def test_sync_tools_with_mocked_fetchers(
     assert result2.status == "ok"
 
 
-def test_sync_soft_fail_bsl_degraded(
+def test_sync_soft_fail_docs_facade_degraded(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -246,7 +223,7 @@ def test_sync_soft_fail_bsl_degraded(
         path.write_bytes(b"x")
         return path, []
 
-    def fail_bsl(
+    def fail_docs(
         spec: ComponentSpec,
         tools_dir: Path,
         *,
@@ -254,16 +231,15 @@ def test_sync_soft_fail_bsl_degraded(
         **kwargs: Any,
     ) -> tuple[None, list]:
         del spec, tools_dir, env, kwargs
-        return None, [info("bsl fail", code="1CT020", source="toolchain")]
+        return None, [info("docs fail", code="1CT020", source="toolchain")]
 
     monkeypatch.setattr("core.toolchain.sync.fetch_xml_gen", ok_jar)
     monkeypatch.setattr("core.toolchain.sync.fetch_md_reader", ok_jar)
-    monkeypatch.setattr("core.toolchain.sync.fetch_bsl_language_server", fail_bsl)
-    monkeypatch.setattr("core.toolchain.sync.fetch_docs_facade", ok_jar)
+    monkeypatch.setattr("core.toolchain.sync.fetch_docs_facade", fail_docs)
 
     result = sync_tools(manifest=_fake_manifest())
     assert result.status == "degraded"
-    assert any(c.id == "bsl-language-server" and c.status == "warning" for c in result.components)
+    assert any(c.id == "docs-facade" and c.status == "warning" for c in result.components)
 
 
 def test_clean_tools_cache(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

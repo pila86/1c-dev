@@ -107,7 +107,8 @@ def test_m3_acceptance_import_ide_docs(
     mcp_path = imported / ".cursor" / "mcp.json"
     assert mcp_path.is_file()
     mcp = json.loads(mcp_path.read_text(encoding="utf-8"))
-    assert set(mcp["mcpServers"]) == {"1c-dev", "bsl-language-server"}
+    assert set(mcp["mcpServers"]) == {"1c-dev"}
+    assert any(d.get("code") == "1CP009" for d in ide.diagnostics)
 
     # --- docs soft: assert when jar + HBK present; else do not fail E2E ---
     docs_jar = resolve_docs_jar()
