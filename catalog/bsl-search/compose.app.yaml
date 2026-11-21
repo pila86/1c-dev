@@ -1,0 +1,64 @@
+# Scaffold compose for mcp-bsl-search «app» profile (ADR-033 Этап 3).
+# Upstream reference: https://github.com/axel-avb/mcp-bsl-search/blob/master/compose.yml
+# 1c-dev поднимает только mcp-server + search-api; ES / embedding / reranker — внешние.
+#
+# Images: REPLACE_ME until maintainers pin published tags/digests (or build from upstream).
+# Labels: managed-by=1c-dev (Service Manager Этап 2).
+name: ${COMPOSE_PROJECT_NAME:-1c-dev-bsl-search}
+services:
+  search-api:
+    image: ${BSL_SEARCH_API_IMAGE:?Set BSL_SEARCH_API_IMAGE pin in .env}
+    labels:
+      - managed-by=1c-dev
+      - com.1c-dev.tool=bsl-search
+      - com.1c-dev.profile=app
+    ports:
+      - "127.0.0.1:${BSL_SEARCH_API_PORT:-18080}:8080"
+    environment:
+      ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:?Set ELASTICSEARCH_URL}
+      ELASTICSEARCH_HOST: ${ELASTICSEARCH_HOST:-}
+      ELASTICSEARCH_PORT: ${ELASTICSEARCH_PORT:-9200}
+      ELASTICSEARCH_INDEX: ${ELASTICSEARCH_INDEX:-bsl-methods-full}
+      ELASTICSEARCH_KNOWLEDGE_INDEX: ${ELASTICSEARCH_KNOWLEDGE_INDEX:-bsl-knowledge}
+      ELASTICSEARCH_API_KEY: ${ELASTICSEARCH_API_KEY:-}
+      EMBEDDING_URL: ${EMBEDDING_URL:?Set EMBEDDING_URL}
+      RERANKER_URL: ${RERANKER_URL:?Set RERANKER_URL}
+      EMBEDDING_KEY: ${EMBEDDING_KEY:-}
+      RERANKER_KEY: ${RERANKER_KEY:-}
+      LOG_LEVEL: ${LOG_LEVEL:-ERROR}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=5)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks: [bsl-search]
+
+  mcp-server:
+    image: ${BSL_SEARCH_MCP_IMAGE:?Set BSL_SEARCH_MCP_IMAGE pin in .env}
+    labels:
+      - managed-by=1c-dev
+      - com.1c-dev.tool=bsl-search
+      - com.1c-dev.profile=app
+    ports:
+      - "127.0.0.1:${BSL_SEARCH_MCP_PORT:-18005}:8000"
+    depends_on:
+      search-api:
+        condition: service_healthy
+    environment:
+      ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:?Set ELASTICSEARCH_URL}
+      ELASTICSEARCH_HOST: ${ELASTICSEARCH_HOST:-}
+      ELASTICSEARCH_PORT: ${ELASTICSEARCH_PORT:-9200}
+      ELASTICSEARCH_INDEX: ${ELASTICSEARCH_INDEX:-bsl-methods-full}
+      SEARCH_API_URL: http://search-api:8080
+      LOG_LEVEL: ${LOG_LEVEL:-ERROR}
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
+    networks: [bsl-search]
+
+networks:
+  bsl-search: {}

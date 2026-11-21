@@ -1,0 +1,54 @@
+# Scaffold (Этап 3 ADR-033 / #175) — не production-ready.
+# Полный app-профиль (preflight ES, pin образов, docs restore) — отдельная доработка.
+id: bsl-search
+name: BSL Search MCP (mcp-bsl-search)
+version: "0.0.1-scaffold"
+mcp_name: bsl-search
+scaffold: true
+
+scope: user
+lifecycle: managed
+
+source:
+  type: docker
+  # Upstream: https://github.com/axel-avb/mcp-bsl-search (compose.yml builds from source).
+  # Pin published images when available; until then REPLACE_ME blocks production install.
+  pins:
+    - BSL_SEARCH_MCP_IMAGE
+    - BSL_SEARCH_API_IMAGE
+  upstream: https://github.com/axel-avb/mcp-bsl-search
+
+runtime:
+  type: compose
+  file: compose.app.yaml
+  project_name: 1c-dev-bsl-search
+  # app-only file: mcp-server + search-api; ES/embeddings — внешние (user env).
+  profiles: []
+
+interface:
+  type: mcp
+  transport: streamable-http
+  url: "http://127.0.0.1:${BSL_SEARCH_MCP_PORT:-18005}/mcp"
+
+healthcheck:
+  type: http
+  # Upstream mcp health is TCP on container :8000; host probe via search-api until MCP exposes /healthz.
+  url: "http://127.0.0.1:${BSL_SEARCH_API_PORT:-18080}/health"
+  timeout_sec: 2
+
+service:
+  enabled: true
+
+agent:
+  guidance: agent/guidance.md
+  mode: both
+
+preflight:
+  # Wired in full Этап 3; scaffold documents required external deps.
+  env_required:
+    - ELASTICSEARCH_URL
+    - EMBEDDING_URL
+    - RERANKER_URL
+  notes: |
+    ES must be reachable and index present (bsl-methods-full / bsl-knowledge).
+    See catalog/bsl-search/README.md for restore hints. No auto-embed in MVP.

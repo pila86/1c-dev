@@ -50,17 +50,20 @@ refs #2
 1c-dev uninstall --yes                # cache + uv tool uninstall
 ```
 
-## External tools (ADR-033 / #172)
+## External tools (ADR-033 / #172 / #175)
 
-Recipes: `catalog/<id>/`. Установка ≠ запуск:
+Recipes: `catalog/<id>/` (сейчас `v8std`; `bsl-search` — scaffold). Установка ≠ запуск:
 
 ```bash
 1c-dev tools install v8std
 1c-dev services up v8std
-1c-dev ide configure
+1c-dev services restart v8std   # down + up
+1c-dev ide configure            # MCP + guidance; unreachable → warning
 1c-dev services status v8std
 1c-dev doctor
 ```
+
+State сервисов: `~/.local/share/1c-dev/services/state.json` (labels `managed-by=1c-dev`).
 
 Fallback для разработчиков (те же pin’ы):
 

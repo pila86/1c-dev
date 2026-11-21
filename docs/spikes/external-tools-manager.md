@@ -1,6 +1,6 @@
 # Spike: External Tools Manager (локальные MCP/сервисы)
 
-**Статус:** Accepted (ADR-033); Этап 0–1 — done ([#172](https://github.com/pila86/1c-dev/issues/172)); Этапы 2–6 — open  
+**Статус:** Accepted (ADR-033); Этап 0–1 — done ([#172](https://github.com/pila86/1c-dev/issues/172)); Этапы 2+4 + scaffold 3 — [#175](https://github.com/pila86/1c-dev/issues/175); Этапы 3 (полная реализация), 5–6 — open  
 
 **Дата:** 2026-11-19  
 **Контекст:** переосмысление CLI вокруг сторонних инструментов разработки;
@@ -246,23 +246,25 @@ Acceptance (черновик checklist — зафиксировать в issue):
 
 Вынести из v8std-специфики:
 
-- Stack-level API (project name, env file, health, idempotent up).
-- State в `~/.local/share/1c-dev/services/`.
-- Labels `managed-by=1c-dev`.
-- Готовность принять второй recipe (`bsl-search`) без копипасты.
+- [x] Stack-level API (project name, env file, health, idempotent up).
+- [x] State в `~/.local/share/1c-dev/services/`.
+- [x] Labels `managed-by=1c-dev`.
+- [x] Готовность принять второй recipe (`bsl-search`) без копипасты.
 
 ### Этап 3 — bsl-search (`app`)
 
-- Recipe + env template + `agent/guidance.md`.
-- Preflight: ES reachable / index present (diagnostics, не silent fail).
-- Документация restore индекса; без авто-embed pipeline.
+- [x] Scaffold: recipe + env template + `agent/guidance.md` + README restore hints (`catalog/bsl-search/`, #175).
+- [ ] Preflight: ES reachable / index present (diagnostics, не silent fail).
+- [ ] Pin опубликованных образов (сейчас `REPLACE_ME`).
+- [ ] Документация restore индекса end-to-end; без авто-embed pipeline.
 
 ### Этап 4 — MCP/IDE polish
 
-- Проверка unreachable endpoint → warning + suggestion `services up`.
-- Сохранение чужих mcpServers (ADR-016).
-- Общий upsert/remove agent guidance по installed / desire-list.
-- Опционально `external` URL.
+- [x] Проверка unreachable endpoint → warning + suggestion `services up`.
+- [x] Сохранение чужих mcpServers (ADR-016).
+- [x] Общий upsert/remove agent guidance по installed tools.
+- [x] Опционально `external` URL.
+- [ ] Desire-list sync guidance (Этап 5).
 
 ### Этап 5 — Project desire-list
 
