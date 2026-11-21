@@ -20,6 +20,9 @@ ProgressCb = Callable[[str], None] | None
 Status = Literal["ok", "error", "skipped"]
 
 
+BulkStatus = Literal["ok", "error", "degraded"]
+
+
 @dataclass
 class InstallResult:
     """Result of tools install."""
@@ -38,6 +41,28 @@ class InstallResult:
             "pulled": self.pulled,
             "diagnostics": list(self.diagnostics),
         }
+
+
+@dataclass
+class BulkInstallResult:
+    """Aggregated result of tools install --all."""
+
+    status: BulkStatus
+    action: str
+    results: list[InstallResult] = field(default_factory=list)
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "action": self.action,
+            "results": [r.to_payload() for r in self.results],
+        }
+
+
+def _aggregate_install_status(results: list[InstallResult]) -> BulkStatus:
+    if any(r.status == "error" for r in results):
+        return "error"
+    return "ok"
 
 
 @dataclass
@@ -635,6 +660,34 @@ def install_tool(
         path=str(dest),
         pulled=pulled,
         diagnostics=diags,
+    )
+
+
+def install_all_tools(
+    *,
+    pull: bool = True,
+    env: dict[str, str] | None = None,
+    platform: str | None = None,
+    progress: ProgressCb = None,
+) -> BulkInstallResult:
+    """Install every tool from catalog sequentially."""
+    results: list[InstallResult] = []
+    for tool_id in list_catalog():
+        if progress:
+            progress(f"tools install {tool_id}…")
+        results.append(
+            install_tool(
+                tool_id,
+                pull=pull,
+                env=env,
+                platform=platform,
+                progress=progress,
+            )
+        )
+    return BulkInstallResult(
+        status=_aggregate_install_status(results),
+        action="install-all",
+        results=results,
     )
 
 

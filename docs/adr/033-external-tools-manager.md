@@ -25,8 +25,8 @@ user-scoped Docker MCP нельзя: разные layout, lifecycle и сема�
 | Подсистема | CLI | Хранение |
 |------------|-----|----------|
 | Toolchain (jars/apache/yaxunit) | `toolchain sync\|clean` | cache (`~/.cache/1c-dev/tools/`) |
-| External tools (MCP/сервисы) | `tools list\|info\|install\|update\|remove\|check` | share (`~/.local/share/1c-dev/tools/<id>/`) |
-| Managed services | `services up\|down\|restart\|status\|logs` | share + docker/process; state в share |
+| External tools (MCP/сервисы) | `tools list\|info\|install[--all]\|update\|remove\|check` | share (`~/.local/share/1c-dev/tools/<id>/`) |
+| Managed services | `services list\|up\|down\|restart\|status\|logs` (+ `--all` для up/down/status) | share + docker/process; state в share |
 
 Миграция naming:
 
