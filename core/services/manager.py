@@ -7,6 +7,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Literal
 
 from core.diagnostics import Diagnostic, error, info, warning
@@ -138,22 +139,26 @@ def _persist(
     )
 
 
+def _runtime_type(recipe: Any) -> str:
+    return str(recipe.runtime.get("type") or "compose")
+
+
 def _require_managed(tool_id: str, action: str) -> ServiceResult | None:
     if not is_installed(tool_id):
         return _not_installed(tool_id, action)
     recipe = load_installed_recipe(tool_id)
     if recipe.lifecycle != "managed" or not recipe.service_enabled:
         return _not_managed(tool_id, action, recipe.lifecycle)
-    # Этап 2: только compose adapter; пустой type трактуем как compose.
-    runtime_type = str(recipe.runtime.get("type") or "compose")
-    if runtime_type != "compose":
+    runtime_type = _runtime_type(recipe)
+    if runtime_type not in ("compose", "process"):
         return ServiceResult(
             tool_id=tool_id,
             status="error",
             action=action,
             diagnostics=[
                 error(
-                    f"runtime.type={runtime_type} не поддерживается (только compose)",
+                    f"runtime.type={runtime_type} не поддерживается "
+                    "(compose|process)",
                     code="1CX007",
                     source="services",
                 )
@@ -162,15 +167,97 @@ def _require_managed(tool_id: str, action: str) -> ServiceResult | None:
     return None
 
 
-def service_up(
+def _wait_health(
+    health_url: str,
+    *,
+    wait_health_sec: float,
+    progress: ProgressCb,
+) -> bool:
+    if wait_health_sec <= 0:
+        return check_http(health_url, timeout_sec=2.0).reachable
+    if progress:
+        progress(f"Ожидаю health {health_url}…")
+    deadline = time.monotonic() + wait_health_sec
+    while time.monotonic() < deadline:
+        if check_http(health_url, timeout_sec=2.0).reachable:
+            return True
+        time.sleep(1.0)
+    return False
+
+
+def _check_port_conflict(
+    tool_id: str,
+    recipe: Any,
+    health_url: str | None,
+    mcp_url: str | None,
+    tool_dir: Path,
+    diags: list[Diagnostic],
+) -> ServiceResult | None:
+    """Return ok result if already healthy; error if port busy; else None."""
+    if not health_url:
+        return None
+    port = _port_from_url(health_url)
+    if port is None or not port_in_use("127.0.0.1", port):
+        return None
+    probe = check_http(health_url, timeout_sec=2.0)
+    if probe.reachable:
+        result = ServiceResult(
+            tool_id=tool_id,
+            status="ok",
+            action="up",
+            running=True,
+            healthy=True,
+            health_url=health_url,
+            mcp_url=mcp_url,
+            project_name=recipe.project_name,
+            diagnostics=[
+                info(
+                    f"сервис уже healthy на {health_url}",
+                    code="1CX000",
+                    source="services",
+                )
+            ],
+        )
+        _persist(
+            tool_id,
+            project_name=recipe.project_name,
+            action="up",
+            status="ok",
+            healthy=True,
+            running=True,
+            health_url=health_url,
+            mcp_url=mcp_url,
+        )
+        return result
+    diags.append(
+        error(
+            f"порт {port} занят, health unreachable",
+            code="1CX004",
+            source="services",
+            suggestion=(
+                f"Освободите 127.0.0.1:{port} или смените порт в {tool_dir / '.env'}"
+            ),
+        )
+    )
+    return ServiceResult(
+        tool_id=tool_id,
+        status="error",
+        action="up",
+        running=None,
+        healthy=False,
+        health_url=health_url,
+        mcp_url=mcp_url,
+        project_name=recipe.project_name,
+        diagnostics=diags,
+    )
+
+
+def _service_up_compose(
     tool_id: str,
     *,
     progress: ProgressCb = None,
     wait_health_sec: float = 120.0,
 ) -> ServiceResult:
-    blocked = _require_managed(tool_id, "up")
-    if blocked is not None:
-        return blocked
     if not docker_available():
         return ServiceResult(
             tool_id=tool_id,
@@ -191,62 +278,11 @@ def service_up(
     health_url, mcp_url, _env = _urls_for(tool_id)
     diags: list[Diagnostic] = []
 
-    if health_url:
-        port = _port_from_url(health_url)
-        if port is not None and port_in_use("127.0.0.1", port):
-            # Already listening — check health; may be our stack (idempotent).
-            probe = check_http(health_url, timeout_sec=2.0)
-            if probe.reachable:
-                result = ServiceResult(
-                    tool_id=tool_id,
-                    status="ok",
-                    action="up",
-                    running=True,
-                    healthy=True,
-                    health_url=health_url,
-                    mcp_url=mcp_url,
-                    project_name=recipe.project_name,
-                    diagnostics=[
-                        info(
-                            f"сервис уже healthy на {health_url}",
-                            code="1CX000",
-                            source="services",
-                        )
-                    ],
-                )
-                _persist(
-                    tool_id,
-                    project_name=recipe.project_name,
-                    action="up",
-                    status="ok",
-                    healthy=True,
-                    running=True,
-                    health_url=health_url,
-                    mcp_url=mcp_url,
-                )
-                return result
-            diags.append(
-                error(
-                    f"порт {port} занят, health unreachable",
-                    code="1CX004",
-                    source="services",
-                    suggestion=(
-                        f"Освободите 127.0.0.1:{port} или смените порт в "
-                        f"{tool_dir / '.env'}"
-                    ),
-                )
-            )
-            return ServiceResult(
-                tool_id=tool_id,
-                status="error",
-                action="up",
-                running=None,
-                healthy=False,
-                health_url=health_url,
-                mcp_url=mcp_url,
-                project_name=recipe.project_name,
-                diagnostics=diags,
-            )
+    conflict = _check_port_conflict(
+        tool_id, recipe, health_url, mcp_url, tool_dir, diags
+    )
+    if conflict is not None:
+        return conflict
 
     up_args = ["up", "-d", "--remove-orphans"]
     if recipe.compose_build:
@@ -269,20 +305,12 @@ def service_up(
             diagnostics=diags,
         )
 
-    # Wait ES/API health before optional index load.
     healthy = None
     if health_url and wait_health_sec > 0:
-        if progress:
-            progress(f"Ожидаю health {health_url}…")
-        deadline = time.monotonic() + wait_health_sec
-        while time.monotonic() < deadline:
-            probe = check_http(health_url, timeout_sec=2.0)
-            if probe.reachable:
-                healthy = True
-                break
-            time.sleep(2.0)
-        if healthy is not True:
-            healthy = False
+        healthy = _wait_health(
+            health_url, wait_health_sec=wait_health_sec, progress=progress
+        )
+        if not healthy:
             diags.append(
                 error(
                     f"health unreachable: {health_url}",
@@ -375,45 +403,210 @@ def service_up(
     return out
 
 
+def _service_up_process(
+    tool_id: str,
+    *,
+    progress: ProgressCb = None,
+    wait_health_sec: float = 60.0,
+) -> ServiceResult:
+    from core.services.process import alive_pid, start_process
+
+    recipe = load_installed_recipe(tool_id)
+    tool_dir = installed_tool_dir(tool_id)
+    health_url, mcp_url, _env = _urls_for(tool_id)
+    diags: list[Diagnostic] = []
+
+    # Idempotent: our pid already alive + healthy.
+    pid = alive_pid(tool_id)
+    if pid is not None and health_url and check_http(health_url, timeout_sec=2.0).reachable:
+        out = ServiceResult(
+            tool_id=tool_id,
+            status="ok",
+            action="up",
+            running=True,
+            healthy=True,
+            health_url=health_url,
+            mcp_url=mcp_url,
+            project_name=recipe.project_name,
+            diagnostics=[
+                info(
+                    f"process уже healthy (pid={pid})",
+                    code="1CX000",
+                    source="services",
+                )
+            ],
+        )
+        _persist(
+            tool_id,
+            project_name=recipe.project_name,
+            action="up",
+            status="ok",
+            healthy=True,
+            running=True,
+            health_url=health_url,
+            mcp_url=mcp_url,
+        )
+        return out
+
+    conflict = _check_port_conflict(
+        tool_id, recipe, health_url, mcp_url, tool_dir, diags
+    )
+    if conflict is not None:
+        return conflict
+
+    ok, start_diags = start_process(tool_id, recipe, progress=progress)
+    diags.extend(start_diags)
+    if not ok:
+        return ServiceResult(
+            tool_id=tool_id,
+            status="error",
+            action="up",
+            health_url=health_url,
+            mcp_url=mcp_url,
+            project_name=recipe.project_name,
+            diagnostics=diags,
+        )
+
+    healthy = True
+    if health_url:
+        healthy = _wait_health(
+            health_url, wait_health_sec=wait_health_sec, progress=progress
+        )
+        if not healthy:
+            diags.append(
+                error(
+                    f"health unreachable: {health_url}",
+                    code="1CX005",
+                    source="services",
+                    suggestion=f"1c-dev services logs {tool_id}",
+                )
+            )
+            _persist(
+                tool_id,
+                project_name=recipe.project_name,
+                action="up",
+                status="error",
+                healthy=False,
+                running=True,
+                health_url=health_url,
+                mcp_url=mcp_url,
+            )
+            return ServiceResult(
+                tool_id=tool_id,
+                status="error",
+                action="up",
+                running=True,
+                healthy=False,
+                health_url=health_url,
+                mcp_url=mcp_url,
+                project_name=recipe.project_name,
+                diagnostics=diags,
+            )
+
+    diags.append(
+        info(
+            "сервис поднят",
+            code="1CX000",
+            source="services",
+            suggestion="1c-dev ide configure",
+        )
+    )
+    out = ServiceResult(
+        tool_id=tool_id,
+        status="ok",
+        action="up",
+        running=True,
+        healthy=healthy,
+        health_url=health_url,
+        mcp_url=mcp_url,
+        project_name=recipe.project_name,
+        diagnostics=diags,
+    )
+    _persist(
+        tool_id,
+        project_name=recipe.project_name,
+        action="up",
+        status="ok",
+        healthy=True,
+        running=True,
+        health_url=health_url,
+        mcp_url=mcp_url,
+    )
+    return out
+
+
+def service_up(
+    tool_id: str,
+    *,
+    progress: ProgressCb = None,
+    wait_health_sec: float = 120.0,
+) -> ServiceResult:
+    blocked = _require_managed(tool_id, "up")
+    if blocked is not None:
+        return blocked
+    recipe = load_installed_recipe(tool_id)
+    if _runtime_type(recipe) == "process":
+        return _service_up_process(
+            tool_id, progress=progress, wait_health_sec=min(wait_health_sec, 90.0)
+        )
+    return _service_up_compose(
+        tool_id, progress=progress, wait_health_sec=wait_health_sec
+    )
+
+
 def service_down(tool_id: str, *, progress: ProgressCb = None) -> ServiceResult:
     blocked = _require_managed(tool_id, "down")
     if blocked is not None:
         return blocked
     recipe = load_installed_recipe(tool_id)
     tool_dir = installed_tool_dir(tool_id)
-    result = run_compose(tool_dir, recipe, ["down"], progress=progress)
-    if not result.ok:
-        return ServiceResult(
+    if _runtime_type(recipe) == "process":
+        from core.services.process import stop_process
+
+        ok, diags = stop_process(tool_id, progress=progress)
+        out = ServiceResult(
             tool_id=tool_id,
-            status="error",
+            status="ok" if ok else "error",
             action="down",
+            running=False if ok else None,
+            healthy=False,
             project_name=recipe.project_name,
-            diagnostics=result.diagnostics,
+            diagnostics=diags
+            or [info("сервис остановлен", code="1CX000", source="services")],
         )
-    out = ServiceResult(
-        tool_id=tool_id,
-        status="ok",
-        action="down",
-        running=False,
-        healthy=False,
-        project_name=recipe.project_name,
-        diagnostics=[
-            info("сервис остановлен", code="1CX000", source="services"),
-        ],
-    )
+    else:
+        result = run_compose(tool_dir, recipe, ["down"], progress=progress)
+        if not result.ok:
+            return ServiceResult(
+                tool_id=tool_id,
+                status="error",
+                action="down",
+                project_name=recipe.project_name,
+                diagnostics=result.diagnostics,
+            )
+        out = ServiceResult(
+            tool_id=tool_id,
+            status="ok",
+            action="down",
+            running=False,
+            healthy=False,
+            project_name=recipe.project_name,
+            diagnostics=[
+                info("сервис остановлен", code="1CX000", source="services"),
+            ],
+        )
     health_url, mcp_url, _ = _urls_for(tool_id)
     _persist(
         tool_id,
         project_name=recipe.project_name,
         action="down",
-        status="ok",
+        status=out.status,
         healthy=False,
         running=False,
         health_url=health_url,
         mcp_url=mcp_url,
     )
     return out
-
 
 def service_restart(
     tool_id: str,
@@ -440,7 +633,13 @@ def service_status(tool_id: str) -> ServiceResult:
     recipe = load_installed_recipe(tool_id)
     health_url, mcp_url, _ = _urls_for(tool_id)
     diags: list[Diagnostic] = []
-    if recipe.lifecycle == "managed" and recipe.service_enabled and not docker_available():
+    runtime = _runtime_type(recipe)
+    if (
+        recipe.lifecycle == "managed"
+        and recipe.service_enabled
+        and runtime == "compose"
+        and not docker_available()
+    ):
         diags.append(
             warning(
                 "docker не найден — статус только по health HTTP",
@@ -448,6 +647,11 @@ def service_status(tool_id: str) -> ServiceResult:
                 source="services",
             )
         )
+    running: bool | None = None
+    if runtime == "process" and recipe.lifecycle == "managed":
+        from core.services.process import alive_pid
+
+        running = alive_pid(tool_id) is not None
     healthy = False
     if health_url:
         probe = check_http(health_url, timeout_sec=2.0)
@@ -466,12 +670,14 @@ def service_status(tool_id: str) -> ServiceResult:
                     suggestion=suggestion,
                 )
             )
+    if running is None:
+        running = healthy
     status: Status = "ok" if healthy else "degraded"
     out = ServiceResult(
         tool_id=tool_id,
         status=status,
         action="status",
-        running=healthy,
+        running=running,
         healthy=healthy,
         health_url=health_url,
         mcp_url=mcp_url,
@@ -485,7 +691,7 @@ def service_status(tool_id: str) -> ServiceResult:
             action="status",
             status=status,
             healthy=healthy,
-            running=healthy,
+            running=running,
             health_url=health_url,
             mcp_url=mcp_url,
         )
@@ -502,6 +708,17 @@ def service_logs(
     if blocked is not None:
         return blocked
     recipe = load_installed_recipe(tool_id)
+    if _runtime_type(recipe) == "process":
+        from core.services.process import read_process_logs
+
+        return ServiceResult(
+            tool_id=tool_id,
+            status="ok",
+            action="logs",
+            project_name=recipe.project_name,
+            logs=read_process_logs(tool_id, tail=tail),
+            diagnostics=[],
+        )
     tool_dir = installed_tool_dir(tool_id)
     result = run_compose(
         tool_dir,

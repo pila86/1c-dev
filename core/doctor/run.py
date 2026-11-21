@@ -213,16 +213,7 @@ def _external_tools_doctor() -> tuple[dict[str, Any], dict[str, Any], list[Diagn
     installed_ids = list_installed()
     tools_map: dict[str, Any] = {}
     diags: list[Diagnostic] = []
-
-    if installed_ids and not docker_found:
-        diags.append(
-            warning(
-                "docker не найден (нужен для services up внешних tools)",
-                code="1CX003",
-                source="doctor",
-                suggestion="Установите Docker / Docker Compose",
-            )
-        )
+    needs_docker = False
 
     for tool_id in installed_ids:
         entry: dict[str, Any] = {
@@ -233,6 +224,14 @@ def _external_tools_doctor() -> tuple[dict[str, Any], dict[str, Any], list[Diagn
         }
         try:
             recipe = load_installed_recipe(tool_id)
+            runtime = str(recipe.runtime.get("type") or "compose")
+            entry["runtime"] = runtime
+            if (
+                recipe.lifecycle == "managed"
+                and recipe.service_enabled
+                and runtime == "compose"
+            ):
+                needs_docker = True
             env_vars = resolve_env_vars(recipe.recipe_dir)
             if recipe.health_url_template:
                 health_url = expand_template(recipe.health_url_template, env_vars)
@@ -260,6 +259,16 @@ def _external_tools_doctor() -> tuple[dict[str, Any], dict[str, Any], list[Diagn
                 )
             )
         tools_map[tool_id] = entry
+
+    if needs_docker and not docker_found:
+        diags.append(
+            warning(
+                "docker не найден (нужен для compose external tools)",
+                code="1CX003",
+                source="doctor",
+                suggestion="Установите Docker / Docker Compose",
+            )
+        )
 
     external_payload: dict[str, Any] = {
         "found": bool(installed_ids),
@@ -291,13 +300,7 @@ def run_doctor(
     templates_path = tmplts.roots[0] if tmplts.roots else None
 
     manifest = load_manifest()
-    bsl_spec = manifest.get("bsl-language-server")
     docs_spec = manifest.get("docs-facade")
-    bsl = (
-        resolve_component_jar(bsl_spec, env=env)
-        if bsl_spec is not None
-        else JarResolve(found=False)
-    )
     docs = (
         resolve_component_jar(docs_spec, env=env)
         if docs_spec is not None
@@ -308,6 +311,15 @@ def run_doctor(
     dbgs_listening, dbgs_url = _probe_dbgs_listening()
     edtcli = discover_edtcli(env=env)
     docker_payload, external_tools_payload, external_diags = _external_tools_doctor()
+    bsl_ext = (external_tools_payload.get("tools") or {}).get("bsl-ls") or {}
+    # installed counts as present even if currently down (health → separate field).
+    bsl_installed = bool(bsl_ext.get("installed"))
+    bsl_payload = {
+        "found": bsl_installed,
+        "path": bsl_ext.get("mcpUrl"),
+        "healthy": bsl_ext.get("healthy"),
+        "source": "external-tools",
+    }
 
     tools = {
         "cli": cli,
@@ -332,7 +344,7 @@ def run_doctor(
         "md-sparrow": _adapter_jar_payload(
             mdsparrow.found, mdsparrow.path, env_name=_MDSPARROW_ENV, env=env
         ),
-        "bsl-language-server": _jar_payload(bsl),
+        "bsl-language-server": bsl_payload,
         "docs-facade": _jar_payload(docs),
         "yaxunit": _yaxunit_payload(yaxunit),
         "1cedtcli": _tool_payload(edtcli.found, edtcli.path, version=edtcli.version),
@@ -352,7 +364,7 @@ def run_doctor(
         "xml-gen": xmlgen.found,
         "md-reader": mdreader.found,
         "md-sparrow": mdsparrow.found,
-        "bsl-language-server": bsl.found,
+        "bsl-language-server": bsl_installed,
         "docs-facade": docs.found,
         "yaxunit": yaxunit.found,
         "cli": bool(cli.get("found")),
@@ -490,14 +502,16 @@ def run_doctor(
                 suggestion=f"{hint} (или задайте {_MDSPARROW_ENV}).",
             )
         )
-    if not bsl.found:
-        env_name = (bsl_spec.env if bsl_spec else None) or "ONEC_BSLLS_JAR"
+    if not bsl_installed:
         diagnostics.append(
             warning(
-                "bsl-language-server jar не найден (нужен для BSL LS MCP)",
+                "bsl-ls не установлен (нужен для BSL LS MCP)",
                 code="1CD007",
                 source="doctor",
-                suggestion=f"{hint} (или задайте {env_name}).",
+                suggestion=(
+                    "1c-dev tools install bsl-ls && 1c-dev services up bsl-ls "
+                    "(или ONEC_BSLLS_JAR + services up)."
+                ),
             )
         )
     if not docs.found:

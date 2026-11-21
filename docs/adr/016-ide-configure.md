@@ -36,7 +36,9 @@ M4 / [ADR-022](022-project-home.md): в multi-tool monorepo IDE MCP может �
 Серверы в шаблоне:
 
 - `1c-dev`: `command: 1c-dev`, `args: ["mcp"]` (без `cwd` — IDE стартует из workspace root).
-- `bsl-language-server`: `java -jar <abs jar> mcp` (jar из toolchain resolve / ожидаемый cache path).
+- `bsl-language-server`: shared Streamable HTTP URL после `tools install bsl-ls` +
+  `services up bsl-ls` (ADR-033 Этап 7 / #177). Per-project stdio `java -jar … mcp`
+  **снят**; без установленного bsl-ls ключ не пишется (warning `1CP009`).
 
 ### IDE rules paths
 
@@ -98,7 +100,7 @@ Cursor: все правила с `alwaysApply: true` и `description` из manif
 
 - `init` и `ide configure` делят шаблон `AGENTS.md`, запись IDE MCP через `_configure_ide_mcp` и rules агента через `_configure_ide_rules`.
 - `init --ide-target all` (default) сразу создаёт `.cursor/mcp.json`, `.kilo/mcp.json` и IDE rules от `1c-dev` в scope; `ide configure` — adopt (после import/clone), split roots и повторный merge.
-- Doctor / `tools sync` обеспечивают jar для рабочего BSL LS MCP.
+- Doctor / `tools install bsl-ls` + `services up bsl-ls` обеспечивают shared BSL LS MCP.
 - Monorepo: `ide configure --project products/shop --ide-root . [--agents scope]`.
 
 ## Связанные решения

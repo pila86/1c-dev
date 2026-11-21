@@ -232,8 +232,29 @@ def _validate_pins(recipe: ToolRecipe) -> list[Diagnostic]:
     if recipe.lifecycle == "external":
         # Escape hatch: no local images to pin.
         return diags
+    runtime_type = str(recipe.runtime.get("type") or "compose")
+    if recipe.source_type == "github-release":
+        source = recipe.raw.get("source") if isinstance(recipe.raw.get("source"), dict) else {}
+        assert isinstance(source, dict)
+        if not source.get("url") or not source.get("sha256"):
+            diags.append(
+                error(
+                    "github-release требует source.url и source.sha256",
+                    code="1CX007",
+                    source="tools",
+                )
+            )
+        if not env_default.is_file():
+            diags.append(
+                error(
+                    "env.default отсутствует в recipe",
+                    code="1CX007",
+                    source="tools",
+                )
+            )
+        return diags
     if not env_default.is_file():
-        if recipe.runtime.get("type") == "compose" or recipe.lifecycle == "managed":
+        if runtime_type == "compose" or recipe.lifecycle == "managed":
             diags.append(
                 error(
                     "env.default отсутствует в recipe",
@@ -245,7 +266,15 @@ def _validate_pins(recipe: ToolRecipe) -> list[Diagnostic]:
         return diags
     values = _read_env_file(env_default)
     keys = _pin_keys_for(recipe, values)
-    if not keys and recipe.lifecycle == "managed" and not recipe.is_scaffold:
+    source = recipe.raw.get("source")
+    pins_explicit = isinstance(source, dict) and isinstance(source.get("pins"), list)
+    if (
+        not keys
+        and recipe.lifecycle == "managed"
+        and not recipe.is_scaffold
+        and runtime_type == "compose"
+        and not pins_explicit
+    ):
         diags.append(
             warning(
                 "в env.default нет *_IMAGE pin-ключей",
@@ -505,6 +534,7 @@ def install_tool(
         )
     )
 
+    pulled = False
     if pull:
         ok_git, git_diags = clone_recipe_source(installed, dest, progress=progress)
         diags.extend(git_diags)
@@ -515,6 +545,22 @@ def install_tool(
                 path=str(dest),
                 diagnostics=diags,
             )
+
+        if recipe.source_type == "github-release":
+            from core.tools.github_release import download_github_release_asset
+
+            ok_rel, rel_diags = download_github_release_asset(
+                installed, dest, progress=progress
+            )
+            diags.extend(rel_diags)
+            if not ok_rel:
+                return InstallResult(
+                    tool_id=tool_id,
+                    status="error",
+                    path=str(dest),
+                    diagnostics=diags,
+                )
+            pulled = True
 
         if installed.index_config.get("provider") == "huggingface":
             ok_hf, _path, hf_diags = download_huggingface_corpus(
@@ -531,17 +577,19 @@ def install_tool(
                     path=str(dest),
                     diagnostics=diags,
                 )
-    elif recipe.source_type == "git" or installed.index_config.get("provider"):
+    elif (
+        recipe.source_type in ("git", "github-release")
+        or installed.index_config.get("provider")
+    ):
         diags.append(
             warning(
-                "skip git clone / index download (--no-pull); "
+                "skip git clone / release download / index (--no-pull); "
                 "повторный install без --no-pull перед services up",
                 code="1CX000",
                 source="tools",
             )
         )
 
-    pulled = False
     needs_images = (
         pull
         and recipe.lifecycle == "managed"

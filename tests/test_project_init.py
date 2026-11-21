@@ -42,6 +42,13 @@ def test_platform_version_for_manifest() -> None:
     assert compatibility_mode_for("8.3.27") == "Version8_3_27"
 
 
+@pytest.fixture(autouse=True)
+def _isolate_external_tools_share(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "_xdg_data"))
+
+
 def test_init_project_ok(tmp_path: Path) -> None:
     target = tmp_path / "shop"
     target.mkdir()
@@ -70,8 +77,7 @@ def test_init_project_ok(tmp_path: Path) -> None:
     for mcp_path in (cursor_mcp, kilo_mcp):
         payload = json.loads(mcp_path.read_text(encoding="utf-8"))
         servers = payload["mcpServers"]
-        assert "1c-dev" in servers
-        assert "bsl-language-server" in servers
+        assert set(servers) == {"1c-dev"}
 
     for rule_id in RULE_IDS:
         cursor_rule = target / rule_file_rel("cursor", rule_id)

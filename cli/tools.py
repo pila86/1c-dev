@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import typer
 
@@ -10,6 +11,7 @@ from cli.output import OutputFormat, OutputOption, resolve_output
 from cli.toolchain import toolchain_clean_command, toolchain_sync_command
 from core.exit_codes import ENV_UNAVAILABLE, RUNTIME_FAILURE, SUCCESS
 from core.tools.catalog import list_catalog
+from core.tools.desire import check_desire_list
 from core.tools.install import (
     install_tool,
     list_installed,
@@ -162,6 +164,36 @@ def tools_install_command(
     codes = {d.get("code") for d in result.diagnostics}
     if "1CX003" in codes:
         raise typer.Exit(code=ENV_UNAVAILABLE)
+    raise typer.Exit(code=RUNTIME_FAILURE)
+
+
+@app.command("check")
+def tools_check_command(
+    ctx: typer.Context,
+    output: OutputOption = None,
+) -> None:
+    """Проверить desire-list проекта (``.1c-dev/tools.yaml``) vs installed/health."""
+    fmt = resolve_output(ctx, output)
+    result = check_desire_list(Path.cwd())
+    if fmt is OutputFormat.json:
+        typer.echo(json.dumps(result.to_payload(), ensure_ascii=False, indent=2))
+    else:
+        typer.echo(f"tools check: {result.status}")
+        if result.desire_path:
+            typer.echo(f"  desire: {result.desire_path}")
+        for item in result.items:
+            health = (
+                f", healthy={item.healthy}" if item.healthy is not None else ""
+            )
+            typer.echo(
+                f"  {item.tool_id}: {item.status} "
+                f"(installed={item.installed}{health})"
+            )
+        _emit_diags_text(result.diagnostics)  # type: ignore[arg-type]
+    if result.status == "ok":
+        raise typer.Exit(code=SUCCESS)
+    if result.status == "degraded":
+        raise typer.Exit(code=SUCCESS)  # warnings only
     raise typer.Exit(code=RUNTIME_FAILURE)
 
 
