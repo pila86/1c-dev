@@ -44,7 +44,7 @@
 | [030](030-designer-check-modules.md) | Accepted | Designer `/CheckModules` в `1c-dev check` (синтаксис модулей) |
 | [031](031-debug-api-http.md) | Accepted | Debug API: CLI/MCP поверх HTTP Debug Protocol (`dbgs`) |
 | [032](032-edt-source-adapter.md) | Accepted | EDT Source Adapter + write path D (md-sparrow `.mdo` + `1cedtcli` export) |
-| [033](033-external-tools-manager.md) | Accepted | External Tools Manager (catalog / install / services / IDE MCP) |
+| [033](033-external-tools-manager.md) | Accepted | External Tools Manager (catalog / install / services / IDE MCP; этапы 0–5, 7 done) |
 
 ## Когда писать ADR
 
