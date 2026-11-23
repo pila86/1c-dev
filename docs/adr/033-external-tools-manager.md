@@ -39,6 +39,8 @@ user-scoped Docker MCP нельзя: разные layout, lifecycle и сема�
 ### 2. Install ≠ run
 
 `tools install` материализует recipe в share (pull images / download jar / clone).
+Если `docker compose pull` падает (timeout registry), но pin-образы уже в local
+docker store — install ok с warning `1CX006` (можно `services up`).
 `services up` поднимает stack. `init` не ставит global tools и не делает `up`.
 
 ### 3. Local managed HTTP — основной путь

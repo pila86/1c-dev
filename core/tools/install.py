@@ -341,21 +341,11 @@ def _copy_recipe(src: Path, dest: Path) -> None:
         shutil.copy2(env_default, user_env)
 
 
-def _compose_pull(
-    tool_dir: Path,
-    recipe: ToolRecipe,
-    *,
-    progress: ProgressCb,
-) -> tuple[bool, list[Diagnostic]]:
+def _compose_base_cmd(tool_dir: Path, recipe: ToolRecipe) -> list[str] | None:
+    """Build docker compose argv prefix, or None if compose file missing."""
     compose = tool_dir / recipe.compose_file
     if not compose.is_file():
-        return False, [
-            error(
-                f"compose file не найден: {recipe.compose_file}",
-                code="1CX007",
-                source="tools",
-            )
-        ]
+        return None
     cmd = [
         "docker",
         "compose",
@@ -372,7 +362,70 @@ def _compose_pull(
         cmd.extend(["--env-file", str(env_file)])
     for profile in recipe.profiles:
         cmd.extend(["--profile", profile])
-    cmd.append("pull")
+    return cmd
+
+
+def _compose_required_images(tool_dir: Path, recipe: ToolRecipe) -> list[str]:
+    """Resolved image refs from compose config (empty on failure)."""
+    base = _compose_base_cmd(tool_dir, recipe)
+    if base is None:
+        return []
+    cmd = [*base, "config", "--images"]
+    try:
+        completed = subprocess.run(
+            cmd,
+            cwd=str(tool_dir),
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, "COMPOSE_PROJECT_NAME": recipe.project_name},
+        )
+    except FileNotFoundError:
+        return []
+    if completed.returncode != 0:
+        return []
+    return [
+        line.strip()
+        for line in (completed.stdout or "").splitlines()
+        if line.strip()
+    ]
+
+
+def _docker_images_present(images: list[str]) -> bool:
+    """True when every image ref exists in the local docker store."""
+    if not images:
+        return False
+    for image in images:
+        try:
+            completed = subprocess.run(
+                ["docker", "image", "inspect", image],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except FileNotFoundError:
+            return False
+        if completed.returncode != 0:
+            return False
+    return True
+
+
+def _compose_pull(
+    tool_dir: Path,
+    recipe: ToolRecipe,
+    *,
+    progress: ProgressCb,
+) -> tuple[bool, list[Diagnostic]]:
+    base = _compose_base_cmd(tool_dir, recipe)
+    if base is None:
+        return False, [
+            error(
+                f"compose file не найден: {recipe.compose_file}",
+                code="1CX007",
+                source="tools",
+            )
+        ]
+    cmd = [*base, "pull"]
     if progress:
         progress(f"docker compose pull ({recipe.id})…")
     try:
@@ -398,6 +451,17 @@ def _compose_pull(
         msg = f"docker compose pull failed (exit {completed.returncode})"
         if detail:
             msg = f"{msg}: {detail[:500]}"
+        images = _compose_required_images(tool_dir, recipe)
+        if _docker_images_present(images):
+            listed = ", ".join(images)
+            return True, [
+                warning(
+                    f"{msg}; использую локальные образы ({listed})",
+                    code="1CX006",
+                    source="tools",
+                    suggestion="Повторите install позже, когда registry доступен",
+                )
+            ]
         return False, [
             error(
                 msg,

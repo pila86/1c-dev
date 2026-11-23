@@ -297,6 +297,86 @@ def test_install_no_pull_materializes(
     assert not is_installed("v8std")
 
 
+def test_install_pull_falls_back_to_local_images(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Registry timeout must not fail install when pin images are already local."""
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    site = "ghcr.io/zeegin/v8std-site:sha-test"
+    mcp = "ghcr.io/zeegin/v8std-mcp:sha-test"
+
+    def fake_run(cmd: list[str], **_kwargs: object) -> object:
+        joined = " ".join(cmd)
+        if cmd[:2] == ["docker", "compose"] and cmd[-1] == "pull":
+            return type(
+                "R",
+                (),
+                {
+                    "returncode": 18,
+                    "stdout": "",
+                    "stderr": (
+                        'Error response from daemon: Get "https://ghcr.io/v2/": '
+                        "Client.Timeout exceeded while awaiting headers"
+                    ),
+                },
+            )()
+        if cmd[:2] == ["docker", "compose"] and "config" in cmd and "--images" in cmd:
+            return type(
+                "R",
+                (),
+                {"returncode": 0, "stdout": f"{site}\n{mcp}\n", "stderr": ""},
+            )()
+        if cmd[:3] == ["docker", "image", "inspect"]:
+            return type("R", (), {"returncode": 0, "stdout": "[]", "stderr": ""})()
+        raise AssertionError(f"unexpected subprocess: {joined}")
+
+    with patch("core.tools.install.subprocess.run", side_effect=fake_run):
+        result = install_tool("v8std", pull=True)
+    assert result.status == "ok", result.diagnostics
+    assert result.pulled is True
+    assert any(
+        d.get("severity") == "warning" and d.get("code") == "1CX006"
+        for d in result.diagnostics
+    )
+    assert any("локальные образы" in (d.get("message") or "") for d in result.diagnostics)
+
+
+def test_install_pull_fails_without_local_images(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+
+    def fake_run(cmd: list[str], **_kwargs: object) -> object:
+        if cmd[:2] == ["docker", "compose"] and cmd[-1] == "pull":
+            return type(
+                "R",
+                (),
+                {"returncode": 18, "stdout": "", "stderr": "timeout"},
+            )()
+        if cmd[:2] == ["docker", "compose"] and "config" in cmd and "--images" in cmd:
+            return type(
+                "R",
+                (),
+                {
+                    "returncode": 0,
+                    "stdout": "ghcr.io/zeegin/v8std-site:missing\n",
+                    "stderr": "",
+                },
+            )()
+        if cmd[:3] == ["docker", "image", "inspect"]:
+            return type("R", (), {"returncode": 1, "stdout": "", "stderr": "No such"})()
+        raise AssertionError(f"unexpected subprocess: {' '.join(cmd)}")
+
+    with patch("core.tools.install.subprocess.run", side_effect=fake_run):
+        result = install_tool("v8std", pull=True)
+    assert result.status == "error"
+    assert result.pulled is False
+    assert any(
+        d.get("severity") == "error" and d.get("code") == "1CX006"
+        for d in result.diagnostics
+    )
+
+
 def test_install_unknown_tool(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
     result = install_tool("no-such-tool", pull=False)
