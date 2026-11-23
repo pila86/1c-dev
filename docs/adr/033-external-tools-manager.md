@@ -25,8 +25,8 @@ user-scoped Docker MCP нельзя: разные layout, lifecycle и сема�
 | Подсистема | CLI | Хранение |
 |------------|-----|----------|
 | Toolchain (jars/apache/yaxunit) | `toolchain sync\|clean` | cache (`~/.cache/1c-dev/tools/`) |
-| External tools (MCP/сервисы) | `tools list\|info\|install\|update\|remove\|check` | share (`~/.local/share/1c-dev/tools/<id>/`) |
-| Managed services | `services up\|down\|restart\|status\|logs` | share + docker/process; state в share |
+| External tools (MCP/сервисы) | `tools list\|info\|install[--all]\|update\|remove\|check` | share (`~/.local/share/1c-dev/tools/<id>/`) |
+| Managed services | `services list\|up\|down\|restart\|status\|logs` (+ `--all` для up/down/status) | share + docker/process; state в share |
 
 Миграция naming:
 
@@ -38,7 +38,11 @@ user-scoped Docker MCP нельзя: разные layout, lifecycle и сема�
 
 ### 2. Install ≠ run
 
-`tools install` материализует recipe в share (pull images / download jar / clone).
+`tools install` копирует `catalog/<id>/` в share и по умолчанию скачивает
+артефакты (compose pull / jar / git / HF). `--no-pull` — только copy файлов,
+без сети (офлайн/CI или когда pin-образы уже локально).
+Если `docker compose pull` падает (timeout registry), но pin-образы уже в local
+docker store — install ok с warning `1CX006` (можно `services up`).
 `services up` поднимает stack. `init` не ставит global tools и не делает `up`.
 
 ### 3. Local managed HTTP — основной путь
@@ -96,10 +100,13 @@ Shipped: `v8std`, `bsl-search`, `bsl-ls`.
 ~/.config/1c-dev/           # config.yaml, user preferences
 ~/.local/share/1c-dev/
   tools/<id>/               # installed recipe + .env
-  services/state.json
+  services/state.json       # last-known; list/status reconcile via live probe
   data/<id>/                # volumes / dumps / process runtime (pid, logs)
 ~/.cache/1c-dev/            # toolchain + downloads (можно чистить)
 ```
+
+`services list` для installed не доверяет stale `running`/`healthy` в state
+(после reboot процессы/контейнеры мертвы) — дергает тот же probe, что `status`.
 
 Windows share: `%LOCALAPPDATA%\1c-dev\share\tools\<id>\` (аналог XDG_DATA_HOME).
 Cache остаётся как ADR-013.

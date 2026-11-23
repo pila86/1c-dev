@@ -297,6 +297,86 @@ def test_install_no_pull_materializes(
     assert not is_installed("v8std")
 
 
+def test_install_pull_falls_back_to_local_images(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Registry timeout must not fail install when pin images are already local."""
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    site = "ghcr.io/zeegin/v8std-site:sha-test"
+    mcp = "ghcr.io/zeegin/v8std-mcp:sha-test"
+
+    def fake_run(cmd: list[str], **_kwargs: object) -> object:
+        joined = " ".join(cmd)
+        if cmd[:2] == ["docker", "compose"] and cmd[-1] == "pull":
+            return type(
+                "R",
+                (),
+                {
+                    "returncode": 18,
+                    "stdout": "",
+                    "stderr": (
+                        'Error response from daemon: Get "https://ghcr.io/v2/": '
+                        "Client.Timeout exceeded while awaiting headers"
+                    ),
+                },
+            )()
+        if cmd[:2] == ["docker", "compose"] and "config" in cmd and "--images" in cmd:
+            return type(
+                "R",
+                (),
+                {"returncode": 0, "stdout": f"{site}\n{mcp}\n", "stderr": ""},
+            )()
+        if cmd[:3] == ["docker", "image", "inspect"]:
+            return type("R", (), {"returncode": 0, "stdout": "[]", "stderr": ""})()
+        raise AssertionError(f"unexpected subprocess: {joined}")
+
+    with patch("core.tools.install.subprocess.run", side_effect=fake_run):
+        result = install_tool("v8std", pull=True)
+    assert result.status == "ok", result.diagnostics
+    assert result.pulled is True
+    assert any(
+        d.get("severity") == "warning" and d.get("code") == "1CX006"
+        for d in result.diagnostics
+    )
+    assert any("локальные образы" in (d.get("message") or "") for d in result.diagnostics)
+
+
+def test_install_pull_fails_without_local_images(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+
+    def fake_run(cmd: list[str], **_kwargs: object) -> object:
+        if cmd[:2] == ["docker", "compose"] and cmd[-1] == "pull":
+            return type(
+                "R",
+                (),
+                {"returncode": 18, "stdout": "", "stderr": "timeout"},
+            )()
+        if cmd[:2] == ["docker", "compose"] and "config" in cmd and "--images" in cmd:
+            return type(
+                "R",
+                (),
+                {
+                    "returncode": 0,
+                    "stdout": "ghcr.io/zeegin/v8std-site:missing\n",
+                    "stderr": "",
+                },
+            )()
+        if cmd[:3] == ["docker", "image", "inspect"]:
+            return type("R", (), {"returncode": 1, "stdout": "", "stderr": "No such"})()
+        raise AssertionError(f"unexpected subprocess: {' '.join(cmd)}")
+
+    with patch("core.tools.install.subprocess.run", side_effect=fake_run):
+        result = install_tool("v8std", pull=True)
+    assert result.status == "error"
+    assert result.pulled is False
+    assert any(
+        d.get("severity") == "error" and d.get("code") == "1CX006"
+        for d in result.diagnostics
+    )
+
+
 def test_install_unknown_tool(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
     result = install_tool("no-such-tool", pull=False)
@@ -547,3 +627,185 @@ def test_v8std_install_up_health_down(
         assert json.loads(status.stdout).get("healthy") is True
     finally:
         runner.invoke(app, ["services", "down", "v8std", "--output", "json"])
+
+
+def test_cli_tools_install_all_no_pull(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    result = runner.invoke(
+        app, ["tools", "install", "--all", "--no-pull", "--output", "json"]
+    )
+    assert result.exit_code == SUCCESS, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "ok"
+    assert payload["action"] == "install-all"
+    ids = {r["toolId"] for r in payload["results"]}
+    catalog_ids = set(list_catalog())
+    assert ids == catalog_ids
+    for tool_id in catalog_ids:
+        assert is_installed(tool_id)
+
+
+def test_cli_tools_install_id_xor_all(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    neither = runner.invoke(app, ["tools", "install", "--output", "json"])
+    assert neither.exit_code == RUNTIME_FAILURE
+    both = runner.invoke(
+        app, ["tools", "install", "v8std", "--all", "--output", "json"]
+    )
+    assert both.exit_code == RUNTIME_FAILURE
+
+
+def test_cli_services_list_after_install(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    install_tool("v8std", pull=False)
+    from core.services.manager import ServiceResult
+    from core.services.state import StackState, default_stack_labels, save_stack
+
+    save_stack(
+        StackState(
+            tool_id="v8std",
+            project_name="1c-dev-v8std",
+            last_action="up",
+            last_status="ok",
+            healthy=True,
+            running=True,
+            mcp_url="http://127.0.0.1:18766/mcp",
+            labels=default_stack_labels("v8std"),
+        )
+    )
+
+    def fake_status(tool_id: str) -> ServiceResult:
+        if tool_id == "v8std":
+            return ServiceResult(
+                tool_id=tool_id,
+                status="ok",
+                action="status",
+                running=True,
+                healthy=True,
+                mcp_url="http://127.0.0.1:18766/mcp",
+            )
+        return ServiceResult(
+            tool_id=tool_id,
+            status="degraded",
+            action="status",
+            running=False,
+            healthy=False,
+        )
+
+    with patch("core.services.manager.service_status", side_effect=fake_status):
+        result = runner.invoke(app, ["services", "list", "--output", "json"])
+    assert result.exit_code == SUCCESS, result.stdout
+    payload = json.loads(result.stdout)
+    by_id = {s["id"]: s for s in payload["services"]}
+    assert "v8std" in by_id
+    assert by_id["v8std"]["installed"] is True
+    assert by_id["v8std"]["running"] is True
+    assert by_id["v8std"]["healthy"] is True
+    assert "bsl-ls" in by_id
+    assert by_id["bsl-ls"]["installed"] is False
+
+
+def test_cli_services_list_ignores_stale_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """After reboot state.json may say running; list must probe live."""
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    install_tool("v8std", pull=False)
+    from core.services.state import StackState, default_stack_labels, save_stack
+
+    save_stack(
+        StackState(
+            tool_id="v8std",
+            project_name="1c-dev-v8std",
+            last_action="up",
+            last_status="ok",
+            healthy=True,
+            running=True,
+            mcp_url="http://127.0.0.1:18766/mcp",
+            labels=default_stack_labels("v8std"),
+        )
+    )
+    with patch(
+        "core.services.manager.check_http",
+        return_value=HealthResult(
+            url="http://127.0.0.1:18766/healthz",
+            reachable=False,
+            status_code=None,
+        ),
+    ):
+        result = runner.invoke(app, ["services", "list", "--output", "json"])
+    assert result.exit_code == SUCCESS, result.stdout
+    payload = json.loads(result.stdout)
+    by_id = {s["id"]: s for s in payload["services"]}
+    assert by_id["v8std"]["running"] is False
+    assert by_id["v8std"]["healthy"] is False
+    # list reconciles state.json via service_status
+    assert load_state()["v8std"].running is False
+    assert load_state()["v8std"].healthy is False
+
+
+def test_cli_services_up_all_skips_not_installed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from core.services.manager import ServiceResult
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    install_tool("bsl-ls", pull=False)
+    jar = tools_share_dir() / "bsl-ls" / "lib" / "bsl-language-server.jar"
+    jar.parent.mkdir(parents=True, exist_ok=True)
+    jar.write_bytes(b"pk\x03\x04")
+
+    def fake_up(tool_id: str, **_kwargs: object) -> ServiceResult:
+        return ServiceResult(
+            tool_id=tool_id,
+            status="ok",
+            action="up",
+            running=True,
+            healthy=True,
+        )
+
+    with patch("core.services.manager.service_up", side_effect=fake_up):
+        result = runner.invoke(app, ["services", "up", "--all", "--output", "json"])
+    assert result.exit_code == SUCCESS, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["action"] == "up-all"
+    assert payload["status"] == "ok"
+    by_id = {r["toolId"]: r for r in payload["results"]}
+    assert by_id["bsl-ls"]["status"] == "ok"
+    assert by_id["v8std"]["status"] == "ok"
+    assert any(
+        d.get("code") == "1CX002" for d in by_id["v8std"]["diagnostics"]
+    )
+
+
+def test_bulk_install_aggregate_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from core.tools.install import InstallResult, install_all_tools
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+
+    def fake_install(tool_id: str, **_kwargs: object) -> InstallResult:
+        if tool_id == "v8std":
+            return InstallResult(tool_id=tool_id, status="error", diagnostics=[])
+        return InstallResult(tool_id=tool_id, status="ok", path="/tmp", pulled=False)
+
+    with patch("core.tools.install.install_tool", side_effect=fake_install):
+        bulk = install_all_tools(pull=False)
+    assert bulk.status == "error"
+    assert any(r.tool_id == "v8std" and r.status == "error" for r in bulk.results)
+
+
+def test_cli_services_id_xor_all() -> None:
+    neither = runner.invoke(app, ["services", "up", "--output", "json"])
+    assert neither.exit_code == RUNTIME_FAILURE
+    both = runner.invoke(
+        app, ["services", "up", "v8std", "--all", "--output", "json"]
+    )
+    assert both.exit_code == RUNTIME_FAILURE

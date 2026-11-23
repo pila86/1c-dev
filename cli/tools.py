@@ -13,6 +13,7 @@ from core.exit_codes import ENV_UNAVAILABLE, RUNTIME_FAILURE, SUCCESS
 from core.tools.catalog import list_catalog
 from core.tools.desire import check_desire_list
 from core.tools.install import (
+    install_all_tools,
     install_tool,
     list_installed,
     remove_tool,
@@ -127,24 +128,89 @@ def tools_info_command(
     raise typer.Exit(code=SUCCESS)
 
 
+def _exit_install(result_status: str, diagnostics: list[dict[str, object]] | list[object]) -> None:
+    if result_status == "ok":
+        raise typer.Exit(code=SUCCESS)
+    codes = {d.get("code") for d in diagnostics if isinstance(d, dict)}
+    if "1CX003" in codes:
+        raise typer.Exit(code=ENV_UNAVAILABLE)
+    raise typer.Exit(code=RUNTIME_FAILURE)
+
+
 @app.command("install")
 def tools_install_command(
     ctx: typer.Context,
-    tool_id: str = typer.Argument(..., help="Id tool из catalog."),
+    tool_id: str | None = typer.Argument(
+        None, help="Id tool из catalog (или --all)."
+    ),
+    all_tools: bool = typer.Option(
+        False,
+        "--all",
+        help="Установить все tools из catalog.",
+    ),
     no_pull: bool = typer.Option(
         False,
         "--no-pull",
-        help="Только материализовать recipe, без docker compose pull.",
+        help=(
+            "Только скопировать файлы инструмента из catalog; "
+            "без скачивания образов/jar/git/индекса."
+        ),
     ),
     output: OutputOption = None,
 ) -> None:
-    """Установить recipe в share (+ pull images). Не запускает сервис."""
+    """Установить инструмент в share (+ скачать образы/артефакты). Сервис не запускает."""
     fmt = resolve_output(ctx, output)
+    if bool(tool_id) == all_tools:
+        message = "Укажите tool_id или --all (ровно одно)"
+        if fmt is OutputFormat.json:
+            typer.echo(
+                json.dumps(
+                    {
+                        "status": "error",
+                        "diagnostics": [
+                            {
+                                "severity": "error",
+                                "code": "1CX007",
+                                "message": message,
+                                "source": "tools",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+        else:
+            typer.echo(message)
+        raise typer.Exit(code=RUNTIME_FAILURE)
+
     live = fmt is not OutputFormat.json
 
     def progress(message: str) -> None:
         typer.echo(message, err=True)
 
+    if all_tools:
+        bulk = install_all_tools(
+            pull=not no_pull,
+            progress=progress if live else None,
+        )
+        if fmt is OutputFormat.json:
+            typer.echo(json.dumps(bulk.to_payload(), ensure_ascii=False, indent=2))
+        else:
+            typer.echo(f"tools install --all: {bulk.status}")
+            for item in bulk.results:
+                typer.echo(f"  {item.tool_id}: {item.status}")
+                if item.path:
+                    typer.echo(f"    path: {item.path}")
+                typer.echo(f"    pulled: {item.pulled}")
+                _emit_diags_text(item.diagnostics)  # type: ignore[arg-type]
+        all_diags: list[object] = []
+        for item in bulk.results:
+            all_diags.extend(item.diagnostics)
+        _exit_install(bulk.status, all_diags)
+        return
+
+    assert tool_id is not None
     result = install_tool(
         tool_id,
         pull=not no_pull,
@@ -158,13 +224,7 @@ def tools_install_command(
             typer.echo(f"  path: {result.path}")
         typer.echo(f"  pulled: {result.pulled}")
         _emit_diags_text(result.diagnostics)  # type: ignore[arg-type]
-    if result.status == "ok":
-        raise typer.Exit(code=SUCCESS)
-    # Docker missing / pull fail → ENV_UNAVAILABLE; recipe errors → RUNTIME
-    codes = {d.get("code") for d in result.diagnostics}
-    if "1CX003" in codes:
-        raise typer.Exit(code=ENV_UNAVAILABLE)
-    raise typer.Exit(code=RUNTIME_FAILURE)
+    _exit_install(result.status, result.diagnostics)  # type: ignore[arg-type]
 
 
 @app.command("check")
@@ -203,7 +263,7 @@ def tools_remove_command(
     tool_id: str = typer.Argument(..., help="Id установленного tool."),
     output: OutputOption = None,
 ) -> None:
-    """Удалить recipe из share (stack не останавливает автоматически)."""
+    """Удалить инструмент из share (сервис сам не останавливает)."""
     fmt = resolve_output(ctx, output)
     result = remove_tool(tool_id)
     if fmt is OutputFormat.json:

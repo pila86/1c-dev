@@ -14,9 +14,11 @@ from core.diagnostics import Diagnostic, error, info, warning
 from core.services.compose import docker_available, port_in_use, run_compose
 from core.services.health import check_http
 from core.services.state import StackState, default_stack_labels, save_stack
+from core.tools.catalog import list_catalog, load_recipe
 from core.tools.install import (
     expand_template,
     is_installed,
+    list_installed,
     load_installed_recipe,
     resolve_env_vars,
 )
@@ -54,6 +56,222 @@ class ServiceResult:
         if self.logs is not None:
             payload["logs"] = self.logs
         return payload
+
+
+@dataclass
+class ServiceListItem:
+    """Catalog entry for services list; installed → live running/healthy."""
+
+    tool_id: str
+    name: str
+    installed: bool
+    running: bool | None = None
+    healthy: bool | None = None
+    mcp_url: str | None = None
+    lifecycle: str = "managed"
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "id": self.tool_id,
+            "name": self.name,
+            "installed": self.installed,
+            "running": self.running,
+            "healthy": self.healthy,
+            "mcpUrl": self.mcp_url,
+            "lifecycle": self.lifecycle,
+        }
+
+
+@dataclass
+class BulkServiceResult:
+    """Aggregated result of services * --all."""
+
+    status: Status
+    action: str
+    results: list[ServiceResult] = field(default_factory=list)
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "action": self.action,
+            "results": [r.to_payload() for r in self.results],
+        }
+
+
+def _aggregate_service_status(results: list[ServiceResult]) -> Status:
+    if any(r.status == "error" for r in results):
+        return "error"
+    if any(r.status == "degraded" for r in results):
+        return "degraded"
+    return "ok"
+
+
+def _is_managed_recipe(recipe: Any) -> bool:
+    return recipe.lifecycle == "managed" and bool(recipe.service_enabled)
+
+
+def _managed_catalog_ids() -> list[str]:
+    ids: list[str] = []
+    for tool_id in list_catalog():
+        try:
+            recipe = load_recipe(tool_id)
+        except (FileNotFoundError, ValueError, OSError):
+            continue
+        if _is_managed_recipe(recipe):
+            ids.append(tool_id)
+    return ids
+
+
+def _skip_not_installed(tool_id: str, action: str) -> ServiceResult:
+    return ServiceResult(
+        tool_id=tool_id,
+        status="ok",
+        action=action,
+        diagnostics=[
+            warning(
+                f"tool «{tool_id}» не установлен — пропуск",
+                code="1CX002",
+                source="services",
+                suggestion=f"1c-dev tools install {tool_id}",
+            )
+        ],
+    )
+
+
+def _mcp_url_for_list(
+    recipe: Any,
+    *,
+    installed: bool,
+    stack: Any | None,
+) -> str | None:
+    if installed:
+        try:
+            env_vars = resolve_env_vars(installed_tool_dir(recipe.id))
+            if recipe.mcp_url_template:
+                return expand_template(recipe.mcp_url_template, env_vars)
+        except OSError:
+            return stack.mcp_url if stack else None
+    if stack and stack.mcp_url:
+        return str(stack.mcp_url)
+    return None
+
+
+def _list_item_for(
+    tool_id: str,
+    recipe: Any,
+    *,
+    installed: bool,
+    stack: Any | None,
+) -> ServiceListItem:
+    """Build list row; installed managed tools get live status (reconciles state)."""
+    running: bool | None = None
+    healthy: bool | None = None
+    mcp_url = _mcp_url_for_list(recipe, installed=installed, stack=stack)
+    if installed:
+        live = service_status(tool_id)
+        running = live.running
+        healthy = live.healthy
+        if live.mcp_url:
+            mcp_url = live.mcp_url
+    return ServiceListItem(
+        tool_id=tool_id,
+        name=recipe.name,
+        installed=installed,
+        running=running,
+        healthy=healthy,
+        mcp_url=mcp_url,
+        lifecycle=recipe.lifecycle,
+    )
+
+
+def list_services() -> list[ServiceListItem]:
+    """List managed services; installed → live probe via service_status (not stale state)."""
+    from core.services.state import load_state
+
+    state = load_state()
+    items: list[ServiceListItem] = []
+    seen: set[str] = set()
+
+    for tool_id in _managed_catalog_ids():
+        seen.add(tool_id)
+        recipe = load_recipe(tool_id)
+        installed = is_installed(tool_id)
+        items.append(
+            _list_item_for(
+                tool_id,
+                recipe,
+                installed=installed,
+                stack=state.get(tool_id),
+            )
+        )
+
+    for tool_id in list_installed():
+        if tool_id in seen:
+            continue
+        try:
+            recipe = load_installed_recipe(tool_id)
+        except (FileNotFoundError, ValueError, OSError):
+            continue
+        if not _is_managed_recipe(recipe):
+            continue
+        items.append(
+            _list_item_for(
+                tool_id,
+                recipe,
+                installed=True,
+                stack=state.get(tool_id),
+            )
+        )
+    return items
+
+
+def _services_all(
+    action: str,
+    *,
+    progress: ProgressCb = None,
+    wait_health_sec: float = 120.0,
+) -> BulkServiceResult:
+    """Run up/down/status for all catalog managed tools (skip not-installed)."""
+    results: list[ServiceResult] = []
+    for tool_id in _managed_catalog_ids():
+        if not is_installed(tool_id):
+            results.append(_skip_not_installed(tool_id, action))
+            continue
+        if progress:
+            progress(f"services {action} {tool_id}…")
+        if action == "up":
+            results.append(
+                service_up(
+                    tool_id, progress=progress, wait_health_sec=wait_health_sec
+                )
+            )
+        elif action == "down":
+            results.append(service_down(tool_id, progress=progress))
+        else:
+            results.append(service_status(tool_id))
+    return BulkServiceResult(
+        status=_aggregate_service_status(results),
+        action=f"{action}-all",
+        results=results,
+    )
+
+
+def service_up_all(
+    *,
+    progress: ProgressCb = None,
+    wait_health_sec: float = 120.0,
+) -> BulkServiceResult:
+    return _services_all(
+        "up", progress=progress, wait_health_sec=wait_health_sec
+    )
+
+
+def service_down_all(*, progress: ProgressCb = None) -> BulkServiceResult:
+    return _services_all("down", progress=progress)
+
+
+def service_status_all() -> BulkServiceResult:
+    return _services_all("status")
 
 
 def _not_installed(tool_id: str, action: str) -> ServiceResult:
