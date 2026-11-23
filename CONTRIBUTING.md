@@ -52,11 +52,13 @@ refs #2
 
 ## External tools (ADR-033 / #172 / #175 / #177)
 
-Recipes: `catalog/<id>/` (`v8std`, `bsl-search`, `bsl-ls`). Установка ≠ запуск:
+Описания инструментов: `catalog/<id>/` (`v8std`, `bsl-search`, `bsl-ls`).
+Установка ≠ запуск:
 
 ```bash
 1c-dev tools list                 # available + installed
 1c-dev tools install v8std
+1c-dev tools install v8std --no-pull  # только файлы из catalog; без сети
 1c-dev tools install --all        # все из catalog (последовательно)
 1c-dev services list              # managed: catalog; installed → live status
 1c-dev services up v8std

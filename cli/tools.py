@@ -151,11 +151,14 @@ def tools_install_command(
     no_pull: bool = typer.Option(
         False,
         "--no-pull",
-        help="Только материализовать recipe, без docker compose pull.",
+        help=(
+            "Только скопировать файлы инструмента из catalog; "
+            "без скачивания образов/jar/git/индекса."
+        ),
     ),
     output: OutputOption = None,
 ) -> None:
-    """Установить recipe в share (+ pull images). Не запускает сервис."""
+    """Установить инструмент в share (+ скачать образы/артефакты). Сервис не запускает."""
     fmt = resolve_output(ctx, output)
     if bool(tool_id) == all_tools:
         message = "Укажите tool_id или --all (ровно одно)"
@@ -260,7 +263,7 @@ def tools_remove_command(
     tool_id: str = typer.Argument(..., help="Id установленного tool."),
     output: OutputOption = None,
 ) -> None:
-    """Удалить recipe из share (stack не останавливает автоматически)."""
+    """Удалить инструмент из share (сервис сам не останавливает)."""
     fmt = resolve_output(ctx, output)
     result = remove_tool(tool_id)
     if fmt is OutputFormat.json:
