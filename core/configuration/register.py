@@ -34,18 +34,27 @@ def register_configuration_entry(
     config_id: str | None = None,
     name: str | None = None,
     source_path: str | None = None,
+    format: str = "xml",
     set_default: bool | None = None,
     with_runtime: bool = True,
+    ensure_source_dir: bool = True,
 ) -> RegisterResult:
     """
     Append ``configurations[]`` (+ optional ``runtimes[]``) to ``data`` in place.
 
-    Creates source and runtime directories on disk but does **not** scaffold XML
-    and does **not** write the manifest file.
+    Creates source and runtime directories on disk (unless ``ensure_source_dir=False``
+    or the source path already exists) but does **not** scaffold XML and does
+    **not** write the manifest file.
     """
     resolved_name = sanitize_project_name(name or config_id or "Configuration")
     resolved_id = sanitize_project_name(config_id or resolved_name)
-    resolved_path = (source_path or f"src/{resolved_id}").replace("\\", "/").strip("/")
+    raw_path = (source_path or f"src/{resolved_id}").replace("\\", "/")
+    # Keep "." and paths with ".." / absolute as-is; only strip trailing slashes.
+    if raw_path != ".":
+        resolved_path = raw_path.strip("/") or f"src/{resolved_id}"
+    else:
+        resolved_path = "."
+    source_format = format if format in {"xml", "edt", "cfe"} else "xml"
 
     configurations = data.get("configurations")
     if not isinstance(configurations, list):
@@ -73,11 +82,24 @@ def register_configuration_entry(
             )
 
     created: list[str] = []
-    source_dir = root / resolved_path
-    source_dir.mkdir(parents=True, exist_ok=True)
-    rel_src = str(source_dir.relative_to(root))
-    if rel_src not in created:
-        created.append(rel_src)
+    from core.project.source_paths import resolve_source_path
+
+    source_dir = resolve_source_path(root, resolved_path)
+    if ensure_source_dir and not source_dir.exists():
+        source_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            rel_src = str(source_dir.relative_to(root.resolve()))
+        except ValueError:
+            rel_src = resolved_path
+        if rel_src not in created:
+            created.append(rel_src)
+    elif source_dir.is_dir():
+        try:
+            rel_src = str(source_dir.relative_to(root.resolve()))
+        except ValueError:
+            rel_src = resolved_path
+        # Existing adopt path — do not mkdir / do not list as created.
+        del rel_src
 
     is_first_conf = len(configurations) == 0
     conf_default = set_default if set_default is not None else is_first_conf
@@ -89,7 +111,7 @@ def register_configuration_entry(
     conf_entry: dict[str, Any] = {
         "id": resolved_id,
         "type": "configuration",
-        "source": {"format": "xml", "path": resolved_path},
+        "source": {"format": source_format, "path": resolved_path},
     }
     if conf_default:
         conf_entry["default"] = True

@@ -65,9 +65,9 @@ Fallback для разработчиков (те же pin’ы): `./scripts/fetc
 | `1c-dev tools sync` | Bootstrap jars + user Apache (`tools/apache`) в cache |
 | `1c-dev tools clean --yes` | Удалить user cache toolchain |
 | `1c-dev uninstall --yes` | Cache + `uv tool uninstall 1c-dev` |
-| `1c-dev init --type configuration [--ide-target all\|cursor\|kilocode\|none]` | Bootstrap пустого проекта конфигурации (+ IDE MCP) |
+| `1c-dev init --type configuration [--ide-target all\|cursor\|kilocode\|none]` | Bootstrap scope (+ IDE MCP); при наличии XML/EDT в дереве (depth ≤3) — adopt в манифест |
 | `1c-dev init --type extension` | Bootstrap standalone-проекта расширения (`src/cfe/<name>/`) |
-| `1c-dev extension add [--id] [--name] [--purpose] [--from *.cfe] [--config]` | Добавить расширение (XML scaffold или выгрузка XML из `.cfe`) |
+| `1c-dev extension add [--id] [--name] [--purpose] [--from *.cfe] [--path DIR] [--config]` | Добавить расширение (scaffold / `.cfe` / существующий `--path`; для tests — путь вне scope) |
 | `1c-dev extension list [--config] [--runtime]` | Список расширений в выбранной file IB |
 | `1c-dev templates roots\|list\|get` | Каталог шаблонов платформы (tmplts / `*.mft`) |
 | `1c-dev project detect\|validate\|info` | Манифест `.1c-dev/project.yaml` (`project init` = алиас `init`) |

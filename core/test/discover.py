@@ -83,7 +83,9 @@ def discover_modules_for_extension(
     """Discover modules for a single extension (tests)."""
     if not ext.source_rel:
         return []
-    ext_path = (root / ext.source_rel).resolve()
+    from core.project.source_paths import resolve_source_path
+
+    ext_path = resolve_source_path(root, ext.source_rel)
     if not ext_path.is_dir():
         return []
     modules: list[dict[str, Any]] = []

@@ -371,8 +371,10 @@ def init_project(
     """
     Create a new project scope in target (default: CWD).
 
-    For ``configuration``: empty scope (``.1c-dev/project.yaml``, no XML).
-    Optional ``config`` runs ``configuration.add`` after init (DX sugar).
+    For ``configuration``: empty scope (``.1c-dev/project.yaml``), then adopt
+    pass (ADR-034) if XML/EDT sources are found under the scope.
+    Optional ``config`` runs ``configuration.add`` after init when nothing was
+    adopted (DX sugar).
     For ``extension``: standalone extension project (unchanged).
     """
     # Lazy import: core.project.ide imports templates helpers from this module.
@@ -503,7 +505,37 @@ def init_project(
             ],
         )
 
-    if config is not None:
+    adopt_diagnostics: list[Diagnostic] = []
+    adopted_payload: dict[str, object] | None = None
+    if project_type == "configuration":
+        from core.project.adopt import adopt_into_manifest
+
+        adopt_result = adopt_into_manifest(root)
+        adopt_diagnostics = list(adopt_result.diagnostics)
+        if adopt_result.status == "ok":
+            adopted_payload = adopt_result.adopted
+            created = [*created, *adopt_result.created]
+            if config is not None:
+                from core.diagnostics import warning as diag_warning
+
+                adopt_diagnostics.append(
+                    diag_warning(
+                        "--config проигнорирован: исходники уже обнаружены (adopt)",
+                        code="1CP032",
+                        suggestion="Уберите --config или используйте пустой каталог",
+                    )
+                )
+        elif adopt_result.status == "error":
+            return ProjectResult(
+                status="error",
+                path=manifest_path,
+                root=root,
+                home=project_home(root),
+                created=created,
+                diagnostics=[*mcp_diagnostics, *adopt_diagnostics],
+            )
+
+    if config is not None and adopted_payload is None and project_type == "configuration":
         from core.configuration.add import add_configuration
 
         add_result = add_configuration(
@@ -513,11 +545,16 @@ def init_project(
         )
         if add_result.status != "ok":
             add_result.created = [*created, *add_result.created]
-            add_result.diagnostics = [*mcp_diagnostics, *add_result.diagnostics]
+            add_result.diagnostics = [
+                *mcp_diagnostics,
+                *adopt_diagnostics,
+                *add_result.diagnostics,
+            ]
             return add_result
         created = [*created, *add_result.created]
 
     result = validate_project(root)
     result.created = created
-    result.diagnostics = [*mcp_diagnostics, *result.diagnostics]
+    result.adopted = adopted_payload
+    result.diagnostics = [*mcp_diagnostics, *adopt_diagnostics, *result.diagnostics]
     return result

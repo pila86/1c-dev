@@ -242,11 +242,42 @@ def suites_payload(suites: list[SuiteRef]) -> list[dict[str, Any]]:
     return out
 
 
+def ensure_unit_suite(conf: dict[str, Any], extension_ids: list[str]) -> None:
+    """Create or merge suite ``id: unit`` / ``runner: yaxunit`` with extension ids."""
+    if not extension_ids:
+        return
+    tests = conf.get("tests")
+    if not isinstance(tests, list):
+        tests = []
+        conf["tests"] = tests
+    for suite in tests:
+        if isinstance(suite, dict) and suite.get("id") == "unit":
+            existing = suite.get("extensions")
+            merged: list[str] = []
+            if isinstance(existing, list):
+                merged.extend(str(x) for x in existing if isinstance(x, str) and x)
+            for ext_id in extension_ids:
+                if ext_id not in merged:
+                    merged.append(ext_id)
+            suite["extensions"] = merged
+            suite.setdefault("runner", RUNNER_YAXUNIT)
+            return
+    tests.append(
+        {
+            "id": "unit",
+            "runner": RUNNER_YAXUNIT,
+            "extensions": list(extension_ids),
+        }
+    )
+
+
 def extension_source_dirs(
     root: Path,
     suites: list[SuiteRef],
 ) -> list[tuple[ExtensionRef, Path]]:
-    """Absolute source directories for suite extensions (xml layout)."""
+    """Absolute source directories for suite extensions (in-tree or external)."""
+    from core.project.source_paths import resolve_source_path
+
     result: list[tuple[ExtensionRef, Path]] = []
     seen: set[str] = set()
     for suite in suites:
@@ -256,7 +287,7 @@ def extension_source_dirs(
             seen.add(ext.id)
             if not ext.source_rel:
                 continue
-            path = (root / ext.source_rel).resolve()
+            path = resolve_source_path(root, ext.source_rel)
             result.append((ext, path))
     return result
 

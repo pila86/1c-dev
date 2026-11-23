@@ -96,6 +96,7 @@ class ProjectResult:
     created: list[str] = field(default_factory=list)
     updated: list[str] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
+    adopted: dict[str, Any] | None = None
 
     def to_payload(self, *, include_manifest: bool = False) -> dict[str, Any]:
         """Machine-readable payload for CLI/MCP."""
@@ -128,6 +129,8 @@ class ProjectResult:
             payload["updated"] = list(self.updated)
         if self.skipped:
             payload["skipped"] = list(self.skipped)
+        if self.adopted is not None:
+            payload["adopted"] = self.adopted
         if self.diagnostics:
             payload["diagnostics"] = list(self.diagnostics)
         return payload
