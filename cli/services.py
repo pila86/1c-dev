@@ -113,7 +113,7 @@ def services_list_command(
     ctx: typer.Context,
     output: OutputOption = None,
 ) -> None:
-    """Список managed services (catalog + installed/state)."""
+    """Список managed services (catalog; installed — live status)."""
     fmt = resolve_output(ctx, output)
     items = list_services()
     payload = {

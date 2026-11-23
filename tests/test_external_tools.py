@@ -584,6 +584,7 @@ def test_cli_services_list_after_install(
 ) -> None:
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
     install_tool("v8std", pull=False)
+    from core.services.manager import ServiceResult
     from core.services.state import StackState, default_stack_labels, save_stack
 
     save_stack(
@@ -598,7 +599,27 @@ def test_cli_services_list_after_install(
             labels=default_stack_labels("v8std"),
         )
     )
-    result = runner.invoke(app, ["services", "list", "--output", "json"])
+
+    def fake_status(tool_id: str) -> ServiceResult:
+        if tool_id == "v8std":
+            return ServiceResult(
+                tool_id=tool_id,
+                status="ok",
+                action="status",
+                running=True,
+                healthy=True,
+                mcp_url="http://127.0.0.1:18766/mcp",
+            )
+        return ServiceResult(
+            tool_id=tool_id,
+            status="degraded",
+            action="status",
+            running=False,
+            healthy=False,
+        )
+
+    with patch("core.services.manager.service_status", side_effect=fake_status):
+        result = runner.invoke(app, ["services", "list", "--output", "json"])
     assert result.exit_code == SUCCESS, result.stdout
     payload = json.loads(result.stdout)
     by_id = {s["id"]: s for s in payload["services"]}
@@ -608,6 +629,45 @@ def test_cli_services_list_after_install(
     assert by_id["v8std"]["healthy"] is True
     assert "bsl-ls" in by_id
     assert by_id["bsl-ls"]["installed"] is False
+
+
+def test_cli_services_list_ignores_stale_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """After reboot state.json may say running; list must probe live."""
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    install_tool("v8std", pull=False)
+    from core.services.state import StackState, default_stack_labels, save_stack
+
+    save_stack(
+        StackState(
+            tool_id="v8std",
+            project_name="1c-dev-v8std",
+            last_action="up",
+            last_status="ok",
+            healthy=True,
+            running=True,
+            mcp_url="http://127.0.0.1:18766/mcp",
+            labels=default_stack_labels("v8std"),
+        )
+    )
+    with patch(
+        "core.services.manager.check_http",
+        return_value=HealthResult(
+            url="http://127.0.0.1:18766/healthz",
+            reachable=False,
+            status_code=None,
+        ),
+    ):
+        result = runner.invoke(app, ["services", "list", "--output", "json"])
+    assert result.exit_code == SUCCESS, result.stdout
+    payload = json.loads(result.stdout)
+    by_id = {s["id"]: s for s in payload["services"]}
+    assert by_id["v8std"]["running"] is False
+    assert by_id["v8std"]["healthy"] is False
+    # list reconciles state.json via service_status
+    assert load_state()["v8std"].running is False
+    assert load_state()["v8std"].healthy is False
 
 
 def test_cli_services_up_all_skips_not_installed(

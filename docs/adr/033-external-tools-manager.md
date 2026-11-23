@@ -96,10 +96,13 @@ Shipped: `v8std`, `bsl-search`, `bsl-ls`.
 ~/.config/1c-dev/           # config.yaml, user preferences
 ~/.local/share/1c-dev/
   tools/<id>/               # installed recipe + .env
-  services/state.json
+  services/state.json       # last-known; list/status reconcile via live probe
   data/<id>/                # volumes / dumps / process runtime (pid, logs)
 ~/.cache/1c-dev/            # toolchain + downloads (можно чистить)
 ```
+
+`services list` для installed не доверяет stale `running`/`healthy` в state
+(после reboot процессы/контейнеры мертвы) — дергает тот же probe, что `status`.
 
 Windows share: `%LOCALAPPDATA%\1c-dev\share\tools\<id>\` (аналог XDG_DATA_HOME).
 Cache остаётся как ADR-013.

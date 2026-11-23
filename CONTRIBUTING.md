@@ -58,7 +58,7 @@ Recipes: `catalog/<id>/` (`v8std`, `bsl-search`, `bsl-ls`). Установка �
 1c-dev tools list                 # available + installed
 1c-dev tools install v8std
 1c-dev tools install --all        # все из catalog (последовательно)
-1c-dev services list              # managed: catalog + installed/state
+1c-dev services list              # managed: catalog; installed → live status
 1c-dev services up v8std
 1c-dev services up --all          # installed managed; not-installed — skip+warning
 1c-dev services down --all

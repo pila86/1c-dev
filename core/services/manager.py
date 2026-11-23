@@ -60,7 +60,7 @@ class ServiceResult:
 
 @dataclass
 class ServiceListItem:
-    """Catalog/state snapshot for services list (no live HTTP)."""
+    """Catalog entry for services list; installed → live running/healthy."""
 
     tool_id: str
     name: str
@@ -156,8 +156,36 @@ def _mcp_url_for_list(
     return None
 
 
+def _list_item_for(
+    tool_id: str,
+    recipe: Any,
+    *,
+    installed: bool,
+    stack: Any | None,
+) -> ServiceListItem:
+    """Build list row; installed managed tools get live status (reconciles state)."""
+    running: bool | None = None
+    healthy: bool | None = None
+    mcp_url = _mcp_url_for_list(recipe, installed=installed, stack=stack)
+    if installed:
+        live = service_status(tool_id)
+        running = live.running
+        healthy = live.healthy
+        if live.mcp_url:
+            mcp_url = live.mcp_url
+    return ServiceListItem(
+        tool_id=tool_id,
+        name=recipe.name,
+        installed=installed,
+        running=running,
+        healthy=healthy,
+        mcp_url=mcp_url,
+        lifecycle=recipe.lifecycle,
+    )
+
+
 def list_services() -> list[ServiceListItem]:
-    """List managed services from catalog ∪ orphan installed (state, no live HTTP)."""
+    """List managed services; installed → live probe via service_status (not stale state)."""
     from core.services.state import load_state
 
     state = load_state()
@@ -168,16 +196,12 @@ def list_services() -> list[ServiceListItem]:
         seen.add(tool_id)
         recipe = load_recipe(tool_id)
         installed = is_installed(tool_id)
-        stack = state.get(tool_id)
         items.append(
-            ServiceListItem(
-                tool_id=tool_id,
-                name=recipe.name,
+            _list_item_for(
+                tool_id,
+                recipe,
                 installed=installed,
-                running=stack.running if stack else None,
-                healthy=stack.healthy if stack else None,
-                mcp_url=_mcp_url_for_list(recipe, installed=installed, stack=stack),
-                lifecycle=recipe.lifecycle,
+                stack=state.get(tool_id),
             )
         )
 
@@ -190,16 +214,12 @@ def list_services() -> list[ServiceListItem]:
             continue
         if not _is_managed_recipe(recipe):
             continue
-        stack = state.get(tool_id)
         items.append(
-            ServiceListItem(
-                tool_id=tool_id,
-                name=recipe.name,
+            _list_item_for(
+                tool_id,
+                recipe,
                 installed=True,
-                running=stack.running if stack else None,
-                healthy=stack.healthy if stack else None,
-                mcp_url=_mcp_url_for_list(recipe, installed=True, stack=stack),
-                lifecycle=recipe.lifecycle,
+                stack=state.get(tool_id),
             )
         )
     return items
