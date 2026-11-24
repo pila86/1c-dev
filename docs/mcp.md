@@ -2,6 +2,8 @@
 
 `1c-dev mcp` — stdio MCP-сервер. Конфиги пишет `init` / `ide configure` ([ADR-010](adr/010-mcp-architecture.md), [ADR-016](adr/016-ide-configure.md)).
 
+Слои продукта и зависимости: [explanation/overview.md](explanation/overview.md).
+
 ## Подключение
 
 Пример `.cursor/mcp.json` (то же в `.kilo/mcp.json` для Kilocode):

@@ -2,7 +2,8 @@
 
 Значимые архитектурные решения фиксируются здесь.
 
-Пользовательская документация (как пользоваться продуктом): [../README.md](../README.md).
+Как пользоваться: [../README.md](../README.md).  
+Как устроено (для пользователя): [../explanation/overview.md](../explanation/overview.md), [../explanation/dependencies.md](../explanation/dependencies.md).
 
 ## Формат
 

@@ -1,34 +1,50 @@
 # Документация 1c-dev
 
-Актуальное описание продукта для пользователей и контрибьюторов.
+Навигация по **задаче читателя** (Diátaxis: tutorial / how-to / reference / explanation).
 
-## С чего начать
+## Хочу быстро начать
 
-1. [README](../README.md) — что это, установка, быстрый старт.
-2. [Руководство пользователя](user-guide.md) — типовые сценарии от init до build/test/debug.
-3. [Справочник CLI](cli-reference.md) — все команды по доменам.
-4. [MCP для AI-агентов](mcp.md) — tools и подключение к IDE.
+1. [README](../README.md) — что это, установка, быстрый старт, Cursor/Kilocode, внешние tools.
+2. При необходимости — [руководство](user-guide.md), раздел «Установка» и «Новый проект».
 
-## Продуктовые темы
+## Хочу сделать сценарий (how-to)
 
-| Тема | Документ / ADR |
-|------|----------------|
-| Манифест `.1c-dev/project.yaml` | [ADR-022](adr/022-project-home.md), [ADR-004](adr/004-project-manifest.md) |
-| Init / adopt существующего XML/EDT | [ADR-034](adr/034-smart-init-adopt.md), [ADR-027](adr/027-configuration-lifecycle.md) |
-| Metadata IR (list/get/create/update/delete) | [ADR-011](adr/011-metadata-ir-v1.md), [ADR-018](adr/018-metadata-types-coverage.md) |
-| XML vs EDT source | [ADR-032](adr/032-edt-source-adapter.md) |
-| Build / check | [ADR-008](adr/008-ibcmd-build.md), [ADR-009](adr/009-ibcmd-check.md), [ADR-030](adr/030-designer-check-modules.md) |
-| Runtime client / publish | [ADR-019](adr/019-runtime-client-lifecycle.md), [ADR-025](adr/025-publish-backends.md) |
-| Тесты (YAxUnit) | [ADR-029](adr/029-test-api.md) |
-| Отладка (HTTP `dbgs`) | [ADR-031](adr/031-debug-api-http.md) |
-| Toolchain cache + packaging | [ADR-013](adr/013-packaging-toolchain-cache.md) |
-| External tools (catalog / services) | [ADR-033](adr/033-external-tools-manager.md) |
-| IDE configure + MCP | [ADR-016](adr/016-ide-configure.md), [ADR-010](adr/010-mcp-architecture.md) |
-| Docs (синтакс-помощник) | [ADR-017](adr/017-docs-bsl-context.md) |
+- [Руководство пользователя](user-guide.md) — init, adopt, import, build, test, debug, tools.
 
-## Для разработчиков репозитория
+## Нужна справка по командам (reference)
 
-- [CONTRIBUTING](../CONTRIBUTING.md) — workflow, toolchain, тесты.
-- [Roadmap](roadmap.md) — статус этапов и follow-ups.
-- [ADR](adr/README.md) — архитектурные решения.
-- [Архив](archive/README.md) — PRD v0.1 и milestones M1–M7 (исторические).
+- [Справочник CLI](cli-reference.md)
+- [MCP для AI-агентов](mcp.md) — подключение и список tools
+- Детали флагов: `1c-dev <cmd> --help`
+
+## Хочу понять, как устроено (explanation)
+
+- [Обзор: слои и границы](explanation/overview.md)
+- [Зависимости: явное и неявное](explanation/dependencies.md)
+
+## Почему так решили (ADR)
+
+Архитектурные решения для углубления и контрибьюторов — не первый вход.
+
+| Тема | ADR |
+|------|-----|
+| Манифест `.1c-dev/` | [022](adr/022-project-home.md), [004](adr/004-project-manifest.md) |
+| Init / adopt | [034](adr/034-smart-init-adopt.md), [027](adr/027-configuration-lifecycle.md) |
+| Metadata IR | [011](adr/011-metadata-ir-v1.md), [018](adr/018-metadata-types-coverage.md) |
+| XML / EDT | [032](adr/032-edt-source-adapter.md) |
+| Build / check | [008](adr/008-ibcmd-build.md), [009](adr/009-ibcmd-check.md), [030](adr/030-designer-check-modules.md) |
+| Runtime / publish | [019](adr/019-runtime-client-lifecycle.md), [025](adr/025-publish-backends.md) |
+| Тесты | [029](adr/029-test-api.md) |
+| Отладка | [031](adr/031-debug-api-http.md) |
+| Toolchain cache | [013](adr/013-packaging-toolchain-cache.md) |
+| External tools | [033](adr/033-external-tools-manager.md) |
+| IDE / MCP | [016](adr/016-ide-configure.md), [010](adr/010-mcp-architecture.md) |
+| Docs API | [017](adr/017-docs-bsl-context.md) |
+
+Полный индекс: [adr/README.md](adr/README.md).
+
+## Разработка репозитория
+
+- [CONTRIBUTING](../CONTRIBUTING.md)
+- [Roadmap](roadmap.md)
+- [Архив](archive/README.md) — PRD v0.1, milestones M1–M7

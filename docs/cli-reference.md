@@ -2,7 +2,8 @@
 
 Глобально: `--output text|json`, `--version`. Справка: `1c-dev <группа> <команда> --help`.
 
-В Poetry-checkout: `poetry run 1c-dev …`.
+В Poetry-checkout: `poetry run 1c-dev …`.  
+Зависимости команд (явные/неявные): [explanation/dependencies.md](explanation/dependencies.md).
 
 ## Окружение и toolchain
 

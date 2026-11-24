@@ -1,6 +1,8 @@
 # Руководство пользователя
 
-Типовые сценарии. Детали флагов — `1c-dev <cmd> --help` и [cli-reference.md](cli-reference.md).
+Типовые сценарии (how-to).  
+Флаги: `1c-dev <cmd> --help` и [cli-reference.md](cli-reference.md).  
+Как устроено и какие зависимости (явные/неявные): [explanation/overview.md](explanation/overview.md), [explanation/dependencies.md](explanation/dependencies.md).
 
 ## 1. Установка
 
@@ -10,8 +12,9 @@ uv tool install git+https://github.com/pila86/1c-dev
 1c-dev doctor            # или: 1c-dev doctor --fix
 ```
 
-Кэш toolchain: `~/.cache/1c-dev/tools/` (Windows: `%LOCALAPPDATA%\1c-dev\tools\`).
-Снятие: `1c-dev toolchain clean --yes`, полный uninstall: `1c-dev uninstall --yes`.
+Кэш toolchain: `~/.cache/1c-dev/tools/` (Windows: `%LOCALAPPDATA%\1c-dev\tools\`).  
+Это не external tools (`tools install` / `services`) — они в share, см. [dependencies](explanation/dependencies.md).  
+Снятие cache: `1c-dev toolchain clean --yes`; полный uninstall: `1c-dev uninstall --yes`.
 
 ## 2. Новый проект конфигурации
 
@@ -139,7 +142,8 @@ Exit code **5** — есть падения тестов (не ошибка ин
 1c-dev tools check
 ```
 
-Подробности: [ADR-033](adr/033-external-tools-manager.md), [CONTRIBUTING](../CONTRIBUTING.md).
+Устройство: [explanation/dependencies.md](explanation/dependencies.md).  
+Углубление: [ADR-033](adr/033-external-tools-manager.md), [CONTRIBUTING](../CONTRIBUTING.md).
 
 ## 11. AI-агент (MCP)
 

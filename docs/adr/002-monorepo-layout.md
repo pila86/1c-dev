@@ -22,12 +22,13 @@ PRD §61 предлагает полный monorepo (`cli/`, `core/`, `adapters/
 ├── tests/
 ├── .github/workflows/
 └── docs/
-    ├── README.md          # оглавление пользовательской доки
-    ├── user-guide.md
-    ├── cli-reference.md
+    ├── README.md          # оглавление (по задачам читателя)
+    ├── user-guide.md      # how-to
+    ├── cli-reference.md   # reference
     ├── mcp.md
-    ├── adr/
-    ├── archive/           # PRD v0.1 + milestones M1–M7 (исторические)
+    ├── explanation/       # устройство и зависимости (для пользователя)
+    ├── adr/               # почему так решили
+    ├── archive/           # PRD v0.1 + milestones M1–M7
     └── roadmap.md
 ```
 
