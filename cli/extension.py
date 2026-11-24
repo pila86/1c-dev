@@ -116,11 +116,28 @@ def extension_add_command(
         file_okay=True,
         resolve_path=False,
     ),
+    source_path: Path | None = typer.Option(
+        None,
+        "--path",
+        help=(
+            "Существующий каталог XML/EDT (без scaffold). "
+            "Для --purpose tests допускается путь вне scope (ADR-034)."
+        ),
+        exists=False,
+        dir_okay=True,
+        file_okay=False,
+        resolve_path=False,
+    ),
     source_format: str = typer.Option(
         SOURCE_FORMAT_XML,
         "--format",
         help="Исходный формат расширения: xml (по умолчанию) или edt (scaffold/XML → convert).",
         case_sensitive=False,
+    ),
+    suite: str | None = typer.Option(
+        "unit",
+        "--suite",
+        help="При --purpose tests: id suite для wire (default unit). Пусто — не создавать suite.",
     ),
     config: ConfigOption = None,
     force: bool = typer.Option(
@@ -130,7 +147,7 @@ def extension_add_command(
     ),
     output: OutputOption = None,
 ) -> None:
-    """Добавить расширение: XML scaffold / --from .cfe; опционально --format=edt."""
+    """Добавить расширение: XML scaffold / --from .cfe / --path; опционально --format=edt."""
     result = add_extension(
         Path.cwd(),
         ext_id=ext_id,
@@ -139,7 +156,9 @@ def extension_add_command(
         config_id=config,
         force=force,
         from_cfe=from_cfe,
+        source_path=source_path,
         format=source_format,
+        suite=suite if suite else None,
     )
     payload = result.to_payload(include_manifest=False)
     _emit(payload, resolve_output(ctx, output), text_lines=_add_text(result))

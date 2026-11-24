@@ -431,10 +431,14 @@ def register_tools(server: FastMCP) -> None:
             "With from_cfe: load .cfe into a scratch IB via ibcmd "
             "(config load --extension → apply → export) into src/cfe/<id>/ "
             "as source.format=xml (binary .cfe is not copied into src). "
+            "With source_path: register existing XML/EDT layout without scaffold "
+            "(external path allowed only for purpose=tests, ADR-034). "
+            "Mutually exclusive with from_cfe. "
             "format: xml (default) or edt — edt runs source.convert after "
             "XML scaffold/.cfe export (extensions[].source.format=edt, "
             "path stays src/cfe/<id>/). "
             "purpose: product (default), tests, or other. "
+            "suite: when purpose=tests, wire configurations[].tests (default unit). "
             "Requires at least one configuration (use configuration.add first)."
             + _PATH_SCOPE
             + _CONFIG_RUNTIME
@@ -449,7 +453,9 @@ def register_tools(server: FastMCP) -> None:
         config_id: str | None = None,
         force: bool = False,
         from_cfe: str | None = None,
+        source_path: str | None = None,
         format: str = "xml",
+        suite: str | None = "unit",
     ) -> dict[str, Any]:
         result = add_extension(
             resolve_path(path),
@@ -459,7 +465,9 @@ def register_tools(server: FastMCP) -> None:
             config_id=config_id,
             force=force,
             from_cfe=from_cfe,
+            source_path=source_path,
             format=format,
+            suite=suite,
         )
         return result.to_payload(include_manifest=False)
 

@@ -60,6 +60,32 @@ def _init_text(result: ProjectResult) -> list[str]:
         lines.append("created:")
         for item in result.created:
             lines.append(f"  - {item}")
+    if result.adopted:
+        confs = result.adopted.get("configurations") or []
+        exts = result.adopted.get("extensions") or []
+        tests = result.adopted.get("tests") or []
+        lines.append("adopted:")
+        lines.append(f"  configurations: {len(confs)}")
+        for item in confs:
+            if isinstance(item, dict):
+                lines.append(
+                    f"    - {item.get('id')} ({item.get('format')}) "
+                    f"path={item.get('path')}"
+                )
+        lines.append(f"  extensions: {len(exts)}")
+        for item in exts:
+            if isinstance(item, dict):
+                lines.append(
+                    f"    - {item.get('id')} purpose={item.get('purpose')} "
+                    f"path={item.get('path')}"
+                )
+        lines.append(f"  tests: {len(tests)}")
+        for item in tests:
+            if isinstance(item, dict):
+                lines.append(
+                    f"    - {item.get('id')} runner={item.get('runner')} "
+                    f"extensions={item.get('extensions')}"
+                )
     for diag in result.diagnostics:
         if diag.get("severity") == "warning":
             code = diag.get("code", "")

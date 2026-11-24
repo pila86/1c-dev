@@ -141,8 +141,84 @@ def _validate_configuration_tests(
     return diags
 
 
-def _validate_v2_invariants(data: dict[str, Any]) -> list[Diagnostic]:
-    """Семантические инварианты ADR-023/025/026/029 поверх JSON Schema v2."""
+def _source_path_str(source: Any) -> str | None:
+    if not isinstance(source, dict):
+        return None
+    path = source.get("path")
+    return path if isinstance(path, str) and path else None
+
+
+def _validate_source_path_scope(
+    *,
+    label: str,
+    path: str,
+    allow_external: bool,
+    root: Path | None,
+) -> Diagnostic | None:
+    """Reject out-of-scope paths unless ``allow_external`` (purpose: tests)."""
+    from core.project.source_paths import path_escapes_scope
+
+    if root is None:
+        # Schema-only validate without root: still reject absolute / .. for non-tests.
+        raw = Path(path)
+        escapes = raw.is_absolute() or ".." in raw.parts
+    else:
+        escapes = path_escapes_scope(root, path)
+    if escapes and not allow_external:
+        return _invariant_error(
+            f"{label}: путь вне scope ({path!r}); "
+            "external path допустим только для extensions[].purpose: tests (ADR-034)"
+        )
+    return None
+
+
+def _validate_configuration_source_paths(
+    conf_idx: int,
+    conf: dict[str, Any],
+    *,
+    root: Path | None,
+) -> list[Diagnostic]:
+    """ADR-034: conf/product paths in-tree; tests may be external."""
+    diags: list[Diagnostic] = []
+    conf_path = _source_path_str(conf.get("source"))
+    if conf_path is not None:
+        diag = _validate_source_path_scope(
+            label=f"configurations[{conf_idx}].source.path",
+            path=conf_path,
+            allow_external=False,
+            root=root,
+        )
+        if diag is not None:
+            diags.append(diag)
+
+    extensions = conf.get("extensions")
+    if not isinstance(extensions, list):
+        return diags
+    for ext_idx, ext in enumerate(extensions):
+        if not isinstance(ext, dict):
+            continue
+        ext_path = _source_path_str(ext.get("source"))
+        if ext_path is None:
+            continue
+        purpose = ext.get("purpose")
+        allow = purpose == "tests"
+        diag = _validate_source_path_scope(
+            label=f"configurations[{conf_idx}].extensions[{ext_idx}].source.path",
+            path=ext_path,
+            allow_external=allow,
+            root=root,
+        )
+        if diag is not None:
+            diags.append(diag)
+    return diags
+
+
+def _validate_v2_invariants(
+    data: dict[str, Any],
+    *,
+    root: Path | None = None,
+) -> list[Diagnostic]:
+    """Семантические инварианты ADR-023/025/026/029/034 поверх JSON Schema v2."""
     diags: list[Diagnostic] = []
 
     configurations = data.get("configurations")
@@ -168,6 +244,7 @@ def _validate_v2_invariants(data: dict[str, Any]) -> list[Diagnostic]:
         if conf.get("default") is True:
             default_configs += 1
         diags.extend(_validate_configuration_tests(idx, conf))
+        diags.extend(_validate_configuration_source_paths(idx, conf, root=root))
 
     if default_configs > 1:
         diags.append(
@@ -260,7 +337,11 @@ def _validate_v2_invariants(data: dict[str, Any]) -> list[Diagnostic]:
     return diags
 
 
-def validate_manifest(data: dict[str, Any]) -> list[Diagnostic]:
+def validate_manifest(
+    data: dict[str, Any],
+    *,
+    root: Path | None = None,
+) -> list[Diagnostic]:
     """Провалидировать уже загруженный dict по JSON Schema (+ инварианты v2)."""
     version = data.get("schema")
     if version != _SUPPORTED_SCHEMA:
@@ -281,7 +362,7 @@ def validate_manifest(data: dict[str, Any]) -> list[Diagnostic]:
     if diags:
         return diags
 
-    diags.extend(_validate_v2_invariants(data))
+    diags.extend(_validate_v2_invariants(data, root=root))
     return diags
 
 
@@ -305,7 +386,7 @@ def validate_project(start: Path | None = None) -> ProjectResult:
             diagnostics=load_diags,
         )
 
-    schema_diags = validate_manifest(data)
+    schema_diags = validate_manifest(data, root=root)
     runtimes = runtimes_summary(data)
     if schema_diags:
         return ProjectResult(

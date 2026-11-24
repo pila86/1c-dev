@@ -35,6 +35,8 @@ CODE_EXT_NOT_CONFIG = "1CE002"
 CODE_CFE_MISSING = "1CE003"
 CODE_IBCMD_MISSING = "1CE004"
 CODE_EXT_FORMAT = "1CE005"
+CODE_EXT_PATH = "1CE006"
+CODE_EXT_PATH_MUTEX = "1CE007"
 SUPPORTED_PURPOSES = frozenset({"product", "tests", "other"})
 SUPPORTED_SOURCE_FORMATS = frozenset({SOURCE_FORMAT_XML, SOURCE_FORMAT_EDT})
 
@@ -53,7 +55,9 @@ def add_extension(
     config_id: str | None = None,
     force: bool = False,
     from_cfe: Path | str | None = None,
+    source_path: Path | str | None = None,
     format: str = SOURCE_FORMAT_XML,
+    suite: str | None = "unit",
     run: RunFn | None = None,
     import_cfe_fn: ImportCfeFn | None = None,
     discover: Callable[[], DiscoveryResult] | None = None,
@@ -66,11 +70,14 @@ def add_extension(
     Default: scaffold ``src/cfe/<id>/`` (XML).
     With ``from_cfe``: load .cfe into a scratch IB → export hierarchical XML into
     ``src/cfe/<id>/`` (``source.format=xml``). Does not copy the binary .cfe into src.
+    With ``source_path``: register an existing layout (in-tree or external for
+    ``purpose: tests``) without scaffold (ADR-034). Mutually exclusive with
+    ``from_cfe``.
 
     With ``format=edt`` (#163): after XML scaffold / .cfe export, run
     ``source.convert --to=edt --extension <id>`` so the manifest gets
     ``extensions[].source.format: edt`` and ``path`` stays the EDT project root
-    (typically ``src/cfe/<id>/``).
+    (typically ``src/cfe/<id>/``). For ``source_path``, ``format`` must match layout.
     """
     start_path = (start or Path.cwd()).resolve()
     manifest_path = detect_manifest(start_path)
@@ -199,6 +206,45 @@ def add_extension(
                 ],
             )
 
+    existing_src: Path | None = None
+    if source_path is not None and str(source_path).strip() != "":
+        if cfe_src is not None:
+            return ProjectResult(
+                status="error",
+                path=manifest_path,
+                root=root,
+                home=project_home(root),
+                diagnostics=[
+                    error(
+                        "--path и --from взаимоисключающие",
+                        code=CODE_EXT_PATH_MUTEX,
+                        suggestion=(
+                            "Укажите либо --path (существующие исходники), "
+                            "либо --from (.cfe)"
+                        ),
+                    )
+                ],
+            )
+        existing_src = Path(source_path).expanduser()
+        if not existing_src.is_absolute():
+            existing_src = (root / existing_src).resolve()
+        else:
+            existing_src = existing_src.resolve()
+        if not existing_src.is_dir():
+            return ProjectResult(
+                status="error",
+                path=manifest_path,
+                root=root,
+                home=project_home(root),
+                diagnostics=[
+                    error(
+                        f"Каталог исходников не найден: {existing_src}",
+                        code=CODE_EXT_PATH,
+                        suggestion="Укажите существующий каталог XML/EDT через --path",
+                    )
+                ],
+            )
+
     target, resolve_diags = resolve_config_runtime(
         data,
         config_id=config_id,
@@ -229,7 +275,12 @@ def add_extension(
             ],
         )
 
-    default_stem = cfe_src.stem if cfe_src is not None else "custom"
+    if existing_src is not None:
+        default_stem = existing_src.name
+    elif cfe_src is not None:
+        default_stem = cfe_src.stem
+    else:
+        default_stem = "custom"
     resolved_id = sanitize_ext_id(ext_id or name or default_stem)
     resolved_name = sanitize_project_name(name or ext_id or resolved_id)
 
@@ -255,6 +306,164 @@ def add_extension(
                 )
 
     created: list[str] = []
+    from adapters.source.edt.detect import is_edt_project_root
+    from adapters.source.xml.detect import is_xml_source_root
+    from core.project.source_paths import (
+        is_within_scope,
+        store_source_path,
+    )
+    from core.test.suites import ensure_unit_suite
+
+    if existing_src is not None:
+        # Register existing layout (ADR-034); no scaffold / convert.
+        layout_format = resolved_format
+        if layout_format == SOURCE_FORMAT_XML and not is_xml_source_root(existing_src):
+            if is_edt_project_root(existing_src):
+                layout_format = SOURCE_FORMAT_EDT
+            else:
+                return ProjectResult(
+                    status="error",
+                    path=manifest_path,
+                    root=root,
+                    home=project_home(root),
+                    diagnostics=[
+                        error(
+                            f"Каталог не является корнем XML/EDT: {existing_src}",
+                            code=CODE_EXT_PATH,
+                            suggestion=(
+                                "Укажите каталог с Configuration.xml "
+                                "или EDT-проект (.project / Configuration.mdo)"
+                            ),
+                        )
+                    ],
+                )
+        elif layout_format == SOURCE_FORMAT_EDT and not is_edt_project_root(
+            existing_src
+        ):
+            if is_xml_source_root(existing_src):
+                layout_format = SOURCE_FORMAT_XML
+            else:
+                return ProjectResult(
+                    status="error",
+                    path=manifest_path,
+                    root=root,
+                    home=project_home(root),
+                    diagnostics=[
+                        error(
+                            f"Каталог не является корнем EDT: {existing_src}",
+                            code=CODE_EXT_PATH,
+                            suggestion="Укажите корень EDT-проекта или --format xml",
+                        )
+                    ],
+                )
+
+        if purpose != "tests" and not is_within_scope(root, existing_src):
+            return ProjectResult(
+                status="error",
+                path=manifest_path,
+                root=root,
+                home=project_home(root),
+                diagnostics=[
+                    error(
+                        "Путь вне scope допустим только для --purpose tests",
+                        code=CODE_EXT_PATH,
+                        suggestion=(
+                            "Скопируйте расширение в scope или укажите --purpose tests"
+                        ),
+                    )
+                ],
+            )
+
+        source_rel = store_source_path(root, existing_src)
+        source_entry = {"format": layout_format, "path": source_rel}
+
+        configurations = data.get("configurations")
+        if not isinstance(configurations, list):
+            return ProjectResult(
+                status="error",
+                path=manifest_path,
+                root=root,
+                diagnostics=[error("configurations[] отсутствует", code="1CP002")],
+            )
+
+        patched = False
+        for item in configurations:
+            if not isinstance(item, dict):
+                continue
+            if item.get("id") != target.config_id:
+                continue
+            exts: list[Any] = list(item.get("extensions") or [])
+            if not isinstance(item.get("extensions"), list):
+                exts = []
+            exts.append(
+                {
+                    "id": resolved_id,
+                    "name": resolved_name,
+                    "purpose": purpose,
+                    "source": source_entry,
+                }
+            )
+            item["extensions"] = exts
+            if purpose == "tests" and suite:
+                ensure_unit_suite(item, [resolved_id])
+                if suite != "unit":
+                    # Optional non-default suite id: ensure named suite too.
+                    tests = item.get("tests")
+                    if not isinstance(tests, list):
+                        tests = []
+                        item["tests"] = tests
+                    if not any(
+                        isinstance(s, dict) and s.get("id") == suite for s in tests
+                    ):
+                        tests.append(
+                            {
+                                "id": suite,
+                                "runner": "yaxunit",
+                                "extensions": [resolved_id],
+                            }
+                        )
+            patched = True
+            break
+
+        if not patched:
+            return ProjectResult(
+                status="error",
+                path=manifest_path,
+                root=root,
+                diagnostics=[
+                    error(
+                        f"Configuration {target.config_id!r} не найдена при записи",
+                        code="1CP002",
+                    )
+                ],
+            )
+
+        try:
+            manifest_path.write_text(
+                yaml.safe_dump(
+                    data,
+                    allow_unicode=True,
+                    sort_keys=False,
+                    default_flow_style=False,
+                ),
+                encoding="utf-8",
+                newline="\n",
+            )
+        except OSError as exc:
+            return ProjectResult(
+                status="error",
+                path=manifest_path,
+                root=root,
+                diagnostics=[
+                    error(f"Не удалось записать манифест: {exc}", code="1CP006")
+                ],
+            )
+
+        result = validate_project(root)
+        result.created = created
+        result.updated = [str(manifest_path.relative_to(root))]
+        return result
+
     source_rel = f"src/cfe/{resolved_id}"
     source_dir = (root / source_rel).resolve()
 
@@ -417,16 +626,18 @@ def add_extension(
             diagnostics=[error("configurations[] отсутствует", code="1CP002")],
         )
 
+    from core.test.suites import ensure_unit_suite
+
     patched = False
     for item in configurations:
         if not isinstance(item, dict):
             continue
         if item.get("id") != target.config_id:
             continue
-        exts: list[Any] = list(item.get("extensions") or [])
+        scaffold_exts: list[Any] = list(item.get("extensions") or [])
         if not isinstance(item.get("extensions"), list):
-            exts = []
-        exts.append(
+            scaffold_exts = []
+        scaffold_exts.append(
             {
                 "id": resolved_id,
                 "name": resolved_name,
@@ -434,7 +645,9 @@ def add_extension(
                 "source": source_entry,
             }
         )
-        item["extensions"] = exts
+        item["extensions"] = scaffold_exts
+        if purpose == "tests" and suite:
+            ensure_unit_suite(item, [resolved_id])
         patched = True
         break
 

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mdclass:Configuration xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass" uuid="11111111-2222-3333-4444-555555555555">
+  <name>AdoptEdtNested</name>
+  <defaultRunMode>ManagedApplication</defaultRunMode>
+  <scriptVariant>Russian</scriptVariant>
+  <compatibilityMode>8.3.25</compatibilityMode>
+</mdclass:Configuration>

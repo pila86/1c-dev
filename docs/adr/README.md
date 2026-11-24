@@ -45,6 +45,7 @@
 | [031](031-debug-api-http.md) | Accepted | Debug API: CLI/MCP поверх HTTP Debug Protocol (`dbgs`) |
 | [032](032-edt-source-adapter.md) | Accepted | EDT Source Adapter + write path D (md-sparrow `.mdo` + `1cedtcli` export) |
 | [033](033-external-tools-manager.md) | Accepted | External Tools Manager (catalog / install / services / IDE MCP; этапы 0–5, 7 done) |
+| [034](034-smart-init-adopt.md) | Accepted | Smart init adopt (XML/EDT/YaXUnit) + external test paths |
 
 ## Когда писать ADR
 
