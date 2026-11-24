@@ -167,7 +167,7 @@ JSON-пример атрибута-ссылки:
 
 ### Out of scope M2
 
-- Import `.cf` / install / docs (→ M3); EDT / `source.convert` (→ [m7-source-formats](../milestones/m7-source-formats.md)); project home (→ [M4](../milestones/m4-project-model.md))
+- Import `.cf` / install / docs (→ M3); EDT / `source.convert` (→ [m7-source-formats](../archive/milestones/m7-source-formats.md)); project home (→ [M4](../archive/milestones/m4-project-model.md))
 - Graph API: `references` / `dependencies` / `impact` (→ later)
 - Публичный `source.write`
 - Полное покрытие видов метаданных платформы
@@ -195,5 +195,5 @@ JSON-пример атрибута-ссылки:
 - ADR-007 (IR v0 + xml-gen; модель IR для M2+ — этот ADR)
 - [ADR-018](018-metadata-types-coverage.md) — coverage beyond M2 types
 - Issue #20
-- [M2 milestone](../milestones/m2-metadata-api.md)
+- [M2 milestone](../archive/milestones/m2-metadata-api.md)
 - PRD §16–§18, §47

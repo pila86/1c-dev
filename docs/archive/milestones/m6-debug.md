@@ -1,7 +1,7 @@
 # M6: Debug (HTTP Debug Protocol + CLI/MCP)
 
 **Статус:** **Done** — [GitHub milestone M6](https://github.com/pila86/1c-dev/milestone/6) closed (2026-10); PR [#146](https://github.com/pila86/1c-dev/pull/146) merged. Acceptance [#144](https://github.com/pila86/1c-dev/issues/144) + `test.* --debug` [#147](https://github.com/pila86/1c-dev/issues/147) закрыты. `#143` (`ide configure` launch.json) — **вне M6**, follow-up (open).  
-**ADR:** [ADR-031](../adr/031-debug-api-http.md) (Accepted, [#136](https://github.com/pila86/1c-dev/issues/136); ранее в черновике ошибочно «ADR-030» — номер занят Designer `/CheckModules`). Закладка: [ADR-019](../adr/019-runtime-client-lifecycle.md) (`/Debug`, `debug.*` → M6). Spike: [135-http-debug-protocol.md](../spikes/135-http-debug-protocol.md).
+**ADR:** [ADR-031](../../adr/031-debug-api-http.md) (Accepted, [#136](https://github.com/pila86/1c-dev/issues/136); ранее в черновике ошибочно «ADR-030» — номер занят Designer `/CheckModules`). Закладка: [ADR-019](../../adr/019-runtime-client-lifecycle.md) (`/Debug`, `debug.*` → M6). Spike: [135-http-debug-protocol.md](../README.md).
 
 ## Goal
 
@@ -89,7 +89,7 @@ Paths к CF/CFE **не** дублировать: брать из `configurations
 | Состояние | `debug status` | `debug.status` | session + targets + last stop summary |
 | Метаданные index | `debug reload-metadata` | `debug.reloadMetadata` | rebuild UUID↔module cache |
 
-Имена CLI зафиксированы в [ADR-031](../adr/031-debug-api-http.md) (подкоманды, стиль `test` / `runtime`).  
+Имена CLI зафиксированы в [ADR-031](../../adr/031-debug-api-http.md) (подкоманды, стиль `test` / `runtime`).  
 PRD §28 (`debug.start` / `debug.stop`) мапится так: **start** = server ensure + attach (+ opt `runtime.start --debug`); **stop** = detach (+ opt server stop).
 
 ### Payload (эскиз)
@@ -125,14 +125,14 @@ PRD §28 (`debug.start` / `debug.stop`) мапится так: **start** = serve
 - Поднять `dbgs`, клиент `runtime.start --debug`, ручной HTTP attach.
 - Зафиксировать: argv/discovery `dbgs`, namespace XML cmd’ов, ping/events, autoAttach, setBreakpoints, evalLocalVariables.
 - Linux + Windows: где бинарь, нужен ли DISPLAY только клиенту или ещё чему-то.
-- Результат → `docs/spikes/NNN-http-debug-protocol.md` (как #119 для YaXUnit). Fixture: минимальный XML-проект + модуль с предсказуемой строкой.
+- Результат → `docs/archive (удалённый spike) (как #119 для YaXUnit). Fixture: минимальный XML-проект + модуль с предсказуемой строкой.
 
 Референс (читать, не копировать в product без лицензионной чистоты MIT + attribution):  
 [1c-debug-mcp ARCHITECTURE](https://github.com/liga-1c-command/1c-debug-mcp), [onec-debug-adapter](https://github.com/akpaevj/onec-debug-adapter).
 
 ### 2. ADR-031 + schema
 
-- Граница: HTTP adapter vs DAP vs внешние MCP — [ADR-031](../adr/031-debug-api-http.md) Accepted.
+- Граница: HTTP adapter vs DAP vs внешние MCP — [ADR-031](../../adr/031-debug-api-http.md) Accepted.
 - Контракт операций, state layout (`.1c-dev/debug/…`), exit codes, top-level `debug`.
 - Ping: in-process ~500 ms (helper-process отвергнут). Schema validate — [#137](https://github.com/pila86/1c-dev/issues/137).
 
@@ -201,8 +201,8 @@ test.run(debug=true, breakpoints=[…])   # status: running + pid; не ждёт
 
 ### Must
 
-- [x] Spike-док: HTTP Debug Protocol + discovery `dbgs` (Linux live; Windows — docs/gaps) — [#135](https://github.com/pila86/1c-dev/issues/135) / [spike](../spikes/135-http-debug-protocol.md)
-- [x] ADR-031 Accepted: HTTP facade, граница с DAP / внешними MCP, state, schema — [#136](https://github.com/pila86/1c-dev/issues/136) / [ADR-031](../adr/031-debug-api-http.md)
+- [x] Spike-док: HTTP Debug Protocol + discovery `dbgs` (Linux live; Windows — docs/gaps) — [#135](https://github.com/pila86/1c-dev/issues/135) / [spike](../README.md)
+- [x] ADR-031 Accepted: HTTP facade, граница с DAP / внешними MCP, state, schema — [#136](https://github.com/pila86/1c-dev/issues/136) / [ADR-031](../../adr/031-debug-api-http.md)
 - [x] Манифест: опциональный `debug` (host/port/alias/autoAttach) валидируется — [#137](https://github.com/pila86/1c-dev/issues/137)
 - [x] `adapters/debug_http`: attach/detach/forceDetach, targets, breakpoints, wait, continue, stepIn/Out, pause, stack, variables, evaluate — [#138](https://github.com/pila86/1c-dev/issues/138)
 - [x] Резолв `objectID` из XML source основной conf + extensions; `reloadMetadata` — [#139](https://github.com/pila86/1c-dev/issues/139)
@@ -221,7 +221,7 @@ test.run(debug=true, breakpoints=[…])   # status: running + pid; не ждёт
 - [x] `debug.stepOver` (CLI `step-over`, platform `Step`) — [#140](https://github.com/pila86/1c-dev/issues/140)
 - [x] `debug.stepIn` / `stepOver` / `stepOut` стабильны (CLI; live acceptance `test_m6_acceptance_steps_cli`: 3 прогона подряд + расширение)
 - [ ] `debug.pause` стабилен (сейчас experimental, live acceptance не пройден)
-- [x] Password через env `ONEC_DEBUG_PASSWORD`; в манифест не пишется (schema отвергает), маскируется в ошибках — [ADR-031 §2a](../adr/031-debug-api-http.md)
+- [x] Password через env `ONEC_DEBUG_PASSWORD`; в манифест не пишется (schema отвергает), маскируется в ошибках — [ADR-031 §2a](../../adr/031-debug-api-http.md)
 - [x] Кэш module index с инвалидацией (mtime) — [#139](https://github.com/pila86/1c-dev/issues/139)
 - [x] `breakpoint set --file` / `--object-id`+`--property-id` (escape) — [#145](https://github.com/pila86/1c-dev/issues/145)
 
@@ -246,7 +246,7 @@ test.run(debug=true, breakpoints=[…])   # status: running + pid; не ждёт
 
 ## Diagnostics (эскиз кодов)
 
-Зафиксировано в [ADR-031](../adr/031-debug-api-http.md) (префикс `1CD…`):
+Зафиксировано в [ADR-031](../../adr/031-debug-api-http.md) (префикс `1CD…`):
 
 | Ситуация | Code (эскиз) | Exit |
 |----------|--------------|------|
@@ -301,9 +301,9 @@ test.run(debug=true, breakpoints=[…])   # status: running + pid; не ждёт
 
 ## Links
 
-- [Roadmap](../roadmap.md)
-- [PRD §28 Debug API](../../1c-dev-runtime-PRD-v0.1.md), [§32 debug tools](../../1c-dev-runtime-PRD-v0.1.md), [§7.9 Debug Adapter](../../1c-dev-runtime-PRD-v0.1.md)
-- [ADR-003](../adr/003-diagnostics-exit-codes.md), [ADR-010](../adr/010-mcp-architecture.md), [ADR-019](../adr/019-runtime-client-lifecycle.md), [ADR-026](../adr/026-runtimes-array.md), [ADR-031](../adr/031-debug-api-http.md)
+- [Roadmap](../../roadmap.md)
+- [PRD §28 Debug API](../prd-v0.1.md), [§32 debug tools](../prd-v0.1.md), [§7.9 Debug Adapter](../prd-v0.1.md)
+- [ADR-003](../../adr/003-diagnostics-exit-codes.md), [ADR-010](../../adr/010-mcp-architecture.md), [ADR-019](../../adr/019-runtime-client-lifecycle.md), [ADR-026](../../adr/026-runtimes-array.md), [ADR-031](../../adr/031-debug-api-http.md)
 - [M4](m4-project-model.md), [M5](m5-tests.md)
 - Внешние (референс): [liga-1c-command/1c-debug-mcp](https://github.com/liga-1c-command/1c-debug-mcp) (MIT, agent UX + HTTP), [akpaevj/onec-debug-adapter](https://github.com/akpaevj/onec-debug-adapter) (MIT, DAP), [yukon39/bsl-debug-server](https://github.com/yukon39/bsl-debug-server) (DAP в PRD), [yellow-hammer/mcp-1c-platform-tools](https://github.com/yellow-hammer/mcp-1c-platform-tools/) (не backend)
 
@@ -313,8 +313,8 @@ test.run(debug=true, breakpoints=[…])   # status: running + pid; не ждёт
 
 | # | Wave | Задача | Depends on | Status |
 |---|------|--------|------------|--------|
-| [#135](https://github.com/pila86/1c-dev/issues/135) | 0 | Spike: HTTP Debug Protocol (dbgs) + fixture | M5 Done | DONE ([spike](../spikes/135-http-debug-protocol.md)) |
-| [#136](https://github.com/pila86/1c-dev/issues/136) | 1 | ADR-031: Debug API (CLI/MCP over HTTP Debug Protocol) | #135 | DONE ([ADR-031](../adr/031-debug-api-http.md)) |
+| [#135](https://github.com/pila86/1c-dev/issues/135) | 0 | Spike: HTTP Debug Protocol (dbgs) + fixture | M5 Done | DONE ([spike](../README.md)) |
+| [#136](https://github.com/pila86/1c-dev/issues/136) | 1 | ADR-031: Debug API (CLI/MCP over HTTP Debug Protocol) | #135 | DONE ([ADR-031](../../adr/031-debug-api-http.md)) |
 | [#137](https://github.com/pila86/1c-dev/issues/137) | 1 | Schema: optional `debug` в project.yaml v2 | #136 | DONE |
 | [#138](https://github.com/pila86/1c-dev/issues/138) | 2 | `adapters/debug_http`: session, ping, breakpoints, eval | #135, #136 | DONE |
 | [#139](https://github.com/pila86/1c-dev/issues/139) | 2 | Module UUID index from XML source + extensions | #138 | DONE |

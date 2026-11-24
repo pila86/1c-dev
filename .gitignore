@@ -32,9 +32,8 @@ Thumbs.db
 # Write-backend bake-off harness (local fixtures)
 .bakeoff/
 
-# OpenCode / patterns A/B local data (creds + runs)
-.patterns-ab/env.local
-.patterns-ab/runs/
+# OpenCode / patterns A/B local experiment data
+.patterns-ab/
 .opencode-it/
 
 # LLM creds for integration / agent tests

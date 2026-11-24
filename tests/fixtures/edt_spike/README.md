@@ -1,6 +1,6 @@
 # Fixture: EDT source spike (#149)
 
-Минимальный EDT-проект для [spike #149](../../../docs/spikes/149-edt-source-adapter.md)
+Минимальный EDT-проект для M7 / [ADR-032](../../../docs/adr/032-edt-source-adapter.md)
 и последующих unit/E2E M7: `Configuration.mdo` + `.project` / `DT-INF` + один справочник
 `Catalog.Products` (синоним «Товары»).
 
@@ -38,4 +38,4 @@ PROJ=$(mktemp -d)
 ```
 
 Автотест: `poetry run pytest tests/test_edt_cli_smoke.py -m integration`
-(без `1cedtcli` — skip). Вход для ADR: [149-edt-source-adapter.md](../../../docs/spikes/149-edt-source-adapter.md).
+(без `1cedtcli` — skip). Контракт: [ADR-032](../../../docs/adr/032-edt-source-adapter.md).

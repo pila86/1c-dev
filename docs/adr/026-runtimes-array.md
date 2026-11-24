@@ -49,5 +49,5 @@
 ## Связанные решения
 
 - ADR-004, ADR-019, ADR-021, ADR-022, ADR-023, ADR-025
-- [M4](../milestones/m4-project-model.md)
+- [M4](../archive/milestones/m4-project-model.md)
 - Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json)

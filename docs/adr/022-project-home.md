@@ -17,7 +17,7 @@
 6. **`project.list`:** от переданного корня сканировать вниз на ограниченную глубину в поисках `.1c-dev/project.yaml` (monorepo).
 7. **`ide configure`:** флаги `--project` (scope) и `--ide-root` (куда писать `.cursor` / `.kilo`); по умолчанию ide-root = scope; в monorepo указывают git/workspace root. Не затирать чужой корневой `AGENTS.md` без явного opt-in.
 
-Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json). Milestone: [M4](../milestones/m4-project-model.md).
+Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json). Milestone: [M4](../archive/milestones/m4-project-model.md).
 
 ## Альтернативы
 
@@ -37,4 +37,4 @@ Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2
 
 - ADR-004, ADR-006, ADR-016, ADR-021
 - ADR-023, ADR-026
-- [M4](../milestones/m4-project-model.md)
+- [M4](../archive/milestones/m4-project-model.md)

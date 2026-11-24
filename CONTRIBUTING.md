@@ -141,5 +141,6 @@ poetry run pytest -m integration
 ## Issues vs документация
 
 - **GitHub Issues** — рабочий backlog (что делать сейчас).
-- **docs/roadmap.md** и **docs/milestones/** — этапы и acceptance criteria (куда идём).
+- **[docs/README.md](docs/README.md)** — актуальная пользовательская документация.
+- **[docs/roadmap.md](docs/roadmap.md)** — статус и follow-ups; acceptance M1–M7 — в [docs/archive/milestones/](docs/archive/milestones/).
 - Не дублируй полный backlog в markdown.

@@ -1,9 +1,9 @@
 # M7: Source formats (EDT)
 
-**Статус:** **Done (wave 6)** — config EDT Done ([#159](https://github.com/pila86/1c-dev/issues/159)); nested extensions EDT Done ([#161](https://github.com/pila86/1c-dev/issues/161)–[#164](https://github.com/pila86/1c-dev/issues/164)); write honesty — [#165](https://github.com/pila86/1c-dev/issues/165) (Subsystem content), [#167](https://github.com/pila86/1c-dev/issues/167) (`registerRecords` array). [GitHub milestone M7](https://github.com/pila86/1c-dev/milestone/7); [ADR-032](../adr/032-edt-source-adapter.md) Accepted (+ additive nested).  
+**Статус:** **Done (wave 6)** — config EDT Done ([#159](https://github.com/pila86/1c-dev/issues/159)); nested extensions EDT Done ([#161](https://github.com/pila86/1c-dev/issues/161)–[#164](https://github.com/pila86/1c-dev/issues/164)); write honesty — [#165](https://github.com/pila86/1c-dev/issues/165) (Subsystem content), [#167](https://github.com/pila86/1c-dev/issues/167) (`registerRecords` array). [GitHub milestone M7](https://github.com/pila86/1c-dev/milestone/7); [ADR-032](../../adr/032-edt-source-adapter.md) Accepted (+ additive nested).  
 Бывший план «M4 EDT» / черновик `draft-source-formats`; M4 закрыт как [project model](m4-project-model.md).  
-Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bakeoff.md) (**Done** 2026-11 — XML=xml-gen, EDT=**D** md-sparrow `.mdo` + export).  
-Волна 0: spike [#149](https://github.com/pila86/1c-dev/issues/149) — **Done** ([spike](../spikes/149-edt-source-adapter.md), fixture `tests/fixtures/edt_spike`).
+Write-backend выбран: [write-backend-bakeoff](../README.md) (**Done** 2026-11 — XML=xml-gen, EDT=**D** md-sparrow `.mdo` + export).  
+Волна 0: spike [#149](https://github.com/pila86/1c-dev/issues/149) — **Done** ([spike](../README.md), fixture `tests/fixtures/edt_spike`).
 
 **Scope must:** полный паритет с XML (**вариант B**) — read + semantic write + `build`/`check` + `source.convert` при `source.format: edt` (config **и** nested `extensions[]`; YAXUNIT runner — без изменений, ADR-029).
 
@@ -14,7 +14,7 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 ## Prerequisites
 
 - M1–M6 Done (в т.ч. M2 Metadata API, M3 import `.cf` → XML, M4 project home)
-- Write-backend bake-off Done ([spike](../spikes/write-backend-bakeoff.md)): XML=A (xml-gen), EDT=D (md-sparrow `apply-mutation` + `1cedtcli` export)
+- Write-backend bake-off Done ([spike](../README.md)): XML=A (xml-gen), EDT=D (md-sparrow `apply-mutation` + `1cedtcli` export)
 - Для EDT-ветки: `1cedtcli` в окружении; JDK для md-sparrow (Temurin 25+; soft gap в doctor)
 
 ## Decisions
@@ -22,12 +22,12 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 | Тема | Решение | Примечание |
 |------|---------|------------|
 | Scope M7 | **Полный паритет (B)** | Не только convert/read; `metadata.create|update|delete` на EDT |
-| XML semantic write | xml-gen (без смены) | [ADR-007](../adr/007-metadata-ir.md) подтверждён bake-off |
+| XML semantic write | xml-gen (без смены) | [ADR-007](../../adr/007-metadata-ir.md) подтверждён bake-off |
 | EDT semantic write | **D:** md-sparrow native `.mdo` (`apply-mutation`) | Bridge xml-gen → `1cedtcli import` — fallback, не primary |
 | Platform load | `1cedtcli export` → XML → существующий ibcmd/Designer | Платформа не читает `.mdo` |
 | Agent API | Те же tool names на `xml` и `edt` | PRD §49 / §50; без `shell.exec` |
 | Schema | `source.format: edt` уже в ADR-004; additive при необходимости | Major bump не нужен без breaking |
-| EDT adapter / write D | [ADR-032](../adr/032-edt-source-adapter.md) (**Accepted**) | После waves 2–5 / #159 |
+| EDT adapter / write D | [ADR-032](../../adr/032-edt-source-adapter.md) (**Accepted**) | После waves 2–5 / #159 |
 | Nested extensions EDT | convert `--extension` + build export + `extension add` format=edt | Wave 6 / #161–#164; mixed xml\|edt ок |
 | YAXUNIT и EDT | Не трогать: `.cfe` + `ensure` | ADR-029 §7a; не `src/` / не convert |
 | Публичный `source.write` | Out of scope | Не замена `metadata.create` |
@@ -144,8 +144,8 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 
 | # | Wave | Задача | Depends on | Status |
 |---|------|--------|------------|--------|
-| [#149](https://github.com/pila86/1c-dev/issues/149) | 0 | Spike: EDT fixture + `1cedtcli` export/import smoke | bake-off Done | Done ([spike](../spikes/149-edt-source-adapter.md)) |
-| [#150](https://github.com/pila86/1c-dev/issues/150) | 1 | ADR: EDT Source Adapter + write path D | #149 | Done ([ADR-032](../adr/032-edt-source-adapter.md)) |
+| [#149](https://github.com/pila86/1c-dev/issues/149) | 0 | Spike: EDT fixture + `1cedtcli` export/import smoke | bake-off Done | Done ([spike](../README.md)) |
+| [#150](https://github.com/pila86/1c-dev/issues/150) | 1 | ADR: EDT Source Adapter + write path D | #149 | Done ([ADR-032](../../adr/032-edt-source-adapter.md)) |
 | [#151](https://github.com/pila86/1c-dev/issues/151) | 1 | Doctor: capability `edt` / `1cedtcli` (+ JDK md-sparrow soft) | — | Done |
 | [#152](https://github.com/pila86/1c-dev/issues/152) | 2 | `EdtSourceAdapter`: detect / read → Metadata API | #150, #149 | Done |
 | [#153](https://github.com/pila86/1c-dev/issues/153) | 2 | Toolchain: pin md-sparrow + wiring `apply-mutation` | #150 | Done |
@@ -177,8 +177,8 @@ Write-backend выбран: [write-backend-bakeoff](../spikes/write-backend-bake
 
 ## Links
 
-- [Roadmap](../roadmap.md)
-- [Bake-off](../spikes/write-backend-bakeoff.md) · [protocol](../spikes/write-backend-bakeoff-protocol.md) · [EDT spike #149](../spikes/149-edt-source-adapter.md)
+- [Roadmap](../../roadmap.md)
+- [Bake-off](../README.md) · [protocol](../README.md) · [EDT spike #149](../README.md)
 - [M2](m2-metadata-api.md) · [M3](m3-product-adopt.md) · [M4](m4-project-model.md) · [M6](m6-debug.md)
-- [PRD §12 Source API](../../1c-dev-runtime-PRD-v0.1.md), [§13 Sync](../../1c-dev-runtime-PRD-v0.1.md), [§49 Format switching](../../1c-dev-runtime-PRD-v0.1.md), [§50 Contract tests](../../1c-dev-runtime-PRD-v0.1.md)
-- [ADR-007](../adr/007-metadata-ir.md) (XML write); [ADR-032](../adr/032-edt-source-adapter.md) (EDT adapter + write D, Accepted)
+- [PRD §12 Source API](../prd-v0.1.md), [§13 Sync](../prd-v0.1.md), [§49 Format switching](../prd-v0.1.md), [§50 Contract tests](../prd-v0.1.md)
+- [ADR-007](../../adr/007-metadata-ir.md) (XML write); [ADR-032](../../adr/032-edt-source-adapter.md) (EDT adapter + write D, Accepted)

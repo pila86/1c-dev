@@ -6,7 +6,7 @@
 
 ## Контекст
 
-В [ADR-001](001-language-core-cli.md) distribution (`pipx` / `uv tool` / PyInstaller) была отложена: для M1 достаточно Poetry-checkout monorepo. [M3 Product adopt](../milestones/m3-product-adopt.md) требует must-путь: CLI в PATH **без** клонирования репозитория рядом с продуктом, плюс идемпотентная докачка нативных jar toolchain (xml-gen, md-reader/MDClasses, BSL LS, docs facade) в user cache.
+В [ADR-001](001-language-core-cli.md) distribution (`pipx` / `uv tool` / PyInstaller) была отложена: для M1 достаточно Poetry-checkout monorepo. [M3 Product adopt](../archive/milestones/m3-product-adopt.md) требует must-путь: CLI в PATH **без** клонирования репозитория рядом с продуктом, плюс идемпотентная докачка нативных jar toolchain (xml-gen, md-reader/MDClasses, BSL LS, docs facade) в user cache.
 
 Сейчас jars кладутся вручную через `scripts/fetch-*.sh` / `.ps1` в de-facto cache (`~/.cache/1c-dev/tools/`, Windows `%LOCALAPPDATA%\1c-dev\tools\`), pin’ы размазаны по constants и скриптам, override — `ONEC_XMLGEN_JAR` / `ONEC_MDREADER_JAR`. Нужно зафиксировать публичный UX установки, layout cache, единый манифест pin/checksum и приоритет env — контракт для `#48` (`1c-dev tools sync`).
 
@@ -120,6 +120,6 @@ Windows:      %LOCALAPPDATA%\1c-dev\
 - [ADR-001](001-language-core-cli.md) — язык / Poetry; packaging перенесено сюда
 - [ADR-007](007-metadata-ir.md) — xml-gen + cache
 - [ADR-012](012-metadata-read-mdclasses.md) — md-reader + cache
-- [M3 Product adopt](../milestones/m3-product-adopt.md)
+- [M3 Product adopt](../archive/milestones/m3-product-adopt.md)
 - Issue [#45](https://github.com/pila86/1c-dev/issues/45) (этот ADR)
 - Issue [#48](https://github.com/pila86/1c-dev/issues/48) (`1c-dev tools sync`)

@@ -42,4 +42,4 @@ M4 допускает несколько `configurations[]` в одном scope 
 
 - ADR-006 (superseded), ADR-022, ADR-023, ADR-026, ADR-028
 - Issue #100
-- [M4](../milestones/m4-project-model.md)
+- [M4](../archive/milestones/m4-project-model.md)

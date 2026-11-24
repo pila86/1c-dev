@@ -56,7 +56,7 @@ Doctor `supportedTypes` для `metadata.create` / `update` / `delete` берё�
 
 ### Milestone
 
-Трек временно в [M3](../milestones/m3-product-adopt.md) как **should** (не
+Трек временно в [M3](../archive/milestones/m3-product-adopt.md) как **should** (не
 блокирует #52). Возможен перенос в отдельный milestone.
 
 Волны реализации (GitHub issues): [#60](https://github.com/pila86/1c-dev/issues/60)
@@ -90,6 +90,6 @@ meta waves → [#70](https://github.com/pila86/1c-dev/issues/70) docs →
 
 - [ADR-007](007-metadata-ir.md), [ADR-011](011-metadata-ir-v1.md),
   [ADR-012](012-metadata-read-mdclasses.md)
-- [M3 track E](../milestones/m3-product-adopt.md)
+- [M3 track E](../archive/milestones/m3-product-adopt.md)
 - Issues [#60](https://github.com/pila86/1c-dev/issues/60)–[#71](https://github.com/pila86/1c-dev/issues/71)
 - SteelMorgan xml-gen Meta DSL / subsystem-operations

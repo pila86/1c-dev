@@ -6,7 +6,7 @@
 
 ## Контекст
 
-Issue #50 и [M3](../milestones/m3-product-adopt.md) требуют идемпотентно подключить runtime к уже существующему source (после `import` или clone): манифест, `AGENTS.md`, `.gitignore`, MCP-конфиг IDE. `init` — bootstrap пустой конфигурации (включая IDE MCP через `_configure_ide_mcp`); `import` агентские артефакты не пишет (ADR-015).
+Issue #50 и [M3](../archive/milestones/m3-product-adopt.md) требуют идемпотентно подключить runtime к уже существующему source (после `import` или clone): манифест, `AGENTS.md`, `.gitignore`, MCP-конфиг IDE. `init` — bootstrap пустой конфигурации (включая IDE MCP через `_configure_ide_mcp`); `import` агентские артефакты не пишет (ADR-015).
 
 M4 / [ADR-022](022-project-home.md): в multi-tool monorepo IDE MCP может жить в workspace root, а scope — nested; чужой корневой `AGENTS.md` оркестратора нельзя затирать без opt-in (#90).
 
@@ -107,5 +107,5 @@ Cursor: все правила с `alwaysApply: true` и `description` из manif
 
 - ADR-006, ADR-010, ADR-013, ADR-015, ADR-022
 - Issue #50, #90
-- [M3 Product adopt](../milestones/m3-product-adopt.md)
-- [M4](../milestones/m4-project-model.md)
+- [M3 Product adopt](../archive/milestones/m3-product-adopt.md)
+- [M4](../archive/milestones/m4-project-model.md)

@@ -5,7 +5,7 @@
 
 ## Контекст
 
-[M3](../milestones/m3-product-adopt.md) требует локальный индекс синтакс-помощника платформы для агента: `docs.search` / `docs.get` (CLI + MCP). Агент не должен получать весь индекс в system prompt — только по запросу tool. Источник знаний — HBK установленной платформы; готовой CLI у [bsl-context](https://github.com/1c-syntax/bsl-context) нет. Слот jar `docs-facade` в [ADR-013](013-packaging-toolchain-cache.md) был `deferred` до #51.
+[M3](../archive/milestones/m3-product-adopt.md) требует локальный индекс синтакс-помощника платформы для агента: `docs.search` / `docs.get` (CLI + MCP). Агент не должен получать весь индекс в system prompt — только по запросу tool. Источник знаний — HBK установленной платформы; готовой CLI у [bsl-context](https://github.com/1c-syntax/bsl-context) нет. Слот jar `docs-facade` в [ADR-013](013-packaging-toolchain-cache.md) был `deferred` до #51.
 
 ## Решение
 
@@ -73,4 +73,4 @@ Out of scope: `docs.related`, `docs.version`, явный `docs build-index`, vec
 - [ADR-013](013-packaging-toolchain-cache.md) (cache layout / pin toolchain)
 - [ADR-012](012-metadata-read-mdclasses.md) (образец thin Java CLI)
 - Issue [#51](https://github.com/pila86/1c-dev/issues/51)
-- [M3 milestone](../milestones/m3-product-adopt.md)
+- [M3 milestone](../archive/milestones/m3-product-adopt.md)

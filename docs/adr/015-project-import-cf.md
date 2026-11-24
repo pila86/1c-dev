@@ -5,7 +5,7 @@
 
 ## Контекст
 
-Issue #47 и [M3](../milestones/m3-product-adopt.md) требуют публичный CLI/MCP поверх adapter ibcmd import (ADR-014): загрузка `.cf` в XML source, политика dirty source, ensure манифеста, should-CLI `runtime load`. Adapter `import_cf_with_ibcmd` уже есть; product-коды и оркестрация — здесь.
+Issue #47 и [M3](../archive/milestones/m3-product-adopt.md) требуют публичный CLI/MCP поверх adapter ibcmd import (ADR-014): загрузка `.cf` в XML source, политика dirty source, ensure манифеста, should-CLI `runtime load`. Adapter `import_cf_with_ibcmd` уже есть; product-коды и оркестрация — здесь.
 
 ## Решение
 
@@ -76,5 +76,5 @@ ensure 1c.project.yaml (если нет — только манифест + .run
 - [ADR-028](028-configuration-import.md) (supersede публичного имени)
 - ADR-022, ADR-024
 - Issue #47
-- [M3 Product adopt](../milestones/m3-product-adopt.md)
-- [M4](../milestones/m4-project-model.md)
+- [M3 Product adopt](../archive/milestones/m3-product-adopt.md)
+- [M4](../archive/milestones/m4-project-model.md)

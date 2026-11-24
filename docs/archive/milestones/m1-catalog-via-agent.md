@@ -9,7 +9,7 @@ AI-агент через MCP создаёт конфигурацию 1С с од
 - Платформа 1С 8.3.x (локально)
 - `ibcmd` в PATH
 - Linux или Windows
-- Runtime-зависимости — Python 3.11+ и Poetry ([ADR-001](../adr/001-language-core-cli.md))
+- Runtime-зависимости — Python 3.11+ и Poetry ([ADR-001](../../adr/001-language-core-cli.md))
 
 ## Agent workflow
 
@@ -78,9 +78,9 @@ AI-агент через MCP создаёт конфигурацию 1С с од
 ## Links
 
 - [GitHub milestone M1](https://github.com/pila86/1c-dev/milestone/1)
-- [Roadmap](../roadmap.md)
+- [Roadmap](../../roadmap.md)
 - [M2](m2-metadata-api.md) · [M3](m3-product-adopt.md) · [M4](m4-project-model.md) · [m7-source-formats](m7-source-formats.md)
-- [PRD §47](../../1c-dev-runtime-PRD-v0.1.md)
+- [PRD §47](../prd-v0.1.md)
 
 ## Issues
 

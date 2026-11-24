@@ -62,4 +62,4 @@ IDE MCP (`.cursor/mcp.json`, `.kilo/mcp.json`) пишется через `_confi
 - ADR-022, ADR-023 (Proposed)
 - Issue #4
 - PRD §15, §43, §44
-- [M4](../milestones/m4-project-model.md)
+- [M4](../archive/milestones/m4-project-model.md)

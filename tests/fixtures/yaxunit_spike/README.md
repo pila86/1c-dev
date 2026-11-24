@@ -1,6 +1,6 @@
 # Fixture: YaXUnit spike (#119)
 
-Минимальный XML-проект для воспроизведения [spike #119](../../../docs/spikes/119-yaxunit-runuittests.md)
+Минимальный XML-проект для M5 / [ADR-029](../../../docs/adr/029-test-api.md)
 и проверки Test API (`1c-dev test …`): пустая конфигурация `main` + два test-extension
 (`Tests1`, `Tests2`, `purpose: tests`) с модулями YaXUnit и секцией `configurations[].tests` (suite `unit`).
 

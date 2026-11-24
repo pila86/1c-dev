@@ -5,10 +5,10 @@
 
 ## Контекст
 
-M5 ([m5-tests.md](../milestones/m5-tests.md)) требует единый Test API (CLI + MCP) поверх YaXUnit
+M5 ([m5-tests.md](../archive/milestones/m5-tests.md)) требует единый Test API (CLI + MCP) поверх YaXUnit
 в user project: discover / list / run / runOne / report, structured JSON, exit code `5`
 при падениях (ADR-003). Spike [#119](https://github.com/pila86/1c-dev/issues/119)
-([docs/spikes/119-yaxunit-runuittests.md](../spikes/119-yaxunit-runuittests.md))
+([docs/archive/README.md](../archive/README.md))
 зафиксировал механику `1cv8 … /CRunUnitTests=<json>` → jUnit → разбор результата.
 
 Внешний референс — [alkoleft/mcp-onec-test-runner](https://github.com/alkoleft/mcp-onec-test-runner)
@@ -257,7 +257,7 @@ MCP: те же статусы и `diagnostics[]` в JSON; exit codes CLI на MC
 - ADR-003 (exit 5), ADR-010 (MCP thin wrapper), ADR-023 (multi-config / extensions),
   ADR-026 (`runtimes[]`)
 - Issue [#120](https://github.com/pila86/1c-dev/issues/120); depends on spike [#119](https://github.com/pila86/1c-dev/issues/119)
-- [M5](../milestones/m5-tests.md), spike [119-yaxunit-runuittests.md](../spikes/119-yaxunit-runuittests.md)
+- [M5](../archive/milestones/m5-tests.md), issue [#119](https://github.com/pila86/1c-dev/issues/119)
 - PRD §25 Test API, §26 Test Result
 - Внешние: [bia-technologies/yaxunit](https://github.com/bia-technologies/yaxunit),
   [alkoleft/mcp-onec-test-runner](https://github.com/alkoleft/mcp-onec-test-runner) (референс only)

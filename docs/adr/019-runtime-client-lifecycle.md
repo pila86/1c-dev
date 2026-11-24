@@ -83,4 +83,4 @@ Must: **Linux + Windows** (паритет с ADR-005). Helpers `is_running` / `t
 
 - ADR-005, ADR-008, ADR-010, ADR-015, ADR-022, ADR-026, ADR-031
 - PRD §27, §28
-- [M4](../milestones/m4-project-model.md), [M6](../milestones/m6-debug.md)
+- [M4](../archive/milestones/m4-project-model.md), [M6](../archive/milestones/m6-debug.md)

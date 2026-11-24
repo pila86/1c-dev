@@ -39,4 +39,4 @@
 ## Связанные решения
 
 - ADR-014, ADR-015 (superseded name), ADR-020, ADR-022, ADR-024, ADR-027
-- [M4](../milestones/m4-project-model.md)
+- [M4](../archive/milestones/m4-project-model.md)

@@ -5,12 +5,12 @@
 
 ## Контекст
 
-M6 ([m6-debug.md](../milestones/m6-debug.md)) требует единый Debug API (CLI + MCP): агент и CI
+M6 ([m6-debug.md](../archive/milestones/m6-debug.md)) требует единый Debug API (CLI + MCP): агент и CI
 подключаются к HTTP-серверу отладки 1С (`dbgs`), ставят точки, ждут остановку, читают
 стек/переменные, вычисляют выражения и шагают — без Конфигуратора и без shell.
 
 Spike [#135](https://github.com/pila86/1c-dev/issues/135)
-([docs/spikes/135-http-debug-protocol.md](../spikes/135-http-debug-protocol.md)) зафиксировал:
+([docs/archive/README.md](../archive/README.md)) зафиксировал:
 
 - discovery/argv `dbgs`, HTTP `POST /e1crdbg/rdbg?cmd=…`, ping без тела, autoAttach, BP/eval;
 - клиент только с `/Debug` **не** регистрируется на HTTP `dbgs` — нужны `/Debug -http -attach`
@@ -348,7 +348,7 @@ MCP: те же `diagnostics[]` в JSON; exit codes CLI на MCP не маппя�
   ADR-019 (runtime `/Debug` → M6), ADR-022 (`.1c-dev/`), ADR-026 (`runtimes[]`),
   ADR-029 (стиль facade Test API), ADR-030 (номер занят CheckModules — не путать)
 - Issue [#136](https://github.com/pila86/1c-dev/issues/136); depends on spike [#135](https://github.com/pila86/1c-dev/issues/135)
-- [M6](../milestones/m6-debug.md), spike [135-http-debug-protocol.md](../spikes/135-http-debug-protocol.md)
+- [M6](../archive/milestones/m6-debug.md), issue [#135](https://github.com/pila86/1c-dev/issues/135)
 - PRD §28 Debug API, §32 debug tools, §7.9 Debug Adapter
 - Внешние (референс): [liga-1c-command/1c-debug-mcp](https://github.com/liga-1c-command/1c-debug-mcp) (MIT),
   [akpaevj/onec-debug-adapter](https://github.com/akpaevj/onec-debug-adapter) (MIT, DAP),
