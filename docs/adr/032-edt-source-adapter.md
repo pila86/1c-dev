@@ -5,7 +5,7 @@
 
 ## Контекст
 
-M7 ([m7-source-formats](../milestones/m7-source-formats.md)) требует полный паритет
+M7 ([m7-source-formats](../archive/milestones/m7-source-formats.md)) требует полный паритет
 с XML (**вариант B**): при `source.format: edt` агент использует те же `metadata.*`,
 `build`, `check`, а переключение формата — через `source.convert` (PRD §12 / §49 / §50).
 
@@ -16,9 +16,9 @@ M7 ([m7-source-formats](../milestones/m7-source-formats.md)) требует по
 - Bake-off 2026-11: EDT write = **D** (md-sparrow native `.mdo` / `apply-mutation` +
   `1cedtcli` export); bridge **C** (xml-gen → `1cedtcli import`) — future / opt-in,
   **не** реализован в M7
-  ([write-backend-bakeoff](../spikes/write-backend-bakeoff.md)).
+  ([ADR-007 / ADR-032](007-metadata-ir.md)).
 - Spike [#149](https://github.com/pila86/1c-dev/issues/149)
-  ([149-edt-source-adapter](../spikes/149-edt-source-adapter.md)): layout EDT,
+  ([ADR-032](032-edt-source-adapter.md)): layout EDT,
   discovery `1cedtcli`, export/import smoke, rc 204 / Premature EOF, synonym gap.
 
 Платформа **не** читает `.mdo`: любой `build`/`check` на EDT идёт через
@@ -265,7 +265,7 @@ Metadata IR ошибки на EDT переиспользуют семейств�
   ADR-011 / ADR-012 (IR / MDClasses read), ADR-013 (toolchain cache)
 - Issue [#150](https://github.com/pila86/1c-dev/issues/150); depends on spike
   [#149](https://github.com/pila86/1c-dev/issues/149)
-- [M7](../milestones/m7-source-formats.md),
-  spike [149-edt-source-adapter](../spikes/149-edt-source-adapter.md),
-  [write-backend-bakeoff](../spikes/write-backend-bakeoff.md)
+- [M7](../archive/milestones/m7-source-formats.md),
+  spike [ADR-032](032-edt-source-adapter.md),
+  [ADR-007 / ADR-032](007-metadata-ir.md)
 - PRD §11–§13 Source Adapter/API/Sync, §49 Format switching, §50 Contract tests, R1 `1cedtcli`

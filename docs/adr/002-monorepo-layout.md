@@ -22,14 +22,19 @@ PRD §61 предлагает полный monorepo (`cli/`, `core/`, `adapters/
 ├── tests/
 ├── .github/workflows/
 └── docs/
-    ├── adr/
-    ├── milestones/
+    ├── README.md          # оглавление (по задачам читателя)
+    ├── user-guide.md      # how-to
+    ├── cli-reference.md   # reference
+    ├── mcp.md
+    ├── explanation/       # устройство и зависимости (для пользователя)
+    ├── adr/               # почему так решили
+    ├── archive/           # PRD v0.1 + milestones M1–M7
     └── roadmap.md
 ```
 
 Poetry `packages` включают `cli`, `core`, `adapters`, `mcp_server`. Script entrypoint: `1c-dev = "cli.main:run"`.
 
-Каталоги из PRD §61, не нужные в M1 scaffold (`services/`, `skills/`, `templates/`, `benchmarks/`), создаются по мере появления соответствующих issues.
+Каталоги из раннего PRD (`skills/`, `benchmarks/`, …), не нужные продукту, не создаются без issue.
 
 ## Альтернативы
 

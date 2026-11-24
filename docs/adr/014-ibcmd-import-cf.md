@@ -5,7 +5,7 @@
 
 ## Контекст
 
-Issue #46 и [M3](../milestones/m3-product-adopt.md) требуют обратный к build путь: загрузить `.cf` в file IB и выгрузить XML source. Build (ADR-008) уже умеет XML → IB (`import`/`apply`) и IB → `.cf` (`config save`); check — ADR-009. Нужен контракт adapter-слоя `config load` / `config export` без CLI/MCP (это #47).
+Issue #46 и [M3](../archive/milestones/m3-product-adopt.md) требуют обратный к build путь: загрузить `.cf` в file IB и выгрузить XML source. Build (ADR-008) уже умеет XML → IB (`import`/`apply`) и IB → `.cf` (`config save`); check — ADR-009. Нужен контракт adapter-слоя `config load` / `config export` без CLI/MCP (это #47).
 
 ## Решение
 
@@ -60,4 +60,4 @@ ibcmd infobase config export --db-path=… --data=… <source.path>
 
 - ADR-003, ADR-005, ADR-008, ADR-009
 - Issue #46
-- [M3 Product adopt](../milestones/m3-product-adopt.md)
+- [M3 Product adopt](../archive/milestones/m3-product-adopt.md)

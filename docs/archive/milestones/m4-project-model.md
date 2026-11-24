@@ -23,16 +23,16 @@
 
 | Тема | Решение | ADR |
 |------|---------|-----|
-| Project home | Каталог `.1c-dev/`; манифест `.1c-dev/project.yaml`; scope root = родитель; пути relative к scope root | [022](../adr/022-project-home.md) |
-| Multi-config + extensions | `configurations[]` + `extensions[]`; CLI/MCP `--config`; build с ibcmd `--extension` | [023](../adr/023-multi-config-extensions.md) |
-| Init vs configuration | `project.init` = только scope/home (манифест, без XML conf); lifecycle conf — `configuration.add|list|import|…`; empty `configurations[]`/`runtimes[]` допустимы до первого add/import | [#100](https://github.com/pila86/1c-dev/issues/100) / [ADR-027](../adr/027-configuration-lifecycle.md) / [ADR-028](../adr/028-configuration-import.md) |
-| Platform templates | Discovery tmplts / `1cestart.cfg`; parse `*.mft`; `templates.*` + `configuration.import --from-template` | [024](../adr/024-platform-templates.md) |
-| Publish | Фасад `publish.*`; MVP `ibsrv`; Apache/`webinst` вторым адаптером | [025](../adr/025-publish-backends.md) |
-| Runtimes | Массив `runtimes[]`: `{id, configuration, type, path, default?}`; ≥1 IB на configuration (когда conf есть); один global `default` | [026](../adr/026-runtimes-array.md) |
-| Schema | Манифест schema `"2"`; empty arrays на empty scope (#100) | [`1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json) |
+| Project home | Каталог `.1c-dev/`; манифест `.1c-dev/project.yaml`; scope root = родитель; пути relative к scope root | [022](../../adr/022-project-home.md) |
+| Multi-config + extensions | `configurations[]` + `extensions[]`; CLI/MCP `--config`; build с ibcmd `--extension` | [023](../../adr/023-multi-config-extensions.md) |
+| Init vs configuration | `project.init` = только scope/home (манифест, без XML conf); lifecycle conf — `configuration.add|list|import|…`; empty `configurations[]`/`runtimes[]` допустимы до первого add/import | [#100](https://github.com/pila86/1c-dev/issues/100) / [ADR-027](../../adr/027-configuration-lifecycle.md) / [ADR-028](../../adr/028-configuration-import.md) |
+| Platform templates | Discovery tmplts / `1cestart.cfg`; parse `*.mft`; `templates.*` + `configuration.import --from-template` | [024](../../adr/024-platform-templates.md) |
+| Publish | Фасад `publish.*`; MVP `ibsrv`; Apache/`webinst` вторым адаптером | [025](../../adr/025-publish-backends.md) |
+| Runtimes | Массив `runtimes[]`: `{id, configuration, type, path, default?}`; ≥1 IB на configuration (когда conf есть); один global `default` | [026](../../adr/026-runtimes-array.md) |
+| Schema | Манифест schema `"2"`; empty arrays на empty scope (#100) | [`1c.project.schema.v2.json`](../../../schemas/1c.project.schema.v2.json) |
 | Compat | Только `.1c-dev/project.yaml`; корневой `1c.project.yaml` → ошибка `1CP016`; migrate — **cancelled** (#93) | ADR-022 |
 | IDE root | `ide configure --ide-root` отдельно от scope root (monorepo / оркестратор) | ADR-022 / ADR-016 |
-| Drafts вне roadmap | EDT — `draft-*`; Tests → [M5](m5-tests.md) | [roadmap](../roadmap.md) |
+| Drafts вне roadmap | EDT — `draft-*`; Tests → [M5](m5-tests.md) | [roadmap](../../roadmap.md) |
 
 ## Целевая модель
 
@@ -95,7 +95,7 @@ publish:
       config: .1c-dev/publish/ibsrv.yaml
 ```
 
-JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json) (подключён в `core/project/validate.py`, #85).
+JSON Schema: [`schemas/1c.project.schema.v2.json`](../../../schemas/1c.project.schema.v2.json) (подключён в `core/project/validate.py`, #85).
 
 ## Scope
 
@@ -250,7 +250,7 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 
 | # | Wave | Задача | Depends on |
 |---|------|--------|------------|
-| [#84](https://github.com/pila86/1c-dev/issues/84) | 0 | Spike: ibcmd `--extension` + ibsrv config/lifecycle (argv freeze) — [note](../spikes/084-ibcmd-extension-ibsrv.md) | — |
+| [#84](https://github.com/pila86/1c-dev/issues/84) | 0 | Spike: ibcmd `--extension` + ibsrv config/lifecycle (argv freeze) — [note](../README.md) | — |
 | [#85](https://github.com/pila86/1c-dev/issues/85) | 1 | Schema `"2"` в коде + validate configurations/runtimes/publish + ADR 022–026 → Accepted | #84 |
 | [#86](https://github.com/pila86/1c-dev/issues/86) | 1 | Project home `.1c-dev`: detect, init/import, clean, `project.list`/`get`, MCP path | #85 |
 | [#87](https://github.com/pila86/1c-dev/issues/87) | 1 | Resolve `--config` / `--runtime` в build/runtime/clean/metadata + defaults | #86 |
@@ -271,10 +271,10 @@ JSON Schema: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.sche
 ## Links
 
 - [GitHub milestone M4](https://github.com/pila86/1c-dev/milestone/4)
-- [Roadmap](../roadmap.md)
+- [Roadmap](../../roadmap.md)
 - [M3](m3-product-adopt.md)
 - [m7-source-formats](m7-source-formats.md) · [M5 tests](m5-tests.md)
-- ADR: [022](../adr/022-project-home.md) · [023](../adr/023-multi-config-extensions.md) · [024](../adr/024-platform-templates.md) · [025](../adr/025-publish-backends.md) · [026](../adr/026-runtimes-array.md) · [027](../adr/027-configuration-lifecycle.md) · [028](../adr/028-configuration-import.md)
-- Spike argv: [084-ibcmd-extension-ibsrv](../spikes/084-ibcmd-extension-ibsrv.md)
-- Schema v2: [`schemas/1c.project.schema.v2.json`](../../schemas/1c.project.schema.v2.json)
+- ADR: [022](../../adr/022-project-home.md) · [023](../../adr/023-multi-config-extensions.md) · [024](../../adr/024-platform-templates.md) · [025](../../adr/025-publish-backends.md) · [026](../../adr/026-runtimes-array.md) · [027](../../adr/027-configuration-lifecycle.md) · [028](../../adr/028-configuration-import.md)
+- Spike argv: [084-ibcmd-extension-ibsrv](../README.md)
+- Schema v2: [`schemas/1c.project.schema.v2.json`](../../../schemas/1c.project.schema.v2.json)
 - PRD §8 Project Model, §9 Project Types

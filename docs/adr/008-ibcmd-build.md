@@ -76,4 +76,4 @@ ibcmd config save --db-path=… --data=… --db <root>/build/out/configuration.c
 - ADR-023, ADR-026
 - Issue #7
 - PRD §22–§23, §35–§36, §52
-- [M4](../milestones/m4-project-model.md)
+- [M4](../archive/milestones/m4-project-model.md)

@@ -61,5 +61,5 @@ Issue #21 требует `metadata.list` / `get` / `find` без платфор�
 - ADR-007 (write xml-gen)
 - ADR-011 (IR v1)
 - Issue #21
-- [M2 milestone](../milestones/m2-metadata-api.md)
+- [M2 milestone](../archive/milestones/m2-metadata-api.md)
 - [ADR-023](023-multi-config-extensions.md) / #112 (`metadata.* --extension`)

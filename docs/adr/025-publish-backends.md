@@ -46,7 +46,7 @@ Stop: `kill -TERM` по `<data>/lock.pid` (при необходимости KIL
 Обязательные флаги для локального HTTP-only: `--disable-direct-gate` / `--disable-ssh-gate` (иначе конфликт с занятыми 1541/1543).  
 Повторный `--daemon` на живой `--data` может породить второй процесс при exit 0 — idempotent up делать в `core/publish` по `lock.pid`/порту.
 
-Полный протокол, пример YAML и gaps: [docs/spikes/084-ibcmd-extension-ibsrv.md](../spikes/084-ibcmd-extension-ibsrv.md).
+Полный протокол, пример YAML и gaps: [docs/archive/README.md](../archive/README.md)
 
 ### Замороженный argv (webinst + user Apache, #94)
 
@@ -103,6 +103,6 @@ Default port **8315** (не 80 — bind без root). Default bind **`0.0.0.0`**
 ## Связанные решения
 
 - ADR-005, ADR-013, ADR-019, ADR-022, ADR-026
-- [M4](../milestones/m4-project-model.md)
-- [Spike #84](../spikes/084-ibcmd-extension-ibsrv.md)
+- [M4](../archive/milestones/m4-project-model.md)
+- issue [#84](https://github.com/pila86/1c-dev/issues/84)
 - Issues [#89](https://github.com/pila86/1c-dev/issues/89), [#94](https://github.com/pila86/1c-dev/issues/94)

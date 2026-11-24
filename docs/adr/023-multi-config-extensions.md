@@ -5,7 +5,7 @@
 
 ## Контекст
 
-Schema `"1"` описывает один `source` и один `project.type`. Нужны несколько конфигураций в одном scope и расширения (разработка + загрузка в ИБ), в том числе test-extension для будущего test runner ([M5](../milestones/m5-tests.md)).
+Schema `"1"` описывает один `source` и один `project.type`. Нужны несколько конфигураций в одном scope и расширения (разработка + загрузка в ИБ), в том числе test-extension для будущего test runner ([M5](../archive/milestones/m5-tests.md)).
 
 ## Решение
 
@@ -36,7 +36,7 @@ ibcmd extension list         --db-path=… --data=…
 
 - `--extension` = имя расширения (`extensions[].name`), не manifest `id`.
 - `extension create` до XML-import **не обязателен** (import/load сами создают расширение); create нужен, если заранее задаём prefix/purpose.
-- Полный протокол и gaps: [docs/spikes/084-ibcmd-extension-ibsrv.md](../spikes/084-ibcmd-extension-ibsrv.md).
+- Полный протокол и gaps: [docs/archive/README.md](../archive/README.md)
 
 ## Альтернативы
 
@@ -62,7 +62,7 @@ ibcmd extension list         --db-path=… --data=…
 ## Связанные решения
 
 - ADR-008, ADR-014, ADR-015, ADR-022, ADR-026
-- [M4](../milestones/m4-project-model.md)
-- [Spike #84](../spikes/084-ibcmd-extension-ibsrv.md)
-- [M5 tests](../milestones/m5-tests.md)
+- [M4](../archive/milestones/m4-project-model.md)
+- issue [#84](https://github.com/pila86/1c-dev/issues/84)
+- [M5 tests](../archive/milestones/m5-tests.md)
 - [ADR-012](012-metadata-read-mdclasses.md) / #112

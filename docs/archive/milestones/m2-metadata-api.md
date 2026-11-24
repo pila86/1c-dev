@@ -8,7 +8,7 @@
 
 - M1 зелёный: `init` → `metadata.create(Catalog)` → `build` → `check`
 - Write-backend xml-gen (ADR-007) доступен через doctor
-- Контракт IR v1: [ADR-011](../adr/011-metadata-ir-v1.md)
+- Контракт IR v1: [ADR-011](../../adr/011-metadata-ir-v1.md)
 
 ## Scope
 
@@ -171,7 +171,7 @@ Feature-issues #20–#26, #28, #29, #35, #39, #40 и сквозной acceptance
 
 ### Общее
 
-- [x] IR v1 задокументирован ([ADR-011](../adr/011-metadata-ir-v1.md))
+- [x] IR v1 задокументирован ([ADR-011](../../adr/011-metadata-ir-v1.md))
 - [x] Doctor capability отражает поддерживаемые write-типы
 - [x] CLI и MCP используют один `core.metadata` API
 
@@ -246,14 +246,14 @@ Feature-issues #20–#26, #28, #29, #35, #39, #40 и сквозной acceptance
 ## Links
 
 - [GitHub milestone M2](https://github.com/pila86/1c-dev/milestone/2)
-- [Roadmap](../roadmap.md)
+- [Roadmap](../../roadmap.md)
 - [M1](m1-catalog-via-agent.md)
 - [M3](m3-product-adopt.md)
 - [M4](m4-project-model.md)
 - [m7-source-formats](m7-source-formats.md)
-- [ADR-007](../adr/007-metadata-ir.md) (IR v0 + xml-gen)
-- [ADR-011](../adr/011-metadata-ir-v1.md) (IR v1)
-- [PRD §16–§18](../../1c-dev-runtime-PRD-v0.1.md), [§47](../../1c-dev-runtime-PRD-v0.1.md)
+- [ADR-007](../../adr/007-metadata-ir.md) (IR v0 + xml-gen)
+- [ADR-011](../../adr/011-metadata-ir-v1.md) (IR v1)
+- [PRD §16–§18](../prd-v0.1.md), [§47](../prd-v0.1.md)
 
 ## Issues
 

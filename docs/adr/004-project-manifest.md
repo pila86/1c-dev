@@ -69,4 +69,4 @@ runtime:
 - ADR-022–026 (Accepted, M4)
 - Issue #2
 - PRD §8, §14, §69
-- [M4](../milestones/m4-project-model.md)
+- [M4](../archive/milestones/m4-project-model.md)

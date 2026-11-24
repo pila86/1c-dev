@@ -1,6 +1,6 @@
 # Fixture: HTTP Debug Protocol spike (#135)
 
-Минимальный XML-проект для [spike #135](../../../docs/spikes/135-http-debug-protocol.md):
+Минимальный XML-проект для M6 / [ADR-031](../../../docs/adr/031-debug-api-http.md):
 конфигурация `DebugSpike` + общий модуль `ОтладкаДемо` с предсказуемой строкой точки останова.
 
 | Поле | Значение |
@@ -73,4 +73,4 @@ python3 run_http_debug.py --ib .1c-dev/runtime/main --port 2550 --no-pause --com
 `run_http_debug.py` — прототип (не продукт). Клиенту нужен `DISPLAY` (на spike: `:0`).
 `dbgs` пишет `--notify` в **UTF-16 LE**.
 
-Вход для ADR: [135-http-debug-protocol.md](../../../docs/spikes/135-http-debug-protocol.md) → **ADR-031** (#136; не ADR-030 — уже занят).
+Контракт: [ADR-031](../../../docs/adr/031-debug-api-http.md).

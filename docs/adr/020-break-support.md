@@ -60,4 +60,4 @@ Agent workflow M3 «import → metadata.update/create → build» на реал�
 
 - [ADR-014](014-ibcmd-import-cf.md), [ADR-015](015-project-import-cf.md)
 - Issue [#74](https://github.com/pila86/1c-dev/issues/74)
-- [M3 Product adopt](../milestones/m3-product-adopt.md)
+- [M3 Product adopt](../archive/milestones/m3-product-adopt.md)

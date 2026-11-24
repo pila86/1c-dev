@@ -17,14 +17,14 @@
 
 | Тема | Решение |
 |------|---------|
-| Packaging | **must:** `uv tool install` из git/wheel; layout cache + pin — [ADR-013](../adr/013-packaging-toolchain-cache.md); PyPI / pipx / single-binary — later, не acceptance M3 |
+| Packaging | **must:** `uv tool install` из git/wheel; layout cache + pin — [ADR-013](../../adr/013-packaging-toolchain-cache.md); PyPI / pipx / single-binary — later, не acceptance M3 |
 | `runtime.load` | **should:** CLI желателен; MCP — later |
 | IDE в `ide configure` | **must:** `cursor` и `kilocode`; путь/формат MCP Kilocode — по доке при реализации |
 | `ide configure` без `--force` | безопасный merge (см. трек C); `--force` = полная перезапись шаблонных артефактов |
 | `import` vs `ide configure` | раздельно: import = CF → XML + манифест; агентские файлы (`AGENTS.md`, MCP IDE) — только `ide configure` |
 | Dirty source | конфликт = в `source.path` уже есть `Configuration.xml`; без `--force` — отказ, source intact |
-| Break support | **must:** opt-in `--break-support` на `project.import` — source-level strip `ParentConfigurations*` после export ([ADR-020](../adr/020-break-support.md)); без флага артефакты сохраняются; should: `source break-support`; пообъектные правила / DESIGNER `/ManageCfgSupport` / vendor-update — later |
-| Project clean | **should:** `project clean --yes` всегда сносит `source.path` **и** `.runtime/` ([ADR-021](../adr/021-project-clean.md)); манифест / IDE / git не трогает; без `--yes` — отказ; `runtime.reset` (только IB) — later |
+| Break support | **must:** opt-in `--break-support` на `project.import` — source-level strip `ParentConfigurations*` после export ([ADR-020](../../adr/020-break-support.md)); без флага артефакты сохраняются; should: `source break-support`; пообъектные правила / DESIGNER `/ManageCfgSupport` / vendor-update — later |
+| Project clean | **should:** `project clean --yes` всегда сносит `source.path` **и** `.runtime/` ([ADR-021](../../adr/021-project-clean.md)); манифест / IDE / git не трогает; без `--yes` — отказ; `runtime.reset` (только IB) — later |
 | Docs index | **lazy-only** при первом `docs.search` / `docs.get`; явный `docs build-index` — later |
 | Тест import | round-trip: `build --artifact cf` → `project.import`; skip без platform; бинарный `.cf` в git не коммитим |
 
@@ -58,7 +58,7 @@ create IB (если нет)
 # MCP: project.import  (+ break_support: bool)
 ```
 
-Типовые `.cf` после export часто содержат настройки поддержки поставщика (`Ext/ParentConfigurations.bin`, каталог `ParentConfigurations`). Пока они есть, нельзя свободно править объекты и мешает загрузка конфигурации из файлов (`build`). `--break-support` (**must**, [ADR-020](../adr/020-break-support.md)) — идемпотентный source-level strip этих артефактов после export; объекты метаданных не трогает. Без флага артефакты сохраняются (сценарии vendor-update).
+Типовые `.cf` после export часто содержат настройки поддержки поставщика (`Ext/ParentConfigurations.bin`, каталог `ParentConfigurations`). Пока они есть, нельзя свободно править объекты и мешает загрузка конфигурации из файлов (`build`). `--break-support` (**must**, [ADR-020](../../adr/020-break-support.md)) — идемпотентный source-level strip этих артефактов после export; объекты метаданных не трогает. Без флага артефакты сохраняются (сценарии vendor-update).
 
 Узкий шаг только CF → IB, без dump в source (**should**, CLI; MCP later):
 
@@ -74,7 +74,7 @@ create IB (если нет)
 
 Конфликт без `--force`: в `source.path` уже есть `Configuration.xml` → structured diagnostic, source не затёрт. Пустой / отсутствующий `source.path` — import ок. После `init` (там уже есть `Configuration.xml`) нужен `--force`.
 
-Явный wipe перед повторным import/init (**should**, [ADR-021](../adr/021-project-clean.md)):
+Явный wipe перед повторным import/init (**should**, [ADR-021](../../adr/021-project-clean.md)):
 
 ```bash
 1c-dev project clean --yes
@@ -96,7 +96,7 @@ uv tool install git+https://github.com/pila86/1c-dev   # или из локал�
 1c-dev doctor
 ```
 
-Имя команды и layout cache — [ADR-013](../adr/013-packaging-toolchain-cache.md): `1c-dev tools sync`, cache `~/.cache/1c-dev` (Windows: `%LOCALAPPDATA%\1c-dev`).
+Имя команды и layout cache — [ADR-013](../../adr/013-packaging-toolchain-cache.md): `1c-dev tools sync`, cache `~/.cache/1c-dev` (Windows: `%LOCALAPPDATA%\1c-dev`).
 
 `1c-dev tools sync` — идемпотентный bootstrap toolchain в user-dir:
 
@@ -116,7 +116,7 @@ uv tool install git+https://github.com/pila86/1c-dev   # или из локал�
 - override путей через env (`ONEC_XMLGEN_JAR`, `ONEC_MDREADER_JAR`, …) сохраняется и имеет приоритет над cache
 - сеть недоступна / JDK нет → structured diagnostic, CLI при этом остаётся usable для команд без jar
 
-ADR packaging: [ADR-013](../adr/013-packaging-toolchain-cache.md) — `uv tool` must, layout cache, pin toolchain; pipx / PyPI — later. Single-binary не must M3. Maven Central / GitHub Releases как источники jar — reuse текущих fetch-скриптов, но вызов из `tools sync`, не из README «вручную».
+ADR packaging: [ADR-013](../../adr/013-packaging-toolchain-cache.md) — `uv tool` must, layout cache, pin toolchain; pipx / PyPI — later. Single-binary не must M3. Maven Central / GitHub Releases как источники jar — reuse текущих fetch-скриптов, но вызов из `tools sync`, не из README «вручную».
 
 ### C. IDE configure (манифест + агенты + IDE MCP)
 
@@ -127,7 +127,7 @@ ADR packaging: [ADR-013](../adr/013-packaging-toolchain-cache.md) — `uv tool` 
 # MCP: ide.configure
 ```
 
-`--target`: **must** `cursor` и `kilocode` (плагин VS Code); default `all`. Путь/формат MCP-конфига Kilocode — по [ADR-016](../adr/016-ide-configure.md).
+`--target`: **must** `cursor` и `kilocode` (плагин VS Code); default `all`. Путь/формат MCP-конфига Kilocode — по [ADR-016](../../adr/016-ide-configure.md).
 
 Политика без `--force` (безопасный merge):
 
@@ -180,7 +180,7 @@ Installed platform HBK
 
 ### E. Metadata types coverage (should, temporary)
 
-Расширение Metadata API до **паритета с xml-gen**: 23 типа Meta DSL + **`Subsystem`** (отдельный CLI-путь `subsystem compile` / `edit`). Контракт: [ADR-018](../adr/018-metadata-types-coverage.md).
+Расширение Metadata API до **паритета с xml-gen**: 23 типа Meta DSL + **`Subsystem`** (отдельный CLI-путь `subsystem compile` / `edit`). Контракт: [ADR-018](../../adr/018-metadata-types-coverage.md).
 
 На каждый тип синхронно: **create + get (full IR) + update + delete** (md-reader ↔ xml-gen).
 
@@ -325,16 +325,16 @@ poetry run pytest tests/test_e_acceptance.py -m integration
 ## Links
 
 - [GitHub milestone M3](https://github.com/pila86/1c-dev/milestone/3)
-- [Roadmap](../roadmap.md)
+- [Roadmap](../../roadmap.md)
 - [M2](m2-metadata-api.md)
 - [M4](m4-project-model.md) · [m7-source-formats](m7-source-formats.md)
-- [ADR-001](../adr/001-language-core-cli.md) (packaging → [ADR-013](../adr/013-packaging-toolchain-cache.md))
-- [ADR-013](../adr/013-packaging-toolchain-cache.md) (uv tool / cache / pin toolchain)
-- [ADR-010](../adr/010-mcp-architecture.md)
-- [ADR-018](../adr/018-metadata-types-coverage.md) (трек E: metadata types coverage)
-- [ADR-020](../adr/020-break-support.md) (`--break-support` / strip ParentConfigurations*)
-- [ADR-021](../adr/021-project-clean.md) (`project.clean` — wipe source + runtime)
-- [PRD §20 Documentation API](../../1c-dev-runtime-PRD-v0.1.md), [§19 BSL](../../1c-dev-runtime-PRD-v0.1.md), [§64 bsl-context / BSL LS](../../1c-dev-runtime-PRD-v0.1.md)
+- [ADR-001](../../adr/001-language-core-cli.md) (packaging → [ADR-013](../../adr/013-packaging-toolchain-cache.md))
+- [ADR-013](../../adr/013-packaging-toolchain-cache.md) (uv tool / cache / pin toolchain)
+- [ADR-010](../../adr/010-mcp-architecture.md)
+- [ADR-018](../../adr/018-metadata-types-coverage.md) (трек E: metadata types coverage)
+- [ADR-020](../../adr/020-break-support.md) (`--break-support` / strip ParentConfigurations*)
+- [ADR-021](../../adr/021-project-clean.md) (`project.clean` — wipe source + runtime)
+- [PRD §20 Documentation API](../prd-v0.1.md), [§19 BSL](../prd-v0.1.md), [§64 bsl-context / BSL LS](../prd-v0.1.md)
 - [bsl-context](https://github.com/1c-syntax/bsl-context)
 - [BSL LS MCP mode](https://1c-syntax.github.io/bsl-language-server/dev/features/McpMode/)
 

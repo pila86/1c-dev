@@ -68,5 +68,5 @@ require --yes (иначе отказ + diagnostic)
 
 - [ADR-004](004-project-manifest.md), [ADR-013](013-packaging-toolchain-cache.md), [ADR-015](015-project-import-cf.md), [ADR-019](019-runtime-client-lifecycle.md), [ADR-022](022-project-home.md), [ADR-026](026-runtimes-array.md)
 - Issue [#76](https://github.com/pila86/1c-dev/issues/76)
-- [M3 Product adopt](../milestones/m3-product-adopt.md)
-- [M4](../milestones/m4-project-model.md)
+- [M3 Product adopt](../archive/milestones/m3-product-adopt.md)
+- [M4](../archive/milestones/m4-project-model.md)

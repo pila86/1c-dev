@@ -78,7 +78,7 @@ configurations:
 
 - Fixture XML-проект + YaXUnit extension.
 - Локально при желании METR (`tools/mcp/`, вне git) — только чтобы понять вызов.
-- Результат: понятен `/C RunUnitTests=…` и формат отчёта → заметки в ADR Test API: [docs/spikes/119-yaxunit-runuittests.md](../spikes/119-yaxunit-runuittests.md), fixture — [tests/fixtures/yaxunit_spike/](../../tests/fixtures/yaxunit_spike/README.md).
+- Результат: понятен `/C RunUnitTests=…` и формат отчёта → заметки в ADR Test API: [docs/archive (удалённый spike)](../README.md), fixture — [tests/fixtures/yaxunit_spike/](../../../tests/fixtures/yaxunit_spike/README.md).
 
 ### 2. Манифест `configurations[].tests`
 
@@ -99,7 +99,7 @@ Must: полный набор PRD. Фильтры: `--config`, `--runtime`, `--s
 ### 4. Doctor / DX
 
 - `doctor`: capability `test.yaxunit` (cache `yaxunit.cfe` + `1cv8` + `ibcmd`) — **soft gap**, не hard-fail всего CLI.
-- Runner cache + ensure: `tools sync` → `yaxunit.cfe`; `1c-dev yaxunit ensure`; implicit ensure в `test run` ([ADR-029 §7a](../adr/029-test-api.md)).
+- Runner cache + ensure: `tools sync` → `yaxunit.cfe`; `1c-dev yaxunit ensure`; implicit ensure в `test run` ([ADR-029 §7a](../../adr/029-test-api.md)).
 - `AGENTS.md`: цикл `build → test.run` перед завершением задачи.
 - `ide configure`: **не** подключает METR.
 
@@ -134,8 +134,8 @@ AI читает BSL
 
 ### Must (YAxUnit vertical slice)
 
-- [x] Spike: RunUnitTests + разбор jUnit; заметки для ADR ([#119](../spikes/119-yaxunit-runuittests.md))
-- [x] ADR: Test API + граница с METR (own facade) — [ADR-029](../adr/029-test-api.md) Accepted
+- [x] Spike: RunUnitTests + разбор jUnit; заметки для ADR ([#119](../README.md))
+- [x] ADR: Test API + граница с METR (own facade) — [ADR-029](../../adr/029-test-api.md) Accepted
 - [x] Манифест: валидируемая `configurations[].tests` (suite: `id`, `runner`, `extensions[]`)
 - [x] `1c-dev test` + `discover` / `list` / `run` / `runOne` / `report` → structured JSON (PRD §25–26)
 - [x] Падения тестов → exit code `TEST_FAILURE` (5), ADR-003
@@ -185,11 +185,11 @@ AI читает BSL
 ## Links
 
 - [GitHub milestone M5](https://github.com/pila86/1c-dev/milestone/5)
-- [Roadmap](../roadmap.md)
-- [PRD §25 Test API](../../1c-dev-runtime-PRD-v0.1.md), [§26 Test Result](../../1c-dev-runtime-PRD-v0.1.md)
-- [ADR-003](../adr/003-diagnostics-exit-codes.md) (exit 5), [ADR-010](../adr/010-mcp-architecture.md), [ADR-023](../adr/023-multi-config-extensions.md), [ADR-026](../adr/026-runtimes-array.md), [ADR-029](../adr/029-test-api.md)
+- [Roadmap](../../roadmap.md)
+- [PRD §25 Test API](../prd-v0.1.md), [§26 Test Result](../prd-v0.1.md)
+- [ADR-003](../../adr/003-diagnostics-exit-codes.md) (exit 5), [ADR-010](../../adr/010-mcp-architecture.md), [ADR-023](../../adr/023-multi-config-extensions.md), [ADR-026](../../adr/026-runtimes-array.md), [ADR-029](../../adr/029-test-api.md)
 - [M3](m3-product-adopt.md), [M4](m4-project-model.md), [m7-source-formats](m7-source-formats.md)
-- Acceptance: [`tests/test_m5_acceptance.py`](../../tests/test_m5_acceptance.py) (#129)
+- Acceptance: [`tests/test_m5_acceptance.py`](../../../tests/test_m5_acceptance.py) (#129)
 - Внешние: [bia-technologies/yaxunit](https://github.com/bia-technologies/yaxunit), [alkoleft/mcp-onec-test-runner](https://github.com/alkoleft/mcp-onec-test-runner) (референс / spike only)
 
 ## Issues

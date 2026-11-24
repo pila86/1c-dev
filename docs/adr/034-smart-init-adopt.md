@@ -72,4 +72,4 @@ Runner `.cfe` по-прежнему cache / ensure (ADR-029), не в маниф
 ## Связанные решения
 
 - ADR-027, ADR-029, ADR-032
-- [M4](../milestones/m4-project-model.md), [M5](../milestones/m5-tests.md)
+- [M4](../archive/milestones/m4-project-model.md), [M5](../archive/milestones/m5-tests.md)

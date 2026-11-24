@@ -2,6 +2,9 @@
 
 Значимые архитектурные решения фиксируются здесь.
 
+Как пользоваться: [../README.md](../README.md).  
+Как устроено (для пользователя): [../explanation/overview.md](../explanation/overview.md), [../explanation/dependencies.md](../explanation/dependencies.md).
+
 ## Формат
 
 Используй [000-template.md](000-template.md).

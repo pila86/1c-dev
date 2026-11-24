@@ -1,197 +1,101 @@
-# 1C Dev Runtime
+# 1c-dev
 
-Agent-independent toolchain и API-слой для AI-native разработки на платформе 1С.
+Инструментарий (CLI + MCP) для AI-native разработки на платформе 1С. Работает с метаданными через единую модель, собирает и проверяет конфигурацию средствами платформы, запускает тесты и отладку.
 
-## Prerequisites
+Не зависит от конкретного агента, IDE или формата исходников. Это оркестратор над платформой 1С и вспомогательными инструментами, а не их замена.
+Не дублируем то, что уже сделано в сообществе 1С: подключаем проверенные проекты и делаем над ними единый CLI и MCP.
 
-- [uv](https://docs.astral.sh/uv/) — для установки CLI в PATH (`uv tool install`)
-- JDK 17+ — для `metadata.create` / `metadata.update` (jar xml-gen)
-- JDK 21+ — для `metadata.list` / `get` / `find` (jar md-reader / MDClasses) и BSL LS
-- Платформа 1С 8.3.x и `ibcmd` в PATH — для `build` / `check` / `configuration import` и integration-тестов
+Документация: [docs/README.md](docs/README.md).  
+Как устроено: [обзор](docs/explanation/overview.md) · [зависимости](docs/explanation/dependencies.md).
 
-Для разработки в monorepo дополнительно: Python 3.11+ и [Poetry](https://python-poetry.org/).
+## Возможности
 
-## Стек
+| Область | Что делает |
+|---------|------------|
+| Проект | Создаёт манифест `.1c-dev/`, подключает существующую выгрузку XML или EDT, ведёт несколько конфигураций и расширений |
+| Метаданные | Читает и изменяет объекты (`list`, `get`, `find`, `create`, `update`, `delete`); 24 типа объектов на запись |
+| Исходники | Форматы XML (Конфигуратор) и EDT; конвертация (`source convert`); снятие с поддержки |
+| Сборка | Загрузка в файловую ИБ (`build`), платформенная проверка (`check`), импорт `.cf` и шаблонов платформы |
+| Клиент и публикация | Запуск клиента 1С; публикация ИБ через webinst или ibsrv |
+| Тесты | Прогон YAxUnit (`test …`, `yaxunit ensure`) |
+| Отладка | Точки останова, стек, вычисление выражений, шаг по HTTP Debug Protocol (`dbgs`) |
+| Справка платформы | Локальный синтакс-помощник (`docs search`, `docs get`) |
+| IDE и агенты | Настройка MCP для Cursor и Kilocode (`ide configure`) |
+| Внешние инструменты | Каталог и сервисы (например v8std, bsl-ls); отдельно — кэш внутренних jar |
 
-- **Язык:** Python 3.11+ ([ADR-001](docs/adr/001-language-core-cli.md))
-- **Установка (must):** `uv tool` + user cache toolchain ([ADR-013](docs/adr/013-packaging-toolchain-cache.md))
-- **Разработка:** Poetry
-- **CLI:** Typer (`1c-dev`)
+## Что нужно установить
 
-## Установка (must)
+Обязательно:
+
+- [uv](https://docs.astral.sh/uv/) — чтобы поставить `1c-dev` в PATH
+- JDK 25+ — единый для jar toolchain (xml-gen, md-reader, docs-facade, md-sparrow)
+- Платформа 1С 8.3.x и утилита `ibcmd` в PATH — сборка, проверка, импорт
+
+По желанию:
+
+- `1cedtcli` — работа с проектами EDT
+- Docker — часть внешних инструментов из каталога
+
+Для разработки самого репозитория: Python 3.11+ и [Poetry](https://python-poetry.org/).
+
+## Установка
 
 ```bash
 uv tool install git+https://github.com/pila86/1c-dev
-# или из локального wheel: uv tool install ./dist/1c_dev-*.whl
-
-1c-dev --version
-1c-dev tools sync          # jars → ~/.cache/1c-dev/tools (Windows: %LOCALAPPDATA%\1c-dev\tools)
-1c-dev doctor              # platform, ibcmd, Java, каждый jar toolchain
-# при отсутствии jars: 1c-dev doctor --fix
+1c-dev toolchain sync
+1c-dev doctor
+# если не хватает jar: 1c-dev doctor --fix
 ```
 
-Снятие:
+Удалить кэш зависимостей: `1c-dev toolchain clean --yes`.  
+Снять CLI из PATH вместе с кэшем: `1c-dev uninstall --yes`.
+
+Пока поддерживается старое имя: `1c-dev tools sync` (то же, что `toolchain sync`).
+
+## Быстрый старт
+
+Новый проект:
 
 ```bash
-1c-dev tools clean --yes              # только cache
-1c-dev uninstall --yes                # cache + uv tool uninstall 1c-dev
+mkdir shop && cd shop
+1c-dev init --type configuration
+1c-dev configuration add --name Shop
+1c-dev metadata create Catalog.Products --synonym "Товары" \
+  --attr "Article:String:50:Артикул"
+1c-dev docs search "ТаблицаЗначений" --output json
+1c-dev build
+1c-dev check
 ```
 
-Override путей jar: `ONEC_XMLGEN_JAR`, `ONEC_MDREADER_JAR`, `ONEC_BSLLS_JAR`, `ONEC_DOCS_FACADE_JAR`.
-
-## Локальная разработка
+Уже есть выгрузка XML или проект EDT:
 
 ```bash
-poetry install
-poetry run 1c-dev tools sync   # предпочтительно вместо ручных fetch-скриптов
-poetry run 1c-dev --version
-poetry run 1c-dev --help
-poetry run pytest
-poetry run pytest -m integration   # E2E с platform/xml-gen/md-reader; иначе skip
-# M3 accept: poetry run pytest tests/test_m3_acceptance.py -m integration
-# publish ibsrv HTTP: poetry run pytest tests/test_publish_integration.py -m integration
-# publish webinst: poetry run pytest tests/test_publish_webinst_integration.py -m integration
-```
-
-Fallback для разработчиков (те же pin’ы): `./scripts/fetch-xml-gen.sh`, `./scripts/fetch-md-reader.sh` (Windows: `pwsh scripts/fetch-*.ps1`).
-
-## CLI
-
-Глобально: `--output text|json`, `--version`. Справка по любой команде: `1c-dev <cmd> --help`.
-
-| Команда | Назначение |
-|---------|------------|
-| `1c-dev doctor [--fix]` | Проверка окружения; `--fix` запускает `tools sync` и повторяет проверку |
-| `1c-dev tools sync` | Bootstrap jars + user Apache (`tools/apache`) в cache |
-| `1c-dev tools clean --yes` | Удалить user cache toolchain |
-| `1c-dev uninstall --yes` | Cache + `uv tool uninstall 1c-dev` |
-| `1c-dev init --type configuration [--ide-target all\|cursor\|kilocode\|none]` | Bootstrap scope (+ IDE MCP); при наличии XML/EDT в дереве (depth ≤3) — adopt в манифест |
-| `1c-dev init --type extension` | Bootstrap standalone-проекта расширения (`src/cfe/<name>/`) |
-| `1c-dev extension add [--id] [--name] [--purpose] [--from *.cfe] [--path DIR] [--config]` | Добавить расширение (scaffold / `.cfe` / существующий `--path`; для tests — путь вне scope) |
-| `1c-dev extension list [--config] [--runtime]` | Список расширений в выбранной file IB |
-| `1c-dev templates roots\|list\|get` | Каталог шаблонов платформы (tmplts / `*.mft`) |
-| `1c-dev project detect\|validate\|info` | Манифест `.1c-dev/project.yaml` (`project init` = алиас `init`) |
-| `1c-dev configuration import --from <file.cf>` | Импорт `.cf` → XML source (`--force` перезаписывает; `--break-support` снимает с поддержки) |
-| `1c-dev configuration import --from-template <id>` | Импорт `.cf` из шаблона платформы (tmplts; id из `templates.list`) |
-| `1c-dev configuration add\|list\|get\|remove\|set-default` | Lifecycle конфигураций в scope |
-| `1c-dev source break-support` | Удалить `ParentConfigurations*` из `source.path` (без повторного import) |
-| `1c-dev project clean --yes` | Destructive: wipe `source.path` + `.1c-dev/runtime/` (манифест/IDE intact) |
-| `1c-dev runtime load --from <file.cf>` | Загрузка `.cf` в file IB без export XML |
-| `1c-dev runtime start [--client thick|thin] [--debug]` | Запуск клиента (ENTERPRISE) к file IB |
-| `1c-dev runtime stop` | Остановка клиента |
-| `1c-dev runtime status` | Статус клиента (pid / client / debug) |
-| `1c-dev publish up [--profile] [--backend]` | Публикация file IB (default: `webinst`+user Apache; опционально `ibsrv`); `--backend` создаёт `local-*` профиль при необходимости |
-| `1c-dev publish down [--profile] [--backend]` | Остановка publish-backend (`ibsrv` / httpd) |
-| `1c-dev publish status\|url [--profile] [--backend]` | Статус / URL веб-клиента |
-| `1c-dev metadata list` | Список объектов (IR summaries) |
-| `1c-dev metadata get <QualifiedName>` | IR объекта по QName |
-| `1c-dev metadata find <query>` | Поиск по имени / синониму |
-| `1c-dev metadata create <QualifiedName>` | Создать объект (23 Meta DSL + `Subsystem`) |
-| `1c-dev metadata update <QualifiedName>` | Ops над существующим объектом (те же write-типы) |
-| `1c-dev metadata delete <QualifiedName>` | Удалить объект из source + `Configuration.xml` |
-| `1c-dev build [--artifact cf] [--config] [--runtime]` | Загрузить configuration (+ nested extensions XML/`.cfe`) в file IB через `ibcmd` |
-| `1c-dev check [--mode Server]` | Платформенная проверка: `ibcmd config check` + Designer `/CheckModules` |
-| `1c-dev mcp` | MCP server (stdio) для AI-агентов |
-| `1c-dev ide configure [--project] [--ide-root] [--agents] [--target …]` | AGENTS.md (merge), `.gitignore`, IDE MCP + rules |
-
-**Write-типы** (`metadata.create` / `update` / `delete`; также `doctor` → `supportedTypes`, [ADR-018](docs/adr/018-metadata-types-coverage.md)): AccountingRegister, AccumulationRegister, BusinessProcess, CalculationRegister, Catalog, ChartOfAccounts, ChartOfCalculationTypes, ChartOfCharacteristicTypes, CommonModule, Constant, DataProcessor, DefinedType, Document, DocumentJournal, Enum, EventSubscription, ExchangePlan, HTTPService, InformationRegister, Report, ScheduledJob, **Subsystem**, Task, WebService.
-
-Примеры:
-
-```bash
-1c-dev init --type configuration --output json
-1c-dev extension add --id custom --name CustomExt
-# или из готового .cfe (выгрузка XML в src/cfe/<id>/, не копирование бинарника):
-# 1c-dev extension add --from ./CustomExt.cfe --name CustomExt
-1c-dev build   # configuration, затем extensions → default runtime IB
-1c-dev extension list
-```
-
-```bash
-1c-dev doctor --output json
-1c-dev metadata create Catalog.Products --synonym "Товары" --attr "Article:String:50:Артикул"
-1c-dev metadata create Document.Sales --synonym "Продажи" \
-  --attr "Comment:String:100:Комментарий" \
-  --ts "Products:Товары" --ts-attr "Products.Qty:Number:15.3:Количество"
-1c-dev metadata create Enum.OrderStatuses --synonym "Статусы" \
-  --value "New:Новый" --value "Done:Выполнен"
-1c-dev metadata create InformationRegister.Prices \
-  --dimension "Product:Ref:Catalog.Products" \
-  --resource "Price:Number:15.2:Цена"
-1c-dev metadata create CommonModule.SalesServer --server --server-call
-1c-dev metadata create Subsystem.Sales --synonym "Продажи" \
-  --content Catalog.Products --content Document.Sales
-1c-dev metadata create Constant.VATRate --value-type Number:15.2
-1c-dev metadata create DefinedType.CounterpartyRef --value-type "Ref:Catalog.Products"
-1c-dev metadata create Report.SalesReport --synonym "Отчёт"
-1c-dev metadata create ScheduledJob.Cleanup --method-name CommonModule.SalesServer.Cleanup
-1c-dev metadata create EventSubscription.ProductsBeforeWrite \
-  --handler CommonModule.SalesServer.BeforeWrite --event BeforeWrite \
-  --source Catalog.Products
-1c-dev metadata update Catalog.Products --op add-attribute --value "Price:Number(15,2)"
-1c-dev metadata update Catalog.Products --op modify-attribute --value "Price: synonym=Цена, type=Number(10,2)"
-1c-dev metadata update Catalog.Products --attr "Code:String:20:Код"
-1c-dev metadata update Document.Sales --ts "Products:Товары" \
-  --ts-attr "Products.Qty:Number:15.3:Количество"
-1c-dev metadata update Subsystem.Sales --op add-content --value Catalog.Products
-1c-dev metadata delete Catalog.Products --output json
-1c-dev metadata delete Subsystem.Sales --output json
+cd путь-к-выгрузке
+1c-dev init --type configuration
 1c-dev metadata list --output json
-1c-dev metadata get Catalog.Products --output json
-1c-dev metadata find Товар --output json
-1c-dev build --output json
-1c-dev build --artifact cf --output json
-1c-dev configuration import --from build/out/configuration.cf --force --output json
-1c-dev project clean --yes --output json
-1c-dev runtime load --from build/out/configuration.cf --output json
-1c-dev runtime start --output json
-1c-dev runtime start --client thin --output json
-1c-dev runtime start --debug --output json
-1c-dev runtime status --output json
-1c-dev runtime stop --output json
-1c-dev publish up --output json
-1c-dev publish up --backend ibsrv --output json
-1c-dev publish status --output json
-1c-dev publish url
-1c-dev publish down --output json
-1c-dev check --output json
-1c-dev ide configure --output json
-1c-dev ide configure --target cursor --output json
-1c-dev ide configure --target none --output json
-1c-dev ide configure --project products/shop --ide-root . --agents scope --output json
-1c-dev mcp
 ```
 
-В Poetry-checkout те же команды через `poetry run 1c-dev …`.
+## Cursor и Kilocode
 
-### MCP (Cursor / Kilocode)
+Агент в IDE ходит в `1c-dev` через MCP (stdio), а не через shell «вслепую».
 
-После `1c-dev init` MCP-конфиги пишутся сразу (default `--ide-target all`).
-Для уже существующего проекта (после `import` / clone):
+1. Установите CLI (`uv tool install` + `toolchain sync`), чтобы команда `1c-dev` была в PATH.
+2. В корне проекта:
+   - новый scope: `1c-dev init` — сразу пишет MCP-конфиг (по умолчанию Cursor и Kilocode);
+   - уже есть манифест / clone: `1c-dev ide configure`.
+3. Откройте папку как workspace в Cursor или Kilocode и перезапустите MCP, если IDE уже была открыта.
 
-```bash
-1c-dev ide configure                 # MCP для cursor и kilocode (default --target all)
-# или: 1c-dev ide configure --target cursor
-# monorepo: MCP в корне workspace, scope nested
-# 1c-dev ide configure --project products/shop --ide-root . --agents scope
-```
+Что появляется в проекте:
 
-Tools: `project.get`, `project.init`, `ide.configure`, `configuration.import`,
-`configuration.add` / `list` / `get` / `remove` / `set-default`, `project.clean`,
-`metadata.list`, `metadata.get`, `metadata.find`, `metadata.create`,
-`metadata.update`, `metadata.delete`, `build`, `check`,
-`runtime.start`, `runtime.stop`, `runtime.status`,
-`publish.up`, `publish.down`, `publish.status`, `publish.url`,
-`templates.roots`, `templates.list`, `templates.get`,
-`docs.search`, `docs.get`
-([ADR-010](docs/adr/010-mcp-architecture.md), [ADR-016](docs/adr/016-ide-configure.md),
-[ADR-019](docs/adr/019-runtime-client-lifecycle.md), [ADR-021](docs/adr/021-project-clean.md),
-[ADR-024](docs/adr/024-platform-templates.md),
-[ADR-028](docs/adr/028-configuration-import.md)).
-`project.clean` — destructive (нужен `yes=true`); не трогает манифест / IDE / git.`metadata.create` / `update` / `delete` покрывают те же 24 write-типа, что и CLI
-(список — в описании tool и в `doctor` → `supportedTypes`).
+| IDE | MCP | Rules / подсказки агенту |
+|-----|-----|---------------------------|
+| Cursor | `.cursor/mcp.json` | `.cursor/rules/`, `AGENTS.md` |
+| Kilocode | `.kilo/mcp.json` | `.kilo/rules/`, `AGENTS.md` |
 
-Пример `.cursor/mcp.json` (пишет `init` / `ide configure`; `cwd` не нужен — IDE стартует из workspace):
+Только одна IDE: `1c-dev ide configure --target cursor` или `--target kilocode`.  
+Без MCP: `--target none`.
+
+Минимальный MCP-сервер (его же пишет `ide configure`):
 
 ```json
 {
@@ -199,56 +103,82 @@ Tools: `project.get`, `project.init`, `ide.configure`, `configuration.import`,
     "1c-dev": {
       "command": "1c-dev",
       "args": ["mcp"]
-    },
-    "bsl-language-server": {
-      "command": "java",
-      "args": ["-jar", "/path/to/bsl-language-server.jar", "mcp"]
     }
   }
 }
 ```
 
-Для разработки через Poetry: `"command": "poetry"`, `"args": ["run", "1c-dev", "mcp"]`.
+Дальше агент вызывает MCP tools (`metadata.*`, `build`, `check`, `test.*`, …) — список в [docs/mcp.md](docs/mcp.md).  
+Внешние MCP (`bsl-ls`, `v8std`, …) — см. ниже.
 
-Kilocode: тот же формат в `.kilo/mcp.json`.
+## Внешние инструменты
 
-## Текущий фокус
+Это не `toolchain sync` (внутренние jar), а каталог `catalog/` — отдельные MCP и сервисы. Установка ≠ запуск. Для части стеков нужен Docker.
 
-**Milestone M3: Product adopt** — import `.cf`, `uv tool` + `tools sync`, `ide configure`, BSL LS MCP и docs (bsl-context).
-
-- [M3 Product adopt](docs/milestones/m3-product-adopt.md)
-- [M2: metadata API](docs/milestones/m2-metadata-api.md) (Done)
-- [M1 (Done)](docs/milestones/m1-catalog-via-agent.md)
-- [Roadmap](docs/roadmap.md)
-- [PRD v0.1](1c-dev-runtime-PRD-v0.1.md)
-
-## Быстрый старт
+Поставить всё из каталога и поднять сервисы:
 
 ```bash
-uv tool install git+https://github.com/pila86/1c-dev
-1c-dev tools sync
+1c-dev tools list
+1c-dev tools install --all
+1c-dev services up --all
+1c-dev services status --all
+1c-dev ide configure          # прописать MCP endpoints в IDE
 1c-dev doctor
-1c-dev init --type configuration
-1c-dev metadata create Catalog.Products --synonym "Товары"
-1c-dev metadata update Catalog.Products --attr "Article:String:50:Артикул"
-1c-dev metadata get Catalog.Products --output json
-1c-dev docs search "ТаблицаЗначений" --output json
-1c-dev docs get "Массив.Добавить" --output json
-1c-dev build
-1c-dev check
 ```
+
+Сейчас в каталоге: `v8std`, `bsl-ls`, `bsl-search`.  
+`services up --all` поднимает только уже установленные managed-сервисы; неустановленные пропускает с предупреждением.
+
+По одному:
+
+```bash
+1c-dev tools install v8std
+1c-dev services up v8std
+```
+
+Без сети (только файлы из catalog, без pull образов/jar): `1c-dev tools install --all --no-pull`.
+
+Остановка: `1c-dev services down --all`.  
+Желаемый набор для проекта (не создаётся `init`): `.1c-dev/tools.yaml` → `1c-dev tools check`.
+
+Устройство и зависимости (toolchain ≠ catalog, явное/неявное):  
+[обзор](docs/explanation/overview.md) · [зависимости](docs/explanation/dependencies.md) · [ADR-033](docs/adr/033-external-tools-manager.md).
 
 ## Документация
 
-| Документ | Описание |
-|----------|----------|
-| [PRD v0.1](1c-dev-runtime-PRD-v0.1.md) | Полная спецификация |
-| [Roadmap](docs/roadmap.md) | Этапы разработки |
-| [CONTRIBUTING](CONTRIBUTING.md) | Как участвовать |
-| [ADR](docs/adr/README.md) | Архитектурные решения |
+| Документ | Содержание |
+|----------|------------|
+| [Оглавление](docs/README.md) | Карта по задачам читателя |
+| [Как устроено](docs/explanation/overview.md) | Слои, границы, toolchain vs external tools |
+| [Зависимости](docs/explanation/dependencies.md) | Явное / неявное / soft, пути на диске |
+| [Руководство](docs/user-guide.md) | Типовые сценарии |
+| [Справочник CLI](docs/cli-reference.md) | Команды по группам |
+| [MCP](docs/mcp.md) | Подключение к IDE и список MCP tools |
+| [ADR](docs/adr/README.md) | Почему так решили (углубление) |
+| [План](docs/roadmap.md) | Статус и открытые задачи |
+| [Участие в разработке](CONTRIBUTING.md) | Работа с репозиторием |
 
-## Принцип
+## Разработка в репозитории
 
-> Agent-independent + IDE-independent + source-format-independent.
+```bash
+poetry install
+poetry run 1c-dev toolchain sync
+poetry run 1c-dev --help
+poetry run pytest
+poetry run pytest -m integration   # нужны платформа и jar; иначе тесты пропускаются
+```
 
-Runtime — фасад над существующей 1С developer ecosystem, а не её замена.
+Перед коммитом: `poetry run ruff check .`, `poetry run mypy`, `poetry run pytest` — подробности в [CONTRIBUTING](CONTRIBUTING.md).
+
+## Благодарности
+
+`1c-dev` опирается на экосистему 1С и открытые проекты сообщества. Спасибо авторам и мейнтейнерам:
+
+- [MDClasses](https://github.com/1c-syntax/mdclasses), [bsl-context](https://github.com/1c-syntax/bsl-context), [BSL Language Server](https://github.com/1c-syntax/bsl-language-server)
+- [xml-gen](https://github.com/SteelMorgan/1c-agent-based-dev-framework/tree/master/tools/xml-gen) (SteelMorgan), [md-sparrow](https://github.com/yellow-hammer/md-sparrow)
+- [YaXUnit](https://github.com/bia-technologies/yaxunit)
+- [v8std](https://github.com/zeegin/v8std), [mcp-bsl-search](https://github.com/axel-avb/mcp-bsl-search)
+
+Платформа 1С и 1C:EDT — внешняя основа для сборки, ИБ и EDT-сценариев.
+
+Роли компонентов и как они подключаются: [docs/explanation/dependencies.md](docs/explanation/dependencies.md).

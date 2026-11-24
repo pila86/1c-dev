@@ -1,51 +1,38 @@
 # Roadmap
 
-## Текущий фокус
+## Сейчас
 
-**Follow-ups (вне milestone):**
+Продуктовые milestones **M1–M7 Done**. Актуальная работа — follow-ups и polish поверх стабильного CLI/MCP:
+
+- External Tools Manager — [ADR-033](adr/033-external-tools-manager.md) (этапы 0–5, 7; этап 6 deferred)
+- Smart init / adopt — [ADR-034](adr/034-smart-init-adopt.md)
 - [#143](https://github.com/pila86/1c-dev/issues/143) — `ide configure` DAP `launch.json` hint
-- [#128](https://github.com/pila86/1c-dev/issues/128) — Vanessa adapter (M5)
+- [#128](https://github.com/pila86/1c-dev/issues/128) — Vanessa adapter (Test API)
+- EDT write-gaps — [#166](https://github.com/pila86/1c-dev/issues/166)
 
-**Сейчас:** M7 Done (wave 6) — nested extensions EDT + write honesty ([#161](https://github.com/pila86/1c-dev/issues/161)–[#165](https://github.com/pila86/1c-dev/issues/165), [#167](https://github.com/pila86/1c-dev/issues/167); acceptance [#164](https://github.com/pila86/1c-dev/issues/164) / [#159](https://github.com/pila86/1c-dev/issues/159)). Follow-ups вне must: EDT write-gaps ([#166](https://github.com/pila86/1c-dev/issues/166)), Vanessa, DAP launch.json.
+Backlog: [GitHub Issues](https://github.com/pila86/1c-dev/issues) / [milestones](https://github.com/pila86/1c-dev/milestones).
 
-**Закрыто недавно:** M7 wave 6 — Done ([m7-source-formats](milestones/m7-source-formats.md)); M6 Debug — Done ([m6-debug](milestones/m6-debug.md), PR [#146](https://github.com/pila86/1c-dev/pull/146)); write-backend bake-off — Done ([write-backend-bakeoff](spikes/write-backend-bakeoff.md), 2026-11-05).
+## Этапы (Done)
 
-→ [M7 Source formats](milestones/m7-source-formats.md)  
-→ [GitHub milestone M7](https://github.com/pila86/1c-dev/milestone/7)  
-→ [M6 Debug](milestones/m6-debug.md)
+| Milestone | Цель | Документ |
+|-----------|------|----------|
+| **M1** | Init → metadata.create → build → check через MCP | [archive](archive/milestones/m1-catalog-via-agent.md) |
+| **M2** | Metadata API: list/get/find + update/create/delete | [archive](archive/milestones/m2-metadata-api.md) |
+| **M3** | Product adopt: import `.cf`, `uv tool`, IDE, docs | [archive](archive/milestones/m3-product-adopt.md) |
+| **M4** | Project home, multi-config, extensions, publish | [archive](archive/milestones/m4-project-model.md) |
+| **M5** | Test API (YAxUnit); Vanessa — follow-up | [archive](archive/milestones/m5-tests.md) |
+| **M6** | Debug API (HTTP `dbgs`) | [archive](archive/milestones/m6-debug.md) |
+| **M7** | EDT source + `source.convert` + write path D | [archive](archive/milestones/m7-source-formats.md) |
 
-## Этапы
-
-| Milestone | Цель | Статус |
-|-----------|------|--------|
-| **M1** | Init → metadata.create(Catalog) → build → check через MCP | Done |
-| **M2** | Metadata API: list/get/find + update + create (Document, registers, …) + delete | Done |
-| **M3** | Product adopt: import `.cf`, user install/PATH **+ автозагрузка toolchain**, `ide configure`, BSL LS MCP, docs/context; **should (temporary):** metadata types coverage | Done |
-| **M4** | Project home `.1c-dev/`, multi-config + extensions, platform templates, publish (ibsrv / webinst), `runtimes[]` | Done |
-| **M5** | Test API: YAxUnit adapter, CLI/MCP `test.*`, `configurations[].tests`; Vanessa — follow-up | Done |
-| **M6** | Debug API: HTTP Debug Protocol (`dbgs`), CLI/MCP `debug.*` + `test.* --debug`; DAP для IDE — reuse | Done |
-| **M7** | Source formats: EDT adapter + `source.convert` + metadata/build/check parity (write=D); nested extensions EDT | Done (wave 6) |
-
-Документы этапов: [M1](milestones/m1-catalog-via-agent.md) · [M2](milestones/m2-metadata-api.md) · [M3](milestones/m3-product-adopt.md) · [M4](milestones/m4-project-model.md) · [M5](milestones/m5-tests.md) · [M6](milestones/m6-debug.md) · [M7](milestones/m7-source-formats.md)
-
-## Spikes / архив решений
-
-| Тема | Статус | Документ |
-|------|--------|----------|
-| External Tools Manager (локальные MCP/сервисы) | **Done** ADR-033 (этапы 0–5, 7; этап 6 deferred) [#172](https://github.com/pila86/1c-dev/issues/172) / [#175](https://github.com/pila86/1c-dev/issues/175) / [#177](https://github.com/pila86/1c-dev/issues/177) | [ADR-033](adr/033-external-tools-manager.md) |
-| Write-backend bake-off | **Done** 2026-11-05 (XML=A, EDT=D) | [write-backend-bakeoff](spikes/write-backend-bakeoff.md) · [protocol](spikes/write-backend-bakeoff-protocol.md) |
-| EDT fixture + `1cedtcli` smoke | **Done** 2026-11-06 | [149-edt-source-adapter](spikes/149-edt-source-adapter.md) · fixture `tests/fixtures/edt_spike` |
-
-Remote (Docker, lockfile) — при появлении текста как `docs/milestones/draft-remote.md`.
-
-## Принципы (из PRD)
+## Принципы
 
 - Agent-independent, IDE-independent, source-format-independent
-- Reuse-first: BSL LS, MDClasses, ibcmd, bsl-context, test runners, HTTP debug / DAP adapters
+- Reuse-first: BSL LS, MDClasses, ibcmd, bsl-context, YAxUnit, HTTP debug
 - Machine-readable first: JSON output, structured diagnostics
 - Semantic-first: metadata IR, не сырой XML для агента
 
 ## Ссылки
 
-- [PRD v0.1](../1c-dev-runtime-PRD-v0.1.md)
+- [Документация](README.md)
 - [ADR](adr/README.md)
+- [Архив PRD / milestones](archive/README.md)
