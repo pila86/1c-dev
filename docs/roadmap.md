@@ -12,6 +12,10 @@
 
 Backlog: [GitHub Issues](https://github.com/pila86/1c-dev/issues) / [milestones](https://github.com/pila86/1c-dev/milestones).
 
+## Идеи (не committed)
+
+- Автономный агент в этом репо: OpenHands + платформа/EDT/Xvfb/VNC/`1c-dev` (HASP, draft MR) — [proposal](proposals/autonomous-agent-sandbox.md)
+
 ## Этапы (Done)
 
 | Milestone | Цель | Документ |

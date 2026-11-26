@@ -22,6 +22,10 @@
 - [Обзор: слои и границы](explanation/overview.md)
 - [Зависимости: явное и неявное](explanation/dependencies.md)
 
+## Идеи / proposals (ещё не ADR)
+
+- [Автономный агент: OpenHands + Docker над 1c-dev](proposals/autonomous-agent-sandbox.md) — draft: в этом репо; платформа + EDT + Xvfb/VNC; HASP; OpenHands; draft PR
+
 ## Почему так решили (ADR)
 
 Архитектурные решения для углубления и контрибьюторов — не первый вход.
