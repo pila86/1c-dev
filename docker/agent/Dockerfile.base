@@ -1,0 +1,227 @@
+# 1c-agent-base: platform 1C + EDT/1cedtcli + Xvfb/VNC + 1c-dev
+# Build (from repo root, distr/ populated, ordinary docker build):
+#   docker build \
+#     --build-arg ONEC_VERSION=8.5.1.1529 \
+#     --build-arg EDT_VERSION=2026.2.2 \
+#     -t 1c-agent-base:8.5.1-edt2026.2 \
+#     -f docker/agent/Dockerfile.base \
+#     .
+
+ARG UBUNTU_TAG=24.04
+
+# ---------------------------------------------------------------------------
+# Platform install (discarded after COPY --from)
+# ---------------------------------------------------------------------------
+FROM ubuntu:${UBUNTU_TAG} AS platform
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=ru_RU.UTF-8 \
+    LANGUAGE=ru_RU:ru \
+    LC_ALL=ru_RU.UTF-8
+
+RUN apt-get update \
+  && echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true \
+       | debconf-set-selections \
+  && apt-get install -y --no-install-recommends \
+      ca-certificates \
+      curl \
+      locales \
+      unzip \
+      fontconfig \
+      libfontconfig1 \
+      libfreetype6 \
+      libglib2.0-0 \
+      libgtk2.0-0 \
+      libgsf-1-114 \
+      libodbc2 \
+      libwebkit2gtk-4.1-0 \
+      libglu1-mesa \
+      libxss1 \
+      libxkbfile1 \
+      libenchant-2-2 \
+      imagemagick \
+      ttf-mscorefonts-installer \
+  && locale-gen ru_RU.UTF-8 \
+  && rm -rf /var/lib/apt/lists/* /var/cache/debconf
+
+COPY distr/onec/ /tmp/onec-dist/
+COPY docker/agent/scripts/install-platform.sh /tmp/install-platform.sh
+RUN chmod +x /tmp/install-platform.sh \
+  && INSTALLER_TYPE=client /tmp/install-platform.sh /tmp/onec-dist \
+  && rm -rf /tmp/onec-dist /tmp/install-platform.sh
+
+# ---------------------------------------------------------------------------
+# EDT install
+# ---------------------------------------------------------------------------
+FROM ubuntu:${UBUNTU_TAG} AS edt
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=ru_RU.UTF-8 \
+    LC_ALL=ru_RU.UTF-8
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+      ca-certificates \
+      curl \
+      locales \
+      unzip \
+      libgtk-3-0 \
+      openjdk-17-jre-headless \
+  && locale-gen ru_RU.UTF-8 \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY distr/edt/ /tmp/edt-dist/
+COPY docker/agent/scripts/install-edt.sh /tmp/install-edt.sh
+RUN chmod +x /tmp/install-edt.sh \
+  && /tmp/install-edt.sh /tmp/edt-dist \
+  && rm -rf /tmp/edt-dist /tmp/install-edt.sh
+
+# ---------------------------------------------------------------------------
+# Runtime image
+# ---------------------------------------------------------------------------
+FROM ubuntu:${UBUNTU_TAG}
+
+ARG ONEC_VERSION=8.5.1.1529
+ARG EDT_VERSION=2026.2.2
+LABEL org.opencontainers.image.title="1c-agent-base" \
+      org.opencontainers.image.description="1C platform + EDT + Xvfb/VNC + 1c-dev" \
+      onec.version="${ONEC_VERSION}" \
+      edt.version="${EDT_VERSION}"
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=ru_RU.UTF-8 \
+    LANGUAGE=ru_RU:ru \
+    LC_ALL=ru_RU.UTF-8 \
+    DISPLAY=:99 \
+    DISPLAY_WIDTH=1440 \
+    DISPLAY_HEIGHT=900 \
+    ONEC_HOME=/opt/1cv8/current \
+    JAVA_HOME=/usr/lib/jvm/java-25-openjdk-amd64 \
+    PATH="/opt/1cv8/current:/opt/1C/1CE/components/1cedtcli:/opt/1C/1CE/components/1c-enterprise-ring:/usr/lib/jvm/java-25-openjdk-amd64/bin:${PATH}" \
+    AGENT_WORKSPACE=/workspace
+
+RUN apt-get update \
+  && echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true \
+       | debconf-set-selections \
+  && apt-get install -y --no-install-recommends \
+      ca-certificates \
+      curl \
+      git \
+      locales \
+      netcat-openbsd \
+      python3 \
+      python3-pip \
+      python3-venv \
+      openjdk-25-jdk-headless \
+      # display / VNC
+      xvfb \
+      x11vnc \
+      openbox \
+      x11-utils \
+      x11-xserver-utils \
+      dbus-x11 \
+      # 1C runtime libs
+      fontconfig \
+      fonts-liberation \
+      ttf-mscorefonts-installer \
+      libfontconfig1 \
+      libfreetype6 \
+      libglib2.0-0 \
+      libgtk2.0-0 \
+      libgtk-3-0 \
+      libgsf-1-114 \
+      libodbc2 \
+      libwebkit2gtk-4.1-0 \
+      libglu1-mesa \
+      libxss1 \
+      libxkbfile1 \
+      imagemagick \
+      procps \
+      psmisc \
+  && locale-gen ru_RU.UTF-8 \
+  && rm -rf /var/lib/apt/lists/* /var/cache/debconf
+
+# Platform + EDT from builder stages
+COPY --from=platform /opt/1cv8 /opt/1cv8
+COPY --from=edt /opt/1C /opt/1C
+COPY --from=edt /etc/1C /etc/1C
+
+# Ensure current symlink exists even if stage layout differs.
+# Drop platform-bundled libstdc++ — it is older than Ubuntu 24 libs and breaks 1cv8/webkit.
+RUN set -eux; \
+    if [ ! -e /opt/1cv8/current ]; then \
+      ibcmd="$(find /opt/1cv8 -type f -name ibcmd | sort -V | tail -n1)"; \
+      test -n "$ibcmd"; \
+      v="$(basename "$(dirname "$ibcmd")")"; \
+      ln -sfn "x86_64/${v}" /opt/1cv8/current; \
+    fi; \
+    test -x /opt/1cv8/current/ibcmd; \
+    test -x /opt/1cv8/current/1cv8; \
+    find /opt/1cv8 -name 'libstdc++.so*' \( -type f -o -type l \) -delete; \
+    edtcli="$(find /opt/1C/1CE -type f -name 1cedtcli | head -n1)"; \
+    test -n "$edtcli"; \
+    mkdir -p /opt/1C/1CE/components; \
+    ln -sfn "$(dirname "$edtcli")" /opt/1C/1CE/components/1cedtcli; \
+    ring="$(find /opt/1C/1CE -type f -name ring | head -n1 || true)"; \
+    if [ -n "$ring" ]; then ln -sfn "$(dirname "$ring")" /opt/1C/1CE/components/1c-enterprise-ring; fi
+
+# Install 1c-dev from this repo (pin = build context commit)
+COPY pyproject.toml poetry.lock README.md /opt/1c-dev-src/
+COPY cli /opt/1c-dev-src/cli
+COPY core /opt/1c-dev-src/core
+COPY adapters /opt/1c-dev-src/adapters
+COPY mcp_server /opt/1c-dev-src/mcp_server
+COPY templates /opt/1c-dev-src/templates
+COPY schemas /opt/1c-dev-src/schemas
+COPY toolchain /opt/1c-dev-src/toolchain
+COPY catalog /opt/1c-dev-src/catalog
+COPY tools /opt/1c-dev-src/tools
+
+# Optional corp proxy for toolchain sync (Maven Central / Apache ASF / GitHub).
+ARG HTTP_PROXY=
+ARG HTTPS_PROXY=
+ARG NO_PROXY=localhost,127.0.0.1,::1,.local
+
+RUN python3 -m venv /opt/1c-dev-venv \
+  && /opt/1c-dev-venv/bin/pip install --no-cache-dir --upgrade pip \
+  && /opt/1c-dev-venv/bin/pip install --no-cache-dir "/opt/1c-dev-src" \
+  && ln -sfn /opt/1c-dev-venv/bin/1c-dev /usr/local/bin/1c-dev \
+  && 1c-dev --help >/dev/null \
+  && mkdir -p /opt/1c-agent /workspace /home/agent /opt/1c-dev-cache \
+  && (id agent >/dev/null 2>&1 || useradd -m -d /home/agent -s /bin/bash agent)
+
+# gcc/make for apache; JDK 21 for md-reader/docs-facade Gradle toolchains (bytecode 21+).
+# Bake jars so non-root conversation need not rebuild into read-only site-packages.
+# Gradle wrappers are 9.1+ (Gradle 8.10 cannot run on JDK 25 / class file 69).
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+      build-essential \
+      make \
+      libpcre2-dev \
+      libexpat1-dev \
+      openjdk-21-jdk-headless \
+  && rm -rf /var/lib/apt/lists/* \
+  && HTTP_PROXY="${HTTP_PROXY}" HTTPS_PROXY="${HTTPS_PROXY:-$HTTP_PROXY}" \
+     NO_PROXY="${NO_PROXY}" \
+     http_proxy="${HTTP_PROXY}" https_proxy="${HTTPS_PROXY:-$HTTP_PROXY}" \
+     no_proxy="${NO_PROXY}" \
+     JAVA_HOME=/usr/lib/jvm/java-25-openjdk-amd64 \
+     XDG_CACHE_HOME=/opt/1c-dev-cache \
+     1c-dev toolchain sync \
+  && test -f /opt/1c-dev-cache/1c-dev/tools/md-reader.jar \
+  && test -f /opt/1c-dev-cache/1c-dev/tools/docs-facade.jar \
+  && chmod -R a+rX /opt/1c-dev-cache
+
+ENV ONEC_TOOLCHAIN_BAKE=/opt/1c-dev-cache/1c-dev
+
+COPY docker/agent/nethasp.ini.template /opt/1c-agent/nethasp.ini.template
+COPY docker/agent/scripts/ /opt/1c-agent/scripts/
+COPY docker/agent/entrypoint.sh /usr/local/bin/agent-entrypoint.sh
+# Optional org CAs baked at build time (place *.crt/*.pem into docker/agent/certs/).
+COPY docker/agent/certs/ /certs/
+RUN chmod +x /usr/local/bin/agent-entrypoint.sh /opt/1c-agent/scripts/*.sh \
+  && mkdir -p /etc/1c-agent /certs
+
+WORKDIR /workspace
+EXPOSE 5900
+
+ENTRYPOINT ["/usr/local/bin/agent-entrypoint.sh"]
+CMD ["bash"]

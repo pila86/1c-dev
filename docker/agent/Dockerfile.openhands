@@ -1,0 +1,98 @@
+# 1c-agent-oh: OpenHands agent-server on top of 1c-agent-base.
+# Conversation containers are started by Agent Canvas as non-root
+# (--user 10001, --cap-drop ALL). Entrypoint must not require root.
+#
+#   docker build \
+#     --build-arg BASE_IMAGE=1c-agent-base:8.5.1-edt2026.2 \
+#     --build-arg OH_AGENT_SERVER_VERSION=1.64.1 \
+#     --build-arg HTTP_PROXY=http://192.168.77.254:8118 \
+#     --build-arg HTTPS_PROXY=http://192.168.77.254:8118 \
+#     --build-arg HASP_SERVER_ADDR=192.168.150.182 \
+#     -t 1c-agent-oh:8.5.1-edt2026.2 \
+#     -f docker/agent/Dockerfile.openhands \
+#     docker/agent
+
+ARG BASE_IMAGE=1c-agent-base:8.5.1-edt2026.2
+FROM ${BASE_IMAGE}
+
+ARG OH_AGENT_SERVER_VERSION=1.64.1
+ARG OH_UID=10001
+ARG OH_GID=10001
+ARG OH_USERNAME=openhands
+# Baked defaults for conversation containers (OH does not forward arbitrary env)
+ARG HTTP_PROXY=
+ARG HTTPS_PROXY=
+ARG NO_PROXY=localhost,127.0.0.1,::1,.local,host.docker.internal
+ARG HASP_SERVER_ADDR=
+
+LABEL org.opencontainers.image.title="1c-agent-oh" \
+      org.opencontainers.image.description="OpenHands agent-server + 1C platform/EDT/1c-dev" \
+      openhands.agent_server.version="${OH_AGENT_SERVER_VERSION}"
+
+USER root
+
+ENV HTTP_PROXY=${HTTP_PROXY} \
+    HTTPS_PROXY=${HTTPS_PROXY} \
+    NO_PROXY=${NO_PROXY} \
+    http_proxy=${HTTP_PROXY} \
+    https_proxy=${HTTPS_PROXY} \
+    no_proxy=${NO_PROXY} \
+    HASP_SERVER_ADDR=${HASP_SERVER_ADDR}
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends tini curl ca-certificates tmux \
+  && rm -rf /var/lib/apt/lists/* \
+  && curl -fsSL \
+      "https://github.com/OpenHands/software-agent-sdk/releases/download/v${OH_AGENT_SERVER_VERSION}/agent-server-${OH_AGENT_SERVER_VERSION}-linux-x86_64" \
+      -o /usr/local/bin/openhands-agent-server \
+  && chmod 755 /usr/local/bin/openhands-agent-server \
+  && (grep -Eq "^[^:]*:[^:]*:${OH_GID}:" /etc/group || groupadd -g "${OH_GID}" "${OH_USERNAME}") \
+  && (grep -Eq "^${OH_USERNAME}:" /etc/passwd || \
+        useradd -m -u "${OH_UID}" -g "${OH_GID}" -s /bin/bash "${OH_USERNAME}") \
+  && mkdir -p /workspace/project /home/${OH_USERNAME} /etc/1c-agent /opt/1cv8/conf \
+      /var/openhands/.openhands /var/openhands/conversations \
+  && chown -R ${OH_USERNAME}:${OH_USERNAME} \
+      /workspace /home/${OH_USERNAME} /etc/1c-agent /opt/1cv8/conf /var/openhands \
+  && chmod 1777 /tmp \
+  # Bake org CAs into system trust at build time (runtime update needs root)
+  && if [ -x /opt/1c-agent/scripts/apply-certs.sh ]; then \
+       ORG_CERTS_DIR=/certs /opt/1c-agent/scripts/apply-certs.sh || true; \
+     fi \
+  # Pre-write nethasp if HASP baked
+  && if [ -n "$HASP_SERVER_ADDR" ] && [ -f /opt/1c-agent/nethasp.ini.template ]; then \
+       sed "s/\${HASP_SERVER_ADDR}/${HASP_SERVER_ADDR}/g" \
+         /opt/1c-agent/nethasp.ini.template >/opt/1cv8/conf/nethasp.ini; \
+       chown ${OH_USERNAME}:${OH_USERNAME} /opt/1cv8/conf/nethasp.ini; \
+     fi \
+  # Allow openhands to use 1c tools / java trust updates soft-fail
+  && chmod -R a+rX /opt/1cv8 /opt/1C /opt/1c-dev-venv /usr/local/bin/1c-dev 2>/dev/null || true
+
+COPY entrypoint-openhands.sh /usr/local/bin/agent-entrypoint-oh.sh
+# Refresh agent scripts without rebuilding full base (seed/bootstrap evolve often).
+COPY scripts/ /opt/1c-agent/scripts/
+RUN chmod +x /usr/local/bin/agent-entrypoint-oh.sh /opt/1c-agent/scripts/*.sh \
+  && printf '%s\n' \
+       "export HTTP_PROXY='${HTTP_PROXY}'" \
+       "export HTTPS_PROXY='${HTTPS_PROXY}'" \
+       "export NO_PROXY='${NO_PROXY}'" \
+       "export http_proxy='${HTTP_PROXY}'" \
+       "export https_proxy='${HTTPS_PROXY}'" \
+       "export no_proxy='${NO_PROXY}'" \
+       > /etc/1c-agent/proxy.env \
+  && chown ${OH_USERNAME}:${OH_USERNAME} /etc/1c-agent/proxy.env
+
+ENV LC_ALL=C.UTF-8 \
+    LANG=C.UTF-8 \
+    LOG_JSON=true \
+    OH_PORT=8000 \
+    SKIP_DOCTOR=1 \
+    OH_CONVERSATION_RUNTIME=local \
+    OPENHANDS_SUPPRESS_BANNER=1 \
+    SSL_VERIFY=False \
+    LITELLM_SSL_VERIFY=False
+
+WORKDIR /workspace
+EXPOSE 8000 5900
+
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/agent-entrypoint-oh.sh"]
+CMD []

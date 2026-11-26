@@ -1,0 +1,6 @@
+{
+  "transport": "stdio",
+  "command": "1c-dev",
+  "args": ["mcp"],
+  "description": "1c-dev toolchain MCP (stdio inside conversation /workspace)"
+}

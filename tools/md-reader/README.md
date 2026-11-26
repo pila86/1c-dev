@@ -5,7 +5,7 @@ Thin Java CLI over [MDClasses](https://github.com/1c-syntax/mdclasses) → Metad
 Читает и конфигурацию, и расширение: `MDClasses.createConfiguration` → cast к `CF`
 (`Configuration` и `ConfigurationExtension` реализуют один интерфейс).
 
-В git — исходники и **Gradle Wrapper** (8.10.2). Готовый jar **не** в репозитории: ставится в пользовательский cache через `1c-dev tools sync` или скрипт fetch.
+В git — исходники и **Gradle Wrapper** (9.1+; нужен для JDK 25). Готовый jar **не** в репозитории: ставится в пользовательский cache через `1c-dev tools sync` или скрипт fetch.
 
 ```bash
 1c-dev tools sync

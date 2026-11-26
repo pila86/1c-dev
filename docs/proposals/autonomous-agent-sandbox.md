@@ -1,8 +1,8 @@
 # Proposal: автономный агент над 1c-dev (OpenHands + Docker)
 
-**Статус:** draft / discussion  
+**Статус:** draft / фазы 0–2 spike (OH UI готов к пробе)  
 **Дата:** 2026-11-26  
-**Обновлено:** 2026-11-26 — код в этом monorepo; OpenHands + EDT + Xvfb/VNC; сборка через обычный **`docker build`** (без buildx)  
+**Обновлено:** 2026-11-26 — `1c-agent-base` + `1c-agent-oh`; Agent Canvas compose (`OH_CONVERSATION_IMAGE`); org CA + HTTP(S) proxy; VNC; MCP example. Фаза 3 (issue→PR) — через Automate Canvas после LLM/git tokens. См. [docker/agent/README](../../docker/agent/README.md).  
 **Связано:** [overview](../explanation/overview.md), [dependencies](../explanation/dependencies.md), [ADR-005](../adr/005-environment-discovery.md), [ADR-016](../adr/016-ide-configure.md), [ADR-032](../adr/032-edt-source-adapter.md), [ADR-033](../adr/033-external-tools-manager.md), шаблон [AGENTS.md](../../templates/configuration/AGENTS.md)
 
 ## Зачем
@@ -335,9 +335,7 @@ Smoke: `build` (и EDT-export) до старта дорогой conversation.
 
 ## Следующий конкретный шаг
 
-В **этом** репозитории, spike фазы 0:
-
-1. Завести `docker/agent/` + gitignore для `distr/`.
-2. `Dockerfile.base`: платформа + EDT + Xvfb/VNC + `1c-dev`, HASP → `nethasp.ini`.
-3. Убедиться: `doctor` green, `1cv8` виден по VNC, `build`/`check` на fixture.
-4. Затем — сборка OH agent-server и одна conversation до draft PR.
+1. `./docker/agent/build-oh.sh` + `docker compose -f docker/agent/compose.yml --env-file docker/agent/.env up -d`
+2. http://127.0.0.1:3000/canvas — задать LLM, MCP `1c-dev mcp`, прогнать conversation в `1c-agent-oh`
+3. Фаза 3: Automate / draft PR при наличии git+LLM tokens
+4. Опционально: проброс volume `/certs` и HASP env в каждый conversation-container (если OH не наследует)

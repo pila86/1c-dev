@@ -8,7 +8,13 @@ from pathlib import Path
 
 from adapters.source.xmlgen.resolve import resolve_java
 from core.diagnostics import Diagnostic, error
-from core.toolchain.fetchers import gradlew_cmd, install_jar_pair, pin_artifact_name, run_cmd
+from core.toolchain.fetchers import (
+    gradlew_cmd,
+    install_jar_pair,
+    pin_artifact_name,
+    run_cmd,
+    writable_gradle_project,
+)
 from core.toolchain.manifest import ComponentSpec
 from core.toolchain.progress import ProgressFn, noop_progress
 
@@ -80,55 +86,57 @@ def fetch_docs_facade(
         )
         return None, diagnostics
 
-    gradle_argv = gradlew_cmd(src)
-    if gradle_argv is None:
-        diagnostics.append(
-            error(
-                "gradlew не найден в tools/docs-facade (нужен Gradle Wrapper)",
-                code="1CT013",
-                source="toolchain",
-                suggestion=(
-                    "Переустановите 1c-dev из git/wheel с полным tools/docs-facade (gradlew)."
-                ),
-            )
-        )
-        return None, diagnostics
-
     run_env = dict(os.environ if env is None else env)
     run_env["JAVA_HOME"] = str(java.path.parent.parent)
 
     report(f"→ {spec.id}: gradle fatJar…")
-    cmd = [*gradle_argv, "fatJar", "--no-daemon"]
-    if quiet:
-        cmd.append("-q")
-    build = run_cmd(cmd, cwd=str(src), env=run_env, quiet=quiet)
-    if build.returncode != 0:
-        diagnostics.append(
-            error(
-                "Сборка docs-facade через Gradle завершилась с ошибкой",
-                code="1CT014",
-                source="toolchain",
-                suggestion=(build.stderr or build.stdout or "").strip()[:500]
-                or "См. вывод Gradle выше.",
+    with writable_gradle_project(src) as work:
+        gradle_argv = gradlew_cmd(work)
+        if gradle_argv is None:
+            diagnostics.append(
+                error(
+                    "gradlew не найден в tools/docs-facade (нужен Gradle Wrapper)",
+                    code="1CT013",
+                    source="toolchain",
+                    suggestion=(
+                        "Переустановите 1c-dev из git/wheel с полным "
+                        "tools/docs-facade (gradlew)."
+                    ),
+                )
             )
-        )
-        return None, diagnostics
+            return None, diagnostics
 
-    built = src / "build" / "libs" / "docs-facade.jar"
-    if not built.is_file():
-        diagnostics.append(
-            error(
-                f"Собранный docs-facade jar не найден: {built}",
-                code="1CT014",
-                source="toolchain",
+        cmd = [*gradle_argv, "fatJar", "--no-daemon"]
+        if quiet:
+            cmd.append("-q")
+        build = run_cmd(cmd, cwd=str(work), env=run_env, quiet=quiet)
+        if build.returncode != 0:
+            diagnostics.append(
+                error(
+                    "Сборка docs-facade через Gradle завершилась с ошибкой",
+                    code="1CT014",
+                    source="toolchain",
+                    suggestion=(build.stderr or build.stdout or "").strip()[:500]
+                    or "См. вывод Gradle выше.",
+                )
             )
-        )
-        return None, diagnostics
+            return None, diagnostics
 
-    stable_path = install_jar_pair(
-        built=built,
-        tools_dir=tools_dir,
-        artifact=artifact,
-        pin=pin,
-    )
+        built = work / "build" / "libs" / "docs-facade.jar"
+        if not built.is_file():
+            diagnostics.append(
+                error(
+                    f"Собранный docs-facade jar не найден: {built}",
+                    code="1CT014",
+                    source="toolchain",
+                )
+            )
+            return None, diagnostics
+
+        stable_path = install_jar_pair(
+            built=built,
+            tools_dir=tools_dir,
+            artifact=artifact,
+            pin=pin,
+        )
     return stable_path, diagnostics

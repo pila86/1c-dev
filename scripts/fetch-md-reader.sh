@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build md-reader jar into the local 1c-dev tools cache (ADR-012).
-# Requires: JDK 21+ (MDClasses 0.20.0). Uses tools/md-reader/gradlew (Gradle 8.10.2).
+# Requires: JDK 21+ (MDClasses 0.20.0). Uses tools/md-reader/gradlew (Gradle 9.1+; JDK 25 OK).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -6,6 +6,9 @@ import hashlib
 import shutil
 import subprocess
 import sys
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 
@@ -77,6 +80,42 @@ def gradlew_cmd(project_dir: Path) -> list[str] | None:
         if script.is_file():
             return ["sh", str(script)]
     return None
+
+
+def _dir_is_writable(path: Path) -> bool:
+    """True if we can create a file under ``path`` (Gradle needs .gradle/build)."""
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        probe = path / ".1c-dev-write-probe"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink(missing_ok=True)
+        return True
+    except OSError:
+        return False
+
+
+@contextmanager
+def writable_gradle_project(src: Path) -> Iterator[Path]:
+    """Yield a Gradle project dir that is writable by the current user.
+
+    Wheel/site-packages layouts ship ``tools/md-reader`` read-only for non-root
+    (e.g. OpenHands uid 10001). Copy to a temp tree when needed so ``gradlew``
+    can create ``.gradle/`` and ``build/``.
+    """
+    if _dir_is_writable(src):
+        yield src
+        return
+    tmp = Path(tempfile.mkdtemp(prefix="1c-dev-gradle-"))
+    try:
+        dest = tmp / src.name
+        shutil.copytree(
+            src,
+            dest,
+            ignore=shutil.ignore_patterns(".gradle", "build", "bin", ".1c-dev-write-probe"),
+        )
+        yield dest
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def find_git() -> str | None:

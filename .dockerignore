@@ -1,0 +1,26 @@
+# Build context for docker/agent (repo root). Keep lean; keep source + distr/.
+# Do NOT ignore core/build — that is a Python package, not a build artifact.
+.git
+.git/**
+**/__pycache__
+**/*.pyc
+.venv
+venv
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.cache
+.runtime
+.patterns-ab
+.opencode-it
+.bakeoff
+.cursor
+.github
+docs/archive
+agent-transcripts
+**/node_modules
+**/.gradle
+tools/md-reader/build
+tools/docs-facade/build
+tools/md-reader/.gradle
+tools/docs-facade/.gradle

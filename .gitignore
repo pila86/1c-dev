@@ -38,3 +38,15 @@ Thumbs.db
 
 # LLM creds for integration / agent tests
 tests/.env.integration
+
+# Local 1C / EDT distributives for docker/agent (never commit)
+/distr/**
+!/distr/.gitkeep
+
+# docker/agent local secrets / org material
+docker/agent/.env
+docker/agent/proxy.env
+docker/agent/certs/**
+!docker/agent/certs/.gitkeep
+docker/agent/projects/**
+!docker/agent/projects/.gitkeep

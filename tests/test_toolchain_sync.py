@@ -387,3 +387,38 @@ def test_gradlew_cmd_unix_via_sh(monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     script.chmod(0o644)  # no +x — wheel/checkout case
     monkeypatch.setattr("core.toolchain.fetchers.sys.platform", "linux")
     assert gradlew_cmd(tmp_path) == ["sh", str(script)]
+
+
+def test_writable_gradle_project_uses_src_when_writable(tmp_path: Path) -> None:
+    from core.toolchain.fetchers import writable_gradle_project
+
+    src = tmp_path / "md-reader"
+    src.mkdir()
+    (src / "gradlew").write_text("#!/bin/sh\n", encoding="utf-8")
+    with writable_gradle_project(src) as work:
+        assert work == src
+
+
+def test_writable_gradle_project_copies_when_readonly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from core.toolchain import fetchers as fetchers_mod
+
+    src = tmp_path / "md-reader"
+    src.mkdir()
+    (src / "gradlew").write_text("#!/bin/sh\n", encoding="utf-8")
+    (src / "build.gradle").write_text("//\n", encoding="utf-8")
+    nested = src / "src"
+    nested.mkdir()
+    (nested / "Main.java").write_text("class Main {}\n", encoding="utf-8")
+
+    monkeypatch.setattr(fetchers_mod, "_dir_is_writable", lambda _path: False)
+    with fetchers_mod.writable_gradle_project(src) as work:
+        assert work != src
+        assert (work / "gradlew").is_file()
+        assert (work / "build.gradle").is_file()
+        assert (work / "src" / "Main.java").is_file()
+        # temp copy must be writable for Gradle
+        probe = work / "write-ok"
+        probe.write_text("ok", encoding="utf-8")
+    assert not work.exists()
