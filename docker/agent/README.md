@@ -54,7 +54,7 @@ Conversation entrypoint только **seed** jars в user cache (uid 10001).
 
 | Service | Settings URL | Примечание |
 |---------|--------------|------------|
-| `bsl-ls` | `http://127.0.0.1:18767/mcp` | publish на хост + forward в conversation |
+| `bsl-ls` | `http://127.0.0.1:18767/mcp` | + mount `GIT_REPO_HOST_PATH` → `/workspace` (для `register_workspace_folder`) |
 | `v8std-mcp` | `http://127.0.0.1:18766/mcp` | + `v8std-site` (корпус) |
 | `mcp-atlassian` | `http://127.0.0.1:18768/mcp` | Jira/Confluence; образ ≡ `uvx mcp-atlassian` |
 | bsl-search | profile `mcp-search` | тяжёлый ES; опционально |
@@ -179,7 +179,7 @@ docker build -t 1c-agent-oh:8.5.1-edt2026.2 \
 | `DOCKER_GID` | GID группы `docker` на хосте (сокет) |
 | `VNC_PASSWORD` / `VNC_PORT` | VNC (debug profile; порт по умолчанию 5901) |
 | `EDT_JAVA_XMX` | heap `1cedtcli` |
-| `GIT_REPO_HOST_PATH` | host checkout → `/workspace` conversation (RW, коммиты) |
+| `GIT_REPO_HOST_PATH` | host checkout → `/workspace` conversation (RW) и `bsl-ls` (RO) |
 | `GIT_REPO_URL` / `GIT_BRANCH` | метаданные remote/ветки (опционально) |
 | `GIT_AUTHOR_NAME` / `GIT_AUTHOR_EMAIL` | identity для `git commit` в sandbox |
 | `MCP_BOOTSTRAP_WAIT_SECS` | таймаут ожидания Canvas API для сида MCP (default 180) |

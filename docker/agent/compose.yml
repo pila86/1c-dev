@@ -11,6 +11,7 @@
 # Heavy bsl-search (ES): --profile mcp-search
 #
 # Git workspace: bind-mount GIT_REPO_HOST_PATH into conversation /workspace
+# and into sibling bsl-ls at the same path (register_workspace_folder).
 # (no clone at image build). UI isolated-workspaces are bypassed via docker-wrapper.
 #
 # Sibling MCP (bsl-ls, v8std) share the compose network. docker-wrapper attaches
@@ -111,6 +112,9 @@ services:
       - ./scripts/run-bsl-ls.sh:/usr/local/bin/run-bsl-ls.sh:ro
       # Prefer pre-installed jar from tools share when present
       - ${TOOLS_SHARE_HOST_DIR:-/home/openhands/.openhands/1c-dev-share}/tools/bsl-ls/lib:/share-lib:ro
+      # Same host checkout as conversation /workspace. Agent calls
+      # register_workspace_folder("/workspace") — path must exist here too.
+      - ${GIT_REPO_HOST_PATH:-./projects}:/workspace:ro
     entrypoint: ["/bin/sh", "-ec"]
     command:
       - |
