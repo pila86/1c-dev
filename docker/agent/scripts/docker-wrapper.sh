@@ -92,12 +92,17 @@ while [[ $i -le $# ]]; do
       )
     fi
     if [[ -n "$CACHE_HOST" ]]; then
-      mkdir -p "$CACHE_HOST" 2>/dev/null || true
+      # Host path or named volume (e.g. 1c-agent_toolchain_cache).
+      if [[ "$CACHE_HOST" == /* ]]; then
+        mkdir -p "$CACHE_HOST" 2>/dev/null || true
+      fi
       printf '[docker-wrapper] toolchain cache <- %s\n' "$CACHE_HOST" >&2
       out+=(-v "${CACHE_HOST}:/var/openhands/.openhands/.cache/1c-dev")
     fi
     if [[ -n "$SHARE_HOST" ]]; then
-      mkdir -p "$SHARE_HOST" 2>/dev/null || true
+      if [[ "$SHARE_HOST" == /* ]]; then
+        mkdir -p "$SHARE_HOST" 2>/dev/null || true
+      fi
       printf '[docker-wrapper] tools share <- %s\n' "$SHARE_HOST" >&2
       out+=(-v "${SHARE_HOST}:/var/openhands/.openhands/.local/share/1c-dev")
     fi
@@ -105,15 +110,13 @@ while [[ $i -le $# ]]; do
       printf '[docker-wrapper] network <- %s\n' "$COMPOSE_NET" >&2
       out+=(--network "$COMPOSE_NET")
     fi
-    # Sibling MCP live in compose — skip in-container tools install / services up.
-    # NO_PROXY must include 127.0.0.1 (Settings URLs) and compose DNS names.
+    # Sibling MCP live in compose. NO_PROXY: Settings 127.0.0.1 + compose DNS.
     _no_proxy="${NO_PROXY:-localhost,127.0.0.1,::1,.local,host.docker.internal,bsl-ls,v8std-mcp,v8std,v8std-site,mcp,mcp-atlassian}"
     out+=(
-      -e "SKIP_TOOLS_BOOTSTRAP=${SKIP_TOOLS_BOOTSTRAP:-1}"
-      -e "TOOLS_BOOTSTRAP_SERVICES=${TOOLS_BOOTSTRAP_SERVICES:-}"
-      -e "TOOLS_BOOTSTRAP_FORCE=${TOOLS_BOOTSTRAP_FORCE:-0}"
       -e "ONEC_TOOLCHAIN_BAKE=${ONEC_TOOLCHAIN_BAKE:-/opt/1c-dev-cache/1c-dev}"
       -e "MCP_LOCAL_FORWARD=${MCP_LOCAL_FORWARD:-1}"
+      -e "BSLLS_MCP_PORT=${BSLLS_MCP_PORT:-18767}"
+      -e "V8STD_MCP_PORT=${V8STD_MCP_PORT:-18766}"
       -e "MCP_ATLASSIAN_PORT=${MCP_ATLASSIAN_PORT:-18768}"
       -e "NO_PROXY=${_no_proxy}"
       -e "no_proxy=${_no_proxy}"

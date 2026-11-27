@@ -32,7 +32,7 @@ elif [[ -f /etc/1c-agent/certs.env ]]; then
   source /etc/1c-agent/certs.env || true
 fi
 
-# Corp Cognitum / MITM proxies: some org CAs omit critical Basic Constraints;
+# Corp / MITM proxies: some org CAs omit critical Basic Constraints;
 # OpenSSL 3 + LiteLLM/aiohttp then fail verify even when the CA is in the store.
 # Match tests/.env.integration (LLM_VERIFY_SSL=false). Override with SSL_VERIFY=true.
 if [[ "${SSL_VERIFY:-False}" =~ ^([Ff]alse|0|no|NO)$ ]]; then
@@ -115,18 +115,26 @@ export PATH="/opt/1cv8/current:/opt/1C/1CE/components/1cedtcli:/opt/1C/1CE/compo
 
 # Seed baked toolchain (md-reader/docs-facade/apache/…) into user cache.
 # Avoids Gradle into read-only site-packages (1CT014) and gcc build on every start.
+# Cache volume must be writable by uid 10001 (openhands-init chowns toolchain_cache).
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}"
+export XDG_DATA_HOME="${XDG_DATA_HOME:-${HOME:-/tmp}/.local/share}"
 if [[ -x /opt/1c-agent/scripts/seed-toolchain-cache.sh ]]; then
-  /opt/1c-agent/scripts/seed-toolchain-cache.sh || log "seed-toolchain skipped/failed"
+  if /opt/1c-agent/scripts/seed-toolchain-cache.sh; then
+    log "seed-toolchain ok (XDG_CACHE_HOME=$XDG_CACHE_HOME)"
+  else
+    log "ERROR: seed-toolchain failed — md-reader/jars may be missing"
+  fi
 fi
 
 # Bridge Settings URLs http://127.0.0.1:<port>/mcp → sibling compose DNS.
 # Canvas Test uses host-published 127.0.0.1; conversation uses the same URL via forward.
 if [[ "${MCP_LOCAL_FORWARD:-1}" == "1" && -f /opt/1c-agent/scripts/mcp-local-forward.py ]]; then
   if getent hosts bsl-ls >/dev/null 2>&1; then
+    # Listen = Settings/host publish port; remote = fixed container port 18767.
     python3 /opt/1c-agent/scripts/mcp-local-forward.py \
-      "${BSLLS_MCP_PORT:-18767}" bsl-ls "${BSLLS_MCP_PORT:-18767}" \
+      "${BSLLS_MCP_PORT:-18767}" bsl-ls 18767 \
       >/tmp/mcp-fwd-bsl-ls.log 2>&1 &
-    log "mcp-forward bsl-ls on 127.0.0.1:${BSLLS_MCP_PORT:-18767}"
+    log "mcp-forward bsl-ls on 127.0.0.1:${BSLLS_MCP_PORT:-18767} → bsl-ls:18767"
   fi
   if getent hosts v8std-mcp >/dev/null 2>&1; then
     python3 /opt/1c-agent/scripts/mcp-local-forward.py \
@@ -142,10 +150,7 @@ if [[ "${MCP_LOCAL_FORWARD:-1}" == "1" && -f /opt/1c-agent/scripts/mcp-local-for
   fi
 fi
 
-# External catalog tools (usually SKIP — siblings in compose).
-if [[ -x /opt/1c-agent/scripts/bootstrap-external-tools.sh ]]; then
-  /opt/1c-agent/scripts/bootstrap-external-tools.sh || log "tools-bootstrap skipped/failed"
-fi
+# Sibling MCP live in compose (bsl-ls / v8std / mcp-atlassian) — no in-container tools bootstrap.
 # Optional doctor gate (default off for OH — slow); set SKIP_DOCTOR=0 to enable.
 if [[ "${SKIP_DOCTOR:-1}" != "1" ]] && command -v 1c-dev >/dev/null 2>&1; then
   log "Running 1c-dev doctor"

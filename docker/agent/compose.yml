@@ -1,33 +1,52 @@
 # OpenHands Agent Canvas + 1c-agent sandbox + sibling MCP tools.
 #
-# Build:
 #   ./docker/agent/build-oh.sh
-# Run:
-#   cp docker/agent/.env.example docker/agent/.env
+#   cp docker/agent/.env.example docker/agent/.env   # edit LLM_*, GIT_REPO_*, HASP, …
 #   docker compose -f docker/agent/compose.yml --env-file docker/agent/.env up -d
 #
-# UI: http://127.0.0.1:3000/canvas
-# Debug sandbox (VNC+/health): --profile debug
-# Heavy bsl-search (ES): --profile mcp-search
+# UI:      http://127.0.0.1:3000/canvas
+# Debug:   --profile debug   (sandbox-debug: mounts/env visible here)
+# Search:  --profile mcp-search
 #
-# Git workspace: bind-mount GIT_REPO_HOST_PATH into conversation /workspace
-# and into sibling bsl-ls at the same path (register_workspace_folder).
-# (no clone at image build). UI isolated-workspaces are bypassed via docker-wrapper.
-#
-# Sibling MCP (bsl-ls, v8std) share the compose network. docker-wrapper attaches
-# each conversation with --network 1c-agent_default so DNS names resolve.
+# Conversation containers are NOT listed below — Canvas starts them via docker.sock.
+# scripts/docker-wrapper.sh (mounted as /usr/local/bin/docker) injects on docker run:
+#   GIT_REPO_HOST_PATH → /workspace, toolchain cache/share, --network OH_COMPOSE_NETWORK,
+#   host entrypoint/scripts (OH_INJECT_*). See README.
 
 name: 1c-agent
 
 services:
+  # Ensure Canvas data + toolchain volumes writable by uid 10001 (no manual chown).
+  # OPENHANDS_DATA_DIR path on host MUST equal path in container (docker.sock -v).
+  openhands-init:
+    image: ${OH_INIT_IMAGE:-alpine:3.20}
+    container_name: 1c-openhands-init
+    user: "0:0"
+    volumes:
+      - ${OPENHANDS_DATA_DIR:-/home/openhands/.openhands}:/data
+      - toolchain_cache:/toolchain
+      - tools_share:/share
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        mkdir -p /data /toolchain /share
+        chown -R 10001:10001 /data /toolchain /share
+        chmod 700 /data
+        chmod 755 /toolchain /share
+        echo "openhands data ok: $(ls -lad /data)"
+        echo "toolchain ok: $(ls -lad /toolchain)"
+        echo "tools share ok: $(ls -lad /share)"
+    restart: "no"
+
   openhands:
     image: ${OPENHANDS_APP_IMAGE:-ghcr.io/openhands/agent-canvas:latest}
     container_name: 1c-openhands
-    # Host network is required for OH_CONVERSATION_RUNTIME=docker when Canvas
-    # itself runs in a container: conversation ports are published on the host
-    # as 127.0.0.1:<ephemeral>, and the outer Agent Server health-checks that
-    # address. Bridge networking makes those checks hit the Canvas container.
+    # Host network: Canvas health-checks conversation on 127.0.0.1:<ephemeral>.
+    # Bridge would probe the Canvas container itself instead of the host publish.
     network_mode: host
+    depends_on:
+      openhands-init:
+        condition: service_completed_successfully
     group_add:
       - "${DOCKER_GID:-137}"
     environment:
@@ -55,28 +74,32 @@ services:
       OH_INJECT_OH_ENTRYPOINT: ${OH_AGENT_HOST_DIR:-}/entrypoint-openhands.sh
       OH_INJECT_OH_SCRIPTS: ${OH_AGENT_HOST_DIR:-}/scripts
       MCP_ATLASSIAN_PORT: ${MCP_ATLASSIAN_PORT:-18768}
+      # Host/Settings/forwarder listen ports (injected into conversations).
+      BSLLS_MCP_PORT: ${BSLLS_MCP_PORT:-18767}
+      V8STD_MCP_PORT: ${V8STD_MCP_PORT:-18766}
       EDT_JAVA_XMX: ${EDT_JAVA_XMX:-8g}
       OH_INJECT_GIT_REPO_HOST_PATH: ${GIT_REPO_HOST_PATH:-}
       OH_INJECT_GIT_REPO_URL: ${GIT_REPO_URL:-}
       OH_INJECT_GIT_BRANCH: ${GIT_BRANCH:-}
       OH_INJECT_IMAGE_MATCH: ${AGENT_SERVER_IMAGE_REPOSITORY:-1c-agent-oh}
-      OH_INJECT_TOOLCHAIN_CACHE_HOST: ${TOOLCHAIN_CACHE_HOST_DIR:-/home/openhands/.openhands/1c-dev-cache}
-      OH_INJECT_TOOLS_SHARE_HOST: ${TOOLS_SHARE_HOST_DIR:-/home/openhands/.openhands/1c-dev-share}
+      # Named volumes (not host paths) — no chown/ACL. docker run -v name:dest works.
+      OH_INJECT_TOOLCHAIN_CACHE_HOST: ${TOOLCHAIN_CACHE_VOLUME:-1c-agent_toolchain_cache}
+      OH_INJECT_TOOLS_SHARE_HOST: ${TOOLS_SHARE_VOLUME:-1c-agent_tools_share}
       # Join conversations to this compose project network (DNS → bsl-ls, v8std).
       OH_INJECT_COMPOSE_NETWORK: ${OH_COMPOSE_NETWORK:-1c-agent_default}
       GIT_AUTHOR_NAME: ${GIT_AUTHOR_NAME:-OpenHands Agent}
       GIT_AUTHOR_EMAIL: ${GIT_AUTHOR_EMAIL:-openhands@local}
       GIT_COMMITTER_NAME: ${GIT_AUTHOR_NAME:-OpenHands Agent}
       GIT_COMMITTER_EMAIL: ${GIT_AUTHOR_EMAIL:-openhands@local}
-      # Sibling MCP in compose — do not start bsl-ls again inside conversation.
-      SKIP_TOOLS_BOOTSTRAP: ${SKIP_TOOLS_BOOTSTRAP:-1}
-      TOOLS_BOOTSTRAP_SERVICES: ${TOOLS_BOOTSTRAP_SERVICES:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${OPENHANDS_HOST_DATA_DIR:-/home/openhands/.openhands}:/home/openhands/.openhands
+      # Host path == container path (docker.sock -v resolved by host dockerd).
+      - ${OPENHANDS_DATA_DIR:-/home/openhands/.openhands}:/home/openhands/.openhands
       - ${PROJECTS_DIR:-./projects}:/projects
       - ${ORG_CERTS_HOST_DIR:-./certs}:/certs:ro
+      # Same absolute path in Canvas + host so dockerd can bind into conversation.
       - ${GIT_REPO_HOST_PATH}:${GIT_REPO_HOST_PATH}
+      # Intercepts `docker run` for 1c-agent-oh — see scripts/docker-wrapper.sh
       - ./scripts/docker-wrapper.sh:/usr/local/bin/docker:ro
     restart: unless-stopped
     healthcheck:
@@ -92,13 +115,15 @@ services:
       retries: 30
       start_period: 10s
 
-  # --- Sibling MCP tools (compose DNS; conversation joins via docker-wrapper) ---
+  # --- Sibling MCP (compose DNS; conversation joins via docker-wrapper) ---
 
   bsl-ls:
     image: ${BSL_LS_IMAGE:-eclipse-temurin:21-jre-jammy}
     container_name: 1c-bsl-ls
     environment:
-      BSLLS_MCP_PORT: ${BSLLS_MCP_PORT:-18767}
+      # Always listen on 18767 inside the container (compose DNS bsl-ls:18767).
+      # Host publish port is BSLLS_MCP_PORT below (may differ if 18767 is taken).
+      BSLLS_MCP_PORT: "18767"
       BSLLS_JAR: /data/bsl-language-server.jar
       BSLLS_DOWNLOAD_URL: ${BSLLS_DOWNLOAD_URL:-https://github.com/1c-syntax/bsl-language-server/releases/download/v1.1.0-rc.9/bsl-language-server-1.1.0-rc.9-exec.jar}
       HTTP_PROXY: ${HTTP_PROXY:-}
@@ -110,16 +135,16 @@ services:
     volumes:
       - bsl_ls_data:/data
       - ./scripts/run-bsl-ls.sh:/usr/local/bin/run-bsl-ls.sh:ro
-      # Prefer pre-installed jar from tools share when present
-      - ${TOOLS_SHARE_HOST_DIR:-/home/openhands/.openhands/1c-dev-share}/tools/bsl-ls/lib:/share-lib:ro
+      # Optional pre-seeded jar from tools_share volume
+      - tools_share:/share:ro
       # Same host checkout as conversation /workspace. Agent calls
       # register_workspace_folder("/workspace") — path must exist here too.
       - ${GIT_REPO_HOST_PATH:-./projects}:/workspace:ro
     entrypoint: ["/bin/sh", "-ec"]
     command:
       - |
-        if [ -f /share-lib/bsl-language-server.jar ] && [ ! -s /data/bsl-language-server.jar ]; then
-          cp -a /share-lib/bsl-language-server.jar /data/bsl-language-server.jar
+        if [ -f /share/tools/bsl-ls/lib/bsl-language-server.jar ] && [ ! -s /data/bsl-language-server.jar ]; then
+          cp -a /share/tools/bsl-ls/lib/bsl-language-server.jar /data/bsl-language-server.jar
         fi
         exec /bin/sh /usr/local/bin/run-bsl-ls.sh
     ports:
@@ -283,36 +308,10 @@ services:
   # Enable profile after `1c-dev tools install bsl-search` and wire build context
   # if you need it; MCP URL seed is optional via MCP_HTTP_SERVERS=…,bsl-search.
 
-  # Optional legacy: HTTP 1c-dev on host :9100 for Canvas UI Test only.
-  mcp-1c-dev:
-    profiles: ["mcp-http"]
-    image: ${OH_CONVERSATION_IMAGE:-1c-agent-oh:8.5.1-edt2026.2}
-    container_name: 1c-mcp-1c-dev
-    network_mode: host
-    environment:
-      MCP_HTTP_HOST: ${MCP_HTTP_HOST:-127.0.0.1}
-      MCP_HTTP_PORT: ${MCP_HTTP_PORT:-9100}
-      AGENT_WORKSPACE: /workspace
-      HASP_SERVER_ADDR: ${HASP_SERVER_ADDR:-}
-      ORG_CERTS_DIR: /certs
-      HTTP_PROXY: ${HTTP_PROXY:-}
-      HTTPS_PROXY: ${HTTPS_PROXY:-}
-      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1,.local,host.docker.internal}
-      http_proxy: ${HTTP_PROXY:-}
-      https_proxy: ${HTTPS_PROXY:-}
-      no_proxy: ${NO_PROXY:-localhost,127.0.0.1,::1,.local,host.docker.internal}
-      SKIP_DOCTOR: "1"
-      SKIP_DISPLAY: "1"
-    volumes:
-      - ${GIT_REPO_HOST_PATH:-./projects}:/workspace
-      - ${ORG_CERTS_HOST_DIR:-./certs}:/certs:ro
-      - ./scripts/run-mcp-http.sh:/usr/local/bin/run-mcp-http.sh:ro
-    entrypoint: ["/bin/bash", "/usr/local/bin/run-mcp-http.sh"]
-    restart: unless-stopped
-
-  openhands-mcp-bootstrap:
-    image: ${MCP_BOOTSTRAP_IMAGE:-curlimages/curl:8.12.1}
-    container_name: 1c-openhands-mcp-bootstrap
+  # One-shot: seed LLM provider/profile + MCP into Canvas Settings.
+  openhands-bootstrap:
+    image: ${OH_BOOTSTRAP_IMAGE:-python:3.12-alpine}
+    container_name: 1c-openhands-bootstrap
     network_mode: host
     depends_on:
       openhands:
@@ -325,16 +324,25 @@ services:
       OH_API_BASE: http://127.0.0.1:${OPENHANDS_PORT:-3000}
       LOCAL_BACKEND_API_KEY: ${LOCAL_BACKEND_API_KEY:-}
       WAIT_SECS: ${MCP_BOOTSTRAP_WAIT_SECS:-180}
+      LLM_PROVIDER_NAME: ${LLM_PROVIDER_NAME:-local-openai}
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-openai/qwen3.8:27b}
+      LLM_PROFILE_NAME: ${LLM_PROFILE_NAME:-local-qwen}
+      LLM_NATIVE_TOOL_CALLING: ${LLM_NATIVE_TOOL_CALLING:-true}
+      LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-none}
+      LLM_MAX_INPUT_TOKENS: ${LLM_MAX_INPUT_TOKENS:-210000}
+      LLM_MAX_OUTPUT_TOKENS: ${LLM_MAX_OUTPUT_TOKENS:-32000}
       MCP_HTTP_SERVERS: ${MCP_HTTP_SERVERS:-bsl-ls,v8std,atlassian}
       MCP_BSL_LS_URL: ${MCP_BSL_LS_URL:-http://127.0.0.1:18767/mcp}
       MCP_V8STD_URL: ${MCP_V8STD_URL:-http://127.0.0.1:18766/mcp}
       MCP_BSL_SEARCH_URL: ${MCP_BSL_SEARCH_URL:-http://127.0.0.1:18005/mcp}
       MCP_ATLASSIAN_URL: ${MCP_ATLASSIAN_URL:-http://127.0.0.1:18768/mcp}
-      # Avoid Privoxy swallowing sibling / loopback MCP probes from host Canvas.
       NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1,.local,host.docker.internal,bsl-ls,v8std-mcp,v8std,v8std-site,mcp,mcp-atlassian}
     volumes:
-      - ./scripts/ensure-mcp-servers.sh:/ensure-mcp-servers.sh:ro
-    entrypoint: ["/bin/sh", "/ensure-mcp-servers.sh"]
+      - ./scripts/ensure-openhands-settings.py:/ensure-openhands-settings.py:ro
+    entrypoint: ["python3", "/ensure-openhands-settings.py"]
     restart: "no"
 
   sandbox-debug:
@@ -366,8 +374,8 @@ services:
       - "${VNC_PORT:-5901}:5900"
     volumes:
       - ${GIT_REPO_HOST_PATH:-./projects}:/workspace
-      - ${TOOLCHAIN_CACHE_HOST_DIR:-/home/openhands/.openhands/1c-dev-cache}:/root/.cache/1c-dev
-      - ${TOOLS_SHARE_HOST_DIR:-/home/openhands/.openhands/1c-dev-share}:/root/.local/share/1c-dev
+      - toolchain_cache:/root/.cache/1c-dev
+      - tools_share:/root/.local/share/1c-dev
       - ${ORG_CERTS_HOST_DIR:-./certs}:/certs:ro
       - ${PROXY_ENV_FILE:-./proxy.env}:/etc/1c-agent/proxy.env:ro
     networks:
@@ -379,6 +387,8 @@ services:
       - "host.docker.internal:host-gateway"
 
 volumes:
+  toolchain_cache:
+  tools_share:
   sandbox_workspace:
   bsl_ls_data:
   v8std_mcp_cache:
