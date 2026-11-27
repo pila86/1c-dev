@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Wrap docker CLI inside Agent Canvas. Docker conversation runtime uses an
 # isolated empty /workspace and the UI blocks host folders; replace that
-# bind with GIT_REPO_HOST_PATH for 1c-agent-oh runs.
+# bind with OH_WORKSPACES_ROOT/<agent-profile-slug> for 1c-agent-oh runs.
 #
 # Also join the compose project network so conversation resolves sibling MCP
 # DNS names (bsl-ls, v8std, …).
@@ -12,12 +12,13 @@
 set -euo pipefail
 
 REAL_DOCKER="${REAL_DOCKER:-/usr/bin/docker}"
+RESOLVE_PY="${OH_RESOLVE_WORKSPACE_PY:-/usr/local/bin/resolve-oh-workspace.py}"
 
 if [[ "${1:-}" != "run" ]]; then
   exec "$REAL_DOCKER" "$@"
 fi
 
-REPO_HOST="${OH_INJECT_GIT_REPO_HOST_PATH:-}"
+WORKSPACES_ROOT="${OH_INJECT_WORKSPACES_ROOT:-${OH_WORKSPACES_ROOT:-}}"
 IMAGE_RE="${OH_INJECT_IMAGE_MATCH:-1c-agent-oh}"
 CACHE_HOST="${OH_INJECT_TOOLCHAIN_CACHE_HOST:-}"
 SHARE_HOST="${OH_INJECT_TOOLS_SHARE_HOST:-}"
@@ -36,9 +37,76 @@ if [[ "$ours" -eq 0 ]]; then
 fi
 
 # Nothing to inject → passthrough
-if [[ -z "$REPO_HOST" && -z "$CACHE_HOST" && -z "$SHARE_HOST" && -z "$COMPOSE_NET" ]]; then
+if [[ -z "$WORKSPACES_ROOT" && -z "$CACHE_HOST" && -z "$SHARE_HOST" && -z "$COMPOSE_NET" ]]; then
   exec "$REAL_DOCKER" "$@"
 fi
+
+# Canvas passes `-e OH_RUNTIME_LAUNCHED_PROFILE` *without* `=value`.
+# Docker then copies the var from this process environment into the container.
+# The JSON is therefore available here as $OH_RUNTIME_LAUNCHED_PROFILE.
+extract_launched_profile_id() {
+  local raw="${OH_RUNTIME_LAUNCHED_PROFILE:-}"
+  if [[ -z "$raw" ]]; then
+    return 1
+  fi
+  python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print(d.get("agent_profile_id") or "")' \
+    "$raw" 2>/dev/null || return 1
+}
+
+# Compact conversation id in OH_CONVERSATION_WORKTREE_ROOT (.../runtime-data/<32hex>/…)
+extract_conversation_id_from_env() {
+  local val="${OH_CONVERSATION_WORKTREE_ROOT:-}"
+  if [[ "$val" =~ runtime-data/([0-9a-fA-F]{32})(/|$) ]]; then
+    printf '%s\n' "${BASH_REMATCH[1]}"
+    return 0
+  fi
+  # Volume path also contains compact id.
+  local i=1 a
+  while [[ $i -le $# ]]; do
+    a="${!i}"
+    if [[ "$a" =~ runtime-data/([0-9a-fA-F]{32})/ ]]; then
+      printf '%s\n' "${BASH_REMATCH[1]}"
+      return 0
+    fi
+    i=$((i + 1))
+  done
+  return 1
+}
+
+resolve_repo_host() {
+  local profile_id="${1:-}"
+  local conv_id="${2:-}"
+  local path=""
+  local args=()
+  if [[ ! -f "$RESOLVE_PY" ]]; then
+    printf '[docker-wrapper] WARN: resolve script missing (%s)\n' "$RESOLVE_PY" >&2
+  else
+    if [[ -n "$profile_id" ]]; then
+      args+=(--profile-id "$profile_id")
+    fi
+    if [[ -n "$conv_id" ]]; then
+      args+=(--conversation-id "$conv_id")
+    fi
+    if [[ ${#args[@]} -gt 0 ]]; then
+      if path="$(python3 "$RESOLVE_PY" "${args[@]}")"; then
+        if [[ -n "$path" ]]; then
+          printf '%s\n' "$path"
+          return 0
+        fi
+      else
+        printf '[docker-wrapper] ERROR: resolve-oh-workspace failed\n' >&2
+        return 1
+      fi
+    fi
+  fi
+  local def="${OH_DEFAULT_PROJECT:-}"
+  if [[ -z "$WORKSPACES_ROOT" || -z "$def" ]]; then
+    printf '[docker-wrapper] ERROR: cannot resolve workspace (root=%q default=%q)\n' \
+      "$WORKSPACES_ROOT" "$def" >&2
+    return 1
+  fi
+  printf '%s/%s\n' "${WORKSPACES_ROOT%/}" "$def"
+}
 
 is_workspace_mount() {
   local spec="$1"
@@ -47,6 +115,17 @@ is_workspace_mount() {
     *) return 1 ;;
   esac
 }
+
+REPO_HOST=""
+if [[ -n "$WORKSPACES_ROOT" ]]; then
+  PROFILE_ID="$(extract_launched_profile_id "$@" || true)"
+  CONV_ID="$(extract_conversation_id_from_env "$@" || true)"
+  printf '[docker-wrapper] resolve profile_id=%q conv_id=%q\n' \
+    "${PROFILE_ID:-}" "${CONV_ID:-}" >&2
+  if ! REPO_HOST="$(resolve_repo_host "$PROFILE_ID" "$CONV_ID")"; then
+    exit 1
+  fi
+fi
 
 out=()
 injected=0
@@ -83,8 +162,7 @@ while [[ $i -le $# ]]; do
       printf '[docker-wrapper] /workspace <- %s\n' "$REPO_HOST" >&2
       out+=(
         -v "${REPO_HOST}:/workspace"
-        -e "GIT_REPO_URL=${OH_INJECT_GIT_REPO_URL:-}"
-        -e "GIT_BRANCH=${OH_INJECT_GIT_BRANCH:-}"
+        -e "OH_PROJECT_SLUG=${REPO_HOST##*/}"
         -e "GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-OpenHands Agent}"
         -e "GIT_AUTHOR_EMAIL=${GIT_AUTHOR_EMAIL:-openhands@local}"
         -e "GIT_COMMITTER_NAME=${GIT_COMMITTER_NAME:-${GIT_AUTHOR_NAME:-OpenHands Agent}}"

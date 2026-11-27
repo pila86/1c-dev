@@ -38,7 +38,7 @@ fi
 echo "==> Building $OH_TAG (agent-server $OH_AGENT_SERVER_VERSION)"
 echo "    HTTP_PROXY=${HTTP_PROXY:-<empty>} HASP_SERVER_ADDR=${HASP_SERVER_ADDR:-<empty>}"
 # Bake proxy/HASP into image: conversation containers do not inherit Canvas env.
-# Git workspace is a host bind-mount (GIT_REPO_HOST_PATH via docker-wrapper), not baked.
+# Git workspace is a host bind-mount (OH_WORKSPACES_ROOT/<slug> via docker-wrapper), not baked.
 docker build \
   --build-arg BASE_IMAGE="$BASE_TAG" \
   --build-arg OH_AGENT_SERVER_VERSION="$OH_AGENT_SERVER_VERSION" \

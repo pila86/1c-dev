@@ -1,7 +1,7 @@
 # OpenHands Agent Canvas + 1c-agent sandbox + sibling MCP tools.
 #
 #   ./docker/agent/build-oh.sh
-#   cp docker/agent/.env.example docker/agent/.env   # edit LLM_*, GIT_REPO_*, HASP, …
+#   cp docker/agent/.env.example docker/agent/.env   # edit LLM_*, OH_WORKSPACES_*, HASP, …
 #   docker compose -f docker/agent/compose.yml --env-file docker/agent/.env up -d
 #
 # UI:      http://127.0.0.1:3000/canvas
@@ -10,22 +10,29 @@
 #
 # Conversation containers are NOT listed below — Canvas starts them via docker.sock.
 # scripts/docker-wrapper.sh (mounted as /usr/local/bin/docker) injects on docker run:
-#   GIT_REPO_HOST_PATH → /workspace, toolchain cache/share, --network OH_COMPOSE_NETWORK,
-#   host entrypoint/scripts (OH_INJECT_*). See README.
+#   OH_WORKSPACES_ROOT/<agent-profile> → /workspace (via OH_RUNTIME_LAUNCHED_PROFILE),
+#   toolchain cache/share, --network OH_COMPOSE_NETWORK, entrypoint/scripts. See README.
 
 name: 1c-agent
 
 services:
   # Ensure Canvas data + toolchain volumes writable by uid 10001 (no manual chown).
-  # OPENHANDS_DATA_DIR path on host MUST equal path in container (docker.sock -v).
+  # Also POSIX ACL on OH_WORKSPACES_ROOT projects so conversation uid can write
+  # without chown'ing the developer's checkouts.
+  # OPENHANDS_DATA_DIR / OH_WORKSPACES_ROOT paths on host MUST equal paths in container.
   openhands-init:
     image: ${OH_INIT_IMAGE:-alpine:3.20}
     container_name: 1c-openhands-init
     user: "0:0"
+    environment:
+      OH_WORKSPACES_ROOT: ${OH_WORKSPACES_ROOT:-}
+      OH_PROJECT_SLUGS: ${OH_PROJECT_SLUGS:-}
+      OH_WORKSPACE_UID: ${OH_WORKSPACE_UID:-10001}
     volumes:
       - ${OPENHANDS_DATA_DIR:-/home/openhands/.openhands}:/data
       - toolchain_cache:/toolchain
       - tools_share:/share
+      - ${OH_WORKSPACES_ROOT}:${OH_WORKSPACES_ROOT}
     entrypoint: ["/bin/sh", "-ec"]
     command:
       - |
@@ -36,6 +43,43 @@ services:
         echo "openhands data ok: $(ls -lad /data)"
         echo "toolchain ok: $(ls -lad /toolchain)"
         echo "tools share ok: $(ls -lad /share)"
+
+        # ACL for conversation uid on host checkouts (owner stays the developer).
+        uid="$${OH_WORKSPACE_UID:-10001}"
+        root="$${OH_WORKSPACES_ROOT:-}"
+        if [ -z "$$root" ] || [ ! -d "$$root" ]; then
+          echo "workspace ACL skip: OH_WORKSPACES_ROOT unset or missing ($$root)"
+        else
+          apk add --no-cache acl su-exec >/dev/null
+          slugs="$${OH_PROJECT_SLUGS:-}"
+          if [ -n "$$slugs" ]; then
+            targets=""
+            old_ifs=$$IFS
+            IFS=','
+            for s in $$slugs; do
+              s=$$(echo "$$s" | tr -d ' ')
+              [ -n "$$s" ] || continue
+              targets="$$targets $$root/$$s"
+            done
+            IFS=$$old_ifs
+          else
+            targets=$$(find "$$root" -mindepth 1 -maxdepth 1 -type d ! -name '.*' | sort)
+          fi
+          for d in $$targets; do
+            if [ ! -d "$$d" ]; then
+              echo "workspace ACL skip missing: $$d"
+              continue
+            fi
+            echo "workspace ACL u:$${uid}:rwX on $$d"
+            setfacl -R -m "u:$${uid}:rwX" "$$d" || true
+            setfacl -R -d -m "u:$${uid}:rwX" "$$d" || true
+            if su-exec "$${uid}:$${uid}" sh -c "touch '$$d/.oh-acl-ok' && rm -f '$$d/.oh-acl-ok'"; then
+              echo "workspace ACL probe ok: $$d"
+            else
+              echo "workspace ACL probe WARN: $$d (setfacl applied; touch as $${uid} failed)"
+            fi
+          done
+        fi
     restart: "no"
 
   openhands:
@@ -78,9 +122,9 @@ services:
       BSLLS_MCP_PORT: ${BSLLS_MCP_PORT:-18767}
       V8STD_MCP_PORT: ${V8STD_MCP_PORT:-18766}
       EDT_JAVA_XMX: ${EDT_JAVA_XMX:-8g}
-      OH_INJECT_GIT_REPO_HOST_PATH: ${GIT_REPO_HOST_PATH:-}
-      OH_INJECT_GIT_REPO_URL: ${GIT_REPO_URL:-}
-      OH_INJECT_GIT_BRANCH: ${GIT_BRANCH:-}
+      # Multi-project: wrapper resolves agent profile → OH_WORKSPACES_ROOT/<slug>.
+      OH_INJECT_WORKSPACES_ROOT: ${OH_WORKSPACES_ROOT:-}
+      OH_DEFAULT_PROJECT: ${OH_DEFAULT_PROJECT:-}
       OH_INJECT_IMAGE_MATCH: ${AGENT_SERVER_IMAGE_REPOSITORY:-1c-agent-oh}
       # Named volumes (not host paths) — no chown/ACL. docker run -v name:dest works.
       OH_INJECT_TOOLCHAIN_CACHE_HOST: ${TOOLCHAIN_CACHE_VOLUME:-1c-agent_toolchain_cache}
@@ -97,10 +141,11 @@ services:
       - ${OPENHANDS_DATA_DIR:-/home/openhands/.openhands}:/home/openhands/.openhands
       - ${PROJECTS_DIR:-./projects}:/projects
       - ${ORG_CERTS_HOST_DIR:-./certs}:/certs:ro
-      # Same absolute path in Canvas + host so dockerd can bind into conversation.
-      - ${GIT_REPO_HOST_PATH}:${GIT_REPO_HOST_PATH}
+      # Whole workspaces root (path identity) so dockerd can bind any project checkout.
+      - ${OH_WORKSPACES_ROOT}:${OH_WORKSPACES_ROOT}
       # Intercepts `docker run` for 1c-agent-oh — see scripts/docker-wrapper.sh
       - ./scripts/docker-wrapper.sh:/usr/local/bin/docker:ro
+      - ./scripts/resolve-oh-workspace.py:/usr/local/bin/resolve-oh-workspace.py:ro
     restart: unless-stopped
     healthcheck:
       test:
@@ -137,9 +182,8 @@ services:
       - ./scripts/run-bsl-ls.sh:/usr/local/bin/run-bsl-ls.sh:ro
       # Optional pre-seeded jar from tools_share volume
       - tools_share:/share:ro
-      # Same host checkout as conversation /workspace. Agent calls
-      # register_workspace_folder("/workspace") — path must exist here too.
-      - ${GIT_REPO_HOST_PATH:-./projects}:/workspace:ro
+      # All projects under one root. Agent registers /workspaces/<slug>.
+      - ${OH_WORKSPACES_ROOT}:/workspaces:ro
     entrypoint: ["/bin/sh", "-ec"]
     command:
       - |
@@ -339,9 +383,13 @@ services:
       MCP_V8STD_URL: ${MCP_V8STD_URL:-http://127.0.0.1:18766/mcp}
       MCP_BSL_SEARCH_URL: ${MCP_BSL_SEARCH_URL:-http://127.0.0.1:18005/mcp}
       MCP_ATLASSIAN_URL: ${MCP_ATLASSIAN_URL:-http://127.0.0.1:18768/mcp}
+      OH_WORKSPACES_ROOT: ${OH_WORKSPACES_ROOT:-}
+      OH_DEFAULT_PROJECT: ${OH_DEFAULT_PROJECT:-}
+      OH_PROJECT_SLUGS: ${OH_PROJECT_SLUGS:-}
       NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1,.local,host.docker.internal,bsl-ls,v8std-mcp,v8std,v8std-site,mcp,mcp-atlassian}
     volumes:
       - ./scripts/ensure-openhands-settings.py:/ensure-openhands-settings.py:ro
+      - ${OH_WORKSPACES_ROOT}:${OH_WORKSPACES_ROOT}:ro
     entrypoint: ["python3", "/ensure-openhands-settings.py"]
     restart: "no"
 
@@ -373,7 +421,8 @@ services:
       - "${SANDBOX_PORT:-18000}:8000"
       - "${VNC_PORT:-5901}:5900"
     volumes:
-      - ${GIT_REPO_HOST_PATH:-./projects}:/workspace
+      - ${OH_WORKSPACES_ROOT}/${OH_DEFAULT_PROJECT}:/workspace
+      - ${OH_WORKSPACES_ROOT}:/workspaces:ro
       - toolchain_cache:/root/.cache/1c-dev
       - tools_share:/root/.local/share/1c-dev
       - ${ORG_CERTS_HOST_DIR:-./certs}:/certs:ro

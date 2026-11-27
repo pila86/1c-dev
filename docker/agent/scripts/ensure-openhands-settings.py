@@ -2,6 +2,7 @@
 """Seed Agent Canvas Settings at compose start (idempotent).
 
 - Provider Connection + LLM profile (local openai-compatible)
+- Agent profiles per project under OH_WORKSPACES_ROOT
 - MCP: stdio 1c-dev + HTTP siblings (bsl-ls / v8std / mcp-atlassian)
 
 Uses only stdlib (urllib). Runs in the openhands-bootstrap one-shot service.
@@ -41,6 +42,10 @@ BSL_LS_URL = os.environ.get("MCP_BSL_LS_URL", "http://127.0.0.1:18767/mcp")
 V8STD_URL = os.environ.get("MCP_V8STD_URL", "http://127.0.0.1:18766/mcp")
 BSL_SEARCH_URL = os.environ.get("MCP_BSL_SEARCH_URL", "http://127.0.0.1:18005/mcp")
 ATLASSIAN_URL = os.environ.get("MCP_ATLASSIAN_URL", "http://127.0.0.1:18768/mcp")
+
+OH_WORKSPACES_ROOT = (os.environ.get("OH_WORKSPACES_ROOT") or "").rstrip("/")
+OH_DEFAULT_PROJECT = (os.environ.get("OH_DEFAULT_PROJECT") or "").strip()
+OH_PROJECT_SLUGS = (os.environ.get("OH_PROJECT_SLUGS") or "").strip()
 
 
 def log(msg: str) -> None:
@@ -155,7 +160,8 @@ def ensure_llm_profile(connection_id: str | None) -> None:
             LLM_BASE_URL,
             "",
         ):
-            # Linked connection hides base_url on profile list sometimes — still OK if name+model match
+            # Linked connection hides base_url on profile list sometimes —
+            # still OK if name+model match
             already = True
             break
         if p.get("model") == LLM_MODEL:
@@ -286,6 +292,109 @@ def ensure_agent_profile_llm_ref() -> None:
     log(f"Agent profile '{name}' → LLM '{LLM_PROFILE_NAME}'")
 
 
+def list_project_slugs() -> list[str]:
+    """Subdirs under OH_WORKSPACES_ROOT that become agent profiles."""
+    if not OH_WORKSPACES_ROOT:
+        log("WARN: OH_WORKSPACES_ROOT unset — skip project agent profiles")
+        return []
+    if not os.path.isdir(OH_WORKSPACES_ROOT):
+        log(f"WARN: OH_WORKSPACES_ROOT not a directory: {OH_WORKSPACES_ROOT}")
+        return []
+
+    allow: set[str] | None = None
+    if OH_PROJECT_SLUGS:
+        allow = {s.strip() for s in OH_PROJECT_SLUGS.split(",") if s.strip()}
+
+    slugs: list[str] = []
+    try:
+        names = sorted(os.listdir(OH_WORKSPACES_ROOT))
+    except OSError as exc:
+        log(f"WARN: cannot list {OH_WORKSPACES_ROOT}: {exc}")
+        return []
+
+    for name in names:
+        if name.startswith("."):
+            continue
+        path = os.path.join(OH_WORKSPACES_ROOT, name)
+        if not os.path.isdir(path):
+            continue
+        if allow is not None and name not in allow:
+            continue
+        # Prefer real checkouts; still allow allowlisted dirs without .git.
+        if allow is None and not os.path.isdir(os.path.join(path, ".git")):
+            continue
+        if name == "default":
+            log("WARN: skip project dir named 'default' (reserved agent profile)")
+            continue
+        slugs.append(name)
+    return slugs
+
+
+def project_system_suffix(slug: str) -> str:
+    return (
+        f"You are working on project '{slug}'. "
+        f"The git checkout is mounted at /workspace (read-write). "
+        f"Do not access other host projects. "
+        f"For BSL Language Server MCP call register_workspace_folder("
+        f'"/workspaces/{slug}") before diagnostics.'
+    )
+
+
+def ensure_project_agent_profiles() -> None:
+    """Create/update one agent profile per project slug under OH_WORKSPACES_ROOT."""
+    slugs = list_project_slugs()
+    if not slugs:
+        log("No project slugs to seed as agent profiles")
+        return
+
+    code, detail = api("GET", "/api/agent-profiles/default")
+    base: dict[str, Any] = {}
+    if code == 200 and isinstance(detail, dict):
+        prof = detail.get("profile") if isinstance(detail.get("profile"), dict) else detail
+        if isinstance(prof, dict):
+            base = dict(prof)
+
+    for slug in slugs:
+        suffix = project_system_suffix(slug)
+        body: dict[str, Any] = {
+            "name": slug,
+            "agent_kind": base.get("agent_kind") or "openhands",
+            "llm_profile_ref": LLM_PROFILE_NAME,
+            "system_message_suffix": suffix,
+        }
+        for key in ("condenser", "verification", "agent", "tools", "persona"):
+            if key in base and base[key] is not None:
+                body[key] = base[key]
+
+        # Idempotent: refresh suffix / llm ref if profile already exists.
+        code_get, existing = api("GET", f"/api/agent-profiles/{slug}")
+        if code_get == 200 and isinstance(existing, dict):
+            cur = (
+                existing.get("profile")
+                if isinstance(existing.get("profile"), dict)
+                else existing
+            )
+            if isinstance(cur, dict):
+                merged = dict(cur)
+                merged["llm_profile_ref"] = LLM_PROFILE_NAME
+                merged["system_message_suffix"] = suffix
+                merged["name"] = slug
+                body = merged
+
+        code_save, resp = api("POST", f"/api/agent-profiles/{slug}", body)
+        if code_save not in (200, 201):
+            log(f"ERROR: save agent-profile '{slug}' HTTP {code_save}: {resp}")
+            continue
+        log(f"Agent profile '{slug}' ready (workspace /workspaces/{slug})")
+
+    if OH_DEFAULT_PROJECT and OH_DEFAULT_PROJECT not in slugs:
+        log(
+            f"WARN: OH_DEFAULT_PROJECT={OH_DEFAULT_PROJECT!r} not in seeded slugs "
+            f"{slugs}"
+        )
+    log(f"OK: project agent profiles: {', '.join(slugs)}")
+
+
 def seed_mcp() -> None:
     upsert_mcp(
         "1c-dev",
@@ -381,6 +490,7 @@ def main() -> int:
     conn_id = ensure_provider_connection()
     ensure_llm_profile(conn_id)
     ensure_agent_profile_llm_ref()
+    ensure_project_agent_profiles()
     seed_mcp()
     return 0
 
