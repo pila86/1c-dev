@@ -107,16 +107,27 @@ while [[ $i -le $# ]]; do
     fi
     # Sibling MCP live in compose — skip in-container tools install / services up.
     # NO_PROXY must include 127.0.0.1 (Settings URLs) and compose DNS names.
-    _no_proxy="${NO_PROXY:-localhost,127.0.0.1,::1,.local,host.docker.internal,bsl-ls,v8std-mcp,v8std,v8std-site,mcp}"
+    _no_proxy="${NO_PROXY:-localhost,127.0.0.1,::1,.local,host.docker.internal,bsl-ls,v8std-mcp,v8std,v8std-site,mcp,mcp-atlassian}"
     out+=(
       -e "SKIP_TOOLS_BOOTSTRAP=${SKIP_TOOLS_BOOTSTRAP:-1}"
       -e "TOOLS_BOOTSTRAP_SERVICES=${TOOLS_BOOTSTRAP_SERVICES:-}"
       -e "TOOLS_BOOTSTRAP_FORCE=${TOOLS_BOOTSTRAP_FORCE:-0}"
       -e "ONEC_TOOLCHAIN_BAKE=${ONEC_TOOLCHAIN_BAKE:-/opt/1c-dev-cache/1c-dev}"
       -e "MCP_LOCAL_FORWARD=${MCP_LOCAL_FORWARD:-1}"
+      -e "MCP_ATLASSIAN_PORT=${MCP_ATLASSIAN_PORT:-18768}"
       -e "NO_PROXY=${_no_proxy}"
       -e "no_proxy=${_no_proxy}"
     )
+    # Host entrypoint / scripts override (MCP forwarders etc.). Paths are
+    # resolved by *host* dockerd via the socket — absolute on the host.
+    if [[ -n "${OH_INJECT_OH_ENTRYPOINT:-}" ]]; then
+      printf '[docker-wrapper] entrypoint <- %s\n' "$OH_INJECT_OH_ENTRYPOINT" >&2
+      out+=(-v "${OH_INJECT_OH_ENTRYPOINT}:/usr/local/bin/agent-entrypoint-oh.sh:ro")
+    fi
+    if [[ -n "${OH_INJECT_OH_SCRIPTS:-}" ]]; then
+      printf '[docker-wrapper] scripts <- %s\n' "$OH_INJECT_OH_SCRIPTS" >&2
+      out+=(-v "${OH_INJECT_OH_SCRIPTS}:/opt/1c-agent/scripts:ro")
+    fi
     injected=1
   fi
   out+=("$a")

@@ -46,10 +46,14 @@ services:
       ORG_CERTS_DIR: /certs
       HTTP_PROXY: ${HTTP_PROXY:-}
       HTTPS_PROXY: ${HTTPS_PROXY:-}
-      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1,.local,host.docker.internal,bsl-ls,v8std-mcp,v8std,v8std-site,mcp,192.168.0.0/16}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1,.local,host.docker.internal,bsl-ls,v8std-mcp,v8std,v8std-site,mcp,mcp-atlassian,192.168.0.0/16}
       http_proxy: ${HTTP_PROXY:-}
       https_proxy: ${HTTPS_PROXY:-}
-      no_proxy: ${NO_PROXY:-localhost,127.0.0.1,::1,.local,host.docker.internal,bsl-ls,v8std-mcp,v8std,v8std-site,mcp,192.168.0.0/16}
+      no_proxy: ${NO_PROXY:-localhost,127.0.0.1,::1,.local,host.docker.internal,bsl-ls,v8std-mcp,v8std,v8std-site,mcp,mcp-atlassian,192.168.0.0/16}
+      # Bind-mount host entrypoint/scripts into conversations (no OH image rebuild).
+      OH_INJECT_OH_ENTRYPOINT: ${OH_AGENT_HOST_DIR:-}/entrypoint-openhands.sh
+      OH_INJECT_OH_SCRIPTS: ${OH_AGENT_HOST_DIR:-}/scripts
+      MCP_ATLASSIAN_PORT: ${MCP_ATLASSIAN_PORT:-18768}
       EDT_JAVA_XMX: ${EDT_JAVA_XMX:-8g}
       OH_INJECT_GIT_REPO_HOST_PATH: ${GIT_REPO_HOST_PATH:-}
       OH_INJECT_GIT_REPO_URL: ${GIT_REPO_URL:-}
@@ -195,6 +199,63 @@ services:
       start_period: 90s
       retries: 3
 
+  # Jira/Confluence MCP (HTTP sibling; same pattern as v8std).
+  # Creds: Cloud = JIRA_USERNAME + JIRA_API_TOKEN; Server/DC = JIRA_PERSONAL_TOKEN.
+  # Official image ≡ uvx mcp-atlassian; streamable-http on /mcp.
+  mcp-atlassian:
+    image: ${MCP_ATLASSIAN_IMAGE:-ghcr.io/sooperset/mcp-atlassian:latest}
+    container_name: 1c-mcp-atlassian
+    # Jira hostname often resolves only via corp proxy — keep HTTP(S)_PROXY,
+    # and do NOT put jira.* into NO_PROXY.
+    environment:
+      JIRA_URL: ${JIRA_URL:-}
+      JIRA_USERNAME: ${JIRA_USERNAME:-}
+      JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
+      JIRA_PERSONAL_TOKEN: ${JIRA_PERSONAL_TOKEN:-}
+      JIRA_SSL_VERIFY: ${JIRA_SSL_VERIFY:-false}
+      CONFLUENCE_URL: ${CONFLUENCE_URL:-}
+      CONFLUENCE_USERNAME: ${CONFLUENCE_USERNAME:-}
+      CONFLUENCE_API_TOKEN: ${CONFLUENCE_API_TOKEN:-}
+      CONFLUENCE_PERSONAL_TOKEN: ${CONFLUENCE_PERSONAL_TOKEN:-}
+      CONFLUENCE_SSL_VERIFY: ${CONFLUENCE_SSL_VERIFY:-false}
+      # OH clients do not send per-request auth headers — use server env creds.
+      ALLOW_GLOBAL_CRED_FALLBACK: "true"
+      FASTMCP_HTTP_HOST_ORIGIN_PROTECTION: "false"
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1,.local}
+      http_proxy: ${HTTP_PROXY:-}
+      https_proxy: ${HTTPS_PROXY:-}
+      no_proxy: ${NO_PROXY:-localhost,127.0.0.1,::1,.local}
+    volumes:
+      - ${ORG_CERTS_HOST_DIR:-./certs}:/certs:ro
+    command:
+      [
+        "--transport",
+        "streamable-http",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "9000",
+        "--stateless",
+      ]
+    ports:
+      - "127.0.0.1:${MCP_ATLASSIAN_PORT:-18768}:9000"
+    networks:
+      default:
+        aliases: [mcp-atlassian]
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import socket; s=socket.create_connection(('127.0.0.1',9000),2); s.close()\"",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+
   # Optional: heavy Elasticsearch + bsl-search (profile mcp-search).
   bsl-search-es:
     profiles: ["mcp-search"]
@@ -260,12 +321,13 @@ services:
       OH_API_BASE: http://127.0.0.1:${OPENHANDS_PORT:-3000}
       LOCAL_BACKEND_API_KEY: ${LOCAL_BACKEND_API_KEY:-}
       WAIT_SECS: ${MCP_BOOTSTRAP_WAIT_SECS:-180}
-      MCP_HTTP_SERVERS: ${MCP_HTTP_SERVERS:-bsl-ls,v8std}
+      MCP_HTTP_SERVERS: ${MCP_HTTP_SERVERS:-bsl-ls,v8std,atlassian}
       MCP_BSL_LS_URL: ${MCP_BSL_LS_URL:-http://127.0.0.1:18767/mcp}
       MCP_V8STD_URL: ${MCP_V8STD_URL:-http://127.0.0.1:18766/mcp}
       MCP_BSL_SEARCH_URL: ${MCP_BSL_SEARCH_URL:-http://127.0.0.1:18005/mcp}
+      MCP_ATLASSIAN_URL: ${MCP_ATLASSIAN_URL:-http://127.0.0.1:18768/mcp}
       # Avoid Privoxy swallowing sibling / loopback MCP probes from host Canvas.
-      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1,.local,host.docker.internal,bsl-ls,v8std-mcp,v8std,v8std-site,mcp}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1,.local,host.docker.internal,bsl-ls,v8std-mcp,v8std,v8std-site,mcp,mcp-atlassian}
     volumes:
       - ./scripts/ensure-mcp-servers.sh:/ensure-mcp-servers.sh:ro
     entrypoint: ["/bin/sh", "/ensure-mcp-servers.sh"]

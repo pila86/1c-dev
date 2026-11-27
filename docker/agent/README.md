@@ -56,6 +56,7 @@ Conversation entrypoint только **seed** jars в user cache (uid 10001).
 |---------|--------------|------------|
 | `bsl-ls` | `http://127.0.0.1:18767/mcp` | publish на хост + forward в conversation |
 | `v8std-mcp` | `http://127.0.0.1:18766/mcp` | + `v8std-site` (корпус) |
+| `mcp-atlassian` | `http://127.0.0.1:18768/mcp` | Jira/Confluence; образ ≡ `uvx mcp-atlassian` |
 | bsl-search | profile `mcp-search` | тяжёлый ES; опционально |
 
 Почему `127.0.0.1`, не `http://bsl-ls:…`: Canvas на host network + корп.
@@ -64,19 +65,51 @@ Conversation entrypoint только **seed** jars в user cache (uid 10001).
 
 `docker-wrapper`: `--network 1c-agent_default`. `SKIP_TOOLS_BOOTSTRAP=1`.
 Кэш/share: `TOOLCHAIN_CACHE_HOST_DIR`, `TOOLS_SHARE_HOST_DIR`.
+`OH_AGENT_HOST_DIR` — абсолютный путь к `docker/agent` (bind entrypoint + `scripts/` с forwarders без rebuild образа).
 
 ### MCP в OpenHands Settings (автосид)
 
 `openhands-mcp-bootstrap` → `ensure-mcp-servers.sh`:
 
 - **1c-dev** — stdio в sandbox (`command: 1c-dev`, `args: ["mcp"]`)
-- **bsl-language-server** / **v8std** — `streamable-http` на compose DNS
+- **bsl-language-server** / **v8std** / **mcp-atlassian** — `streamable-http`
+
+**Не** добавляй в UI STDIO `uvx mcp-atlassian` — в conversation sandbox нет `uvx`/creds.
+Сиды HTTP заменят запись с тем же ключом `mcp-atlassian`.
 
 UI **Test connection** часто красный (Canvas на host network, без DNS
 `bsl-ls` / без бинаря `1c-dev`) — нормально. Нужен **новый** conversation.
 
 `.cursor/mcp.json` Canvas не читает. Ручной повтор:
 `./docker/agent/scripts/ensure-mcp-servers.sh`.
+
+### Jira / Confluence (`mcp-atlassian`)
+
+В `docker/agent/.env` (не коммитить токены):
+
+```bash
+# Cloud
+JIRA_URL=https://your-company.atlassian.net
+JIRA_USERNAME=you@company.com
+JIRA_API_TOKEN=...
+
+# или Server/DC
+# JIRA_URL=https://jira.example.corp
+# JIRA_PERSONAL_TOKEN=...
+```
+
+Jira часто резолвится **только через** `HTTP_PROXY`/`HTTPS_PROXY` — не добавляй
+`jira.*` в `NO_PROXY`. Для Server/DC — `JIRA_PERSONAL_TOKEN`; при MITM-прокси
+обычно `JIRA_SSL_VERIFY=false`.
+
+Потом:
+
+```bash
+docker compose -f docker/agent/compose.yml --env-file docker/agent/.env up -d mcp-atlassian
+docker compose -f docker/agent/compose.yml --env-file docker/agent/.env run --rm openhands-mcp-bootstrap
+```
+
+Открой **новый** чат в Canvas и проверь tools Jira.
 
 ### LLM (Cognitum / openai-compatible)
 
@@ -154,7 +187,9 @@ docker build -t 1c-agent-oh:8.5.1-edt2026.2 \
 | `TOOLCHAIN_CACHE_HOST_DIR` | host cache → conversation `~/.cache/1c-dev` |
 | `TOOLS_SHARE_HOST_DIR` | host share → conversation `~/.local/share/1c-dev` |
 | `OH_COMPOSE_NETWORK` | сеть стека для conversation (default `1c-agent_default`) |
-| `MCP_HTTP_SERVERS` | сид HTTP MCP: `bsl-ls,v8std` (опц. `bsl-search`) |
+| `MCP_HTTP_SERVERS` | сид HTTP MCP: `bsl-ls,v8std,atlassian` (опц. `bsl-search`) |
+| `OH_AGENT_HOST_DIR` | abs path `docker/agent` → bind entrypoint в conversation |
+| `JIRA_URL` / `JIRA_*_TOKEN` | creds sibling `mcp-atlassian` (Cloud или Server/DC) |
 | `SKIP_TOOLS_BOOTSTRAP` | default `1` — siblings в compose, не `services up` в sandbox |
 
 ## Фазы

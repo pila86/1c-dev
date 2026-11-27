@@ -17,14 +17,15 @@ SETTINGS_FILE="${TMPDIR}/oh-settings.$$.json"
 RESP_FILE="${TMPDIR}/oh-mcp-resp.$$.json"
 
 # 127.0.0.1 + published ports: Canvas Test (host net, NO_PROXY) works.
-# Conversation: same URL via mcp-local-forward.py → compose DNS (bsl-ls / v8std-mcp).
+# Conversation: same URL via mcp-local-forward.py → compose DNS (bsl-ls / v8std-mcp / mcp-atlassian).
 BSL_LS_URL="${MCP_BSL_LS_URL:-http://127.0.0.1:18767/mcp}"
 V8STD_URL="${MCP_V8STD_URL:-http://127.0.0.1:18766/mcp}"
 BSL_SEARCH_URL="${MCP_BSL_SEARCH_URL:-http://127.0.0.1:18005/mcp}"
+ATLASSIAN_URL="${MCP_ATLASSIAN_URL:-http://127.0.0.1:18768/mcp}"
 
-# Comma-separated extras to seed besides 1c-dev. Default: bsl-ls,v8std
+# Comma-separated extras to seed besides 1c-dev. Default: bsl-ls,v8std,atlassian
 # Set MCP_HTTP_SERVERS=bsl-ls or empty to limit; bsl-search behind profile.
-MCP_HTTP_SERVERS="${MCP_HTTP_SERVERS:-bsl-ls,v8std}"
+MCP_HTTP_SERVERS="${MCP_HTTP_SERVERS:-bsl-ls,v8std,atlassian}"
 
 log() { printf '[ensure-mcp] %s\n' "$*"; }
 
@@ -147,6 +148,12 @@ seed_http() {
       upsert_mcp "bsl-search" \
         "$(printf '{"transport":"streamable-http","url":"%s","description":"bsl-search MCP (sibling compose, profile mcp-search)","enabled":true}' "$BSL_SEARCH_URL")" \
         "$BSL_SEARCH_URL"
+      ;;
+    atlassian|mcp-atlassian)
+      # Replaces UI-added STDIO `uvx mcp-atlassian` (broken in conversation sandbox).
+      upsert_mcp "mcp-atlassian" \
+        "$(printf '{"transport":"streamable-http","url":"%s","description":"Jira/Confluence MCP (sibling compose mcp-atlassian)","enabled":true}' "$ATLASSIAN_URL")" \
+        "$ATLASSIAN_URL"
       ;;
     "" ) ;;
     *)

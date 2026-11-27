@@ -134,6 +134,12 @@ if [[ "${MCP_LOCAL_FORWARD:-1}" == "1" && -f /opt/1c-agent/scripts/mcp-local-for
       >/tmp/mcp-fwd-v8std.log 2>&1 &
     log "mcp-forward v8std on 127.0.0.1:${V8STD_MCP_PORT:-18766}"
   fi
+  if getent hosts mcp-atlassian >/dev/null 2>&1; then
+    python3 /opt/1c-agent/scripts/mcp-local-forward.py \
+      "${MCP_ATLASSIAN_PORT:-18768}" mcp-atlassian 9000 \
+      >/tmp/mcp-fwd-atlassian.log 2>&1 &
+    log "mcp-forward atlassian on 127.0.0.1:${MCP_ATLASSIAN_PORT:-18768}"
+  fi
 fi
 
 # External catalog tools (usually SKIP — siblings in compose).

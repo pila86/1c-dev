@@ -4,46 +4,37 @@
 Used so OpenHands Settings can use http://127.0.0.1:<port>/mcp for both:
 - Canvas Test (host network + published ports), and
 - conversation (compose DNS via this forwarder).
+
+Important: use half-close (SHUT_WR) per direction. Closing both sockets when
+one side EOFs truncates large chunked/SSE MCP responses (e.g. mcp-atlassian
+tools/list) and surfaces as "SSE stream ended without a response".
 """
 from __future__ import annotations
 
 import errno
-import selectors
 import socket
 import sys
 import threading
 
 
-def _pipe(a: socket.socket, b: socket.socket) -> None:
-    sel = selectors.DefaultSelector()
-    sel.register(a, selectors.EVENT_READ, b)
-    sel.register(b, selectors.EVENT_READ, a)
+def _pipe_one(src: socket.socket, dst: socket.socket) -> None:
     try:
         while True:
-            for key, _ in sel.select(timeout=300):
-                src: socket.socket = key.fileobj  # type: ignore[assignment]
-                dst: socket.socket = key.data
-                try:
-                    data = src.recv(65536)
-                except OSError:
-                    return
-                if not data:
-                    return
-                try:
-                    dst.sendall(data)
-                except OSError:
-                    return
+            try:
+                data = src.recv(65536)
+            except OSError:
+                break
+            if not data:
+                break
+            try:
+                dst.sendall(data)
+            except OSError:
+                break
     finally:
-        sel.close()
-        for s in (a, b):
-            try:
-                s.shutdown(socket.SHUT_RDWR)
-            except OSError:
-                pass
-            try:
-                s.close()
-            except OSError:
-                pass
+        try:
+            dst.shutdown(socket.SHUT_WR)
+        except OSError:
+            pass
 
 
 def _handle(client: socket.socket, remote_host: str, remote_port: int) -> None:
@@ -52,9 +43,19 @@ def _handle(client: socket.socket, remote_host: str, remote_port: int) -> None:
     except OSError:
         client.close()
         return
-    t = threading.Thread(target=_pipe, args=(client, upstream), daemon=True)
-    t.start()
-    _pipe(upstream, client)
+    threads = [
+        threading.Thread(target=_pipe_one, args=(client, upstream), daemon=True),
+        threading.Thread(target=_pipe_one, args=(upstream, client), daemon=True),
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    for s in (client, upstream):
+        try:
+            s.close()
+        except OSError:
+            pass
 
 
 def serve(local_port: int, remote_host: str, remote_port: int) -> None:
@@ -64,12 +65,17 @@ def serve(local_port: int, remote_host: str, remote_port: int) -> None:
         sock.bind(("127.0.0.1", local_port))
     except OSError as exc:
         if exc.errno == errno.EADDRINUSE:
-            print(f"[mcp-forward] 127.0.0.1:{local_port} busy — skip", flush=True)
+            print(
+                "[mcp-forward] 127.0.0.1:{} busy — skip".format(local_port),
+                flush=True,
+            )
             return
         raise
     sock.listen(64)
     print(
-        f"[mcp-forward] 127.0.0.1:{local_port} → {remote_host}:{remote_port}",
+        "[mcp-forward] 127.0.0.1:{} → {}:{}".format(
+            local_port, remote_host, remote_port
+        ),
         flush=True,
     )
     while True:
@@ -82,7 +88,7 @@ def serve(local_port: int, remote_host: str, remote_port: int) -> None:
 def main() -> int:
     if len(sys.argv) != 4:
         print(
-            f"usage: {sys.argv[0]} <local_port> <remote_host> <remote_port}",
+            "usage: {} <local_port> <remote_host> <remote_port>".format(sys.argv[0]),
             file=sys.stderr,
         )
         return 2
